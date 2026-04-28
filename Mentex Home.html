@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mentex — Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles/mentex-tokens.css?v=9"/>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0a0d0a; }
+    html { scrollbar-width: none; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    body { font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; -ms-overflow-style: none; scrollbar-width: none; }
+    *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    #root { width: 100vw; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px 0; box-sizing: border-box;
+            background: radial-gradient(80% 60% at 50% 0%, rgba(61,255,209,0.04), transparent 60%), #050706; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="frames/ios-frame.jsx?v=2"></script>
+  <script type="text/babel" src="frames/tweaks-panel.jsx?v=2"></script>
+  <script type="text/babel" src="components/mentex-icons.jsx?v=2"></script>
+  <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
+  <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
+  <script type="text/babel" src="components/mentex-shared.jsx?v=2"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=2"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=2"></script>
+  <script type="text/babel" src="screens/custom-time-modal.jsx?v=2"></script>
+  <script type="text/babel" src="screens/challenge-views.jsx?v=2"></script>
+  <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
+  <script type="text/babel" src="screens/apps-editor.jsx?v=2"></script>
+  <script type="text/babel" src="screens/routines-editor.jsx?v=2"></script>
+  <script type="text/babel" src="screens/notifications-sheet.jsx?v=2"></script>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "homeState": "inactive",
+      "accentColor": "#3dffcf",
+      "glassIntensity": 20,
+      "cardStyle": "glass",
+      "fontFamily": "Inter"
+    }/*EDITMODE-END*/;
+
+    function MentexApp() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [tab, setTab] = React.useState('home');
+      const [modalOpen, setModalOpen] = React.useState(false);
+      const [view, setView] = React.useState('home'); // 'home' | 'challenges-all' | 'learning-all'
+      const [selectedChallenge, setSelectedChallenge] = React.useState(null);
+      const [selectedLearning, setSelectedLearning] = React.useState(null);
+      const [challenges, setChallenges] = React.useState(() => CHALLENGES);
+      const [learning, setLearning] = React.useState(() => LEARNING);
+      const [routinesCatalog, setRoutinesCatalog] = React.useState(() => DEFAULT_ROUTINES);
+      const [appsEditorOpen, setAppsEditorOpen] = React.useState(false);
+      const [routinesEditorOpen, setRoutinesEditorOpen] = React.useState(false);
+      const [notifsOpen, setNotifsOpen] = React.useState(false);
+      const [notifCount, setNotifCount] = React.useState(4);
+      const [state, setState] = React.useState({
+        blockedApps: ['ig', 'tt', 'yt', 'x', 'fb'],
+        routines: ['meditate', 'read', 'gratitude'],
+        time: 45,
+      });
+
+      // Toggle join / leave from detail sheet
+      const handleJoin = (id) => {
+        setChallenges(cs => cs.map(c => c.id === id
+          ? { ...c, status: c.status === 'available' ? 'joined' : c.status,
+                  day: c.status === 'available' ? 1 : c.day }
+          : c));
+        setSelectedChallenge(prev => prev && prev.id === id
+          ? { ...prev, status: prev.status === 'available' ? 'joined' : prev.status,
+                       day: prev.status === 'available' ? 1 : prev.day }
+          : prev);
+      };
+      const handleLeave = (id) => {
+        setChallenges(cs => cs.map(c => c.id === id
+          ? { ...c, status: 'available', day: 0 }
+          : c));
+        setSelectedChallenge(null);
+      };
+
+      // Learning handlers
+      const handlePlayLearning = (id) => {
+        setLearning(ls => ls.map(l => l.id === id ? { ...l, status: 'played' } : l));
+        setSelectedLearning(prev => prev && prev.id === id ? { ...prev, status: 'played' } : prev);
+      };
+      const handleScheduleLearning = (id) => {
+        setLearning(ls => ls.map(l => l.id === id
+          ? { ...l, status: l.status === 'scheduled' ? 'new' : 'scheduled' }
+          : l));
+        setSelectedLearning(prev => prev && prev.id === id
+          ? { ...prev, status: prev.status === 'scheduled' ? 'new' : 'scheduled' }
+          : prev);
+      };
+      const handleSaveLearning = (id) => {
+        setLearning(ls => ls.map(l => l.id === id
+          ? { ...l, status: l.status === 'saved' ? 'new' : 'saved' }
+          : l));
+        setSelectedLearning(prev => prev && prev.id === id
+          ? { ...prev, status: prev.status === 'saved' ? 'new' : 'saved' }
+          : prev);
+      };
+
+      // Apply tweaks via CSS vars
+      React.useEffect(() => {
+        const root = document.documentElement;
+        root.style.setProperty('--neon', tweaks.accentColor);
+        // derive soft/deep
+        root.style.setProperty('--ff-sans', `'${tweaks.fontFamily}', system-ui, sans-serif`);
+        root.style.setProperty('--ff-display', `'${tweaks.fontFamily}', system-ui, sans-serif`);
+      }, [tweaks.accentColor, tweaks.fontFamily]);
+
+      const isActive = tweaks.homeState === 'active';
+
+      // Selected time pill formatting for primary button
+      const fmtTime = (m) => {
+        if (m >= 60 && m % 60 === 0) return `${m / 60} h`;
+        if (m >= 60) return `${Math.floor(m/60)}h ${m%60}m`;
+        return `${m} min`;
+      };
+
+      return (
+        <div className="mtx" style={{ position: 'relative', display: 'flex', justifyContent: 'center', padding: 20 }}>
+          <div style={{ position: 'relative', width: 402, height: 874, flexShrink: 0 }}>
+          <IOSDevice width={402} height={874} dark={true}>
+            <ToastProvider>
+            <div className="mtx-bg" style={{
+              width: '100%', minHeight: '100%', position: 'relative',
+              paddingBottom: view !== 'home' ? 90 : (tab === 'home' ? 170 : 110),
+            }}>
+              {/* Subtle grain (background) */}
+              <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.5,
+                backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"200\\" height=\\"200\\"><filter id=\\"n\\"><feTurbulence baseFrequency=\\"0.9\\" numOctaves=\\"2\\"/><feColorMatrix values=\\"0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0\\"/></filter><rect width=\\"200\\" height=\\"200\\" filter=\\"url(%23n)\\"/></svg>")',
+                zIndex: 0,
+              }}/>
+
+              {/* Screen content — home OR full overlays (mutually exclusive) */}
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                {view === 'challenges-all' ? (
+                  <ChallengesAllScreen
+                    challenges={challenges}
+                    onBack={() => setView('home')}
+                    onChallengeClick={(c) => setSelectedChallenge(c)}/>
+                ) : view === 'learning-all' ? (
+                  <LearningAllScreen
+                    learning={learning}
+                    onBack={() => setView('home')}
+                    onLearningClick={(l) => setSelectedLearning(l)}/>
+                ) : !isActive ? (
+                  <HomeInactive tweaks={tweaks} state={state} setState={setState}
+                                challenges={challenges}
+                                onCustom={() => setModalOpen(true)}
+                                learning={learning}
+                                onChallengeClick={(c) => setSelectedChallenge(c)}
+                                onViewAllChallenges={() => setView('challenges-all')}
+                                onLearningClick={(l) => setSelectedLearning(l)}
+                                onViewAllLearning={() => setView('learning-all')}
+                                routinesCatalog={routinesCatalog}
+                                onEditApps={() => setAppsEditorOpen(true)}
+                                onEditRoutines={() => setRoutinesEditorOpen(true)}
+                                onNotif={() => setNotifsOpen(true)}
+                                notifCount={notifCount}/>
+                ) : (
+                  <HomeActive tweaks={tweaks} onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+                )}
+              </div>
+
+              {/* Bottom-sheet: Detalle desafío */}
+              {selectedChallenge && (
+                <MtxChallengeDetail
+                  challenge={selectedChallenge}
+                  onClose={() => setSelectedChallenge(null)}
+                  onJoin={handleJoin}
+                  onLeave={handleLeave}/>
+              )}
+
+              {/* Bottom-sheet: Detalle aprendizaje */}
+              {selectedLearning && (
+                <MtxLearningDetail
+                  item={selectedLearning}
+                  onClose={() => setSelectedLearning(null)}
+                  onPlay={handlePlayLearning}
+                  onSchedule={handleScheduleLearning}
+                  onSave={handleSaveLearning}/>
+              )}
+
+            </div>
+
+            {/* Sheets — fuera de .mtx-bg para anclarse al viewport del iPhone (no al contenido scrollable) */}
+            {appsEditorOpen && (
+              <AppsEditorSheet
+                blockedApps={state.blockedApps}
+                onChange={(next) => setState(s => ({ ...s, blockedApps: next }))}
+                onClose={() => setAppsEditorOpen(false)}/>
+            )}
+
+            {routinesEditorOpen && (
+              <RoutinesEditorSheet
+                routines={routinesCatalog}
+                activeIds={state.routines}
+                onChange={setRoutinesCatalog}
+                onActiveChange={(ids) => setState(s => ({ ...s, routines: ids }))}
+                onClose={() => setRoutinesEditorOpen(false)}/>
+            )}
+
+            {notifsOpen && (
+              <NotificationsSheet
+                onClose={() => setNotifsOpen(false)}
+                onCountChange={setNotifCount}/>
+            )}
+            </ToastProvider>
+          </IOSDevice>
+
+          {/* Floating CTA button — separate from tabbar, sits ABOVE it */}
+          {tab === 'home' && !isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && (
+            <button className="mtx-cta-float mtx-tap"
+                    style={{ animation: 'mtx-breathe 3.5s ease-in-out infinite' }}
+                    onClick={() => setTweak('homeState', 'active')}>
+              <IcShield size={18} stroke="currentColor" strokeWidth={2}/>
+              Iniciar enfoque · {fmtTime(state.time)}
+            </button>
+          )}
+          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && (
+            <button className="mtx-cta-float-end mtx-tap"
+                    onClick={() => setTweak('homeState', 'inactive')}>
+              <IcClose size={16} stroke="currentColor"/> Terminar enfoque
+            </button>
+          )}
+
+          {/* Clean transparent tabbar at the very bottom */}
+          <div className="mtx-tabbar-clean">
+            <MtxTabBar active={tab} onChange={setTab}/>
+          </div>
+
+          <CustomTimeModal open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            onApply={(m) => setState(s => ({ ...s, time: m }))}/>
+          </div>
+
+          <TweaksPanel title="Mentex Tweaks">
+            <TweakSection label="Estado">
+              <TweakRadio label="Home" value={tweaks.homeState}
+                          options={[{value:'inactive', label:'Inactivo'}, {value:'active', label:'Activo'}]}
+                          onChange={(v) => setTweak('homeState', v)}/>
+            </TweakSection>
+            <TweakSection label="Acento">
+              <TweakColor label="Color principal" value={tweaks.accentColor}
+                          onChange={(v) => setTweak('accentColor', v)}/>
+            </TweakSection>
+            <TweakSection label="Estilo de cards">
+              <TweakRadio label="Tarjetas" value={tweaks.cardStyle}
+                          options={[{value:'glass',label:'Glass'},{value:'thin',label:'Líneas'},{value:'flat',label:'Plano'}]}
+                          onChange={(v) => setTweak('cardStyle', v)}/>
+            </TweakSection>
+            <TweakSection label="Tipografía">
+              <TweakRadio label="Familia" value={tweaks.fontFamily}
+                          options={['Geist','Inter','Manrope']}
+                          onChange={(v) => setTweak('fontFamily', v)}/>
+            </TweakSection>
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<MentexApp/>);
+  </script>
+</body>
+</html>

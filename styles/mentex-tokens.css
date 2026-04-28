@@ -1,0 +1,379 @@
+/* ─────────────────────────────────────────────────────────────
+   MENTEX — Lux Linear Obsidian
+   Sistema visual: obsidiana profunda + glass + aqua neón
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Obsidiana (radial halo) ───────────────────────────── */
+  --obs-0: #050706;          /* deepest */
+  --obs-1: #0a0d0e;          /* base */
+  --obs-2: #0f1313;          /* surface lifted */
+  --obs-3: #161a1a;          /* card base */
+  --obs-4: #1d2222;          /* hover */
+
+  /* ── Glass surfaces (translucent over obsidian) ───────── */
+  --glass-1: rgba(255, 255, 255, 0.025);
+  --glass-2: rgba(255, 255, 255, 0.045);
+  --glass-3: rgba(255, 255, 255, 0.07);
+  --glass-stroke: rgba(255, 255, 255, 0.08);
+  --glass-stroke-strong: rgba(255, 255, 255, 0.14);
+  --glass-inner-shine: rgba(255, 255, 255, 0.06);
+
+  /* ── Acento Aqua Neón ──────────────────────────────────── */
+  --neon: #3dffd1;
+  --neon-soft: #6affd9;
+  --neon-deep: #1ad9ad;
+  --neon-glow: rgba(61, 255, 209, 0.35);
+  --neon-glow-soft: rgba(61, 255, 209, 0.15);
+  --neon-tint: rgba(61, 255, 209, 0.08);
+
+  /* ── Texto ─────────────────────────────────────────────── */
+  --ink-1: #f4f7f6;          /* primary */
+  --ink-2: rgba(244, 247, 246, 0.72);
+  --ink-3: rgba(244, 247, 246, 0.48);
+  --ink-4: rgba(244, 247, 246, 0.28);
+
+  /* ── Estados / semánticos ──────────────────────────────── */
+  --warn: #ffb547;
+  --danger: #ff5c7a;
+
+  /* ── Tipografía ────────────────────────────────────────── */
+  --ff-sans: 'Geist', 'Söhne', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ff-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --ff-display: 'Geist', 'Söhne', -apple-system, system-ui, sans-serif;
+
+  /* ── Radios ────────────────────────────────────────────── */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ── Sombras ───────────────────────────────────────────── */
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.45);
+  --shadow-lifted: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 60px rgba(0,0,0,0.6);
+  --shadow-neon: 0 0 0 1px rgba(61,255,209,0.45), 0 0 28px rgba(61,255,209,0.35), 0 8px 24px rgba(61,255,209,0.18);
+}
+
+/* ── Background obsidian halo — luxe, very subtle ─────────── */
+.mtx-bg {
+  background:
+    radial-gradient(140% 70% at 50% -20%, rgba(61,255,209,0.018) 0%, transparent 55%),
+    radial-gradient(120% 100% at 50% 50%, #0e1413 0%, #050706 100%);
+  color: var(--ink-1);
+}
+
+/* ── Glass card primitive ────────────────────────────────── */
+.mtx-glass {
+  position: relative;
+  background: var(--glass-2);
+  border: 0.5px solid var(--glass-stroke);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.mtx-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 30%);
+}
+
+/* ── Typography utilities ────────────────────────────────── */
+.mtx { font-family: var(--ff-sans); -webkit-font-smoothing: antialiased; }
+
+.mtx-eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.mtx-h-display {
+  font-family: var(--ff-display);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.mtx-h-1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.mtx-h-2 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.mtx-h-3 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mtx-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.mtx-caption {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.mtx-num {
+  font-feature-settings: "tnum", "ss01";
+  letter-spacing: -0.02em;
+}
+
+/* ── Neon button ─────────────────────────────────────────── */
+.mtx-btn-neon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 24px;
+  border-radius: var(--r-pill);
+  border: 0;
+  cursor: pointer;
+  font-family: var(--ff-sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0a1410;
+  background: linear-gradient(180deg, var(--neon-soft) 0%, var(--neon) 50%, var(--neon-deep) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.15),
+    0 0 0 1px rgba(61,255,209,0.4),
+    0 8px 24px rgba(61,255,209,0.25),
+    0 16px 48px rgba(61,255,209,0.18);
+}
+.mtx-btn-neon:hover { filter: brightness(1.05); }
+
+/* ── Pill (filter) ───────────────────────────────────────── */
+.mtx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--ink-2);
+  background: var(--glass-2);
+  border: 0.5px solid var(--glass-stroke);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mtx-pill[data-active="1"] {
+  color: var(--neon);
+  background: rgba(61,255,209,0.08);
+  border-color: rgba(61,255,209,0.35);
+  box-shadow: inset 0 0 16px rgba(61,255,209,0.12);
+}
+
+/* ── Switch (apps to block) ──────────────────────────────── */
+.mtx-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255,255,255,0.08);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background .25s ease, box-shadow .35s ease;
+}
+.mtx-switch[data-on="1"] {
+  background: linear-gradient(180deg, var(--neon-soft), var(--neon-deep));
+  box-shadow:
+    0 0 0 1px rgba(61,255,209,0.35),
+    0 0 18px rgba(61,255,209,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.mtx-switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: transform .32s cubic-bezier(.34,1.56,.64,1), width .25s ease;
+}
+.mtx-switch[data-on="1"] i { transform: translateX(18px); }
+.mtx-switch:active i { width: 26px; }
+.mtx-switch[data-on="1"]:active i { width: 26px; transform: translateX(12px); }
+
+/* ── Scroll containers ───────────────────────────────────── */
+.mtx-scroll-x {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: 20px;
+  scroll-padding-right: 20px;
+  scrollbar-width: none;
+}
+.mtx-scroll-x::-webkit-scrollbar { display: none; }
+.mtx-scroll-x > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* ── Tab bar (full-bleed, fixed to device bottom) ────────── */
+/* ── Clean transparent tabbar — Opal-style ──────────────── */
+.mtx-tabbar-clean {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: linear-gradient(180deg,
+    rgba(10,13,12,0) 0%,
+    rgba(10,13,12,0.4) 8%,
+    rgba(10,13,12,0.85) 30%,
+    rgba(10,13,12,0.97) 55%,
+    rgba(10,13,12,1) 100%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  padding-bottom: 22px;
+  pointer-events: auto;
+}
+.mtx-tabbar-bar {
+  display: flex;
+  width: 100%;
+  height: 56px;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+/* Floating CTA — sits ABOVE tabbar, separate element with its own shadow */
+.mtx-cta-float {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 84px;     /* 22 (home indicator) + 56 (tabbar) + 6 gap */
+  z-index: 60;
+  height: 58px;
+  border: 0;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: var(--ff-sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #052018;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(120% 200% at 0% 0%, #b9ffec 0%, transparent 50%),
+    radial-gradient(120% 200% at 100% 100%, #1ad9ad 0%, transparent 60%),
+    linear-gradient(180deg, #6affd9 0%, #3dffd1 50%, #1ad9ad 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(0,0,0,0.2),
+    0 0 0 1px rgba(61,255,209,0.5),
+    0 8px 24px rgba(61,255,209,0.35),
+    0 16px 48px rgba(61,255,209,0.25),
+    0 24px 80px rgba(61,255,209,0.18);
+}
+.mtx-cta-float::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 80% at 50% -20%, rgba(255,255,255,0.5), transparent 70%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.mtx-cta-float::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -20%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+  filter: blur(16px);
+  animation: mtx-shine 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.mtx-cta-float-end {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 84px;
+  z-index: 60;
+  height: 56px;
+  border-radius: 18px;
+  cursor: pointer;
+  background: rgba(255,92,122,0.08);
+  border: 0.5px solid rgba(255,92,122,0.35);
+  color: #ff8b9c;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--ff-sans);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+@keyframes mtx-shine {
+  0%, 100% { transform: translateX(-30%); opacity: 0; }
+  50% { transform: translateX(180%); opacity: 1; }
+}
+
+/* ── Hide scrollbar utility ──────────────────────────────── */
+.mtx-no-scrollbar { scrollbar-width: none; }
+.mtx-no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Keyframes ───────────────────────────────────────────── */
+@keyframes mtx-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.92); }
+}
+@keyframes mtx-breathe {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(61,255,209,0.4), 0 0 28px rgba(61,255,209,0.25); }
+  50%      { box-shadow: 0 0 0 1px rgba(61,255,209,0.6), 0 0 48px rgba(61,255,209,0.45); }
+}
+@keyframes mtx-spin { to { transform: rotate(360deg); } }
+@keyframes mtx-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes mtx-shimmer-bg {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Press-to-tap micro-feedback. Use on any interactive */
+.mtx-tap { transition: transform .15s cubic-bezier(.4,0,.2,1), filter .2s ease; }
+.mtx-tap:active { transform: scale(0.97); filter: brightness(1.05); }
+
+/* Soft hover glow for cards w/ neon border */
+.mtx-glow-hover { transition: box-shadow .35s ease, transform .25s ease; }
+.mtx-glow-hover:hover {
+  box-shadow: 0 0 0 1px rgba(61,255,209,0.18), 0 14px 36px -12px rgba(61,255,209,0.35), inset 0 0 24px rgba(61,255,209,0.05) !important;
+  transform: translateY(-1px);
+}

@@ -1,0 +1,16 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/settings.local.json
+
+# Graphify (intermedios — el output sí se versiona)
+graphify-out/.graphify_python
+graphify-out/.graphify_*.json
+graphify-out/.graphify_*.txt
+graphify-out/.graphify_chunk_*
+graphify-out/.needs_update
+
+# Uploads grandes (imágenes de referencia — opcionales en git)
+# uploads/
