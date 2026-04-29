@@ -42,7 +42,7 @@ function CustomTimeModal({ open, onClose, onApply }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
             <div className="mtx-eyebrow" style={{ marginBottom: 4, fontSize: 10 }}>Personalizar</div>
-            <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22 }}>Tiempo de enfoque</h2>
+            <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)' }}>Tiempo de enfoque</h2>
           </div>
           <button onClick={onClose} aria-label="Cerrar" style={{
             width: 36, height: 36, borderRadius: 999,

@@ -223,6 +223,8 @@ function MtxChallengeCard({ challenge: c, onClick, variant = 'default' }) {
 
 }
 
+const isAvailableStatus = (c) => c.status === 'available';
+
 // ─────────────────────────────────────────────────────────────
 // MtxChallengeDetail — bottom-sheet con detalle y CTA
 // ─────────────────────────────────────────────────────────────
@@ -424,8 +426,6 @@ function MtxChallengeDetail({ challenge: c, onClose, onJoin, onLeave }) {
 
 }
 
-const isAvailableStatus = (c) => c.status === 'available';
-
 function DetailStat({ label, value, sub }) {
   return (
     <div className="mtx-glass" style={{
@@ -526,7 +526,7 @@ function ChallengesAllScreen({ challenges, onBack, onChallengeClick }) {
           height: 46, borderRadius: 14,
           background: 'var(--glass-1)',
           border: '0.5px solid var(--glass-stroke)',
-          display: 'flex', alignItems: 'center', gap: 10, padding: "0px 14px 10px"
+          display: 'flex', alignItems: 'center', gap: 10, padding: "0 14px"
         }}>
           <IcSearch size={16} stroke="var(--ink-3)" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}

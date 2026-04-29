@@ -31,15 +31,17 @@
   <script type="text/babel" src="components/mentex-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
-  <script type="text/babel" src="components/mentex-shared.jsx?v=2"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=2"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=2"></script>
-  <script type="text/babel" src="screens/custom-time-modal.jsx?v=2"></script>
-  <script type="text/babel" src="screens/challenge-views.jsx?v=2"></script>
+  <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=13"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=7"></script>
+  <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
+  <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
   <script type="text/babel" src="screens/apps-editor.jsx?v=2"></script>
   <script type="text/babel" src="screens/routines-editor.jsx?v=2"></script>
-  <script type="text/babel" src="screens/notifications-sheet.jsx?v=2"></script>
+  <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
+  <script type="text/babel" src="screens/profile.jsx?v=4"></script>
+  <script type="text/babel" src="screens/session-flow.jsx?v=3"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -64,6 +66,12 @@
       const [routinesEditorOpen, setRoutinesEditorOpen] = React.useState(false);
       const [notifsOpen, setNotifsOpen] = React.useState(false);
       const [notifCount, setNotifCount] = React.useState(4);
+      const [nowPlayingOpen, setNowPlayingOpen] = React.useState(false);
+      const [breakPickerOpen, setBreakPickerOpen] = React.useState(false);
+      const [breakActive, setBreakActive] = React.useState(null); // null | { minutes, number }
+      const [breakCount, setBreakCount] = React.useState(0);
+      const [reflectionOpen, setReflectionOpen] = React.useState(false);
+      const [completionOpen, setCompletionOpen] = React.useState(false);
       const [state, setState] = React.useState({
         blockedApps: ['ig', 'tt', 'yt', 'x', 'fb'],
         routines: ['meditate', 'read', 'gratitude'],
@@ -135,7 +143,7 @@
             <ToastProvider>
             <div className="mtx-bg" style={{
               width: '100%', minHeight: '100%', position: 'relative',
-              paddingBottom: view !== 'home' ? 90 : (tab === 'home' ? 170 : 110),
+              paddingBottom: view !== 'home' ? 90 : (tab === 'home' ? 130 : 110),
             }}>
               {/* Subtle grain (background) */}
               <div style={{
@@ -156,6 +164,8 @@
                     learning={learning}
                     onBack={() => setView('home')}
                     onLearningClick={(l) => setSelectedLearning(l)}/>
+                ) : tab === 'profile' ? (
+                  <ProfileScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
                 ) : !isActive ? (
                   <HomeInactive tweaks={tweaks} state={state} setState={setState}
                                 challenges={challenges}
@@ -171,32 +181,30 @@
                                 onNotif={() => setNotifsOpen(true)}
                                 notifCount={notifCount}/>
                 ) : (
-                  <HomeActive tweaks={tweaks} onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+                  <HomeActive tweaks={tweaks} onNotif={() => setNotifsOpen(true)} notifCount={notifCount} blockedApps={state.blockedApps} onOpenPlayer={() => setNowPlayingOpen(true)}/>
                 )}
               </div>
-
-              {/* Bottom-sheet: Detalle desafío */}
-              {selectedChallenge && (
-                <MtxChallengeDetail
-                  challenge={selectedChallenge}
-                  onClose={() => setSelectedChallenge(null)}
-                  onJoin={handleJoin}
-                  onLeave={handleLeave}/>
-              )}
-
-              {/* Bottom-sheet: Detalle aprendizaje */}
-              {selectedLearning && (
-                <MtxLearningDetail
-                  item={selectedLearning}
-                  onClose={() => setSelectedLearning(null)}
-                  onPlay={handlePlayLearning}
-                  onSchedule={handleScheduleLearning}
-                  onSave={handleSaveLearning}/>
-              )}
 
             </div>
 
             {/* Sheets — fuera de .mtx-bg para anclarse al viewport del iPhone (no al contenido scrollable) */}
+            {selectedChallenge && (
+              <MtxChallengeDetail
+                challenge={selectedChallenge}
+                onClose={() => setSelectedChallenge(null)}
+                onJoin={handleJoin}
+                onLeave={handleLeave}/>
+            )}
+
+            {selectedLearning && (
+              <MtxLearningDetail
+                item={selectedLearning}
+                onClose={() => setSelectedLearning(null)}
+                onPlay={handlePlayLearning}
+                onSchedule={handleScheduleLearning}
+                onSave={handleSaveLearning}/>
+            )}
+
             {appsEditorOpen && (
               <AppsEditorSheet
                 blockedApps={state.blockedApps}
@@ -218,6 +226,60 @@
                 onClose={() => setNotifsOpen(false)}
                 onCountChange={setNotifCount}/>
             )}
+
+            {nowPlayingOpen && typeof NowPlayingScreen !== 'undefined' && (
+              <NowPlayingScreen
+                activity={typeof ACTIVITIES !== 'undefined' ? ACTIVITIES.find(a => a.playing) : null}
+                onClose={() => setNowPlayingOpen(false)}/>
+            )}
+
+            {/* Session-flow sheets */}
+            {breakPickerOpen && typeof BreakPickerSheet !== 'undefined' && (
+              <BreakPickerSheet
+                breakCount={breakCount}
+                onClose={() => setBreakPickerOpen(false)}
+                onPick={(min) => {
+                  setBreakPickerOpen(false);
+                  setBreakActive({ minutes: min, number: breakCount + 1 });
+                }}/>
+            )}
+            {breakActive && typeof BreakActiveScreen !== 'undefined' && (
+              <BreakActiveScreen
+                minutes={breakActive.minutes}
+                breakNumber={breakActive.number}
+                onEnd={() => {
+                  setBreakCount(c => c + 1);
+                  setBreakActive(null);
+                }}/>
+            )}
+            {reflectionOpen && typeof ReflectionDelayScreen !== 'undefined' && (
+              <ReflectionDelayScreen
+                elapsedMin={32}
+                onCancel={() => setReflectionOpen(false)}
+                onConfirm={() => {
+                  setReflectionOpen(false);
+                  setCompletionOpen(true);
+                }}/>
+            )}
+            {completionOpen && typeof CompletionScreen !== 'undefined' && (
+              <CompletionScreen
+                elapsedMin={32}
+                activitiesCompleted={3}
+                contentMin={18}
+                distractionsBlocked={47}
+                score={84}
+                onShare={() => {
+                  setCompletionOpen(false);
+                  setBreakCount(0);
+                  setTweak('homeState', 'inactive');
+                  setTab('home');
+                }}
+                onClose={() => {
+                  setCompletionOpen(false);
+                  setBreakCount(0);
+                  setTweak('homeState', 'inactive');
+                }}/>
+            )}
             </ToastProvider>
           </IOSDevice>
 
@@ -230,11 +292,44 @@
               Iniciar enfoque · {fmtTime(state.time)}
             </button>
           )}
-          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && (
-            <button className="mtx-cta-float-end mtx-tap"
-                    onClick={() => setTweak('homeState', 'inactive')}>
-              <IcClose size={16} stroke="currentColor"/> Terminar enfoque
-            </button>
+          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && !breakPickerOpen && !breakActive && !reflectionOpen && !completionOpen && (
+            <div style={{
+              position:'absolute', left:'50%', transform:'translateX(-50%)',
+              bottom:96, display:'flex', flexDirection:'column', alignItems:'center', gap:10,
+              width:'calc(100% - 56px)', maxWidth:360,
+              zIndex:8,
+            }}>
+              <button className="mtx-tap"
+                onClick={() => setBreakPickerOpen(true)}
+                style={{
+                  width:'100%', height:56, borderRadius:999, cursor:'pointer',
+                  background:'#fff', color:'#0a0d0a',
+                  border:0, fontSize:16, fontWeight:700,
+                  fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                  boxShadow:'0 12px 36px -10px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.6)',
+                }}>
+                <IcPause size={16} stroke="currentColor" strokeWidth={2.4}/>
+                Tomar un descanso
+                <span style={{ fontSize:13, color:'rgba(10,13,10,0.4)', fontWeight:600 }}>#{breakCount + 1}</span>
+              </button>
+
+              <button className="mtx-tap"
+                onClick={() => setReflectionOpen(true)}
+                style={{
+                  background:'transparent', border:0, cursor:'pointer',
+                  color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
+                  fontFamily:'var(--ff-sans)', padding:'4px 10px',
+                  display:'flex', alignItems:'center', gap:6,
+                }}>
+                <span style={{
+                  width:10, height:10, borderRadius:2,
+                  background:'rgba(255,107,107,0.85)',
+                  boxShadow:'0 0 8px rgba(255,107,107,0.5)',
+                }}/>
+                Detener sesión
+              </button>
+            </div>
           )}
 
           {/* Clean transparent tabbar at the very bottom */}
