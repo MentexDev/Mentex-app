@@ -42,6 +42,7 @@
   <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
   <script type="text/babel" src="screens/profile.jsx?v=4"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=3"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=10"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -166,6 +167,8 @@
                     onLearningClick={(l) => setSelectedLearning(l)}/>
                 ) : tab === 'profile' ? (
                   <ProfileScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+                ) : tab === 'explore' ? (
+                  <ExploreScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
                 ) : !isActive ? (
                   <HomeInactive tweaks={tweaks} state={state} setState={setState}
                                 challenges={challenges}
@@ -232,6 +235,11 @@
                 activity={typeof ACTIVITIES !== 'undefined' ? ACTIVITIES.find(a => a.playing) : null}
                 onClose={() => setNowPlayingOpen(false)}/>
             )}
+
+            {/* Portal mount point for sheets rendered from inside ExploreScreen.
+                Sits at IOSDevice level so position:absolute anchors to device viewport,
+                not to the (often very tall) scrollable mtx-bg content. */}
+            <div id="mtx-overlay-root"/>
 
             {/* Session-flow sheets */}
             {breakPickerOpen && typeof BreakPickerSheet !== 'undefined' && (
