@@ -470,19 +470,18 @@ function HomeInactive({
 
   return (
     <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
-      {/* ── Header: eyebrow + bell, luego título 2-líneas + descripción ────
-          El saludo y la acción ("Diseña tu próximo enfoque.") forman UN solo
-          título de 2 renglones — antes había bloque-saludo + bloque-título y
-          se sentía duplicado. */}
-      <div style={{ padding:'8px 20px 22px' }}>
-        <div style={{
-          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
-          marginBottom:12,
-        }}>
+      {/* ── Header: eyebrow + título 2-líneas + descripción + bell al lado ──
+          Mismo patrón estructural que Comunidad y Explorar (flex space-between
+          con bloque-izquierdo + bell-derecho), para que las 3 secciones se
+          sientan parte de la misma familia visual. */}
+      <div style={{
+        padding:'8px 20px 16px',
+        display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12,
+      }}>
+        <div style={{ flex:1, minWidth:0 }}>
           <div className="mtx-eyebrow" style={{
-            color:'var(--neon)',
+            marginBottom:6, color:'var(--neon)',
             display:'flex', alignItems:'center', gap:6,
-            fontSize:10, letterSpacing:'0.16em', fontWeight:800,
           }}>
             <span style={{
               width:6, height:6, borderRadius:999, background:'var(--neon)',
@@ -492,42 +491,46 @@ function HomeInactive({
             <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
             Ritual diario
           </div>
-          <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-            position:'relative', width:44, height:44, borderRadius:999,
-            background:'var(--glass-2)',
-            border:'0.5px solid var(--glass-stroke)',
-            backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
-            boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
+          <h1 className="mtx-h-1" style={{
+            margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
+            letterSpacing:'-0.03em', lineHeight:1.1,
           }}>
-            <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
-            {notifCount > 0 && (
-              <span style={{
-                position:'absolute', top:6, right:6,
-                minWidth:16, height:16, padding:'0 5px',
-                borderRadius:999, background:'var(--neon)',
-                color:'#0a1410', fontSize:10, fontWeight:700,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
-                boxShadow:'0 0 8px rgba(61,255,209,0.55)',
-              }}>
-                {notifCount}
-              </span>
-            )}
-          </button>
+            {greeting}, Juan,<br/>
+            Diseña tu ritual.
+          </h1>
+          <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
+            Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
+          </p>
         </div>
-        <h1 className="mtx-h-1" style={{
-          margin:0, color:'var(--ink-1)', fontSize:30, fontWeight:800,
-          letterSpacing:'-0.032em', lineHeight:1.08,
-          fontFamily:'var(--ff-display)',
+        <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
+          position:'relative', width:44, height:44, borderRadius:999,
+          background:'var(--glass-2)',
+          border:'0.5px solid var(--glass-stroke)',
+          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
+          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
         }}>
-          {greeting}, Juan,<br/>
-          Diseña tu próximo enfoque.
-        </h1>
-        <p style={{ margin:'10px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
-          Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
-        </p>
+          <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
+          {notifCount > 0 && (
+            // Bolita perfectamente circular (width=height fijos, sin padding).
+            // El border separa visualmente del bell para que se lea como dot
+            // distinto y no como pill que tape la campana.
+            <span style={{
+              position:'absolute', top:2, right:2,
+              width:14, height:14,
+              borderRadius:'50%', background:'var(--neon)',
+              color:'#0a1410', fontSize:9, fontWeight:800,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
+              border:'1.5px solid #0a0d0a',
+              boxShadow:'0 0 8px rgba(61,255,209,0.55)',
+              lineHeight:1,
+            }}>
+              {notifCount > 9 ? '9+' : notifCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ── Banner publicitario rotatorio (5 slides) ────────────────────── */}
