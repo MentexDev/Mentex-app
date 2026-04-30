@@ -1,4 +1,21 @@
-// home-inactive.jsx — Home inactive screen (full)
+// home-inactive.jsx — Home inactivo REDISEÑADO (2026-04-30)
+// ─────────────────────────────────────────────────────────────────────────────
+// Foco único: planificar e iniciar el ritual de enfoque del día.
+// El descubrir contenido vive en Explorar; aquí solo se elige tiempo, apps a
+// bloquear y rutinas. Las secciones "Elige tu aprendizaje", "Continúa
+// escuchando", "Estadísticas" y "Desafíos" se preservan en home-inactive-legacy.jsx
+// por si necesitamos revertir partes.
+//
+// Layout vertical (de arriba a abajo):
+//   1. Saludo "Buenas tardes, Juan!" + sub "¿Estás listo para tu ritual de hoy?"
+//   2. Eyebrow "RITUAL DIARIO" + título sección
+//   3. Banner publicitario rotatorio (5 slides auto-swipe)
+//   4. Tiempo de enfoque (pills + botón personalizar)
+//   5. Apps a bloquear (mejora tu concentración)
+//   6. Rutinas para hoy (complementos del ritual)
+//   7. CTA reactivo "Comenzar jornada · X min" — solo aparece cuando hay tiempo
+//      seleccionado + al menos 1 rutina activa
+// ─────────────────────────────────────────────────────────────────────────────
 
 const RoutineIc = ({ r, ...rest }) => {
   const Ic = r.Ic || (window.getIconById ? window.getIconById(r.iconId) : IcLeaf);
@@ -17,6 +34,10 @@ const DEFAULT_ROUTINES = [
 
 const ROUTINES = DEFAULT_ROUTINES;
 
+// CHALLENGES + LEARNING se preservan a nivel module porque otros archivos los
+// consumen vía window.CHALLENGES / window.LEARNING (p.ej. ChallengesAllScreen,
+// LearningAllScreen). El Home rediseñado NO los renderiza, pero no podemos
+// quitarlos del export sin tocar 4-5 archivos más.
 const CHALLENGES = [
 { id:'med7',    title:'Meditación · 7 días',       tagline:'Encuentra tu silencio interior',    day:3,  total:7,  accent:'#3dffd1', Ic:IcLeaf,    status:'joined',
   difficulty:1, participants:12480, dailyMin:10, category:'Mindfulness',
@@ -117,17 +138,287 @@ const TIME_OPTIONS = [
 { v:45,  label:'45 min' },
 { v:60,  label:'1 h'    },
 { v:120, label:'2 h'    },
-{ v:180, label:'3 h'    },
-{ v:-1,  label:'Personalizar' }];
+{ v:180, label:'3 h'    }];
 
+// ── BANNERS PUBLICITARIOS — 5 slides para el carousel rotatorio ─────────────
+// Cada slide tiene: título, sub, gradient hero, accent, kind (visual style),
+// onTap (acción al tocar). Se rotan automáticamente cada ~5s con paginator.
+const _HERO_BANNERS = [
+  {
+    id:'b1-premium',
+    kind:'premium',
+    eyebrow:'PREMIUM',
+    title:'Tu mente sin límites',
+    sub:'Acceso ilimitado · descargas offline · sin anuncios',
+    cta:'Probar 7 días gratis',
+    price:'$10/mes',
+    accent:'#FFD66B',
+    gradient:`linear-gradient(135deg, #FFD66B 0%, #ff8b6a 50%, #b95d3d 100%)`,
+    Ic:IcCrown,
+  },
+  {
+    id:'b2-featured-book',
+    kind:'feature',
+    eyebrow:'AUDIOLIBRO DEL MES',
+    title:'Hábitos Atómicos',
+    sub:'James Clear · La ciencia de los hábitos, destilada en 18 minutos',
+    cta:'Escuchar ahora',
+    accent:'#3dffd1',
+    gradient:`linear-gradient(135deg, #1a3a35 0%, #0a4a40 100%)`,
+    cover:'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=600&q=80',
+    Ic:IcBook,
+  },
+  {
+    id:'b3-tip',
+    kind:'tip',
+    eyebrow:'PRINCIPIO MENTEX',
+    title:'La atención es el recurso más escaso del siglo XXI',
+    sub:'Cada minuto sin distraerte es una inversión a interés compuesto',
+    accent:'#9b8aff',
+    gradient:`linear-gradient(135deg, #2a1f50 0%, #1a1238 100%)`,
+    Ic:IcSparkles,
+  },
+  {
+    id:'b4-featured-talk',
+    kind:'feature',
+    eyebrow:'CHARLA LEGENDARIA',
+    title:'Steve Jobs · Stanford 2005',
+    sub:'Tres historias sobre conectar puntos, amor y muerte',
+    cta:'Ver charla · 15 min',
+    accent:'#ffd47a',
+    gradient:`linear-gradient(135deg, #2a2a2a 0%, #151515 100%)`,
+    cover:'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80',
+    Ic:IcMic,
+  },
+  {
+    id:'b5-tip',
+    kind:'tip',
+    eyebrow:'NUEVA META',
+    title:'30 días sin redes sociales',
+    sub:'El reto que está cambiando la mente de 2,400 mentexianos',
+    cta:'Unirme al reto',
+    accent:'#5dd3ff',
+    gradient:`linear-gradient(135deg, #15252a 0%, #0a3540 100%)`,
+    Ic:IcShield,
+  },
+];
 
+// ── BannerCarousel — auto-swipe entre 5 slides + paginator dots ─────────────
+function BannerCarousel({ slides, onTap }) {
+  const [idx, setIdx] = React.useState(0);
+  const [paused, setPaused] = React.useState(false);
 
+  // Auto-advance cada 5s. Pausado si user hace tap (para que pueda leer).
+  React.useEffect(() => {
+    if (paused) return;
+    const t = setTimeout(() => setIdx((i) => (i + 1) % slides.length), 5000);
+    return () => clearTimeout(t);
+  }, [idx, paused, slides.length]);
 
+  // Drag-swipe horizontal con pointer
+  const dragStartX = React.useRef(0);
+  const dragActive = React.useRef(false);
+  const [dragX, setDragX] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
 
+  const onPointerDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStartX.current = e.clientX;
+    dragActive.current = true;
+    setIsDragging(true);
+    setPaused(true);
+  };
+  const onPointerMove = (e) => {
+    if (!dragActive.current) return;
+    setDragX(e.clientX - dragStartX.current);
+  };
+  const onPointerUp = () => {
+    if (!dragActive.current) return;
+    dragActive.current = false;
+    setIsDragging(false);
+    if (dragX > 60) setIdx((i) => (i - 1 + slides.length) % slides.length);
+    else if (dragX < -60) setIdx((i) => (i + 1) % slides.length);
+    setDragX(0);
+    // Reanuda auto-swipe tras 4s de no interactuar
+    setTimeout(() => setPaused(false), 4000);
+  };
 
+  const slide = slides[idx];
+  const isPremium = slide.kind === 'premium';
+  const Ic = slide.Ic;
 
+  return (
+    <div style={{ padding:'0 20px', marginBottom:24 }}>
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={(e) => { if (Math.abs(dragX) < 5) onTap?.(slide); }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Banner: ${slide.title}`}
+        style={{
+          position:'relative',
+          height: 156,
+          borderRadius: 22,
+          overflow:'hidden',
+          background: slide.gradient,
+          cursor:'pointer',
+          touchAction:'pan-y',
+          transform: `translateX(${dragX * 0.3}px)`,
+          transition: isDragging ? 'none' : 'transform .3s cubic-bezier(.25,.8,.25,1)',
+          boxShadow: `0 0 0 0.5px ${slide.accent}33, 0 18px 40px -16px ${slide.accent}80`,
+          fontFamily:'var(--ff-sans)',
+        }}
+      >
+        {/* Cover image overlay (solo para feature) */}
+        {slide.cover && (
+          <div style={{
+            position:'absolute', inset:0,
+            backgroundImage:`url(${slide.cover})`,
+            backgroundSize:'cover', backgroundPosition:'center',
+            opacity: 0.35,
+            pointerEvents:'none',
+          }}/>
+        )}
 
-function HomeInactive({ tweaks, state, setState, onStart, onCustom, challenges = CHALLENGES, learning = LEARNING, routinesCatalog = ROUTINES, onChallengeClick = () => {}, onViewAllChallenges = () => {}, onNotif = () => {}, notifCount = 0, _placeholder = () => {}, onLearningClick = () => {}, onViewAllLearning = () => {}, onEditApps = () => {}, onEditRoutines = () => {} }) {
+        {/* Halo radial decorativo */}
+        <div style={{
+          position:'absolute', top:-40, right:-30, width:180, height:180,
+          background: `radial-gradient(circle, ${slide.accent}55 0%, transparent 60%)`,
+          filter:'blur(8px)',
+          pointerEvents:'none',
+        }}/>
+
+        {/* Glint diagonal sutil */}
+        <div style={{
+          position:'absolute', top:0, left:0, right:0, bottom:0,
+          background:'linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.06) 30%, transparent 60%)',
+          pointerEvents:'none',
+        }}/>
+
+        {/* Contenido */}
+        <div style={{
+          position:'relative', zIndex:1,
+          height:'100%',
+          padding:'18px 20px 16px',
+          display:'flex', flexDirection:'column', justifyContent:'space-between',
+          color: isPremium ? '#0a1410' : 'var(--ink-1)',
+        }}>
+          {/* Top: eyebrow + icon */}
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
+            <div className="mtx-eyebrow" style={{
+              fontSize:9.5, letterSpacing:'0.18em', fontWeight:800,
+              color: isPremium ? 'rgba(10,20,16,0.75)' : slide.accent,
+              textShadow: isPremium ? 'none' : `0 0 12px ${slide.accent}66`,
+            }}>
+              {slide.eyebrow}
+            </div>
+            {Ic && (
+              <div style={{
+                width:32, height:32, borderRadius:'50%',
+                background: isPremium ? 'rgba(10,20,16,0.18)' : 'rgba(255,255,255,0.08)',
+                border: isPremium ? '0.5px solid rgba(10,20,16,0.3)' : `0.5px solid ${slide.accent}55`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color: isPremium ? '#0a1410' : slide.accent,
+                boxShadow: isPremium ? 'inset 0 1px 0 rgba(255,255,255,0.4)' : `0 0 12px ${slide.accent}55`,
+              }}>
+                <Ic size={15} stroke="currentColor" strokeWidth={isPremium ? 2 : 1.7}/>
+              </div>
+            )}
+          </div>
+
+          {/* Title + sub */}
+          <div>
+            <div style={{
+              fontSize:18, fontWeight:800,
+              letterSpacing:'-0.022em', lineHeight:1.15,
+              fontFamily:'var(--ff-display)',
+              color: isPremium ? '#0a1410' : 'var(--ink-1)',
+              marginBottom:4,
+              textWrap:'balance',
+            }}>
+              {slide.title}
+            </div>
+            <div style={{
+              fontSize:11.5, lineHeight:1.4,
+              color: isPremium ? 'rgba(10,20,16,0.7)' : 'rgba(255,255,255,0.65)',
+              letterSpacing:'-0.005em',
+              display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+            }}>
+              {slide.sub}
+            </div>
+          </div>
+
+          {/* Bottom: CTA pill + price (si premium) */}
+          {(slide.cta || slide.price) && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+              {slide.cta && (
+                <span style={{
+                  display:'inline-flex', alignItems:'center', gap:6,
+                  padding:'6px 12px', borderRadius:999,
+                  background: isPremium ? '#0a1410' : `${slide.accent}26`,
+                  border: isPremium ? '0.5px solid rgba(10,20,16,0.5)' : `0.5px solid ${slide.accent}55`,
+                  color: isPremium ? slide.accent : slide.accent,
+                  fontSize:11.5, fontWeight:700, letterSpacing:'-0.005em',
+                  boxShadow: isPremium ? '0 4px 12px rgba(0,0,0,0.4)' : 'none',
+                }}>
+                  {slide.cta}
+                  <IcChevR size={11} stroke="currentColor" strokeWidth={2}/>
+                </span>
+              )}
+              {slide.price && (
+                <span style={{
+                  fontSize:13, fontWeight:800, letterSpacing:'-0.012em',
+                  color: isPremium ? '#0a1410' : 'var(--ink-1)',
+                  fontFamily:'var(--ff-display)',
+                }}>
+                  {slide.price}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Paginator dots */}
+      <div style={{
+        marginTop:10, display:'flex', justifyContent:'center', gap:5,
+      }}>
+        {slides.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={(e) => { e.stopPropagation(); setIdx(i); setPaused(true); setTimeout(() => setPaused(false), 4000); }}
+            aria-label={`Ir al banner ${i + 1}`}
+            style={{
+              appearance:'none', cursor:'pointer', border:0,
+              width: i === idx ? 18 : 5, height:5, borderRadius:999,
+              background: i === idx ? 'var(--neon)' : 'rgba(255,255,255,0.18)',
+              boxShadow: i === idx ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
+              transition:'width .3s cubic-bezier(.25,.8,.25,1), background .25s, box-shadow .25s',
+              padding:0,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── HomeInactive — el home rediseñado ───────────────────────────────────────
+// Foco único: planificar el ritual del día (tiempo + apps + rutinas) y
+// arrancar la jornada con un CTA reactivo.
+function HomeInactive({
+  tweaks, state, setState,
+  onCustom, onNotif = () => {}, notifCount = 0,
+  onEditApps = () => {}, onEditRoutines = () => {},
+  routinesCatalog = ROUTINES,
+  // Props no-usadas pero mantenidas por compat con la firma anterior:
+  challenges = CHALLENGES, learning = LEARNING, onStart, _placeholder = () => {},
+  onChallengeClick = () => {}, onViewAllChallenges = () => {},
+  onLearningClick = () => {}, onViewAllLearning = () => {},
+}) {
   const { blockedApps, routines, time } = state;
 
   const toggleApp = (id) => setState(s => ({
@@ -138,7 +429,7 @@ function HomeInactive({ tweaks, state, setState, onStart, onCustom, challenges =
   const toggleRoutine = (id) => setState(s => ({
     ...s, routines: s.routines.includes(id) ? s.routines.filter(x => x !== id) : [...s.routines, id]
   }));
-  const setTime = (v) => v === -1 ? onCustom() : setState(s => ({ ...s, time: v }));
+  const setTime = (v) => setState(s => ({ ...s, time: v }));
 
   const cardStyle = tweaks.cardStyle;
   const glassFor = (extra = {}) => {
@@ -147,121 +438,186 @@ function HomeInactive({ tweaks, state, setState, onStart, onCustom, challenges =
     return extra;
   };
 
-  const inProgress = learning.filter(l => l.status === 'scheduled' && l.playPct != null);
+  // Greeting dinámico según hora local
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Buenos días'
+                 : hour < 19 ? 'Buenas tardes'
+                 :             'Buenas noches';
+
+  // Banner tap handler (mock — abre toast por ahora)
+  const toast = window.useToast ? window.useToast() : { show: () => {} };
+  const handleBannerTap = (slide) => {
+    toast.show({ message: `Abriendo ${slide.title}…`, duration: 1600 });
+  };
+
+  // CTA reactivo: aparece solo cuando hay tiempo + al menos 1 rutina activa
+  const hasTime = time > 0;
+  const hasRoutine = routines.length > 0;
+  const canStart = hasTime && hasRoutine;
+
+  // Texto formateado del tiempo
+  const fmtTime = (m) => {
+    if (m >= 60 && m % 60 === 0) return `${m / 60} h`;
+    if (m >= 60) return `${Math.floor(m/60)}h ${m%60}m`;
+    return `${m} min`;
+  };
 
   return (
-    <div style={{ paddingTop:60, paddingBottom:24, animation:'mtx-fade-up .4s ease both' }}>
-      <MtxHeader name="Juan" notifCount={notifCount} onNotif={onNotif}/>
-
-      {/* ── Stats ────────────────────────────────────────────────────────── */}
-      <div style={{ marginBottom:28, marginTop:4 }}>
-        <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-          <MtxStatCard label="Puntuación"        value="78" unit=" pts"  sub="↑12 vs semana anterior"            accent sparkData={[58,64,70,68,75,72,78]}/>
-          <MtxStatCard label="Tiempo enfocado"  value="14" unit="h 32m" sub="+18% vs semana anterior"                  sparkData={[2,3,4,3,5,6,7]}/>
-          <MtxStatCard label="Racha"             value="6"  unit=" días" sub="🔥 sigue así, no la pierdas"             sparkData={[1,1,1,1,0,1,1]}/>
-          <MtxStatCard label="Horas aprendidas"  value="27" unit=" h"    sub="+5h esta semana"                         sparkData={[3,4,5,4,6,5,7]}/>
-          <MtxStatCard label="Récord de foco"    value="92" unit=" min"  sub="tu mejor sesión esta semana"             sparkData={[40,55,68,72,80,92,75]}/>
+    <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
+      {/* ── Greeting + sub + bell (reemplaza MtxHeader: el saludo grande aquí ya cumple su rol) ── */}
+      <div style={{
+        padding:'8px 20px 22px',
+        display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12,
+      }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <h1 style={{
+            margin:0, fontSize:30, fontWeight:800, color:'var(--ink-1)',
+            letterSpacing:'-0.032em', lineHeight:1.05,
+            fontFamily:'var(--ff-display)',
+          }}>
+            {greeting}, Juan!
+          </h1>
+          <p style={{
+            margin:'8px 0 0', fontSize:14, color:'var(--ink-3)',
+            letterSpacing:'-0.005em', lineHeight:1.4,
+          }}>
+            ¿Estás listo para tu ritual de hoy?
+          </p>
         </div>
+        <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
+          position:'relative', width:44, height:44, borderRadius:999,
+          background:'var(--glass-2)',
+          border:'0.5px solid var(--glass-stroke)',
+          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
+          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
+        }}>
+          <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
+          {notifCount > 0 && (
+            <span style={{
+              position:'absolute', top:6, right:6,
+              minWidth:16, height:16, padding:'0 5px',
+              borderRadius:999, background:'var(--neon)',
+              color:'#0a1410', fontSize:10, fontWeight:700,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
+              boxShadow:'0 0 8px rgba(61,255,209,0.55)',
+            }}>
+              {notifCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* ── Elige tu aprendizaje ─────────────────────────────────────────── */}
-      <div style={{ marginBottom:28 }}>
-        <MtxSectionHead
-          title="Elige tu aprendizaje"
-          subtitle="Seleccionado para tu próxima sesión."
-          action="Ver más"
-          onAction={onViewAllLearning}
-        />
-        <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-          {learning.map(l => (
-            <MtxLearningCard key={l.id} item={l} onClick={() => onLearningClick(l)}/>
-          ))}
+      {/* ── Eyebrow + título sección (estilo Comunidad) ─────────────────── */}
+      <div style={{ padding:'0 20px 14px' }}>
+        <div className="mtx-eyebrow" style={{
+          marginBottom:6, color:'var(--neon)',
+          display:'flex', alignItems:'center', gap:6,
+          fontSize:10, letterSpacing:'0.16em', fontWeight:800,
+        }}>
+          <span style={{
+            width:6, height:6, borderRadius:999, background:'var(--neon)',
+            boxShadow:'0 0 8px var(--neon)',
+            animation:'mtxPulseDotHome 2s ease-in-out infinite',
+          }}/>
+          <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
+          Ritual diario
         </div>
+        <h2 className="mtx-h-1" style={{
+          margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
+          letterSpacing:'-0.03em', lineHeight:1.1,
+        }}>
+          Diseña tu próximo enfoque.
+        </h2>
+        <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
+          Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
+        </p>
       </div>
 
-      {/* ── Continúa escuchando ──────────────────────────────────────────── */}
-      {inProgress.length > 0 && (
-        <div style={{ marginBottom:28 }}>
-          <MtxSectionHead
-            title="Continúa escuchando"
-            subtitle="Retoma donde lo dejaste."
-          />
-          <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-            {inProgress.map(l => (
-              <MtxLearningCard key={l.id} item={l} onClick={() => onLearningClick(l)}/>
-            ))}
+      {/* ── Banner publicitario rotatorio (5 slides) ────────────────────── */}
+      <BannerCarousel slides={_HERO_BANNERS} onTap={handleBannerTap}/>
+
+      {/* ── 1. Tiempo de enfoque ────────────────────────────────────────── */}
+      <div style={{ marginBottom:24 }}>
+        <div style={{
+          padding:'0 20px 12px',
+          display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10,
+        }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <h3 style={{
+              margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
+              letterSpacing:'-0.018em', lineHeight:1.2,
+            }}>
+              ¿Cuánto tiempo quieres enfocarte hoy?
+            </h3>
+            <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
+              Tu tiempo a solas con el contenido que elijas
+            </p>
           </div>
+          {/* Botón personalizar — abre el modal existente */}
+          <button
+            onClick={onCustom}
+            aria-label="Personalizar tiempo"
+            className="mtx-tap"
+            style={{
+              flexShrink:0,
+              width:36, height:36, borderRadius:'50%',
+              border:'0.5px solid var(--glass-stroke)',
+              background:'var(--glass-2)',
+              color:'var(--ink-2)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              cursor:'pointer',
+              transition:'background .2s, color .2s',
+            }}
+          >
+            <IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>
+          </button>
         </div>
-      )}
 
-      {/* ── Rutinas para hoy ─────────────────────────────────────────────── */}
-      <div style={{ marginBottom:28 }}>
-        <MtxSectionHead title="Rutinas para hoy" subtitle="Hábitos que te devuelven a ti." action="Editar" onAction={onEditRoutines}/>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:10, padding:'0 20px' }}>
-          {routinesCatalog.map(r => {
-            const on = routines.includes(r.id);
+        <div className="mtx-no-scrollbar" style={{
+          padding:'0 20px',
+          display:'flex', gap:9, overflowX:'auto', WebkitOverflowScrolling:'touch',
+        }}>
+          {TIME_OPTIONS.map(t => {
+            const isActive = time === t.v;
             return (
-              <button key={r.id} onClick={() => toggleRoutine(r.id)} className="mtx-glass mtx-tap" style={{
-                display:'flex', alignItems:'center', gap:10,
-                padding:'12px 14px', borderRadius:16, cursor:'pointer',
-                border: on ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
-                background: on ? 'linear-gradient(180deg,rgba(61,255,209,0.10),rgba(61,255,209,0.02))' : 'var(--glass-2)',
-                boxShadow: on ? '0 0 0 1px rgba(61,255,209,0.15),0 10px 30px -10px rgba(61,255,209,0.45),inset 0 0 24px rgba(61,255,209,0.10)' : 'var(--shadow-card)',
-                textAlign:'left',
-                transform: on ? 'translateY(-1px)' : 'translateY(0)',
-                transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,background .25s ease,border-color .25s ease',
-                ...glassFor()
+              <button key={t.v} onClick={() => setTime(t.v)} className={(isActive ? 'mtx-pill-active ' : '') + 'mtx-tap'} style={{
+                flexShrink:0,
+                height:48, padding:'0 22px', borderRadius:14,
+                border: isActive ? '0.5px solid rgba(61,255,209,0.55)' : '0.5px solid var(--glass-stroke)',
+                background: isActive ? 'linear-gradient(180deg,rgba(61,255,209,0.16),rgba(61,255,209,0.06))' : 'var(--glass-2)',
+                backdropFilter:'blur(20px)',
+                color: isActive ? 'var(--neon)' : 'var(--ink-1)',
+                fontSize:14, fontWeight:600, cursor:'pointer',
+                whiteSpace:'nowrap', display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow: isActive ? '0 0 0 1px rgba(61,255,209,0.18),0 8px 22px -8px rgba(61,255,209,0.55),inset 0 0 22px rgba(61,255,209,0.14)' : 'none',
+                transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
+                transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s,background .25s,border-color .25s',
+                fontFamily:'var(--ff-sans)', minWidth:78,
               }}>
-                <div style={{
-                  width:32, height:32, borderRadius:10,
-                  background: on ? 'rgba(61,255,209,0.18)' : 'rgba(255,255,255,0.04)',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  color: on ? 'var(--neon)' : 'var(--ink-2)',
-                  transition:'background .25s ease,color .25s ease'
-                }}>
-                  <RoutineIc r={r} size={18} stroke="currentColor"/>
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)' }}>{r.label}</div>
-                  <div style={{ fontSize:11, color:'var(--ink-3)' }}>{r.dur}</div>
-                </div>
-                <div style={{
-                  width:18, height:18, borderRadius:6,
-                  border: on ? 0 : '0.5px solid rgba(255,255,255,0.2)',
-                  background: on ? 'var(--neon)' : 'transparent',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#0a1410',
-                  transform: on ? 'scale(1)' : 'scale(0.92)',
-                  transition:'transform .3s cubic-bezier(.34,1.56,.64,1),background .25s ease',
-                  boxShadow: on ? '0 0 12px rgba(61,255,209,0.55)' : 'none'
-                }}>
-                  {on && <IcCheck size={12} stroke="currentColor" strokeWidth={2.5}/>}
-                </div>
+                {t.label}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ── Desafíos ─────────────────────────────────────────────────────── */}
-      <div style={{ marginBottom:28 }}>
-        <MtxSectionHead title="Desafíos" subtitle="Compromisos que transforman semanas." action="Ver todo" onAction={onViewAllChallenges}/>
-        <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-          {challenges.map(c => (
-            <MtxChallengeCard key={c.id} challenge={c} onClick={() => onChallengeClick(c)}/>
-          ))}
+      {/* ── 2. Apps a bloquear (Mejora tu concentración) ────────────────── */}
+      <div style={{ marginBottom:24 }}>
+        <div style={{ padding:'0 20px 12px' }}>
+          <h3 style={{
+            margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
+            letterSpacing:'-0.018em', lineHeight:1.2,
+          }}>
+            Mejora tu concentración
+          </h3>
+          <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
+            Estas apps no te interrumpirán durante el enfoque
+          </p>
         </div>
-      </div>
-
-      {/* ── Mejora tu concentración ──────────────────────────────────────── */}
-      <div style={{ marginBottom:28 }}>
-        <MtxSectionHead
-          title="Mejora tu concentración"
-          subtitle="Bloquea el ruido. Libera tu atención."
-          action="Editar"
-          onAction={onEditApps}
-        />
-        <div className="mtx-glass" style={{ margin:'0 20px', padding:6, borderRadius:22, ...glassFor() }}>
+        <div className="mtx-glass" style={{ margin:'0 20px', padding:6, borderRadius:18, ...glassFor() }}>
           {APPS.filter(a => state.blockedApps.includes(a.id)).slice(0, 6).map((app, i) => {
             const on = blockedApps.includes(app.id);
             return (
@@ -284,7 +640,7 @@ function HomeInactive({ tweaks, state, setState, onStart, onCustom, challenges =
           })}
           {APPS.filter(a => state.blockedApps.includes(a.id)).length === 0 && (
             <div style={{ padding:'20px 12px', textAlign:'center', color:'var(--ink-3)', fontSize:12 }}>
-              Ninguna app silenciada aún
+              Ninguna app bloqueada aún
             </div>
           )}
           <div onClick={onEditApps} className="mtx-tap" style={{
@@ -297,38 +653,103 @@ function HomeInactive({ tweaks, state, setState, onStart, onCustom, challenges =
         </div>
       </div>
 
-      {/* ── Tiempo de enfoque ────────────────────────────────────────────── */}
-      <div style={{ marginBottom:24 }}>
-        <MtxSectionHead title="Tiempo de enfoque" subtitle="Elige tu profundidad."/>
-        <div className="mtx-scroll-x" style={{
-          paddingLeft:20, paddingRight:20, paddingTop:8, paddingBottom:8,
-          fontSize:'15px', gap:'9px', justifyContent:'flex-start', alignItems:'center', width:'360px'
-        }}>
-          {TIME_OPTIONS.map(t => {
-            const isActive = time === t.v;
+      {/* ── 3. Rutinas para hoy (Complementos del ritual) ──────────────── */}
+      <div style={{ marginBottom: canStart ? 24 : 0 }}>
+        <div style={{ padding:'0 20px 12px', display:'flex', alignItems:'baseline', justifyContent:'space-between' }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <h3 style={{
+              margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
+              letterSpacing:'-0.018em', lineHeight:1.2,
+            }}>
+              Complementos del ritual
+            </h3>
+            <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
+              Pequeñas prácticas que se completan durante el enfoque
+            </p>
+          </div>
+          <button
+            onClick={onEditRoutines}
+            className="mtx-tap"
+            style={{
+              appearance:'none', cursor:'pointer', border:0,
+              background:'transparent',
+              color:'var(--neon)', fontSize:12, fontWeight:600,
+              fontFamily:'var(--ff-sans)', padding:'2px 0',
+              flexShrink:0, marginLeft:10,
+            }}
+          >
+            Editar
+          </button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:10, padding:'0 20px' }}>
+          {routinesCatalog.map(r => {
+            const on = routines.includes(r.id);
             return (
-              <button key={t.v} onClick={() => setTime(t.v)} className={(isActive ? 'mtx-pill-active ' : '') + 'mtx-tap'} style={{
-                height:52, padding:'0 22px', borderRadius:16,
-                border: isActive ? '0.5px solid rgba(61,255,209,0.55)' : '0.5px solid var(--glass-stroke)',
-                background: isActive ? 'linear-gradient(180deg,rgba(61,255,209,0.16),rgba(61,255,209,0.06))' : 'var(--glass-2)',
-                backdropFilter:'blur(20px)',
-                color: isActive ? 'var(--neon)' : 'var(--ink-1)',
-                fontSize:15, fontWeight:600, cursor:'pointer',
-                whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:8,
-                boxShadow: isActive ? '0 0 0 1px rgba(61,255,209,0.18),0 8px 28px -8px rgba(61,255,209,0.55),inset 0 0 24px rgba(61,255,209,0.14)' : 'none',
-                transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
-                transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,background .25s ease,border-color .25s ease',
-                fontFamily:'var(--ff-sans)', minWidth:90, justifyContent:'center',
+              <button key={r.id} onClick={() => toggleRoutine(r.id)} className="mtx-glass mtx-tap" style={{
+                display:'flex', alignItems:'center', gap:10,
+                padding:'12px 14px', borderRadius:16, cursor:'pointer',
+                border: on ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
+                background: on ? 'linear-gradient(180deg,rgba(61,255,209,0.10),rgba(61,255,209,0.02))' : 'var(--glass-2)',
+                boxShadow: on ? '0 0 0 1px rgba(61,255,209,0.15),0 10px 30px -10px rgba(61,255,209,0.45),inset 0 0 24px rgba(61,255,209,0.10)' : 'var(--shadow-card)',
+                textAlign:'left',
+                transform: on ? 'translateY(-1px)' : 'translateY(0)',
+                transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s,background .25s,border-color .25s',
+                ...glassFor()
               }}>
-                {t.v === -1 && <IcEdit size={14} stroke="currentColor"/>}
-                {t.label}
+                <div style={{
+                  width:32, height:32, borderRadius:10,
+                  background: on ? 'rgba(61,255,209,0.18)' : 'rgba(255,255,255,0.04)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  color: on ? 'var(--neon)' : 'var(--ink-2)',
+                  transition:'background .25s,color .25s'
+                }}>
+                  <RoutineIc r={r} size={18} stroke="currentColor"/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)' }}>{r.label}</div>
+                  <div style={{ fontSize:11, color:'var(--ink-3)' }}>{r.dur}</div>
+                </div>
+                <div style={{
+                  width:18, height:18, borderRadius:6,
+                  border: on ? 0 : '0.5px solid rgba(255,255,255,0.2)',
+                  background: on ? 'var(--neon)' : 'transparent',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  color:'#0a1410',
+                  transform: on ? 'scale(1)' : 'scale(0.92)',
+                  transition:'transform .3s cubic-bezier(.34,1.56,.64,1),background .25s',
+                  boxShadow: on ? '0 0 12px rgba(61,255,209,0.55)' : 'none'
+                }}>
+                  {on && <IcCheck size={12} stroke="currentColor" strokeWidth={2.5}/>}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* ── CTA reactivo: aparece solo cuando hay tiempo + al menos 1 rutina ── */}
+      {/* Espacio mínimo cuando NO está activo, para no romper el flujo del scroll */}
+      {!canStart && (
+        <div style={{
+          padding:'4px 20px 0',
+          display:'flex', flexDirection:'column', alignItems:'center', gap:10,
+          opacity: 0.7,
+        }}>
+          <div style={{
+            fontSize:11.5, color:'var(--ink-3)',
+            textAlign:'center', lineHeight:1.5, maxWidth:260,
+            letterSpacing:'-0.005em',
+          }}>
+            {!hasTime && !hasRoutine
+              ? 'Elige un tiempo y al menos una rutina para empezar.'
+              : !hasTime
+                ? 'Falta elegir cuánto tiempo te vas a enfocar.'
+                : 'Suma al menos una rutina al ritual.'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-Object.assign(window, { HomeInactive, DEFAULT_ROUTINES, ROUTINES, RoutineIc });
+Object.assign(window, { HomeInactive, DEFAULT_ROUTINES, ROUTINES, RoutineIc, BannerCarousel, _HERO_BANNERS });
