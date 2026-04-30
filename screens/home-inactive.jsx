@@ -470,46 +470,21 @@ function HomeInactive({
 
   return (
     <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
-      {/* ── Header: eyebrow + título 2-líneas + descripción + bell al lado ──
-          Mismo patrón estructural que Comunidad y Explorar (flex space-between
-          con bloque-izquierdo + bell-derecho), para que las 3 secciones se
-          sientan parte de la misma familia visual. */}
-      <div style={{
-        padding:'8px 20px 16px',
-        display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12,
-      }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div className="mtx-eyebrow" style={{
-            marginBottom:6, color:'var(--neon)',
-            display:'flex', alignItems:'center', gap:6,
-          }}>
-            <span style={{
-              width:6, height:6, borderRadius:999, background:'var(--neon)',
-              boxShadow:'0 0 8px var(--neon)',
-              animation:'mtxPulseDotHome 2s ease-in-out infinite',
-            }}/>
-            <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
-            Ritual diario
-          </div>
-          <h1 className="mtx-h-1" style={{
-            margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
-            letterSpacing:'-0.03em', lineHeight:1.1,
-          }}>
-            {greeting}, Juan,<br/>
-            ¿Listo para tu ritual?
-          </h1>
-          <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
-            Un momento sin ruido. Elige tu tiempo, apps y rutinas.
-          </p>
-        </div>
+      {/* ── Header: bell position:absolute para que el bloque-texto use el
+          ancho completo (mismo que el banner). Antes el bell era hermano flex
+          con `flex:1` en el bloque-texto, recortando ~56px y forzando el
+          párrafo descriptivo a 3 renglones cuando había aire para 2. */}
+      <div style={{ padding:'8px 20px 16px', position:'relative' }}>
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-          position:'relative', width:44, height:44, borderRadius:999,
+          position:'absolute', top:8, right:20,
+          width:44, height:44, borderRadius:999,
           background:'var(--glass-2)',
           border:'0.5px solid var(--glass-stroke)',
           backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
           display:'flex', alignItems:'center', justifyContent:'center',
           color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
           boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
+          zIndex:2,
         }}>
           <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
           {notifCount > 0 && (
@@ -531,6 +506,34 @@ function HomeInactive({
             </span>
           )}
         </button>
+        {/* paddingRight:56 sólo en el eyebrow para no superponerse con el bell.
+            El h1 va a ancho completo: línea 1 "Buenas tardes, Juan," es corta
+            y no llega al bell horizontalmente; línea 2 (la pregunta larga) ya
+            está debajo del bell verticalmente (y > 52, bell termina en y=52).
+            La descripción <p> también full-width — para que quepa en 2 líneas. */}
+        <div className="mtx-eyebrow" style={{
+          marginBottom:6, color:'var(--neon)',
+          display:'flex', alignItems:'center', gap:6,
+          paddingRight:56,
+        }}>
+          <span style={{
+            width:6, height:6, borderRadius:999, background:'var(--neon)',
+            boxShadow:'0 0 8px var(--neon)',
+            animation:'mtxPulseDotHome 2s ease-in-out infinite',
+          }}/>
+          <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
+          Ritual diario
+        </div>
+        <h1 className="mtx-h-1" style={{
+          margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
+          letterSpacing:'-0.03em', lineHeight:1.1,
+        }}>
+          {greeting}, Juan,<br/>
+          ¿Listo para tu ritual de hoy?
+        </h1>
+        <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
+          Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
+        </p>
       </div>
 
       {/* ── Banner publicitario rotatorio (5 slides) ────────────────────── */}
