@@ -3316,6 +3316,38 @@ function VideoPlayerFullscreen({
     setBookmarkTick(t => t + 1);
   }, [item?.id]);
 
+  // ── Sync con el store global del player (window.__mtxPlayer) ──────────────
+  // Mantiene el mini player (MtxNowPlayingBar) en sync con esta vista fullscreen.
+  // Mount: marca fullscreenOpen=true + setea el item + duración.
+  // Unmount: marca fullscreenOpen=false (el mini toma el relevo, NO clearea).
+  React.useEffect(() => {
+    if (!item || !window.__mtxPlayer) return;
+    window.__mtxPlayer.play(item);
+    window.__mtxPlayer.setDuration(totalSec);
+    window.__mtxPlayer.setFullscreenOpen(true);
+    return () => {
+      // Solo cerramos el flag de fullscreen — el item sigue activo en el mini.
+      window.__mtxPlayer && window.__mtxPlayer.setFullscreenOpen(false);
+    };
+  }, [item?.id, totalSec]);
+
+  // Sync isPlaying con el store
+  React.useEffect(() => {
+    if (!window.__mtxPlayer) return;
+    if (isPlaying) window.__mtxPlayer.resume();
+    else           window.__mtxPlayer.pause();
+  }, [isPlaying]);
+
+  // Sync progress con el store (throttled — evita spam: solo emite si cambió >0.5%)
+  const lastSyncedProgressRef = React.useRef(0);
+  React.useEffect(() => {
+    if (!window.__mtxPlayer) return;
+    if (Math.abs(progress - lastSyncedProgressRef.current) > 0.005 || progress === 0 || progress >= 1) {
+      window.__mtxPlayer.setProgress(progress);
+      lastSyncedProgressRef.current = progress;
+    }
+  }, [progress]);
+
   // Main playback tick — speed multiplies the increment
   React.useEffect(() => {
     if (!isPlaying || !item) return;
@@ -7235,6 +7267,20 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     };
     window.addEventListener('mtx:explore-open-item', handler);
     return () => window.removeEventListener('mtx:explore-open-item', handler);
+  }, []);
+
+  // Listener: tap en el mini player (MtxNowPlayingBar) → expandir directo al
+  // VideoPlayerFullscreen sin pasar por el VideoSheet (el item ya está activo).
+  React.useEffect(() => {
+    const handler = (e) => {
+      const item = e.detail && e.detail.item;
+      if (!item) return;
+      // Si recibimos un item por id, hidratarlo desde EXPLORE_CONTENT por seguridad
+      const it = item.id ? (EXPLORE_CONTENT.find(c => c.id === item.id) || item) : item;
+      setVideoPlayingItem(it);
+    };
+    window.addEventListener('mtx:expand-player', handler);
+    return () => window.removeEventListener('mtx:expand-player', handler);
   }, []);
   const handleViewAll = (category) => {
     nav.push({ view: 'category-full', categoryId: category.id });

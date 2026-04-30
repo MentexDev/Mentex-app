@@ -43,11 +43,12 @@
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=3"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=39"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=40"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
   <script type="text/babel" src="screens/user-profile-flow.jsx?v=12"></script>
+  <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -173,6 +174,50 @@
         window.addEventListener('mtx:open-user-profile', handler);
         return () => window.removeEventListener('mtx:open-user-profile', handler);
       }, []);
+
+      // Listener: tap en el mini player → switch a tab Explorar y dispatch para
+      // que ExploreScreen abra el VideoPlayerFullscreen con el item del store.
+      React.useEffect(() => {
+        const handler = (e) => {
+          const item = e.detail && e.detail.item;
+          if (!item) return;
+          if (tab !== 'explore') setTab('explore');
+          // Re-dispatch en un microtick para que ExploreScreen ya esté montado
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('mtx:expand-player', { detail: { item } }));
+          }, 60);
+        };
+        // Capturamos el evento original UNA vez aquí; ExploreScreen tiene su
+        // propio listener con el mismo nombre — para evitar double-handling,
+        // usamos un sub-evento solo cuando NO estamos ya en explore.
+        const wrappedHandler = (e) => {
+          if (tab === 'explore') return; // ExploreScreen lo maneja directo
+          handler(e);
+        };
+        window.addEventListener('mtx:expand-player', wrappedHandler);
+        return () => window.removeEventListener('mtx:expand-player', wrappedHandler);
+      }, [tab]);
+
+      // Suscripción al store del player vía evento directo (no usamos
+      // window.useNowPlaying aquí porque su disponibilidad depende del orden
+      // de carga de scripts — usar el listener directo es más robusto).
+      const [nowPlayingItem, setNowPlayingItem] = React.useState(null);
+      const [playerFullscreenOpen, setPlayerFullscreenOpen] = React.useState(false);
+      React.useEffect(() => {
+        // Hidratación inicial por si el store ya tenía estado al montar
+        if (window.__mtxPlayer) {
+          const s = window.__mtxPlayer.get();
+          setNowPlayingItem(s.currentItem);
+          setPlayerFullscreenOpen(!!s.fullscreenOpen);
+        }
+        const handler = (e) => {
+          setNowPlayingItem(e.detail?.currentItem || null);
+          setPlayerFullscreenOpen(!!e.detail?.fullscreenOpen);
+        };
+        window.addEventListener('mtx:player-changed', handler);
+        return () => window.removeEventListener('mtx:player-changed', handler);
+      }, []);
+      const hasMiniPlayer = !!nowPlayingItem && !playerFullscreenOpen;
 
       const isActive = tweaks.homeState === 'active';
 
@@ -347,10 +392,21 @@
             </ToastProvider>
           </IOSDevice>
 
-          {/* Floating CTA button — separate from tabbar, sits ABOVE it */}
+          {/* Mini player — encima del tabbar, debajo de cualquier CTA flotante.
+              Persiste cross-tab. Tap → expand al VideoPlayerFullscreen.        */}
+          {typeof MtxNowPlayingBar !== 'undefined' && (
+            <MtxNowPlayingBar tabBarHeight={78}/>
+          )}
+
+          {/* Floating CTA button — separate from tabbar, sits ABOVE it.
+              Si hay mini player activo, sube ~74px (altura del mini + gap)    */}
           {tab === 'home' && !isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && (
             <button className="mtx-cta-float mtx-tap"
-                    style={{ animation: 'mtx-breathe 3.5s ease-in-out infinite' }}
+                    style={{
+                      animation: 'mtx-breathe 3.5s ease-in-out infinite',
+                      bottom: hasMiniPlayer ? 158 : 84,
+                      transition: 'bottom .35s cubic-bezier(.25,.8,.25,1)',
+                    }}
                     onClick={() => setTweak('homeState', 'active')}>
               <IcShield size={18} stroke="currentColor" strokeWidth={2}/>
               Iniciar enfoque · {fmtTime(state.time)}
