@@ -496,10 +496,10 @@ function HomeInactive({
             letterSpacing:'-0.03em', lineHeight:1.1,
           }}>
             {greeting}, Juan,<br/>
-            Diseña tu ritual.
+            ¿Listo para tu ritual?
           </h1>
           <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
-            Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
+            Un momento sin ruido. Elige tu tiempo, apps y rutinas.
           </p>
         </div>
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
@@ -581,8 +581,10 @@ function HomeInactive({
         }}>
           {TIME_OPTIONS.map(t => {
             const isActive = time === t.v;
+            // Tap en pill activo → toggle a 0 (deselecciona). Permite cambiar
+            // de opinión sin tener que ir a "Personalizar" ni elegir otro tiempo.
             return (
-              <button key={t.v} onClick={() => setTime(t.v)} className={(isActive ? 'mtx-pill-active ' : '') + 'mtx-tap'} style={{
+              <button key={t.v} onClick={() => setTime(isActive ? 0 : t.v)} className={(isActive ? 'mtx-pill-active ' : '') + 'mtx-tap'} style={{
                 flexShrink:0,
                 height:48, padding:'0 22px', borderRadius:14,
                 border: isActive ? '0.5px solid rgba(61,255,209,0.55)' : '0.5px solid var(--glass-stroke)',
