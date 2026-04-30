@@ -221,7 +221,14 @@ function UserProfileScreen({ userId, onClose }) {
   };
 
   const handleShareTap = (entity) => setShareEntity(entity);
-  const handleSocialTap = (s) => toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+  const handleSocialTap = (s) => {
+    const url = window._openSocialUrl ? window._openSocialUrl(s.id, s.handle) : null;
+    if (url) {
+      toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+    } else {
+      toast.show({ message: `Sin perfil de ${s.label} configurado`, duration: 1600 });
+    }
+  };
   const handleShareProfile = () => {
     setShareEntity({
       id: profile.id,

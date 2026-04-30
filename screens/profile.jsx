@@ -44,6 +44,36 @@ function _getSocialBrand(id) {
   }
 }
 
+// ── Open social profile URL ─────────────────────────────────────────────────
+// Estándar 2026: usar universal link (https://...) en lugar de URL schemes
+// custom (instagram://). En mobile con app instalada, el SO abre la app
+// nativa automáticamente. En mobile sin app o desktop, abre browser.
+// Sin doble-llamada, sin fallback timer, sin sheet — patrón Threads/Apple Music.
+function _openSocialUrl(id, handle) {
+  const cleanHandle = String(handle || '').replace(/^@/, '').trim();
+  if (!cleanHandle) return null;
+
+  const urls = {
+    instagram: `https://instagram.com/${cleanHandle}`,
+    twitter:   `https://x.com/${cleanHandle}`,
+    tiktok:    `https://tiktok.com/@${cleanHandle}`,
+    youtube:   `https://youtube.com/@${cleanHandle.replace(/^@/, '')}`,
+    spotify:   `https://open.spotify.com/user/${encodeURIComponent(cleanHandle)}`,
+    linkedin:  `https://linkedin.com/in/${cleanHandle}`,
+    github:    `https://github.com/${cleanHandle}`,
+  };
+
+  const url = urls[id];
+  if (!url) return null;
+
+  // _blank + noopener: nueva pestaña, sin acceso al window padre.
+  // En iOS/Android con app instalada, universal links la abren automáticamente.
+  if (typeof window !== 'undefined' && window.open) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  return url;
+}
+
 // ── Categorías de logros (6 ejes) ────────────────────────────────────────────
 const _ACHIEVEMENT_CATEGORIES = {
   focus:       { id:'focus',       label:'Foco',         Ic:IcShield,  color:'#3dffd1' },
@@ -2632,7 +2662,14 @@ function ProfileScreen() {
     setThreadReview(enriched);
   };
   const handleShareTap = (entity) => setShareEntity(entity);
-  const handleSocialTap = (s) => toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+  const handleSocialTap = (s) => {
+    const url = _openSocialUrl(s.id, s.handle);
+    if (url) {
+      toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+    } else {
+      toast.show({ message: `Sin perfil de ${s.label} configurado`, duration: 1600 });
+    }
+  };
   const handleSettings = () => toast.show({ message: 'Configuraciones — próxima fase', duration: 1600 });
   const handleShareProfile = () => {
     setShareEntity({
@@ -3145,5 +3182,5 @@ Object.assign(window, {
   ProfileScreen, ProfileReviewCard, ProfileStatsTab, AwardsTab, useUserReviews,
   AchievementCard, AchievementCardFull, AchievementBadge, EditProfileSheet, useProfile,
   _ACHIEVEMENT_TIERS, _ACHIEVEMENT_CATEGORIES, _ALL_ACHIEVEMENTS, _buildAchievements,
-  _buildAchievementsForUser, _getSocialBrand,
+  _buildAchievementsForUser, _getSocialBrand, _openSocialUrl,
 });
