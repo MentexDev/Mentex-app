@@ -32,7 +32,7 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=14"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=17"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=8"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
@@ -81,9 +81,13 @@
       const [completionOpen, setCompletionOpen] = React.useState(false);
       const [userProfileId, setUserProfileId] = React.useState(null); // userId del perfil de otro usuario abierto
       const [state, setState] = React.useState({
-        blockedApps: ['ig', 'tt', 'yt', 'x', 'fb'],
-        routines: ['meditate', 'read', 'gratitude'],
-        time: 45,
+        // Sin preselecciones: el usuario decide qué activar.
+        // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
+        // - routines: empty → grid de rutinas sin ninguna marcada
+        // - time: 0 → el CTA "Comenzar jornada" no aparece hasta que se elija
+        blockedApps: [],
+        routines: [],
+        time: 0,
       });
 
       // Toggle join / leave from detail sheet
@@ -398,12 +402,12 @@
             <MtxNowPlayingBar tabBarHeight={78}/>
           )}
 
-          {/* Floating CTA — REACTIVO: aparece solo cuando el user ha configurado
-              tiempo + al menos 1 rutina. Sin esos dos, el botón no aparece y el
-              Home se queda esperando la decisión del user (no presiona). */}
+          {/* Floating CTA — REACTIVO: aparece en cuanto el user elige un tiempo.
+              Apps y rutinas son OPCIONALES — el usuario puede arrancar solo con
+              un timer si así lo decide; no lo obligamos a curar redes ni rituales. */}
           {tab === 'home' && !isActive && view === 'home' &&
            !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen &&
-           state.time > 0 && state.routines.length > 0 && (
+           state.time > 0 && (
             <button className="mtx-cta-float mtx-tap"
                     style={{
                       animation: 'mtx-cta-emerge .45s cubic-bezier(.2,.9,.3,1.2) both, mtx-breathe 3.5s ease-in-out 0.5s infinite',

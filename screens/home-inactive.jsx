@@ -7,14 +7,14 @@
 // por si necesitamos revertir partes.
 //
 // Layout vertical (de arriba a abajo):
-//   1. Saludo "Buenas tardes, Juan!" + sub "¿Estás listo para tu ritual de hoy?"
-//   2. Eyebrow "RITUAL DIARIO" + título sección
-//   3. Banner publicitario rotatorio (5 slides auto-swipe)
-//   4. Tiempo de enfoque (pills + botón personalizar)
-//   5. Apps a bloquear (mejora tu concentración)
-//   6. Rutinas para hoy (complementos del ritual)
-//   7. CTA reactivo "Comenzar jornada · X min" — solo aparece cuando hay tiempo
-//      seleccionado + al menos 1 rutina activa
+//   1. Eyebrow "● RITUAL DIARIO" + bell — header compacto
+//   2. Título 2-líneas: "Buenas tardes, Juan," / "Diseña tu próximo enfoque."
+//   3. Descripción
+//   4. Banner publicitario rotatorio (5 slides auto-swipe)
+//   5. Tiempo de enfoque (pills + botón personalizar) — sin valor por defecto
+//   6. Apps a bloquear — 5 apps default siempre visibles, switches off por defecto
+//   7. Rutinas para hoy — sin selección por defecto
+//   8. CTA reactivo "Comenzar jornada · X min" — basta con tener tiempo elegido
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RoutineIc = ({ r, ...rest }) => {
@@ -131,6 +131,11 @@ const LEARNING = [
   narrator:'Naturaleza · binaural', rating:4.8, plays:'218k', status:'new',
   desc:'Pájaros y viento entre los árboles antes de que el sol toque el suelo. Grabado en estéreo binaural.',
   chapters:[{t:'Antes del alba',d:'12:00'},{t:'Primer canto',d:'15:00'},{t:'Coro completo',d:'18:00'}] }];
+
+// IDs de las 5 apps que SIEMPRE aparecen en la sección "Mejora tu concentración"
+// del Home, independiente del estado del usuario. Estos son los principales
+// "ladrones de atención" según la curaduría de Mentex.
+const _DEFAULT_VISIBLE_APP_IDS = ['ig', 'tt', 'yt', 'x', 'fb'];
 
 const TIME_OPTIONS = [
 { v:15,  label:'15 min' },
@@ -260,7 +265,7 @@ function BannerCarousel({ slides, onTap }) {
         aria-label={`Banner: ${slide.title}`}
         style={{
           position:'relative',
-          height: 156,
+          height: 196,
           borderRadius: 22,
           overflow:'hidden',
           background: slide.gradient,
@@ -302,7 +307,8 @@ function BannerCarousel({ slides, onTap }) {
         <div style={{
           position:'relative', zIndex:1,
           height:'100%',
-          padding:'18px 20px 16px',
+          boxSizing:'border-box', // sin esto, el padding cae FUERA del 100% y el CTA bottom se recorta por overflow:hidden del banner
+          padding:'20px 22px 18px',
           display:'flex', flexDirection:'column', justifyContent:'space-between',
           color: isPremium ? '#0a1410' : 'var(--ink-1)',
         }}>
@@ -450,10 +456,10 @@ function HomeInactive({
     toast.show({ message: `Abriendo ${slide.title}…`, duration: 1600 });
   };
 
-  // CTA reactivo: aparece solo cuando hay tiempo + al menos 1 rutina activa
+  // CTA reactivo: basta con tener tiempo elegido. Apps y rutinas son opcionales —
+  // el usuario puede arrancar solo con un timer si así lo decide.
   const hasTime = time > 0;
-  const hasRoutine = routines.length > 0;
-  const canStart = hasTime && hasRoutine;
+  const canStart = hasTime;
 
   // Texto formateado del tiempo
   const fmtTime = (m) => {
@@ -464,74 +470,62 @@ function HomeInactive({
 
   return (
     <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
-      {/* ── Greeting + sub + bell (reemplaza MtxHeader: el saludo grande aquí ya cumple su rol) ── */}
-      <div style={{
-        padding:'8px 20px 22px',
-        display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12,
-      }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <h1 style={{
-            margin:0, fontSize:30, fontWeight:800, color:'var(--ink-1)',
-            letterSpacing:'-0.032em', lineHeight:1.05,
-            fontFamily:'var(--ff-display)',
-          }}>
-            {greeting}, Juan!
-          </h1>
-          <p style={{
-            margin:'8px 0 0', fontSize:14, color:'var(--ink-3)',
-            letterSpacing:'-0.005em', lineHeight:1.4,
-          }}>
-            ¿Estás listo para tu ritual de hoy?
-          </p>
-        </div>
-        <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-          position:'relative', width:44, height:44, borderRadius:999,
-          background:'var(--glass-2)',
-          border:'0.5px solid var(--glass-stroke)',
-          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
-          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
+      {/* ── Header: eyebrow + bell, luego título 2-líneas + descripción ────
+          El saludo y la acción ("Diseña tu próximo enfoque.") forman UN solo
+          título de 2 renglones — antes había bloque-saludo + bloque-título y
+          se sentía duplicado. */}
+      <div style={{ padding:'8px 20px 22px' }}>
+        <div style={{
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+          marginBottom:12,
         }}>
-          <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
-          {notifCount > 0 && (
+          <div className="mtx-eyebrow" style={{
+            color:'var(--neon)',
+            display:'flex', alignItems:'center', gap:6,
+            fontSize:10, letterSpacing:'0.16em', fontWeight:800,
+          }}>
             <span style={{
-              position:'absolute', top:6, right:6,
-              minWidth:16, height:16, padding:'0 5px',
-              borderRadius:999, background:'var(--neon)',
-              color:'#0a1410', fontSize:10, fontWeight:700,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
-              boxShadow:'0 0 8px rgba(61,255,209,0.55)',
-            }}>
-              {notifCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* ── Eyebrow + título sección (estilo Comunidad) ─────────────────── */}
-      <div style={{ padding:'0 20px 14px' }}>
-        <div className="mtx-eyebrow" style={{
-          marginBottom:6, color:'var(--neon)',
-          display:'flex', alignItems:'center', gap:6,
-          fontSize:10, letterSpacing:'0.16em', fontWeight:800,
-        }}>
-          <span style={{
-            width:6, height:6, borderRadius:999, background:'var(--neon)',
-            boxShadow:'0 0 8px var(--neon)',
-            animation:'mtxPulseDotHome 2s ease-in-out infinite',
-          }}/>
-          <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
-          Ritual diario
+              width:6, height:6, borderRadius:999, background:'var(--neon)',
+              boxShadow:'0 0 8px var(--neon)',
+              animation:'mtxPulseDotHome 2s ease-in-out infinite',
+            }}/>
+            <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
+            Ritual diario
+          </div>
+          <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
+            position:'relative', width:44, height:44, borderRadius:999,
+            background:'var(--glass-2)',
+            border:'0.5px solid var(--glass-stroke)',
+            backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
+            boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
+          }}>
+            <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
+            {notifCount > 0 && (
+              <span style={{
+                position:'absolute', top:6, right:6,
+                minWidth:16, height:16, padding:'0 5px',
+                borderRadius:999, background:'var(--neon)',
+                color:'#0a1410', fontSize:10, fontWeight:700,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
+                boxShadow:'0 0 8px rgba(61,255,209,0.55)',
+              }}>
+                {notifCount}
+              </span>
+            )}
+          </button>
         </div>
-        <h2 className="mtx-h-1" style={{
-          margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
-          letterSpacing:'-0.03em', lineHeight:1.1,
+        <h1 className="mtx-h-1" style={{
+          margin:0, color:'var(--ink-1)', fontSize:30, fontWeight:800,
+          letterSpacing:'-0.032em', lineHeight:1.08,
+          fontFamily:'var(--ff-display)',
         }}>
+          {greeting}, Juan,<br/>
           Diseña tu próximo enfoque.
-        </h2>
-        <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
+        </h1>
+        <p style={{ margin:'10px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
           Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
         </p>
       </div>
@@ -577,7 +571,9 @@ function HomeInactive({
         </div>
 
         <div className="mtx-no-scrollbar" style={{
-          padding:'0 20px',
+          // padding vertical para que el translateY(-1px) + box-shadow del pill activo
+          // no quede recortado por el clipping del overflow-x del scroll horizontal.
+          padding:'8px 20px 12px',
           display:'flex', gap:9, overflowX:'auto', WebkitOverflowScrolling:'touch',
         }}>
           {TIME_OPTIONS.map(t => {
@@ -618,31 +614,36 @@ function HomeInactive({
           </p>
         </div>
         <div className="mtx-glass" style={{ margin:'0 20px', padding:6, borderRadius:18, ...glassFor() }}>
-          {APPS.filter(a => state.blockedApps.includes(a.id)).slice(0, 6).map((app, i) => {
-            const on = blockedApps.includes(app.id);
-            return (
-              <div key={app.id} onClick={() => toggleApp(app.id)} className="mtx-tap" style={{
-                display:'flex', alignItems:'center', gap:12,
-                padding:'10px 12px', cursor:'pointer',
-                borderTop: i === 0 ? 0 : '0.5px solid rgba(255,255,255,0.05)'
-              }}>
-                <app.Icon size={36}/>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:500, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>{app.name}</div>
-                  <div style={{ fontSize:11, color:'var(--ink-3)' }}>{app.subtitle}</div>
+          {/* Apps a mostrar = unión de los 5 defaults + cualquier extra que el user
+              haya añadido a blockedApps desde el editor. Los defaults SIEMPRE
+              aparecen (con switch off cuando no están activos), para que el user
+              vea las opciones disponibles sin abrir el editor. */}
+          {(() => {
+            const visibleIds = Array.from(new Set([..._DEFAULT_VISIBLE_APP_IDS, ...blockedApps]));
+            const items = visibleIds
+              .map(id => APPS.find(a => a.id === id))
+              .filter(Boolean);
+            return items.map((app, i) => {
+              const on = blockedApps.includes(app.id);
+              return (
+                <div key={app.id} onClick={() => toggleApp(app.id)} className="mtx-tap" style={{
+                  display:'flex', alignItems:'center', gap:12,
+                  padding:'10px 12px', cursor:'pointer',
+                  borderTop: i === 0 ? 0 : '0.5px solid rgba(255,255,255,0.05)'
+                }}>
+                  <app.Icon size={36}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:14, fontWeight:500, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>{app.name}</div>
+                    <div style={{ fontSize:11, color:'var(--ink-3)' }}>{app.subtitle}</div>
+                  </div>
+                  <button className="mtx-switch" data-on={on ? '1' : '0'}
+                    onClick={(e) => { e.stopPropagation(); toggleApp(app.id); }}>
+                    <i/>
+                  </button>
                 </div>
-                <button className="mtx-switch" data-on={on ? '1' : '0'}
-                  onClick={(e) => { e.stopPropagation(); toggleApp(app.id); }}>
-                  <i/>
-                </button>
-              </div>
-            );
-          })}
-          {APPS.filter(a => state.blockedApps.includes(a.id)).length === 0 && (
-            <div style={{ padding:'20px 12px', textAlign:'center', color:'var(--ink-3)', fontSize:12 }}>
-              Ninguna app bloqueada aún
-            </div>
-          )}
+              );
+            });
+          })()}
           <div onClick={onEditApps} className="mtx-tap" style={{
             display:'flex', alignItems:'center', justifyContent:'center', gap:8,
             padding:'12px', borderTop:'0.5px solid rgba(255,255,255,0.05)',
@@ -727,8 +728,9 @@ function HomeInactive({
         </div>
       </div>
 
-      {/* ── CTA reactivo: aparece solo cuando hay tiempo + al menos 1 rutina ── */}
-      {/* Espacio mínimo cuando NO está activo, para no romper el flujo del scroll */}
+      {/* ── Hint cuando aún no hay tiempo elegido ───────────────────────── */}
+      {/* Apps y rutinas son OPCIONALES: basta con escoger un tiempo para que
+          aparezca el CTA "Comenzar jornada". */}
       {!canStart && (
         <div style={{
           padding:'4px 20px 0',
@@ -740,11 +742,7 @@ function HomeInactive({
             textAlign:'center', lineHeight:1.5, maxWidth:260,
             letterSpacing:'-0.005em',
           }}>
-            {!hasTime && !hasRoutine
-              ? 'Elige un tiempo y al menos una rutina para empezar.'
-              : !hasTime
-                ? 'Falta elegir cuánto tiempo te vas a enfocar.'
-                : 'Suma al menos una rutina al ritual.'}
+            Elige cuánto tiempo te vas a enfocar para empezar.
           </div>
         </div>
       )}
