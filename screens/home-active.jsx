@@ -209,7 +209,11 @@ function NowPlayingScreen({ activity, onClose }) {
 }
 
 // ── ActivityRow ───────────────────────────────────────────────────────────────
-function ActivityRow({ a, onOpenPlayer }) {
+function ActivityRow({ a, onOpenPlayer, onRemove }) {
+  const handleRemove = onRemove ? (e) => {
+    e.stopPropagation();
+    onRemove();
+  } : null;
   return (
     <div className="mtx-glass mtx-tap" style={{
       display:'flex', alignItems:'center', gap:12, padding:14,
@@ -222,6 +226,10 @@ function ActivityRow({ a, onOpenPlayer }) {
         background:'linear-gradient(180deg,rgba(61,255,209,0.08),rgba(61,255,209,0.01))',
         boxShadow:'0 0 0 1px rgba(61,255,209,0.18),0 12px 32px -10px rgba(61,255,209,0.5),inset 0 0 24px rgba(61,255,209,0.08)',
         transform:'translateY(-1px)',
+      } : {}),
+      ...(a.fromExplore ? {
+        borderColor:`${a.accent}40`,
+        background:`linear-gradient(180deg, ${a.accent}0c, ${a.accent}02)`,
       } : {}),
     }}
     onClick={a.playing ? onOpenPlayer : undefined}
@@ -242,20 +250,27 @@ function ActivityRow({ a, onOpenPlayer }) {
 
       <div style={{
         width:40, height:40, borderRadius:12, flexShrink:0,
-        background: a.done ? 'rgba(61,255,209,0.15)' : 'rgba(255,255,255,0.04)',
+        background: a.fromExplore && a.cover
+          ? `url(${a.cover}) center/cover`
+          : (a.done ? 'rgba(61,255,209,0.15)' : 'rgba(255,255,255,0.04)'),
+        border: a.fromExplore ? `0.5px solid ${a.accent}55` : '0',
         display:'flex', alignItems:'center', justifyContent:'center',
         color: a.done ? 'var(--neon)' : 'var(--ink-1)',
+        position:'relative', overflow:'hidden',
       }}>
+        {a.fromExplore && a.cover ? (
+          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.18)' }}/>
+        ) : null}
         {a.done
           ? <IcCheck size={20} stroke="currentColor" strokeWidth={2.5}/>
-          : <a.Ic size={18} stroke="currentColor"/>
+          : (a.fromExplore && a.cover ? null : <a.Ic size={18} stroke="currentColor"/>)
         }
       </div>
 
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2,
-                      color: a.playing ? 'var(--neon)' : 'var(--ink-3)' }}>
-          {a.kind}{a.playing && ' · ahora'}
+                      color: a.playing ? 'var(--neon)' : (a.fromExplore ? a.accent : 'var(--ink-3)') }}>
+          {a.kind}{a.playing && ' · ahora'}{a.fromExplore && !a.playing && ' · agendado'}
         </div>
         <div style={{ fontSize:14, fontWeight:600, color:'var(--ink-1)', textDecoration: a.done ? 'line-through' : 'none',
                       whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
@@ -266,6 +281,16 @@ function ActivityRow({ a, onOpenPlayer }) {
 
       {a.playing ? (
         <Waveform bars={4} h={14} accent="var(--neon)"/>
+      ) : a.fromExplore && handleRemove ? (
+        <button onClick={handleRemove} aria-label="Quitar del ritual" className="mtx-tap" style={{
+          width:32, height:32, borderRadius:999, border:0, flexShrink:0,
+          background:'rgba(255,255,255,0.04)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          cursor:'pointer', color:'var(--ink-3)',
+          transition:'background .15s, color .15s',
+        }}>
+          <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
+        </button>
       ) : !a.done ? (
         <button className="mtx-tap" style={{
           width:40, height:40, borderRadius:999, border:0, flexShrink:0,
@@ -283,6 +308,7 @@ function ActivityRow({ a, onOpenPlayer }) {
 // ── HomeActive ────────────────────────────────────────────────────────────────
 function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = [], onOpenPlayer = () => {} }) {
   const [seconds,  setSeconds]  = React.useState(45 * 60 - 13 * 60);
+  const ritualExtras = (window.useRitualItems ? window.useRitualItems() : []);
 
   React.useEffect(() => {
     const id = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
@@ -453,16 +479,51 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
       <div style={{ marginBottom:24 }}>
         <MtxSectionHead
           title="Tu ritual de hoy"
-          eyebrow={`${ACTIVITIES.filter(a => a.done).length} de ${ACTIVITIES.length} completadas`}
+          eyebrow={(() => {
+            const total = ACTIVITIES.length + ritualExtras.length;
+            const done = ACTIVITIES.filter(a => a.done).length;
+            return `${done} de ${total} completadas`;
+          })()}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {ACTIVITIES.map(a => (
             <ActivityRow key={a.id} a={a} onOpenPlayer={onOpenPlayer}/>
           ))}
+          {ritualExtras.map(extra => (
+            <ActivityRow
+              key={extra.id}
+              a={_extraToActivity(extra)}
+              onOpenPlayer={onOpenPlayer}
+              onRemove={() => window.__mtxRitual?.remove(extra.id)}
+            />
+          ))}
         </div>
       </div>
     </div>
   );
+}
+
+// Convert a ritual extra (saved from Explore) into an ActivityRow-compatible shape
+function _extraToActivity(extra) {
+  const iconByKind = {
+    'Audiolibros':  IcBook,
+    'Meditaciones': IcLeaf,
+    'Series':       IcTarget,
+    'Charlas':      IcMic,
+    'Sonidos':      IcWind,
+  };
+  return {
+    id: extra.id,
+    kind: extra.kind || 'Contenido',
+    title: extra.title,
+    dur: extra.dur,
+    totalSec: extra.totalSec || 600,
+    Ic: iconByKind[extra.kind] || IcSpark,
+    accent: extra.accent || '#3dffd1',
+    done: false,
+    fromExplore: true,
+    cover: extra.cover,
+  };
 }
 
 Object.assign(window, { HomeActive, NowPlayingScreen, ACTIVITIES });

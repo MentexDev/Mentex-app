@@ -28,21 +28,26 @@
 
   <script type="text/babel" src="frames/ios-frame.jsx?v=2"></script>
   <script type="text/babel" src="frames/tweaks-panel.jsx?v=2"></script>
-  <script type="text/babel" src="components/mentex-icons.jsx?v=2"></script>
+  <script type="text/babel" src="components/mentex-icons.jsx?v=12"></script>
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=13"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=7"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=8"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
   <script type="text/babel" src="screens/apps-editor.jsx?v=2"></script>
   <script type="text/babel" src="screens/routines-editor.jsx?v=2"></script>
   <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
-  <script type="text/babel" src="screens/profile.jsx?v=4"></script>
+  <script type="text/babel" src="screens/profile.jsx?v=26"></script>
+  <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=3"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=10"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=39"></script>
+  <script type="text/babel" src="screens/community-flow.jsx?v=7"></script>
+  <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
+  <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
+  <script type="text/babel" src="screens/user-profile-flow.jsx?v=10"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -73,6 +78,7 @@
       const [breakCount, setBreakCount] = React.useState(0);
       const [reflectionOpen, setReflectionOpen] = React.useState(false);
       const [completionOpen, setCompletionOpen] = React.useState(false);
+      const [userProfileId, setUserProfileId] = React.useState(null); // userId del perfil de otro usuario abierto
       const [state, setState] = React.useState({
         blockedApps: ['ig', 'tt', 'yt', 'x', 'fb'],
         routines: ['meditate', 'read', 'gratitude'],
@@ -128,6 +134,46 @@
         root.style.setProperty('--ff-display', `'${tweaks.fontFamily}', system-ui, sans-serif`);
       }, [tweaks.accentColor, tweaks.fontFamily]);
 
+      // Listener: tap en item desde Comunidad/Perfil → cambia a Explorar y abre VideoSheet
+      // Al cerrar el VideoSheet, vuelve al tab origen (community/profile)
+      const prevTabRef = React.useRef(null);
+      React.useEffect(() => {
+        const openHandler = (e) => {
+          const itemId = e.detail && e.detail.itemId;
+          if (!itemId) return;
+          // Solo recordamos si NO estamos ya en explore
+          if (tab !== 'explore') prevTabRef.current = tab;
+          setTab('explore');
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('mtx:explore-open-item', { detail: { itemId } }));
+          }, 60);
+        };
+        const closeHandler = () => {
+          if (prevTabRef.current && prevTabRef.current !== 'explore') {
+            const back = prevTabRef.current;
+            prevTabRef.current = null;
+            setTab(back);
+          }
+        };
+        window.addEventListener('mtx:open-item-from-community', openHandler);
+        window.addEventListener('mtx:videosheet-closed', closeHandler);
+        return () => {
+          window.removeEventListener('mtx:open-item-from-community', openHandler);
+          window.removeEventListener('mtx:videosheet-closed', closeHandler);
+        };
+      }, [tab]);
+
+      // Listener: tap en avatar/nombre desde Comunidad/Thread → abre perfil de otro usuario
+      React.useEffect(() => {
+        const handler = (e) => {
+          const userId = e.detail && e.detail.userId;
+          if (!userId) return;
+          setUserProfileId(userId);
+        };
+        window.addEventListener('mtx:open-user-profile', handler);
+        return () => window.removeEventListener('mtx:open-user-profile', handler);
+      }, []);
+
       const isActive = tweaks.homeState === 'active';
 
       // Selected time pill formatting for primary button
@@ -167,6 +213,8 @@
                     onLearningClick={(l) => setSelectedLearning(l)}/>
                 ) : tab === 'profile' ? (
                   <ProfileScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+                ) : tab === 'community' ? (
+                  <CommunityScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
                 ) : tab === 'explore' ? (
                   <ExploreScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
                 ) : !isActive ? (
@@ -240,6 +288,14 @@
                 Sits at IOSDevice level so position:absolute anchors to device viewport,
                 not to the (often very tall) scrollable mtx-bg content. */}
             <div id="mtx-overlay-root"/>
+
+            {/* User profile overlay — fase 4-B */}
+            {userProfileId && typeof UserProfileScreen !== 'undefined' && (
+              <UserProfileScreen
+                key={userProfileId}
+                userId={userProfileId}
+                onClose={() => setUserProfileId(null)}/>
+            )}
 
             {/* Session-flow sheets */}
             {breakPickerOpen && typeof BreakPickerSheet !== 'undefined' && (
