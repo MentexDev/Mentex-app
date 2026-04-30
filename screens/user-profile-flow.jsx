@@ -325,8 +325,9 @@ function UserProfileScreen({ userId, onClose }) {
       .filter(r => r.item);
   }, [userId, profile]);
 
-  // Convierte un string "Ahora" | "Nm" | "Nh" | "Nd" → timestamp aproximado en ms
-  const timeAgoToTs = React.useCallback((timeAgo) => {
+  // Convierte un string "Ahora" | "Nm" | "Nh" | "Nd" → timestamp aproximado en ms.
+  // Función pura sin closure — no requiere useCallback (evita memo overhead).
+  const timeAgoToTs = (timeAgo) => {
     if (!timeAgo || timeAgo === 'Ahora') return Date.now();
     const m = String(timeAgo).match(/^(\d+)\s*([mhd])$/i);
     if (!m) return Date.now();
@@ -336,7 +337,7 @@ function UserProfileScreen({ userId, onClose }) {
              : unit === 'h' ? n * 60 * 60_000
              :                n * 24 * 60 * 60_000; // d
     return Date.now() - ms;
-  }, []);
+  };
 
   if (!profile) return null;
 

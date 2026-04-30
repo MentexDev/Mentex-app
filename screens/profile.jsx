@@ -104,7 +104,8 @@ function _buildAchievements() {
   return _ALL_ACHIEVEMENTS.map(a => ({
     ...a,
     unlocked: a.current >= a.target,
-    unlockedAgoDays: a.current >= a.target ? null : null, // mock — se podría calcular
+    // unlockedAgoDays: TODO cuando haya backend con timestamps reales por logro
+    unlockedAgoDays: null,
   }));
 }
 
@@ -2556,18 +2557,18 @@ function ProfileScreen() {
           {/* Actions inline: Share + Edit */}
           <div style={{ display:'flex', gap:8, flexShrink:0 }}>
             <button onClick={handleShareProfile} aria-label="Compartir perfil" className="mtx-tap" style={{
-              width:36, height:36, borderRadius:999, border:0,
-              background:'rgba(255,255,255,0.06)',
+              width:36, height:36, borderRadius:999,
               border:'0.5px solid rgba(255,255,255,0.06)',
+              background:'rgba(255,255,255,0.06)',
               display:'flex', alignItems:'center', justifyContent:'center',
               color:'var(--ink-1)', cursor:'pointer',
             }}>
               <IcShare size={15} stroke="currentColor" strokeWidth={1.7}/>
             </button>
             <button onClick={() => setEditOpen(true)} aria-label="Editar perfil" className="mtx-tap" style={{
-              width:36, height:36, borderRadius:999, border:0,
-              background:'rgba(255,255,255,0.06)',
+              width:36, height:36, borderRadius:999,
               border:'0.5px solid rgba(255,255,255,0.06)',
+              background:'rgba(255,255,255,0.06)',
               display:'flex', alignItems:'center', justifyContent:'center',
               color:'var(--ink-1)', cursor:'pointer',
             }}>

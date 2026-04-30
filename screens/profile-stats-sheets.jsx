@@ -824,16 +824,19 @@ function FollowersSheet({ profile, onClose, isOwn = false, initialTab = 'followe
   const [query, setQuery] = React.useState('');
   const inputRef = React.useRef(null);
 
-  // Re-render reactivo a follows
-  const [, force] = React.useReducer(x => x + 1, 0);
+  // Re-render reactivo a follows. `followsTick` SE incrementa (es state),
+  // a diferencia de `force` (dispatch) que es referencia estable y no invalida memos.
+  const [followsTick, bumpFollows] = React.useReducer(x => x + 1, 0);
   React.useEffect(() => {
-    const h = () => force();
+    const h = () => bumpFollows();
     window.addEventListener('mtx:follows-changed', h);
     return () => window.removeEventListener('mtx:follows-changed', h);
   }, []);
 
   // Listas: derivadas determinísticamente por user. Para MVP, usamos directorio común.
   const directory = React.useMemo(() => _resolveDirectoryAuthors(), []);
+  // `isFollowingProfile` necesita re-evaluarse en cada follow/unfollow — leemos cada render
+  // (no es memo) y `followsTick` en deps de los memos abajo asegura el re-render correcto.
   const isFollowingProfile = profile.id !== 'me' && window.__mtxFollows ? window.__mtxFollows.isFollowing(profile.id) : false;
 
   const followersList = React.useMemo(() => {
@@ -847,6 +850,8 @@ function FollowersSheet({ profile, onClose, isOwn = false, initialTab = 'followe
 
   const followingList = React.useMemo(() => {
     if (isOwn) {
+      // Set de IDs que el usuario sigue actualmente. Se re-calcula cuando
+      // followsTick incrementa (cada follow/unfollow dispara mtx:follows-changed).
       const set = window.__mtxFollows
         ? new Set(directory.filter(u => window.__mtxFollows.isFollowing(u.id)).map(u => u.id))
         : new Set();
@@ -856,8 +861,7 @@ function FollowersSheet({ profile, onClose, isOwn = false, initialTab = 'followe
     const seed = (profile.id || '').charCodeAt(0) || 65;
     const shuffle = directory.filter(u => u.id !== profile.id);
     return shuffle.filter((_, i) => ((seed * (i + 3)) % 4) !== 0).slice(0, Math.max(3, shuffle.length - 3));
-    // eslint-disable-next-line
-  }, [directory, isOwn, profile.id, window.__mtxFollows ? window.__mtxFollows.isFollowing : null, force]); // re-eval when follows change
+  }, [directory, isOwn, profile.id, followsTick]);
 
   const counts = {
     followers: isOwn
