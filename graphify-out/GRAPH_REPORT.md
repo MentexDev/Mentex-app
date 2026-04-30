@@ -1,58 +1,60 @@
 # Graph Report - /Users/juandiego/Projects/Mentex app  (2026-04-30)
 
 ## Corpus Check
-- 12 files · ~50,000 words
+- 4 files · ~30,000 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 502 nodes · 566 edges · 43 communities detected
-- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 96 edges (avg confidence: 0.8)
+- 528 nodes · 620 edges · 45 communities detected
+- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 103 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Toast & content actions|Toast & content actions]]
-- [[_COMMUNITY_Community mock data + follows store|Community mock data + follows store]]
-- [[_COMMUNITY_Audit Comunidad findings|Audit Comunidad findings]]
-- [[_COMMUNITY_Community feed UI|Community feed UI]]
-- [[_COMMUNITY_Explore hero + categories|Explore: hero + categories]]
-- [[_COMMUNITY_Home inactive screen|Home inactive screen]]
-- [[_COMMUNITY_Ranking filter sheet|Ranking filter sheet]]
-- [[_COMMUNITY_Content types + activity icons|Content types + activity icons]]
-- [[_COMMUNITY_Achievement + Follower sheets|Achievement + Follower sheets]]
-- [[_COMMUNITY_BookmarkReview sheets|Bookmark/Review sheets]]
-- [[_COMMUNITY_Apps editor|Apps editor]]
-- [[_COMMUNITY_Challenges screen|Challenges screen]]
-- [[_COMMUNITY_Notifications sheet|Notifications sheet]]
-- [[_COMMUNITY_Phase 1 audit lessons|Phase 1 audit lessons]]
-- [[_COMMUNITY_User profile flow|User profile flow]]
-- [[_COMMUNITY_iOS frame debug assets|iOS frame debug assets]]
-- [[_COMMUNITY_Playlist sheets|Playlist sheets]]
-- [[_COMMUNITY_Explore taxonomy + filters|Explore taxonomy + filters]]
-- [[_COMMUNITY_Explore content row|Explore content row]]
-- [[_COMMUNITY_Audit phase 2 layout fixes|Audit phase 2 layout fixes]]
-- [[_COMMUNITY_Top 10 cards|Top 10 cards]]
-- [[_COMMUNITY_Playlists row|Playlists row]]
-- [[_COMMUNITY_Add content screen|Add content screen]]
-- [[_COMMUNITY_Pattern portal overlays|Pattern: portal overlays]]
-- [[_COMMUNITY_Pattern navigation state machine|Pattern: navigation state machine]]
-- [[_COMMUNITY_Pattern taxonomies hardcoded|Pattern: taxonomies hardcoded]]
-- [[_COMMUNITY_Pattern mobile-first rewrite|Pattern: mobile-first rewrite]]
-- [[_COMMUNITY_Audit sheet viewport clipping|Audit: sheet viewport clipping]]
-- [[_COMMUNITY_Audit progress tickers|Audit: progress tickers]]
-- [[_COMMUNITY_Audit setTimeout cleanup|Audit: setTimeout cleanup]]
-- [[_COMMUNITY_Audit stale closure|Audit: stale closure]]
-- [[_COMMUNITY_Audit smoke test fragility|Audit: smoke test fragility]]
-- [[_COMMUNITY_Audit image 404s|Audit: image 404s]]
-- [[_COMMUNITY_Categories map|Categories map]]
-- [[_COMMUNITY_Explore playlists mock|Explore playlists mock]]
-- [[_COMMUNITY_ComingSoonSheet|ComingSoonSheet]]
-- [[_COMMUNITY_PlaylistAccessCard|PlaylistAccessCard]]
-- [[_COMMUNITY_AddContentToPlaylistSheet|AddContentToPlaylistSheet]]
-- [[_COMMUNITY_EditPlaylistSheet|EditPlaylistSheet]]
-- [[_COMMUNITY_DividerBanner|DividerBanner]]
-- [[_COMMUNITY_IcSkipBack|IcSkipBack]]
-- [[_COMMUNITY_IcSkipForward|IcSkipForward]]
-- [[_COMMUNITY_Social brand icons|Social brand icons]]
+- [[_COMMUNITY_Community 0|Community 0]]
+- [[_COMMUNITY_Community 2|Community 2]]
+- [[_COMMUNITY_Community 3|Community 3]]
+- [[_COMMUNITY_Community 5|Community 5]]
+- [[_COMMUNITY_Community 6|Community 6]]
+- [[_COMMUNITY_Community 7|Community 7]]
+- [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 11|Community 11]]
+- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 14|Community 14]]
+- [[_COMMUNITY_Community 15|Community 15]]
+- [[_COMMUNITY_Community 17|Community 17]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 19|Community 19]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 28|Community 28]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 31|Community 31]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 33|Community 33]]
+- [[_COMMUNITY_Community 34|Community 34]]
+- [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 36|Community 36]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 39|Community 39]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 47|Community 47]]
+- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Community 49|Community 49]]
+- [[_COMMUNITY_Community 50|Community 50]]
+- [[_COMMUNITY_Community 51|Community 51]]
+- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `useToast()` - 24 edges
@@ -79,257 +81,260 @@
   screens/apps-editor.jsx → components/mtx-toast.jsx
 
 ## Hyperedges (group relationships)
-- **Window-singleton store + CustomEvent + React hook reactivity pattern** —  [INFERRED 0.92]
-- **Cross-screen author identity sharing (mariana/andres/lucia/tomas/isabella/rodrigo) seeded across community feed, ranking leaderboard, thread comments, and other-user profile** —  [INFERRED 0.90]
-- **Bottom-sheet drag-to-dismiss + ESC + backdrop-blur shell reused across LevelSheet/HoursSheet/FollowersSheet/AchievementSheet/EditProfileSheet/RankingFilterSheet** —  [INFERRED 0.88]
-- **Explore sheet family (modal sheets opened from VideoSheet/Player)** —  [INFERRED 0.85]
-- **Mentex Home.html script load order (deps)** —  [EXTRACTED 1.00]
-- **Ritual shared state pattern (Explore writes, Home reads)** —  [EXTRACTED 1.00]
+- **Dual-mode props parity: ProfileStatsTab + AwardsTab + AchievementSheet reused across own and other profile via {profile, isOwn}** — profile_profilestatstab, profile_awardstab, profile_achievementsheet, profile_profilescreen, user_profile_flow_userprofilescreen [INFERRED 0.90]
+- **Mock data derivation pattern: seed = userId.charCodeAt(0) drives _deriveStatsFor + _buildAchievementsForUser** — profile__derivestatsfor, profile__buildachievementsforuser, profile_seed_derivation_pattern [INFERRED 0.90]
+- **Chronological feed pattern: _timeAgoToMs + _formatRelative + .sort by _sortTs in CommunityScreen.feed useMemo** — community_flow__timeagotoms, community_flow__formatrelative, community_flow_feed_usememo, community_flow_chronological_feed_pattern [INFERRED 0.92]
 
 ## Communities
 
-### Community 1 - "Toast & content actions"
+### Community 0 - "Community 0"
+Cohesion: 0.04
+Nodes (69): CommunityAvatar, mtx:follows-changed event, _MOCK_COMMUNITY_AUTHORS, _MOCK_COMMUNITY_REVIEWS (cr-1..cr-7), window.__mtxFollows (follow/unfollow store), CommunityRating (5-star row), CommunityReviewCard, CommunityScreen (+61 more)
+
+### Community 2 - "Community 2"
 Cohesion: 0.05
 Nodes (26): useToast(), AddContentScreen(), AddContentToPlaylistSheet(), BookmarkNameSheet(), BookmarksSheet(), _calculateEarnedPoints(), ComingSoonSheet(), CreatePlaylistSheet() (+18 more)
 
-### Community 2 - "Community mock data + follows store"
-Cohesion: 0.06
-Nodes (57): CommunityAvatar, mtx:follows-changed event, _MOCK_COMMUNITY_AUTHORS, _MOCK_COMMUNITY_REVIEWS (cr-1..cr-7), window.__mtxFollows (follow/unfollow store), CommunityRating (5-star row), CommunityReviewCard, CommunityScreen (+49 more)
-
-### Community 3 - "Audit Comunidad findings"
+### Community 3 - "Community 3"
 Cohesion: 0.05
 Nodes (50): New blind spot #11 inner-component re-mount, CRIT-R1 Subcomponent defined inside parent (re-mount), CRIT-T1 span onClick missing keyboard a11y, CRIT-T2 setTimeout in useEffect without cleanup, Phase Comunidad audit lessons, IMP-C1 Dead code displayCommentCount/likesAdjust, IMP-T3 lookupAuthor O(n) -> Map memo, IMP-T4 force() re-render eager unfiltered (+42 more)
 
-### Community 4 - "Community feed UI"
-Cohesion: 0.08
-Nodes (11): CommunityReviewCard(), CommunityScreen(), _buildAreaPaths(), ProfileReviewCard(), ProfileScreen(), ProfileStatsTab(), useProfile(), useUserReviews() (+3 more)
+### Community 5 - "Community 5"
+Cohesion: 0.22
+Nodes (16): AchievementBadge(), AchievementBadgeV2(), AchievementCard(), AchievementCardFull(), AwardsTab(), _buildAchievements(), _buildAchievementsForUser(), _buildAreaPaths() (+8 more)
 
-### Community 6 - "Explore: hero + categories"
+### Community 6 - "Community 6"
 Cohesion: 0.11
 Nodes (19): CategorySection, ContentTypeFilters, CreatePlaylistSheet, EXPLORE_CATEGORIES, ExploreHero carousel, ExploreHeroCard, ExploreScreen, HistoryRow (+11 more)
 
-### Community 8 - "Home inactive screen"
+### Community 7 - "Community 7"
+Cohesion: 0.17
+Nodes (8): CommunityAvatar(), CommunityRating(), CommunityReviewCard(), CommunityScreen(), ProfileReviewCard(), _formatRelative(), ThreadCommentRow(), useCommentCount()
+
+### Community 9 - "Community 9"
+Cohesion: 0.24
+Nodes (13): _buildAchievements() — own-profile achievements, _buildAchievementsForUser(profile) — seed-derived achievements, _deriveStatsFor(profile, isOwn) — dual-path stats deriver, window.AchievementSheet (portal sheet), AwardsTab (dual-mode: own/other), ProfileScreen (own profile entry), ProfileStatsTab (dual-mode: own/other), Seed-derived mock pattern (seed = userId.charCodeAt(0)) (+5 more)
+
+### Community 10 - "Community 10"
 Cohesion: 0.24
 Nodes (7): RoutineIc(), getColorById(), getIconById(), menuItemStyle(), RoutineCreateSheet(), RoutineRow(), RoutinesEditorSheet()
 
-### Community 9 - "Ranking filter sheet"
-Cohesion: 0.18
-Nodes (12): _RANK_CATEGORIES (general/audiobook/meditation/series/talk/sound), _RankFilterSection, RankingFilterSheet, MovementIndicator, PodiumColumn, PodiumPedestal, PodiumStand, RankAvatar (+4 more)
-
-### Community 10 - "Content types + activity icons"
+### Community 11 - "Community 11"
 Cohesion: 0.32
 Nodes (12): CONTENT_TYPES constant, _extraToActivity helper, NowPlayingScreen, IcBook, IcCompass, IcLeaf, IcMic, Icon base wrapper (+4 more)
 
-### Community 11 - "Achievement + Follower sheets"
+### Community 12 - "Community 12"
 Cohesion: 0.24
 Nodes (6): _findCurrentTier(), _findNextTier(), FollowerRow(), LevelSheet(), StatSheetShell(), useStatSheet()
 
-### Community 13 - "Bookmark/Review sheets"
+### Community 14 - "Community 14"
 Cohesion: 0.2
 Nodes (10): BookmarkNameSheet, BookmarksSheet, PlayerWaveform, ReviewSheet, ReviewSuccessSheet, SkipDurationSheet, SleepTimerSheet, VideoCompletionSheet (+2 more)
 
-### Community 14 - "Apps editor"
+### Community 15 - "Community 15"
 Cohesion: 0.22
 Nodes (1): AppsEditorSheet()
 
-### Community 16 - "Challenges screen"
+### Community 17 - "Community 17"
 Cohesion: 0.36
 Nodes (4): formatParticipants(), isAvailableStatus(), MtxChallengeCard(), MtxChallengeDetail()
 
-### Community 17 - "Notifications sheet"
+### Community 18 - "Community 18"
 Cohesion: 0.33
 Nodes (3): getIc(), NotifCard(), NotificationsSheet()
 
-### Community 18 - "Phase 1 audit lessons"
+### Community 19 - "Community 19"
 Cohesion: 0.29
 Nodes (7): CRIT-1 setTab community dead screen, Phase 1 — Audit Lessons, IMP-1 setTimeout cleanup leak, IMP-2 breakCount reset to 0, IMP-3 keydown stale closure + input guard, IMP-4 div onClick keyboard a11y, IMP-5 ACHIEVEMENTS unused window export
 
-### Community 21 - "User profile flow"
-Cohesion: 0.5
-Nodes (2): useFollow(), UserProfileScreen()
+### Community 22 - "Community 22"
+Cohesion: 0.53
+Nodes (3): resolveUserProfile(), useFollow(), UserProfileScreen()
 
-### Community 22 - "iOS frame debug assets"
+### Community 23 - "Community 23"
+Cohesion: 0.4
+Nodes (6): _formatRelative — ts → 'Ahora'/'Nm'/'Nh'/'Nd', _MOCK_COMMUNITY_REVIEWS (timeAgo seed), _timeAgoToMs — parses '2h'/'1d'/'Ahora' to ms epoch, Chronological feed pattern (merge own + mock, sort by _sortTs DESC, dynamic _formatRelative), CommunityScreen (unified feed), feed useMemo — chronological merge+sort
+
+### Community 24 - "Community 24"
 Cohesion: 0.4
 Nodes (5): Dark / Empty Screen State (debug), debug-challenges.png – iOS Frame Debug Screenshot, Dynamic Island / Notch UI Element, iOS Device Frame UI Pattern, iOS Status Bar (9:41, signal, wifi, battery)
 
-### Community 23 - "Playlist sheets"
+### Community 25 - "Community 25"
 Cohesion: 0.4
 Nodes (5): PlaylistItemRow, PlaylistOptionsSheet, PlaylistOverviewScreen, PlaylistQueueSheet, SwipeableQueueRow
 
-### Community 26 - "Explore taxonomy + filters"
+### Community 28 - "Community 28"
 Cohesion: 0.5
 Nodes (4): ALL_CATEGORIES taxonomy, CategoryFullView, FilterPanel, SortFilters
 
-### Community 27 - "Explore content row"
+### Community 29 - "Community 29"
 Cohesion: 0.67
 Nodes (3): ContentRow, EXPLORE_CONTENT mock data, ExploreContentCard
 
-### Community 29 - "Audit phase 2 layout fixes"
+### Community 31 - "Community 31"
 Cohesion: 1.0
 Nodes (2): CRIT-2 PlaylistQueueSheet collapsed to height:0 in flex+transform parent, display:flex + transform + child position:absolute trap
 
-### Community 30 - "Top 10 cards"
+### Community 32 - "Community 32"
 Cohesion: 1.0
 Nodes (2): TopTenCard, TopTenRow
 
-### Community 31 - "Playlists row"
+### Community 33 - "Community 33"
 Cohesion: 1.0
 Nodes (2): PlaylistCard, PlaylistsRow
 
-### Community 32 - "Add content screen"
+### Community 34 - "Community 34"
 Cohesion: 1.0
 Nodes (2): AddContentScreen, SelectableContentCard
 
-### Community 33 - "Pattern: portal overlays"
+### Community 35 - "Community 35"
 Cohesion: 1.0
 Nodes (1): Portal pattern for overlays on scrollable content
 
-### Community 34 - "Pattern: navigation state machine"
+### Community 36 - "Community 36"
 Cohesion: 1.0
 Nodes (1): Declarative navigation state machine (view + payload)
 
-### Community 35 - "Pattern: taxonomies hardcoded"
+### Community 37 - "Community 37"
 Cohesion: 1.0
 Nodes (1): Hardcoded taxonomies > inferred
 
-### Community 36 - "Pattern: mobile-first rewrite"
+### Community 38 - "Community 38"
 Cohesion: 1.0
 Nodes (1): Rewrite mobile-first instead of porting desktop reference
 
-### Community 37 - "Audit: sheet viewport clipping"
+### Community 39 - "Community 39"
 Cohesion: 1.0
 Nodes (1): CRIT-1 Sheet clipped outside viewport when rendered in scroll container
 
-### Community 38 - "Audit: progress tickers"
+### Community 40 - "Community 40"
 Cohesion: 1.0
 Nodes (1): IMP-1 Simulated progress tickers should not depend on real durations
 
-### Community 39 - "Audit: setTimeout cleanup"
+### Community 41 - "Community 41"
 Cohesion: 1.0
 Nodes (1): IMP-2 setTimeout post-tick needs cleanup in useEffect
 
-### Community 40 - "Audit: stale closure"
+### Community 42 - "Community 42"
 Cohesion: 1.0
 Nodes (1): IMP-3 Stale closure of prop callbacks in useEffect with empty deps
 
-### Community 41 - "Audit: smoke test fragility"
+### Community 43 - "Community 43"
 Cohesion: 1.0
 Nodes (1): IMP-4 Chained smoke tests fragile due to accumulated state
 
-### Community 42 - "Audit: image 404s"
+### Community 44 - "Community 44"
 Cohesion: 1.0
 Nodes (1): IMP-5 Silent Unsplash image 404s
 
-### Community 43 - "Categories map"
+### Community 45 - "Community 45"
 Cohesion: 1.0
 Nodes (1): CATEGORIES_BY_TYPE map
 
-### Community 44 - "Explore playlists mock"
+### Community 46 - "Community 46"
 Cohesion: 1.0
 Nodes (1): EXPLORE_PLAYLISTS mock
 
-### Community 45 - "ComingSoonSheet"
+### Community 47 - "Community 47"
 Cohesion: 1.0
 Nodes (1): ComingSoonSheet
 
-### Community 46 - "PlaylistAccessCard"
+### Community 48 - "Community 48"
 Cohesion: 1.0
 Nodes (1): PlaylistAccessCard
 
-### Community 47 - "AddContentToPlaylistSheet"
+### Community 49 - "Community 49"
 Cohesion: 1.0
 Nodes (1): AddContentToPlaylistSheet
 
-### Community 48 - "EditPlaylistSheet"
+### Community 50 - "Community 50"
 Cohesion: 1.0
 Nodes (1): EditPlaylistSheet
 
-### Community 49 - "DividerBanner"
+### Community 51 - "Community 51"
 Cohesion: 1.0
 Nodes (1): DividerBanner
 
-### Community 50 - "IcSkipBack"
+### Community 52 - "Community 52"
 Cohesion: 1.0
 Nodes (1): IcSkipBack
 
-### Community 51 - "IcSkipForward"
+### Community 53 - "Community 53"
 Cohesion: 1.0
 Nodes (1): IcSkipForward
 
-### Community 52 - "Social brand icons"
+### Community 54 - "Community 54"
 Cohesion: 1.0
 Nodes (1): Social brand icons (IcTikTok/IcYoutube/IcLinkedIn/IcGithub/IcInstagramBrand/IcSpotifyBrand/IcXBrand)
 
 ## Knowledge Gaps
-- **108 isolated node(s):** `iOS Device Frame UI Pattern`, `Dynamic Island / Notch UI Element`, `iOS Status Bar (9:41, signal, wifi, battery)`, `Dark / Empty Screen State (debug)`, `CRIT-1 setTab community dead screen` (+103 more)
+- **115 isolated node(s):** `iOS Device Frame UI Pattern`, `Dynamic Island / Notch UI Element`, `iOS Status Bar (9:41, signal, wifi, battery)`, `Dark / Empty Screen State (debug)`, `CRIT-1 setTab community dead screen` (+110 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Apps editor`** (9 nodes): `AppRow()`, `AppsEditorSheet()`, `CategoryChip()`, `CategoryGroup()`, `Checkmark()`, `EmptyState()`, `FlatList()`, `apps-editor.jsx`, `SuggestedSection()`
+- **Thin community `Community 15`** (9 nodes): `AppRow()`, `AppsEditorSheet()`, `CategoryChip()`, `CategoryGroup()`, `Checkmark()`, `EmptyState()`, `FlatList()`, `apps-editor.jsx`, `SuggestedSection()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `User profile flow`** (5 nodes): `user-profile-flow.jsx`, `resolveUserProfile()`, `useFollow()`, `UserProfileScreen()`, `UserStatsTab()`
+- **Thin community `Community 31`** (2 nodes): `CRIT-2 PlaylistQueueSheet collapsed to height:0 in flex+transform parent`, `display:flex + transform + child position:absolute trap`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit phase 2 layout fixes`** (2 nodes): `CRIT-2 PlaylistQueueSheet collapsed to height:0 in flex+transform parent`, `display:flex + transform + child position:absolute trap`
+- **Thin community `Community 32`** (2 nodes): `TopTenCard`, `TopTenRow`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Top 10 cards`** (2 nodes): `TopTenCard`, `TopTenRow`
+- **Thin community `Community 33`** (2 nodes): `PlaylistCard`, `PlaylistsRow`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Playlists row`** (2 nodes): `PlaylistCard`, `PlaylistsRow`
+- **Thin community `Community 34`** (2 nodes): `AddContentScreen`, `SelectableContentCard`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Add content screen`** (2 nodes): `AddContentScreen`, `SelectableContentCard`
+- **Thin community `Community 35`** (1 nodes): `Portal pattern for overlays on scrollable content`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Pattern: portal overlays`** (1 nodes): `Portal pattern for overlays on scrollable content`
+- **Thin community `Community 36`** (1 nodes): `Declarative navigation state machine (view + payload)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Pattern: navigation state machine`** (1 nodes): `Declarative navigation state machine (view + payload)`
+- **Thin community `Community 37`** (1 nodes): `Hardcoded taxonomies > inferred`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Pattern: taxonomies hardcoded`** (1 nodes): `Hardcoded taxonomies > inferred`
+- **Thin community `Community 38`** (1 nodes): `Rewrite mobile-first instead of porting desktop reference`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Pattern: mobile-first rewrite`** (1 nodes): `Rewrite mobile-first instead of porting desktop reference`
+- **Thin community `Community 39`** (1 nodes): `CRIT-1 Sheet clipped outside viewport when rendered in scroll container`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: sheet viewport clipping`** (1 nodes): `CRIT-1 Sheet clipped outside viewport when rendered in scroll container`
+- **Thin community `Community 40`** (1 nodes): `IMP-1 Simulated progress tickers should not depend on real durations`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: progress tickers`** (1 nodes): `IMP-1 Simulated progress tickers should not depend on real durations`
+- **Thin community `Community 41`** (1 nodes): `IMP-2 setTimeout post-tick needs cleanup in useEffect`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: setTimeout cleanup`** (1 nodes): `IMP-2 setTimeout post-tick needs cleanup in useEffect`
+- **Thin community `Community 42`** (1 nodes): `IMP-3 Stale closure of prop callbacks in useEffect with empty deps`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: stale closure`** (1 nodes): `IMP-3 Stale closure of prop callbacks in useEffect with empty deps`
+- **Thin community `Community 43`** (1 nodes): `IMP-4 Chained smoke tests fragile due to accumulated state`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: smoke test fragility`** (1 nodes): `IMP-4 Chained smoke tests fragile due to accumulated state`
+- **Thin community `Community 44`** (1 nodes): `IMP-5 Silent Unsplash image 404s`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Audit: image 404s`** (1 nodes): `IMP-5 Silent Unsplash image 404s`
+- **Thin community `Community 45`** (1 nodes): `CATEGORIES_BY_TYPE map`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Categories map`** (1 nodes): `CATEGORIES_BY_TYPE map`
+- **Thin community `Community 46`** (1 nodes): `EXPLORE_PLAYLISTS mock`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Explore playlists mock`** (1 nodes): `EXPLORE_PLAYLISTS mock`
+- **Thin community `Community 47`** (1 nodes): `ComingSoonSheet`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ComingSoonSheet`** (1 nodes): `ComingSoonSheet`
+- **Thin community `Community 48`** (1 nodes): `PlaylistAccessCard`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `PlaylistAccessCard`** (1 nodes): `PlaylistAccessCard`
+- **Thin community `Community 49`** (1 nodes): `AddContentToPlaylistSheet`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `AddContentToPlaylistSheet`** (1 nodes): `AddContentToPlaylistSheet`
+- **Thin community `Community 50`** (1 nodes): `EditPlaylistSheet`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `EditPlaylistSheet`** (1 nodes): `EditPlaylistSheet`
+- **Thin community `Community 51`** (1 nodes): `DividerBanner`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `DividerBanner`** (1 nodes): `DividerBanner`
+- **Thin community `Community 52`** (1 nodes): `IcSkipBack`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `IcSkipBack`** (1 nodes): `IcSkipBack`
+- **Thin community `Community 53`** (1 nodes): `IcSkipForward`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `IcSkipForward`** (1 nodes): `IcSkipForward`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Social brand icons`** (1 nodes): `Social brand icons (IcTikTok/IcYoutube/IcLinkedIn/IcGithub/IcInstagramBrand/IcSpotifyBrand/IcXBrand)`
+- **Thin community `Community 54`** (1 nodes): `Social brand icons (IcTikTok/IcYoutube/IcLinkedIn/IcGithub/IcInstagramBrand/IcSpotifyBrand/IcXBrand)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useToast()` connect `Toast & content actions` to `Community feed UI`, `Home inactive screen`, `Achievement + Follower sheets`, `Apps editor`, `Notifications sheet`, `User profile flow`?**
+- **Why does `useToast()` connect `Community 2` to `Community 5`, `Community 7`, `Community 10`, `Community 12`, `Community 15`, `Community 18`, `Community 22`?**
   _High betweenness centrality (0.054) - this node is a cross-community bridge._
-- **Why does `ProfileScreen()` connect `Community feed UI` to `Toast & content actions`?**
+- **Why does `ProfileScreen()` connect `Community 5` to `Community 2`?**
   _High betweenness centrality (0.014) - this node is a cross-community bridge._
 - **Are the 23 inferred relationships involving `useToast()` (e.g. with `FollowerRow()` and `ProfileScreen()`) actually correct?**
   _`useToast()` has 23 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 4 inferred relationships involving `ProfileScreen` (e.g. with `ProfileReviewCard` and `LevelSheet`) actually correct?**
   _`ProfileScreen` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `iOS Device Frame UI Pattern`, `Dynamic Island / Notch UI Element`, `iOS Status Bar (9:41, signal, wifi, battery)` to the rest of the system?**
-  _108 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Sistema de iconos SVG` be split into smaller, more focused modules?**
+  _115 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 0` be split into smaller, more focused modules?**
+  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+- **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.03 - nodes in this community are weakly interconnected._
-- **Should `Toast & content actions` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
