@@ -209,7 +209,11 @@ const _HERO_BANNERS = [
 ];
 
 // ── BannerCarousel — auto-swipe entre 5 slides + paginator dots ─────────────
-function BannerCarousel({ slides, onTap }) {
+// `height` es parametrizable: 196 default (modo card) o ~250 cuando se usa
+// como hero del Home con bell flotando encima.
+// `hideTopIcon` oculta el icon decorativo top-right del slide (necesario
+// cuando hay otro elemento flotando ahí, como el bell del Home).
+function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
   const [idx, setIdx] = React.useState(0);
   const [paused, setPaused] = React.useState(false);
 
@@ -265,7 +269,7 @@ function BannerCarousel({ slides, onTap }) {
         aria-label={`Banner: ${slide.title}`}
         style={{
           position:'relative',
-          height: 196,
+          height: height,
           borderRadius: 22,
           overflow:'hidden',
           background: slide.gradient,
@@ -321,7 +325,7 @@ function BannerCarousel({ slides, onTap }) {
             }}>
               {slide.eyebrow}
             </div>
-            {Ic && (
+            {Ic && !hideTopIcon && (
               <div style={{
                 width:32, height:32, borderRadius:'50%',
                 background: isPremium ? 'rgba(10,20,16,0.18)' : 'rgba(255,255,255,0.08)',
@@ -470,27 +474,29 @@ function HomeInactive({
 
   return (
     <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
-      {/* ── Header: bell position:absolute para que el bloque-texto use el
-          ancho completo (mismo que el banner). Antes el bell era hermano flex
-          con `flex:1` en el bloque-texto, recortando ~56px y forzando el
-          párrafo descriptivo a 3 renglones cuando había aire para 2. */}
-      <div style={{ padding:'8px 20px 16px', position:'relative' }}>
+      {/* ── HERO: banner rotativo + bell flotando encima ──────────────────
+          El hero ocupa la franja superior con presencia premium. El bell se
+          monta absolute sobre la esquina top-right del hero — el icon
+          decorativo top-right del slide queda oculto (hideTopIcon) para que
+          no choque visualmente con el bell. */}
+      <div style={{ position:'relative' }}>
+        <BannerCarousel slides={_HERO_BANNERS} onTap={handleBannerTap} height={250} hideTopIcon/>
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-          position:'absolute', top:8, right:20,
+          position:'absolute', top:18, right:32,
           width:44, height:44, borderRadius:999,
-          background:'var(--glass-2)',
-          border:'0.5px solid var(--glass-stroke)',
-          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+          // Background glassmórfico oscuro para que el bell se lea sobre
+          // cualquier gradient del banner (premium dorado, blue, neon, etc.)
+          background:'rgba(10,14,12,0.45)',
+          border:'0.5px solid rgba(255,255,255,0.18)',
+          backdropFilter:'blur(20px) saturate(160%)',
+          WebkitBackdropFilter:'blur(20px) saturate(160%)',
           display:'flex', alignItems:'center', justifyContent:'center',
-          color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
-          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)',
-          zIndex:2,
+          color:'#fff', cursor:'pointer', flexShrink:0,
+          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.3)',
+          zIndex:5,
         }}>
-          <IcBell size={20} stroke="var(--ink-1)" strokeWidth={1.6}/>
+          <IcBell size={20} stroke="currentColor" strokeWidth={1.6}/>
           {notifCount > 0 && (
-            // Bolita perfectamente circular (width=height fijos, sin padding).
-            // El border separa visualmente del bell para que se lea como dot
-            // distinto y no como pill que tape la campana.
             <span style={{
               position:'absolute', top:2, right:2,
               width:14, height:14,
@@ -506,15 +512,17 @@ function HomeInactive({
             </span>
           )}
         </button>
-        {/* paddingRight:56 sólo en el eyebrow para no superponerse con el bell.
-            El h1 va a ancho completo: línea 1 "Buenas tardes, Juan," es corta
-            y no llega al bell horizontalmente; línea 2 (la pregunta larga) ya
-            está debajo del bell verticalmente (y > 52, bell termina en y=52).
-            La descripción <p> también full-width — para que quepa en 2 líneas. */}
+      </div>
+
+      {/* ── Saludo + título + subtítulo (debajo del hero) ─────────────────
+          El subtítulo conecta directamente con la siguiente sección (las
+          pills de tiempo) — empieza con "Empieza eligiendo cuánto..." para
+          que el flujo de lectura sea continuo sin necesidad de un título
+          intermedio "¿Cuánto tiempo...?". */}
+      <div style={{ padding:'18px 20px 14px' }}>
         <div className="mtx-eyebrow" style={{
           marginBottom:6, color:'var(--neon)',
           display:'flex', alignItems:'center', gap:6,
-          paddingRight:56,
         }}>
           <span style={{
             width:6, height:6, borderRadius:999, background:'var(--neon)',
@@ -532,56 +540,39 @@ function HomeInactive({
           ¿Listo para tu ritual de hoy?
         </h1>
         <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
-          Tu mente merece un momento sin ruido. Elige cuánto, qué apps callar, y qué rutinas vas a habitar hoy.
+          Tu mente merece un momento sin ruido. Empieza eligiendo cuánto, qué apps callar y qué rutinas habitar.
         </p>
       </div>
 
-      {/* ── Banner publicitario rotatorio (5 slides) ────────────────────── */}
-      <BannerCarousel slides={_HERO_BANNERS} onTap={handleBannerTap}/>
-
-      {/* ── 1. Tiempo de enfoque ────────────────────────────────────────── */}
+      {/* ── Pills de tiempo (sin título arriba — el subtítulo de arriba ya
+          introduce la elección). Primera pill = botón "Personalizar" con
+          icono edit; le siguen las opciones predefinidas. */}
       <div style={{ marginBottom:24 }}>
-        <div style={{
-          padding:'0 20px 12px',
-          display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10,
+        <div className="mtx-no-scrollbar" style={{
+          // padding vertical para que el translateY(-1px) + box-shadow del pill activo
+          // no quede recortado por el clipping del overflow-x del scroll horizontal.
+          padding:'4px 20px 12px',
+          display:'flex', gap:9, overflowX:'auto', WebkitOverflowScrolling:'touch',
         }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <h3 style={{
-              margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
-              letterSpacing:'-0.018em', lineHeight:1.2,
-            }}>
-              ¿Cuánto tiempo quieres enfocarte hoy?
-            </h3>
-            <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
-              Tu tiempo a solas con el contenido que elijas
-            </p>
-          </div>
-          {/* Botón personalizar — abre el modal existente */}
+          {/* Personalizar — pill cuadrada al inicio, abre el modal existente */}
           <button
             onClick={onCustom}
             aria-label="Personalizar tiempo"
             className="mtx-tap"
             style={{
               flexShrink:0,
-              width:36, height:36, borderRadius:'50%',
+              width:48, height:48, borderRadius:14,
               border:'0.5px solid var(--glass-stroke)',
               background:'var(--glass-2)',
+              backdropFilter:'blur(20px)',
               color:'var(--ink-2)',
               display:'flex', alignItems:'center', justifyContent:'center',
               cursor:'pointer',
-              transition:'background .2s, color .2s',
+              transition:'background .2s, color .2s, border-color .2s',
             }}
           >
-            <IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>
+            <IcEdit size={16} stroke="currentColor" strokeWidth={1.8}/>
           </button>
-        </div>
-
-        <div className="mtx-no-scrollbar" style={{
-          // padding vertical para que el translateY(-1px) + box-shadow del pill activo
-          // no quede recortado por el clipping del overflow-x del scroll horizontal.
-          padding:'8px 20px 12px',
-          display:'flex', gap:9, overflowX:'auto', WebkitOverflowScrolling:'touch',
-        }}>
           {TIME_OPTIONS.map(t => {
             const isActive = time === t.v;
             // Tap en pill activo → toggle a 0 (deselecciona). Permite cambiar
