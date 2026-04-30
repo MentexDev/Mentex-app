@@ -90,47 +90,10 @@ const _USER_PROFILES_DETAIL = {
   },
 };
 
-// ── Achievement seed por usuario (mock variado) ─────────────────────────────
-const _USER_ACHIEVEMENTS = {
-  mariana:  [
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:48, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:184,total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:22, total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:7,  total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-  ],
-  andres:   [
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:226,total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:14, total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:30, total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:31, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-  ],
-  lucia:    [
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:5,  total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:14, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:98, total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:8,  total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-  ],
-  tomas:    [
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:312,total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:50, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:30, total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:21, total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-  ],
-  isabella: [
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:26, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:156,total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:18, total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:6,  total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-  ],
-  rodrigo:  [
-    { id:'mente-acero',    name:'Mente de Acero', tagline:'30 días seguidos con enfoque',        current:15, total:30,  unit:'días',       Ic:IcShield, accent:'#FFD66B', rarity:'Épico',      glow:'rgba(255,214,107,0.45)' },
-    { id:'maraton-mental', name:'Maratón Mental', tagline:'100 horas totales en foco profundo',  current:134,total:100, unit:'horas',      Ic:IcTarget, accent:'#3dffd1', rarity:'Raro',       glow:'rgba(61,255,209,0.45)'  },
-    { id:'guerrero-zen',   name:'Guerrero Zen',   tagline:'7 días consecutivos sin distracciones',current:3,  total:7,   unit:'días',       Ic:IcLeaf,   accent:'#ff8b6a', rarity:'Legendario', glow:'rgba(255,139,106,0.45)' },
-    { id:'sabio-naciente', name:'Sabio Naciente', tagline:'50 contenidos completados',           current:19, total:50,  unit:'contenidos', Ic:IcBook,   accent:'#9b8aff', rarity:'Raro',       glow:'rgba(155,138,255,0.45)' },
-  ],
-};
-
 // ── Stats donut data por usuario (variación creíble) ───────────────────────
+// Consumido por window.ProfileStatsTab cuando se renderiza con isOwn=false
+// (ver _deriveStatsFor en profile.jsx). _USER_ACHIEVEMENTS viejo se eliminó:
+// los logros del perfil ajeno ahora se derivan vía _buildAchievementsForUser.
 const _USER_STATS_DONUT = {
   mariana:  [{label:'Audiolibros',value:212,color:'#3dffd1'},{label:'Charlas',value:78,color:'#5dd3ff'},{label:'Series',value:34,color:'#FFD66B'},{label:'Meditaciones',value:58,color:'#9b8aff'},{label:'Sonidos',value:18,color:'#9bd45e'}],
   andres:   [{label:'Charlas',value:184,color:'#5dd3ff'},{label:'Audiolibros',value:142,color:'#3dffd1'},{label:'Meditaciones',value:88,color:'#9b8aff'},{label:'Series',value:56,color:'#FFD66B'},{label:'Sonidos',value:42,color:'#9bd45e'}],
@@ -169,138 +132,6 @@ function resolveUserProfile(userId) {
   };
 }
 
-// ── UserStatsTab — mismo lenguaje que ProfileStatsTab pero con segments del user ─
-function UserStatsTab({ userId, totalHours }) {
-  const segments = _USER_STATS_DONUT[userId] || [];
-  const total = segments.reduce((s, x) => s + x.value, 0);
-  // Week data — variación pseudoaleatoria estable basada en userId
-  const seed = (userId || '').charCodeAt(0) || 65;
-  const weekData = Array.from({ length: 7 }, (_, i) => 40 + ((seed * (i + 3)) % 55));
-  const weekMax = Math.max(...weekData);
-
-  const racha = Math.max(3, Math.min(45, (totalHours || 0) >> 3));
-  const mejor = (1.4 + (((seed * 17) % 22) / 10)).toFixed(1);
-  const completados = Math.max(8, (totalHours || 0) >> 1);
-
-  return (
-    <div style={{ animation:'mtx-fade-up .25s ease both' }}>
-      <div style={{ padding:'10px 20px 14px' }}>
-        <div className="mtx-glass" style={{
-          padding:'18px 18px 16px', borderRadius:20,
-          background:'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.012))',
-          border:'0.5px solid rgba(255,255,255,0.06)',
-        }}>
-          <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--neon)', letterSpacing:'0.14em', marginBottom:4 }}>
-            Esta semana
-          </div>
-          <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em', marginBottom:14 }}>
-            Cómo distribuye su mente
-          </h3>
-
-          {window.StatsDonut
-            ? <window.StatsDonut segments={segments} totalLabel="Minutos" totalValue={total} totalUnit="esta semana"/>
-            : null
-          }
-
-          <div style={{ marginTop:18, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            {segments.map(seg => {
-              const pct = Math.round((seg.value / total) * 100);
-              return (
-                <div key={seg.label} style={{
-                  display:'flex', alignItems:'center', gap:8,
-                  padding:'7px 10px', borderRadius:10,
-                  background:'rgba(255,255,255,0.025)',
-                }}>
-                  <span style={{
-                    width:8, height:8, borderRadius:'50%', flexShrink:0,
-                    background: seg.color, boxShadow:`0 0 6px ${seg.color}88`,
-                  }}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:11, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.005em',
-                                  whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                      {seg.label}
-                    </div>
-                  </div>
-                  <span style={{ fontSize:10.5, fontWeight:700, color: seg.color, fontVariantNumeric:'tabular-nums' }}>
-                    {pct}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding:'4px 20px 14px' }}>
-        <div className="mtx-glass" style={{
-          padding:'16px 18px', borderRadius:20,
-          background:'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.012))',
-          border:'0.5px solid rgba(255,255,255,0.06)',
-        }}>
-          <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--neon)', letterSpacing:'0.14em', marginBottom:4 }}>
-            Evolución
-          </div>
-          <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em', marginBottom:12 }}>
-            Su mente en los últimos 7 días
-          </h3>
-          <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:84 }}>
-            {weekData.map((v, i) => {
-              const heightPct = (v / weekMax) * 100;
-              const isToday = i === weekData.length - 1;
-              return (
-                <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
-                  <div style={{ flex:1, width:'100%', display:'flex', alignItems:'flex-end', minHeight:0 }}>
-                    <div style={{
-                      width:'100%', borderRadius:'5px 5px 2px 2px',
-                      height:`${heightPct}%`,
-                      background: isToday
-                        ? 'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))'
-                        : 'linear-gradient(180deg, rgba(61,255,209,0.35), rgba(61,255,209,0.12))',
-                      boxShadow: isToday ? '0 0 14px rgba(61,255,209,0.5)' : 'none',
-                      transition:'height .35s cubic-bezier(.25,.8,.25,1)',
-                    }}/>
-                  </div>
-                  <span style={{ fontSize:9.5, color: isToday ? 'var(--neon)' : 'var(--ink-3)', fontWeight: isToday ? 700 : 500, letterSpacing:'0.04em', textTransform:'uppercase' }}>
-                    {['L','M','M','J','V','S','D'][i]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding:'4px 20px 4px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-        {[
-          { label:'Racha actual', value: String(racha), unit:'días',     color:'#FFD66B', Ic:IcFlame },
-          { label:'Mejor sesión', value: mejor,         unit:'horas',    color:'#3dffd1', Ic:IcZap },
-          { label:'Completados',  value: String(completados), unit:'piezas', color:'#9b8aff', Ic:IcCheck },
-        ].map(s => (
-          <div key={s.label} className="mtx-glass" style={{
-            padding:'10px 11px', borderRadius:14,
-            background:`linear-gradient(180deg, ${s.color}0e, rgba(255,255,255,0.012))`,
-            border:`0.5px solid ${s.color}28`,
-          }}>
-            <div style={{ display:'flex', alignItems:'center', gap:5, color: s.color, marginBottom:5 }}>
-              <s.Ic size={11} stroke="currentColor" strokeWidth={1.7}/>
-              <span style={{ fontSize:8.5, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase' }}>
-                {s.label}
-              </span>
-            </div>
-            <div style={{
-              fontSize:20, fontWeight:800, color:'var(--ink-1)',
-              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.03em', lineHeight:1,
-              fontFamily:'var(--ff-display)',
-            }}>
-              {s.value}
-              <span style={{ fontSize:10, fontWeight:500, color:'var(--ink-3)', marginLeft:3 }}>{s.unit}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── UserProfileScreen — overlay full-screen del perfil de otro usuario ─────
 function UserProfileScreen({ userId, onClose }) {
@@ -309,6 +140,7 @@ function UserProfileScreen({ userId, onClose }) {
   const [shareEntity, setShareEntity] = React.useState(null);
   const [threadReview, setThreadReview] = React.useState(null);
   const [statSheet, setStatSheet] = React.useState(null); // 'level' | 'hours' | 'followers' | null
+  const [achievementSheet, setAchievementSheet] = React.useState(null); // achievement object | null
   const isFollowing = useFollow(userId);
   const toast = window.useToast ? window.useToast() : { show: () => {} };
 
@@ -348,7 +180,11 @@ function UserProfileScreen({ userId, onClose }) {
     ? `${(followersDisplay / 1000).toFixed(1)}k`
     : followersDisplay.toLocaleString();
 
-  const achievements = _USER_ACHIEVEMENTS[userId] || [];
+  // Logros derivados por window._buildAchievementsForUser (en profile.jsx).
+  // Solo necesitamos el count para el badge del tab — el render usa AwardsTab.
+  const achievementsCount = window._buildAchievementsForUser
+    ? window._buildAchievementsForUser(profile).filter(a => a.unlocked).length
+    : 0;
 
   const handleFollowToggle = () => {
     if (!window.__mtxFollows) return;
@@ -407,7 +243,7 @@ function UserProfileScreen({ userId, onClose }) {
   const TABS = [
     { id: 'reviews', label: 'Reseñas',     count: userReviews.length },
     { id: 'stats',   label: 'Estadísticas' },
-    { id: 'awards',  label: 'Logros',      count: achievements.length },
+    { id: 'awards',  label: 'Logros',      count: achievementsCount },
   ];
 
   const getSocialIcon = (id) => {
@@ -864,18 +700,34 @@ function UserProfileScreen({ userId, onClose }) {
               </div>
             )}
 
-            {tab === 'stats' && <UserStatsTab userId={userId} totalHours={profile.hours}/>}
+            {tab === 'stats' && window.ProfileStatsTab && (
+              <window.ProfileStatsTab profile={profile} isOwn={false}/>
+            )}
 
-            {tab === 'awards' && (
-              <div style={{ padding:'10px 20px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, animation:'mtx-fade-up .25s ease both' }}>
-                {AchievementCardCmp && achievements.map(a => (
-                  <AchievementCardCmp key={a.id} a={a} variant="grid"/>
-                ))}
-              </div>
+            {tab === 'awards' && window.AwardsTab && (
+              <window.AwardsTab
+                profile={profile}
+                isOwn={false}
+                onAchievementTap={(a) => setAchievementSheet(a)}
+              />
             )}
           </div>
         </div>
       </div>
+
+      {/* Achievement sheet — portal-mounted */}
+      {achievementSheet && window.AchievementSheet && (() => {
+        const overlayRoot = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
+        const sheet = (
+          <window.AchievementSheet
+            achievement={achievementSheet}
+            onClose={() => setAchievementSheet(null)}
+          />
+        );
+        return overlayRoot && window.ReactDOM
+          ? window.ReactDOM.createPortal(sheet, overlayRoot)
+          : sheet;
+      })()}
 
       {/* Stat sheets — portal-mounted */}
       {statSheet && (() => {
@@ -932,7 +784,7 @@ function UserProfileScreen({ userId, onClose }) {
 
 Object.assign(window, {
   UserProfileScreen, useFollow, resolveUserProfile,
-  _USER_PROFILES_DETAIL, _USER_ACHIEVEMENTS, _USER_STATS_DONUT,
+  _USER_PROFILES_DETAIL, _USER_STATS_DONUT,
 });
 
 // Expose _USER_STATS_MOCK al window namespace para resolver desde aquí

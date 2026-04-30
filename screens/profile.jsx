@@ -109,6 +109,57 @@ function _buildAchievements() {
   }));
 }
 
+// ── Build achievements para un user específico (perfil ajeno) ───────────────
+// Deriva el `current` de cada logro a partir del perfil del user (hours, level,
+// followers) usando seed determinístico para variedad.
+function _buildAchievementsForUser(profile) {
+  if (!profile) return _buildAchievements();
+  const seed = (profile.id || 'x').charCodeAt(0) || 65;
+  const userHours = Math.max(1, profile.hours || 0);
+  const userFollowers = profile.followers || 0;
+  const userLevel = profile.level || 1;
+
+  // Mock streak determinístico por seed
+  const userStreak = Math.max(0, ((seed * 7) % 90) + (userLevel >= 12 ? 30 : 0));
+  const userLongestSession = Math.max(15, 60 + (seed % 90) + Math.min(60, userHours / 3));
+  const userTypesExplored = userLevel >= 8 ? 5 : userLevel >= 5 ? 4 : 3;
+  const userBooks = Math.max(0, Math.round(userHours / 14));
+  const userAuthors = Math.max(0, Math.round(userHours / 8));
+  const userPlaylists = userLevel >= 14 ? 4 : userLevel >= 10 ? 2 : 1;
+  const userReviews = Math.max(1, Math.round(userHours / 25) + (seed % 5));
+  const userLikesReceived = Math.max(0, Math.round(userReviews * 6 + (seed % 30)));
+  const userTopWeeks = userLevel >= 16 ? 1 : 0;
+
+  return _ALL_ACHIEVEMENTS.map(a => {
+    let current = 0;
+    switch (a.category) {
+      case 'focus':       current = userStreak; break;
+      case 'learning':    current = Math.round(userHours); break;
+      case 'consistency': current = userStreak; break;
+      case 'depth':       current = Math.round(userLongestSession); break;
+      case 'variety':
+        // 4 métricas distintas dentro de la categoría — usar el id
+        if (a.id === 'curioso' || a.id === 'polimata') current = userTypesExplored;
+        else if (a.id === 'top-diez') current = userBooks;
+        else if (a.id === 'maestro-maestros') current = userAuthors;
+        else if (a.id === 'sabio-universal') current = userPlaylists;
+        break;
+      case 'community':
+        if (a.id === 'primera-resena' || a.id === 'voz-activa') current = userReviews;
+        else if (a.id === 'pensador-influyente') current = userLikesReceived;
+        else if (a.id === 'mentor') current = userFollowers;
+        else if (a.id === 'icono') current = userTopWeeks;
+        break;
+    }
+    return {
+      ...a,
+      current,
+      unlocked: current >= a.target,
+      unlockedAgoDays: null,
+    };
+  });
+}
+
 // ── Profile store editable ──────────────────────────────────────────────────
 const _PROFILE_EVENT = 'mtx:profile-changed';
 if (typeof window !== 'undefined' && !window.__mtxProfile) {
@@ -1061,50 +1112,247 @@ function _buildAreaPaths(data, w, h, padX, padY) {
 }
 
 
-// ── StatsTab content — Dashboard pro de 10 cards ─────────────────────────────
-function ProfileStatsTab() {
-  const profile = useProfile();
+// ── Mock content covers compartidos (top contenidos del mes) ────────────────
+const _STATS_TOP_COVERS = [
+  { title:'Hábitos Atómicos',    author:'James Clear',     cover:'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=200&q=80', color:'#3dffd1' },
+  { title:'Deep Work',           author:'Cal Newport',     cover:'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=200&q=80', color:'#9b8aff' },
+  { title:'El poder del ahora',  author:'Eckhart Tolle',   cover:'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=200&q=80', color:'#FFD66B' },
+  { title:'Sapiens',             author:'Yuval Harari',    cover:'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=200&q=80', color:'#5dd3ff' },
+  { title:'El método MVP',       author:'Eric Ries',       cover:'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=200&q=80', color:'#ff8b6a' },
+];
+
+// ── Helper: deriva todos los stats mock para un user dado ───────────────────
+// `isOwn=true` → datos hardcoded del usuario propio (Juan Diego, racha 12, etc.)
+// `isOwn=false` → datos derivados del seed (charCode del id) + profile.hours
+function _deriveStatsFor(profile, isOwn) {
   const accent = profile?.accent || '#3dffd1';
+  if (isOwn) {
+    return {
+      accent,
+      heroStats: [
+        { key:'streak',    label:'Racha',         value:'12',  unit:'días',   sub:'consecutivos', Ic:IcFlame, color:'#FFD66B', glow:'rgba(255,214,107,0.5)' },
+        { key:'best',      label:'Mejor sesión',  value:'2.4', unit:'hr',     sub:'enfocado',     Ic:IcZap,   color:'#3dffd1', glow:'rgba(61,255,209,0.5)' },
+        { key:'completed', label:'Completados',   value:'47',  unit:'piezas', sub:'aprendidas',   Ic:IcCheck, color:'#9b8aff', glow:'rgba(155,138,255,0.5)' },
+      ],
+      recoveredBreakdown: [
+        { id:'instagram', label:'Instagram', accent:'#e879c5', hours:9.2 },
+        { id:'tiktok',    label:'TikTok',    accent:'#5dd3ff', hours:7.4 },
+        { id:'twitter',   label:'X',         accent:'#e8e8e8', hours:4.1 },
+        { id:'youtube',   label:'YouTube',   accent:'#FF0000', hours:2.8 },
+      ],
+      distSegments: [
+        { label:'Audiolibros',  value:184, color:'#3dffd1' },
+        { label:'Meditaciones', value:96,  color:'#9b8aff' },
+        { label:'Charlas',      value:78,  color:'#5dd3ff' },
+        { label:'Series',       value:42,  color:'#FFD66B' },
+        { label:'Sonidos',      value:28,  color:'#9bd45e' },
+      ],
+      weekData: [1.2, 2.1, 0.8, 1.6, 2.4, 1.9, 1.3],
+      hourData: Array.from({ length: 24 }, (_, h) => {
+        if (h >= 6 && h <= 9)   return 30 + ((h * 7) % 22);
+        if (h >= 14 && h <= 16) return 18 + ((h * 5) % 20);
+        if (h >= 20 && h <= 22) return 38 + ((h * 11) % 24);
+        return 4 + ((h * 3) % 9);
+      }),
+      heatmapData: Array.from({ length: 30 }, (_, i) => Math.min(4, Math.floor(((i * 13 + 7) % 19) / 4))),
+      topContent: _STATS_TOP_COVERS.slice(0, 3).map((c, i) => ({ rank: i+1, ...c, plays: [14, 9, 7][i] })),
+      percentile: 12,
+      journey: [
+        { label:'Días activos',     value:'87',  unit:'días',     color:accent },
+        { label:'Sesiones',         value:'142', unit:'piezas',   color:'#FFD66B' },
+        { label:'Promedio diario',  value:'32',  unit:'min/día',  color:'#5dd3ff' },
+        { label:'Sesión más larga', value:'108', unit:'min',      color:'#ff8b6a' },
+      ],
+      histData: [4.5, 6.2, 8.8, 10.1, 12.3, 14.7],
+    };
+  }
+
+  // ── Datos derivados para perfil ajeno (deterministic por userId) ──────────
+  // Defaults de "user nuevo" (Lv 1, 1 hr) si profile no trae datos completos —
+  // NO usar 47/7 (esos son del usuario propio Juan Diego, contaminarían perfil ajeno).
+  const seed = (profile?.id || 'x').charCodeAt(0) || 65;
+  const userHours = Math.max(1, profile?.hours || 1);
+  const userLevel = profile?.level || 1;
+  const userFollowers = profile?.followers || 0;
+
+  // Hero stats — derivados del seed + horas del user
+  const streak = Math.max(3, ((seed * 7) % 40) + 1);
+  const best = (1.4 + ((seed * 11) % 30) / 10).toFixed(1);
+  const completed = Math.max(8, Math.round(userHours * 0.7));
+
+  // Recovered from social — proporcional a userHours (mock — todos recuperan ~50% de su tiempo en redes)
+  const recoveredFactor = 0.5 + ((seed % 13) / 50);
+  const totalRecovered = userHours * recoveredFactor;
+  const recoveredBreakdown = [
+    { id:'instagram', label:'Instagram', accent:'#e879c5', hours: +(totalRecovered * 0.42).toFixed(1) },
+    { id:'tiktok',    label:'TikTok',    accent:'#5dd3ff', hours: +(totalRecovered * 0.30).toFixed(1) },
+    { id:'twitter',   label:'X',         accent:'#e8e8e8', hours: +(totalRecovered * 0.18).toFixed(1) },
+    { id:'youtube',   label:'YouTube',   accent:'#FF0000', hours: +(totalRecovered * 0.10).toFixed(1) },
+  ];
+
+  // Distribución por categoría — desde _USER_STATS_DONUT global si existe
+  const distSegments = (window._USER_STATS_DONUT && window._USER_STATS_DONUT[profile?.id]) || [
+    { label:'Audiolibros',  value: Math.round(userHours * 0.42), color:'#3dffd1' },
+    { label:'Meditaciones', value: Math.round(userHours * 0.22), color:'#9b8aff' },
+    { label:'Charlas',      value: Math.round(userHours * 0.18), color:'#5dd3ff' },
+    { label:'Series',       value: Math.round(userHours * 0.10), color:'#FFD66B' },
+    { label:'Sonidos',      value: Math.round(userHours * 0.08), color:'#9bd45e' },
+  ];
+
+  // Esta semana — variación pseudoaleatoria estable por seed
+  const weekData = Array.from({ length: 7 }, (_, i) => +(0.6 + ((seed * (i + 2)) % 24) / 10).toFixed(1));
+
+  // Hora pico — patrón distinto por seed (algunos son madrugadores, otros nocturnos)
+  const isNightOwl = (seed % 3) === 0;
+  const isMorning = (seed % 3) === 1;
+  const hourData = Array.from({ length: 24 }, (_, h) => {
+    if (isNightOwl && h >= 20 && h <= 23) return 32 + ((h * 9) % 24);
+    if (isMorning && h >= 5 && h <= 8)    return 32 + ((h * 11) % 22);
+    if (!isNightOwl && !isMorning && h >= 14 && h <= 17) return 28 + ((h * 7) % 22);
+    if (h >= 9 && h <= 12)  return 14 + ((h * 5) % 18);
+    return 3 + ((h * 3) % 8);
+  });
+
+  // Heatmap del mes — más activo si el user tiene más hours
+  const intensityBoost = Math.min(2, Math.floor(userHours / 100));
+  const heatmapData = Array.from({ length: 30 }, (_, i) => {
+    const v = Math.floor(((i * 13 + seed) % 19) / 4) + intensityBoost;
+    return Math.min(4, v);
+  });
+
+  // Top contenidos — variación por seed
+  const topContent = [0, 1, 2].map(i => {
+    const ci = (seed + i * 3) % _STATS_TOP_COVERS.length;
+    const c = _STATS_TOP_COVERS[ci];
+    return { rank: i + 1, ...c, plays: Math.max(3, Math.round(userHours / (8 + i * 4))) };
+  });
+
+  // Percentil — derivado del level (más alto level → mejor percentil global)
+  const percentile = userLevel >= 14 ? 1.5
+                   : userLevel >= 10 ? 4
+                   : userLevel >= 8 ? 8
+                   : userLevel >= 6 ? 14
+                   : 28;
+
+  // Travesía — derivada de userHours
+  const daysActive = Math.max(15, Math.min(365, Math.round(userHours * 1.5 + (seed % 30))));
+  const sessions = Math.max(20, Math.round(userHours * 2.4 + (seed % 15)));
+  const avgDaily = Math.max(8, Math.round((userHours * 60) / daysActive));
+  const longestSession = Math.max(45, Math.round(60 + (seed % 80) + Math.min(60, userHours / 3)));
+  const journey = [
+    { label:'Días activos',     value: String(daysActive),    unit:'días',     color:accent },
+    { label:'Sesiones',         value: String(sessions),      unit:'piezas',   color:'#FFD66B' },
+    { label:'Promedio diario',  value: String(avgDaily),      unit:'min/día',  color:'#5dd3ff' },
+    { label:'Sesión más larga', value: String(longestSession),unit:'min',      color:'#ff8b6a' },
+  ];
+
+  // Evolución 6 meses — escalado por userHours
+  const baseMonthly = userHours / 18; // ~6 meses + ramp-up
+  const histData = [0.4, 0.55, 0.75, 0.9, 1.0, 1.1].map(f => +(baseMonthly * f * (1 + ((seed * f * 10) % 20) / 100)).toFixed(1));
+
+  return {
+    accent,
+    heroStats: [
+      { key:'streak',    label:'Racha',         value: String(streak),    unit:'días',   sub:'consecutivos', Ic:IcFlame, color:'#FFD66B', glow:'rgba(255,214,107,0.5)' },
+      { key:'best',      label:'Mejor sesión',  value: best,              unit:'hr',     sub:'enfocado',     Ic:IcZap,   color:'#3dffd1', glow:'rgba(61,255,209,0.5)' },
+      { key:'completed', label:'Completados',   value: String(completed), unit:'piezas', sub:'aprendidas',   Ic:IcCheck, color:'#9b8aff', glow:'rgba(155,138,255,0.5)' },
+    ],
+    recoveredBreakdown,
+    distSegments,
+    weekData,
+    hourData,
+    heatmapData,
+    topContent,
+    percentile,
+    journey,
+    histData,
+  };
+}
+
+// ── StatsTab content — Dashboard pro de 10 cards ─────────────────────────────
+// Reusable: si recibe `profile` y `isOwn=false`, deriva todos los datos para
+// el perfil ajeno (UserProfileScreen). Sin props, usa el perfil propio.
+function ProfileStatsTab({ profile: profileProp, isOwn: isOwnProp } = {}) {
+  const ownProfile = useProfile();
+  const isOwn = isOwnProp == null ? true : isOwnProp;
+  const profile = profileProp || ownProfile;
+  const accent = profile?.accent || '#3dffd1';
+  const firstName = isOwn ? null : (profile?.name || '').split(' ')[0];
+
+  // Wording que cambia entre perfil propio y ajeno
+  const txt = isOwn ? {
+    sectionMovement:'Tu mente en movimiento',
+    recoveredEyebrow:'Tiempo recuperado',
+    recoveredTitle:'De redes sociales',
+    recoveredSub:'Lo que no se gastó en scroll vacío',
+    recoveredInsightVerb:'evitados',
+    distEyebrow:'Esta semana',
+    distTitle:'Cómo distribuyes tu mente',
+    weekEyebrow:'Tu mente esta semana',
+    weekTitle:'Últimos 7 días',
+    heatmapEyebrow:'Mapa del mes',
+    heatmapTitle:'Tu constancia',
+    hourEyebrow:'Hora pico',
+    hourTitle:'Cuándo aprende tu mente',
+    hourPrefix:'Tu hora pico',
+    topEyebrow:'Top del mes',
+    topTitle:'Lo que más alimentó tu mente',
+    percentileEyebrow:'Tu posición',
+    percentileSub:'De Mentex en tiempo de aprendizaje',
+    journeyEyebrow:'Tu travesía en números',
+    histEyebrow:'Evolución',
+    histTitle:'Tu mente, mes a mes',
+  } : {
+    sectionMovement: `${firstName} en movimiento`,
+    recoveredEyebrow:'Tiempo recuperado',
+    recoveredTitle:'De redes sociales',
+    recoveredSub: `Lo que ${firstName} no gastó en scroll vacío`,
+    recoveredInsightVerb:'evitados',
+    distEyebrow:'Esta semana',
+    distTitle: `Cómo distribuye su mente ${firstName}`,
+    weekEyebrow: `${firstName} esta semana`,
+    weekTitle:'Últimos 7 días',
+    heatmapEyebrow:'Mapa del mes',
+    heatmapTitle:'Su constancia',
+    hourEyebrow:'Hora pico',
+    hourTitle:'Cuándo aprende su mente',
+    hourPrefix:'Su hora pico',
+    topEyebrow:'Top del mes',
+    topTitle: `Lo que más alimenta a ${firstName}`,
+    percentileEyebrow:'Su posición',
+    percentileSub:'De Mentex en tiempo de aprendizaje',
+    journeyEyebrow: `Travesía de ${firstName}`,
+    histEyebrow:'Evolución',
+    histTitle: `${firstName}, mes a mes`,
+  };
+
+  // Derivar todos los datos mock por user
+  const stats = React.useMemo(() => _deriveStatsFor(profile, isOwn), [profile, isOwn]);
 
   // ============================================================================
-  // 1. HERO STATS (racha, mejor sesión, completados)
+  // 1. HERO STATS
   // ============================================================================
-  const heroStats = [
-    { key:'streak',    label:'Racha',         value:'12',  unit:'días',   sub:'consecutivos', Ic:IcFlame, color:'#FFD66B', glow:'rgba(255,214,107,0.5)'  },
-    { key:'best',      label:'Mejor sesión',  value:'2.4', unit:'hr',     sub:'enfocado',     Ic:IcZap,   color:'#3dffd1', glow:'rgba(61,255,209,0.5)'   },
-    { key:'completed', label:'Completados',   value:'47',  unit:'piezas', sub:'aprendidas',   Ic:IcCheck, color:'#9b8aff', glow:'rgba(155,138,255,0.5)' },
-  ];
+  const heroStats = stats.heroStats;
 
   // ============================================================================
   // 2. TIEMPO RECUPERADO DE REDES SOCIALES
   // ============================================================================
-  const recoveredBreakdown = [
-    { id:'instagram', label:'Instagram', accent:'#e879c5', hours:9.2 },
-    { id:'tiktok',    label:'TikTok',    accent:'#5dd3ff', hours:7.4 },
-    { id:'twitter',   label:'X',         accent:'#e8e8e8', hours:4.1 },
-    { id:'youtube',   label:'YouTube',   accent:'#FF0000', hours:2.8 },
-  ];
+  const recoveredBreakdown = stats.recoveredBreakdown;
   const recoveredTotal = recoveredBreakdown.reduce((s, r) => s + r.hours, 0);
   const recoveredMaxHours = Math.max(...recoveredBreakdown.map(r => r.hours));
-  const recoveredScrolls = Math.round(recoveredTotal * 60 / 1.4); // ~1.4 min por scroll session
+  const recoveredScrolls = Math.round(recoveredTotal * 60 / 1.4);
 
   // ============================================================================
   // 3. DISTRIBUCIÓN (donut)
   // ============================================================================
-  const distSegments = [
-    { label:'Audiolibros',  value:184, color:'#3dffd1' },
-    { label:'Meditaciones', value:96,  color:'#9b8aff' },
-    { label:'Charlas',      value:78,  color:'#5dd3ff' },
-    { label:'Series',       value:42,  color:'#FFD66B' },
-    { label:'Sonidos',      value:28,  color:'#9bd45e' },
-  ];
+  const distSegments = stats.distSegments;
   const distTotal = distSegments.reduce((s, x) => s + x.value, 0);
 
   // ============================================================================
   // 4. ESTA SEMANA — area chart 7 días
   // ============================================================================
   const weekDays = ['L','M','M','J','V','S','D'];
-  const weekData = [1.2, 2.1, 0.8, 1.6, 2.4, 1.9, 1.3]; // hr per day
+  const weekData = stats.weekData;
   const weekTotal = weekData.reduce((s, v) => s + v, 0);
   const weekAvg = weekTotal / weekData.length;
   const weekPeakIdx = weekData.indexOf(Math.max(...weekData));
@@ -1114,22 +1362,13 @@ function ProfileStatsTab() {
   // ============================================================================
   // 5. MAPA DEL MES — heatmap 30 días
   // ============================================================================
-  const heatmapData = Array.from({ length: 30 }, (_, i) => {
-    // Distribución pseudo-real con mayoría de días con actividad
-    const r = ((i * 13 + 7) % 19) / 4;
-    return Math.min(4, Math.floor(r));
-  });
+  const heatmapData = stats.heatmapData;
   const activeDays = heatmapData.filter(v => v > 0).length;
 
   // ============================================================================
   // 6. HORA PICO
   // ============================================================================
-  const hourData = Array.from({ length: 24 }, (_, h) => {
-    if (h >= 6 && h <= 9)   return 30 + ((h * 7) % 22);  // mañana
-    if (h >= 14 && h <= 16) return 18 + ((h * 5) % 20);  // tarde
-    if (h >= 20 && h <= 22) return 38 + ((h * 11) % 24); // noche (peak)
-    return 4 + ((h * 3) % 9);
-  });
+  const hourData = stats.hourData;
   const hourPeakIdx = hourData.indexOf(Math.max(...hourData));
   const hourMax = Math.max(...hourData);
   const fmtHour = (h) => `${String(h).padStart(2,'0')}:00`;
@@ -1137,32 +1376,23 @@ function ProfileStatsTab() {
   // ============================================================================
   // 7. TOP DEL MES
   // ============================================================================
-  const topContent = [
-    { rank:1, title:'Hábitos Atómicos',    author:'James Clear',     cover:'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=200&q=80', plays:14, color:'#3dffd1' },
-    { rank:2, title:'Deep Work',           author:'Cal Newport',     cover:'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=200&q=80', plays:9,  color:'#9b8aff' },
-    { rank:3, title:'El poder del ahora',  author:'Eckhart Tolle',   cover:'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=200&q=80', plays:7,  color:'#FFD66B' },
-  ];
+  const topContent = stats.topContent;
 
   // ============================================================================
   // 8. COMUNIDAD — percentil
   // ============================================================================
-  const userPercentile = 12; // top 12%
+  const userPercentile = stats.percentile;
 
   // ============================================================================
   // 9. TRAVESÍA (4 stats editorial)
   // ============================================================================
-  const journey = [
-    { label:'Días activos',     value:'87',  unit:'días',     color:accent },
-    { label:'Sesiones',         value:'142', unit:'piezas',   color:'#FFD66B' },
-    { label:'Promedio diario',  value:'32',  unit:'min/día',  color:'#5dd3ff' },
-    { label:'Sesión más larga', value:'108', unit:'min',      color:'#ff8b6a' },
-  ];
+  const journey = stats.journey;
 
   // ============================================================================
   // 10. EVOLUCIÓN HISTÓRICA — area chart 6 meses
   // ============================================================================
   const histMonths = ['Nov','Dic','Ene','Feb','Mar','Abr'];
-  const histData = [4.5, 6.2, 8.8, 10.1, 12.3, 14.7];
+  const histData = stats.histData;
   const histTotal = histData.reduce((s, v) => s + v, 0);
   const histPeakIdx = histData.indexOf(Math.max(...histData));
   const histPaths = _buildAreaPaths(histData, wcW, wcH, wcPad, wcPad);
@@ -1177,7 +1407,7 @@ function ProfileStatsTab() {
         <div className="mtx-eyebrow" style={{ fontSize:9, color: accent, letterSpacing:'0.14em', marginBottom:10, paddingLeft:2,
           textShadow:`0 0 10px ${accent}55`,
         }}>
-          Tu mente en movimiento
+          {txt.sectionMovement}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
           {heroStats.map(s => (
@@ -1260,7 +1490,7 @@ function ProfileStatsTab() {
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--neon)', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2,
           textShadow:'0 0 10px rgba(61,255,209,0.4)',
         }}>
-          Tiempo recuperado
+          {txt.recoveredEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'18px 18px 14px', borderRadius:20,
@@ -1279,10 +1509,10 @@ function ProfileStatsTab() {
           <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom:12, position:'relative', zIndex:1 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em', lineHeight:1.2 }}>
-                De redes sociales
+                {txt.recoveredTitle}
               </h3>
               <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4, letterSpacing:'-0.005em' }}>
-                Lo que no se gastó en scroll vacío
+                {txt.recoveredSub}
               </p>
             </div>
             <div style={{
@@ -1371,7 +1601,7 @@ function ProfileStatsTab() {
           border:'0.5px solid rgba(255,255,255,0.06)',
         }}>
           <h3 style={{ margin:'0 0 14px', fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em' }}>
-            Cómo distribuyes tu mente
+            {txt.distTitle}
           </h3>
 
           <StatsDonut segments={distSegments} totalLabel="Minutos" totalValue={distTotal} totalUnit="esta semana"/>
@@ -1414,7 +1644,7 @@ function ProfileStatsTab() {
       {/* ============================================================== */}
       <div style={{ padding:'4px 20px 14px' }}>
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-3)', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2 }}>
-          Tu mente esta semana
+          {txt.weekEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'16px 16px 14px', borderRadius:20,
@@ -1425,7 +1655,7 @@ function ProfileStatsTab() {
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:10, gap:12 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.014em', lineHeight:1.2 }}>
-                Últimos 7 días
+                {txt.weekTitle}
               </div>
               <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2, letterSpacing:'-0.005em' }}>
                 Total: <span style={{ color:'var(--ink-1)', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{weekTotal.toFixed(1)} hr</span>
@@ -1507,7 +1737,7 @@ function ProfileStatsTab() {
       {/* ============================================================== */}
       <div style={{ padding:'4px 20px 14px' }}>
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-3)', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2 }}>
-          Mapa del mes
+          {txt.heatmapEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'16px 18px', borderRadius:20,
@@ -1517,7 +1747,7 @@ function ProfileStatsTab() {
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:14, gap:12 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.014em', lineHeight:1.2 }}>
-                Tu constancia
+                {txt.heatmapTitle}
               </div>
               <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>
                 <span style={{ color:'var(--ink-1)', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{activeDays}</span> de 30 días con aprendizaje · {Math.round(activeDays / 30 * 100)}%
@@ -1596,10 +1826,10 @@ function ProfileStatsTab() {
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:14, gap:12 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.014em', lineHeight:1.2 }}>
-                Cuándo aprende tu mente
+                {txt.hourTitle}
               </div>
               <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>
-                Tu hora pico: <span style={{ color: accent, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{fmtHour(hourPeakIdx)}</span> · {hourData[hourPeakIdx]} min promedio
+                {txt.hourPrefix}: <span style={{ color: accent, fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{fmtHour(hourPeakIdx)}</span> · {hourData[hourPeakIdx]} min promedio
               </div>
             </div>
           </div>
@@ -1652,7 +1882,7 @@ function ProfileStatsTab() {
       {/* ============================================================== */}
       <div style={{ padding:'4px 20px 14px' }}>
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-3)', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2 }}>
-          Top del mes
+          {txt.topEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'14px 14px 12px', borderRadius:20,
@@ -1660,7 +1890,7 @@ function ProfileStatsTab() {
           border:'0.5px solid rgba(255,255,255,0.06)',
         }}>
           <h3 style={{ margin:'0 0 12px', padding:'0 4px', fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.014em' }}>
-            Lo que más alimentó tu mente
+            {txt.topTitle}
           </h3>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {topContent.map(c => (
@@ -1740,7 +1970,7 @@ function ProfileStatsTab() {
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'#FFD66B', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2,
           textShadow:'0 0 10px rgba(255,214,107,0.3)',
         }}>
-          Tu posición
+          {txt.percentileEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'18px 18px 16px', borderRadius:20,
@@ -1783,7 +2013,7 @@ function ProfileStatsTab() {
                 </span>
               </div>
               <div style={{ fontSize:12, color:'var(--ink-2)', letterSpacing:'-0.005em', lineHeight:1.4 }}>
-                De Mentex en tiempo de aprendizaje
+                {txt.percentileSub}
               </div>
             </div>
           </div>
@@ -1828,7 +2058,7 @@ function ProfileStatsTab() {
       {/* ============================================================== */}
       <div style={{ padding:'4px 20px 14px' }}>
         <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-3)', letterSpacing:'0.14em', marginBottom:10, paddingLeft:2 }}>
-          Tu travesía en números
+          {txt.journeyEyebrow}
         </div>
         <div className="mtx-glass" style={{
           padding:'4px 2px',
@@ -1890,7 +2120,7 @@ function ProfileStatsTab() {
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:10, gap:12 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.014em', lineHeight:1.2 }}>
-                Tu mente, mes a mes
+                {txt.histTitle}
               </div>
               <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2, letterSpacing:'-0.005em' }}>
                 Total acumulado: <span style={{ color:'var(--ink-1)', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>{histTotal.toFixed(0)} hr</span>
@@ -2065,10 +2295,14 @@ function HeroNextAchievement({ achievement, accentOverride, onTap }) {
 
 
 // ── AwardsTab — sistema de 30 logros con filtros por categoría ──────────────
-function AwardsTab({ onAchievementTap }) {
+// `profile`/`isOwn` opcionales: sin ellos asume perfil propio (Juan Diego);
+// con `profile` y `isOwn=false` deriva los logros del user específico.
+function AwardsTab({ onAchievementTap, profile, isOwn = true }) {
   const [category, setCategory] = React.useState('all'); // 'all' | focus | learning | ...
 
-  const all = React.useMemo(() => _buildAchievements(), []);
+  const all = React.useMemo(() =>
+    isOwn ? _buildAchievements() : _buildAchievementsForUser(profile),
+  [isOwn, profile]);
 
   // Counts por categoría (para los pills de filtro)
   const categoriesData = Object.values(_ACHIEVEMENT_CATEGORIES).map(c => {
@@ -2908,8 +3142,8 @@ function ProfileScreen() {
 }
 
 Object.assign(window, {
-  ProfileScreen, ProfileReviewCard, ProfileStatsTab, useUserReviews,
+  ProfileScreen, ProfileReviewCard, ProfileStatsTab, AwardsTab, useUserReviews,
   AchievementCard, AchievementCardFull, AchievementBadge, EditProfileSheet, useProfile,
   _ACHIEVEMENT_TIERS, _ACHIEVEMENT_CATEGORIES, _ALL_ACHIEVEMENTS, _buildAchievements,
-  _getSocialBrand,
+  _buildAchievementsForUser, _getSocialBrand,
 });

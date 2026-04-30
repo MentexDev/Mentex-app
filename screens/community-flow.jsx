@@ -42,6 +42,29 @@ const _MOCK_COMMUNITY_AUTHORS = [
   { id:'rodrigo',  name:'Rodrigo Lara',     accent:'#9bd45e', initial:'R', tagline:'Calma y enfoque' },
 ];
 
+// ── Helpers de tiempo: parse "2h"/"1d"/"Ahora" → ms epoch + format inverso ──
+function _timeAgoToMs(timeAgo) {
+  if (!timeAgo || timeAgo === 'Ahora') return Date.now();
+  const m = String(timeAgo).match(/^(\d+)\s*([mhd])$/i);
+  if (!m) return Date.now();
+  const n = parseInt(m[1], 10);
+  const unit = m[2].toLowerCase();
+  const ms = unit === 'm' ? n * 60_000
+           : unit === 'h' ? n * 3_600_000
+           :                n * 86_400_000;
+  return Date.now() - ms;
+}
+function _formatRelative(ts) {
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return 'Ahora';
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
 // ── Mock seed reviews ───────────────────────────────────────────────────────
 const _MOCK_COMMUNITY_REVIEWS = [
   { id:'cr-1', authorId:'mariana',  itemId:'c-habitos',     rating:5, text:'Lo más valioso fue cómo reformula los hábitos como votos a la persona que quieres ser. No son metas — son identidad en construcción.', timeAgo:'2h',  likes:42,  comments:5  },
@@ -376,27 +399,42 @@ function CommunityScreen() {
   }, []);
 
   const feed = React.useMemo(() => {
+    // 1) Reseñas propias del store (createdAt real)
     const userReviews = (window.__mtxReviews ? window.__mtxReviews.list() : [])
       .filter(r => r.isPublic)
       .map(r => {
         const item = (window.EXPLORE_CONTENT || []).find(c => c.id === r.itemId);
         return {
           ...r,
-          author: { id:'me', name:'Tú', initial:'J', accent:'#3dffd1', tagline:'Tu reflexión más reciente' },
+          author: { id:'me', name:'Tú', initial:'J', accent:'#3dffd1', tagline:'Tu reflexión' },
           item,
-          timeAgo: 'Ahora',
           isOwn: true,
+          // _sortTs: createdAt real del store (cuando se publicó)
+          _sortTs: r.createdAt || Date.now(),
         };
       })
       .filter(r => r.item);
 
+    // 2) Reseñas mock comunidad (timeAgo string → derivar createdAt)
     const mockEnriched = _MOCK_COMMUNITY_REVIEWS.map(r => {
       const author = _MOCK_COMMUNITY_AUTHORS.find(a => a.id === r.authorId);
       const item = (window.EXPLORE_CONTENT || []).find(c => c.id === r.itemId);
-      return { ...r, author, item, isOwn: false };
+      return {
+        ...r, author, item, isOwn: false,
+        _sortTs: _timeAgoToMs(r.timeAgo),
+      };
     }).filter(r => r.item && r.author);
 
-    let all = [...userReviews, ...mockEnriched];
+    // 3) Merge + sort cronológico DESC (lo más reciente arriba). Esto evita
+    //    que múltiples reseñas propias queden agrupadas; cada una toma su
+    //    posición real por timestamp respecto a las demás.
+    let all = [...userReviews, ...mockEnriched]
+      .sort((a, b) => b._sortTs - a._sortTs)
+      .map(r => ({
+        ...r,
+        // Display dinámico — recalcula timeAgo desde _sortTs en cada render
+        timeAgo: _formatRelative(r._sortTs),
+      }));
 
     if (filter === 'mine') all = all.filter(r => r.isOwn);
     else if (filter !== 'all') all = all.filter(r => r.item.type === filter);
