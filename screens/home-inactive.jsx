@@ -209,11 +209,22 @@ const _HERO_BANNERS = [
 ];
 
 // ── BannerCarousel — auto-swipe entre 5 slides + paginator dots ─────────────
-// `height` es parametrizable: 196 default (modo card) o ~250 cuando se usa
-// como hero del Home con bell flotando encima.
-// `hideTopIcon` oculta el icon decorativo top-right del slide (necesario
-// cuando hay otro elemento flotando ahí, como el bell del Home).
-function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
+// Props:
+// - height: alto del banner en px (default 196 = card mode)
+// - hideTopIcon: oculta el icon decorativo top-right del slide (cuando hay
+//   otro elemento flotando ahí, como el bell del Home)
+// - fullBleed: quita padding lateral, borderRadius y boxShadow para que el
+//   banner toque los bordes del viewport (modo hero del Home)
+// - contentPaddingTop: padding-top extra al CONTENIDO interno (eyebrow +
+//   título + CTA) para evitar que choque con el área del status bar cuando
+//   el banner se extiende hasta y=0
+function BannerCarousel({
+  slides, onTap,
+  height = 196,
+  hideTopIcon = false,
+  fullBleed = false,
+  contentPaddingTop = 20,
+}) {
   const [idx, setIdx] = React.useState(0);
   const [paused, setPaused] = React.useState(false);
 
@@ -257,7 +268,10 @@ function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
   const Ic = slide.Ic;
 
   return (
-    <div style={{ padding:'0 20px', marginBottom:24 }}>
+    <div style={{
+      padding: fullBleed ? 0 : '0 20px',
+      marginBottom: fullBleed ? 0 : 24,
+    }}>
       <div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -270,14 +284,14 @@ function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
         style={{
           position:'relative',
           height: height,
-          borderRadius: 22,
+          borderRadius: fullBleed ? 0 : 22,
           overflow:'hidden',
           background: slide.gradient,
           cursor:'pointer',
           touchAction:'pan-y',
           transform: `translateX(${dragX * 0.3}px)`,
           transition: isDragging ? 'none' : 'transform .3s cubic-bezier(.25,.8,.25,1)',
-          boxShadow: `0 0 0 0.5px ${slide.accent}33, 0 18px 40px -16px ${slide.accent}80`,
+          boxShadow: fullBleed ? 'none' : `0 0 0 0.5px ${slide.accent}33, 0 18px 40px -16px ${slide.accent}80`,
           fontFamily:'var(--ff-sans)',
         }}
       >
@@ -312,7 +326,7 @@ function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
           position:'relative', zIndex:1,
           height:'100%',
           boxSizing:'border-box', // sin esto, el padding cae FUERA del 100% y el CTA bottom se recorta por overflow:hidden del banner
-          padding:'20px 22px 18px',
+          padding: `${contentPaddingTop}px 22px ${fullBleed ? 36 : 18}px`,
           display:'flex', flexDirection:'column', justifyContent:'space-between',
           color: isPremium ? '#0a1410' : 'var(--ink-1)',
         }}>
@@ -390,28 +404,56 @@ function BannerCarousel({ slides, onTap, height = 196, hideTopIcon = false }) {
             </div>
           )}
         </div>
+
+        {/* Paginator dots — DENTRO del banner cuando fullBleed (overlay sobre
+            el gradient, parte inferior). En modo card siguen FUERA debajo. */}
+        {fullBleed && (
+          <div style={{
+            position:'absolute', bottom:14, left:0, right:0,
+            display:'flex', justifyContent:'center', gap:5,
+            zIndex:2,
+          }}>
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={(e) => { e.stopPropagation(); setIdx(i); setPaused(true); setTimeout(() => setPaused(false), 4000); }}
+                aria-label={`Ir al banner ${i + 1}`}
+                style={{
+                  appearance:'none', cursor:'pointer', border:0,
+                  width: i === idx ? 18 : 5, height:5, borderRadius:999,
+                  background: i === idx ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)',
+                  boxShadow: i === idx ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
+                  transition:'width .3s cubic-bezier(.25,.8,.25,1), background .25s, box-shadow .25s',
+                  padding:0,
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Paginator dots */}
-      <div style={{
-        marginTop:10, display:'flex', justifyContent:'center', gap:5,
-      }}>
-        {slides.map((s, i) => (
-          <button
-            key={s.id}
-            onClick={(e) => { e.stopPropagation(); setIdx(i); setPaused(true); setTimeout(() => setPaused(false), 4000); }}
-            aria-label={`Ir al banner ${i + 1}`}
-            style={{
-              appearance:'none', cursor:'pointer', border:0,
-              width: i === idx ? 18 : 5, height:5, borderRadius:999,
-              background: i === idx ? 'var(--neon)' : 'rgba(255,255,255,0.18)',
-              boxShadow: i === idx ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
-              transition:'width .3s cubic-bezier(.25,.8,.25,1), background .25s, box-shadow .25s',
-              padding:0,
-            }}
-          />
-        ))}
-      </div>
+      {/* Paginator dots — FUERA del banner (modo card) */}
+      {!fullBleed && (
+        <div style={{
+          marginTop:10, display:'flex', justifyContent:'center', gap:5,
+        }}>
+          {slides.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={(e) => { e.stopPropagation(); setIdx(i); setPaused(true); setTimeout(() => setPaused(false), 4000); }}
+              aria-label={`Ir al banner ${i + 1}`}
+              style={{
+                appearance:'none', cursor:'pointer', border:0,
+                width: i === idx ? 18 : 5, height:5, borderRadius:999,
+                background: i === idx ? 'var(--neon)' : 'rgba(255,255,255,0.18)',
+                boxShadow: i === idx ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
+                transition:'width .3s cubic-bezier(.25,.8,.25,1), background .25s, box-shadow .25s',
+                padding:0,
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -473,19 +515,24 @@ function HomeInactive({
   };
 
   return (
-    <div style={{ paddingTop:60, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
-      {/* ── HERO: banner rotativo + bell flotando encima ──────────────────
-          El hero ocupa la franja superior con presencia premium. El bell se
-          monta absolute sobre la esquina top-right del hero — el icon
-          decorativo top-right del slide queda oculto (hideTopIcon) para que
-          no choque visualmente con el bell. */}
+    // paddingTop:0 → el hero llega hasta el top del device, cubriendo el área
+    // del status bar. Las simulaciones (9:41, wifi, batería) se renderizan en
+    // un layer con z-index:10 que queda visualmente flotando sobre el banner.
+    <div style={{ paddingTop:0, paddingBottom:40, animation:'mtx-fade-up .4s ease both' }}>
+      {/* ── HERO full-bleed: banner rotativo (310px alto, sin padding lateral
+          ni borderRadius) + bell flotando + dots dentro del banner. */}
       <div style={{ position:'relative' }}>
-        <BannerCarousel slides={_HERO_BANNERS} onTap={handleBannerTap} height={250} hideTopIcon/>
+        <BannerCarousel
+          slides={_HERO_BANNERS}
+          onTap={handleBannerTap}
+          height={310}
+          hideTopIcon
+          fullBleed
+          contentPaddingTop={80}
+        />
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-          position:'absolute', top:18, right:32,
+          position:'absolute', top:78, right:18,
           width:44, height:44, borderRadius:999,
-          // Background glassmórfico oscuro para que el bell se lea sobre
-          // cualquier gradient del banner (premium dorado, blue, neon, etc.)
           background:'rgba(10,14,12,0.45)',
           border:'0.5px solid rgba(255,255,255,0.18)',
           backdropFilter:'blur(20px) saturate(160%)',
@@ -514,24 +561,11 @@ function HomeInactive({
         </button>
       </div>
 
-      {/* ── Saludo + título + subtítulo (debajo del hero) ─────────────────
-          El subtítulo conecta directamente con la siguiente sección (las
-          pills de tiempo) — empieza con "Empieza eligiendo cuánto..." para
-          que el flujo de lectura sea continuo sin necesidad de un título
-          intermedio "¿Cuánto tiempo...?". */}
-      <div style={{ padding:'18px 20px 14px' }}>
-        <div className="mtx-eyebrow" style={{
-          marginBottom:6, color:'var(--neon)',
-          display:'flex', alignItems:'center', gap:6,
-        }}>
-          <span style={{
-            width:6, height:6, borderRadius:999, background:'var(--neon)',
-            boxShadow:'0 0 8px var(--neon)',
-            animation:'mtxPulseDotHome 2s ease-in-out infinite',
-          }}/>
-          <style>{`@keyframes mtxPulseDotHome { 0%,100% { opacity:0.6; } 50% { opacity:1; } }`}</style>
-          Ritual diario
-        </div>
+      {/* ── Saludo + título + subtítulo (debajo del hero, sin eyebrow) ──
+          Eliminé "● Ritual diario" porque con el hero a pantalla completa
+          el eyebrow se sentía redundante con el contexto que el banner ya
+          establece. */}
+      <div style={{ padding:'22px 20px 14px' }}>
         <h1 className="mtx-h-1" style={{
           margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
           letterSpacing:'-0.03em', lineHeight:1.1,
