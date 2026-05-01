@@ -6319,6 +6319,9 @@ function PlaylistSwitcherRow({ playlist, isActive, ribbon, onClick }) {
     if (typeof playlist.totalVideos === 'number') return playlist.totalVideos;
     return 0;
   })();
+  // Playlist sintética del ritual del día no tiene thumbnail — usamos un
+  // icono identitario (shield + halo radial neon) en lugar de cuadro vacío.
+  const isRitualSynthetic = playlist.id === 'ritual-today';
   return (
     <button onClick={onClick} className="mtx-tap" style={{
       appearance:'none', cursor:'pointer', textAlign:'left',
@@ -6344,6 +6347,32 @@ function PlaylistSwitcherRow({ playlist, isActive, ribbon, onClick }) {
           <img src={playlist.thumbnail} alt="" loading="lazy" style={{
             position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover',
           }}/>
+        )}
+        {!playlist.thumbnail && isRitualSynthetic && (
+          <>
+            {/* Halo radial sutil de fondo */}
+            <div style={{
+              position:'absolute', inset:0,
+              background:`radial-gradient(70% 70% at 50% 40%, ${accent}40 0%, transparent 70%)`,
+              pointerEvents:'none',
+            }}/>
+            {/* Shield centrado con glow */}
+            <div style={{
+              position:'absolute', inset:0,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              color: accent,
+              filter:`drop-shadow(0 0 6px ${accent}80)`,
+            }}>
+              <IcShield size={20} stroke="currentColor" strokeWidth={1.6}/>
+            </div>
+            {/* Pulse dot top-right como en el eyebrow del Home */}
+            <span style={{
+              position:'absolute', top:5, right:5,
+              width:5, height:5, borderRadius:999, background: accent,
+              boxShadow:`0 0 6px ${accent}`,
+              animation:'mtxPulseDotHome 2s ease-in-out infinite',
+            }}/>
+          </>
         )}
       </div>
       <div style={{ flex:1, minWidth:0 }}>
@@ -7530,8 +7559,18 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   const nav = useExploreNav();
   const [filterType, setFilterType] = React.useState('all');
   const [comingSoonItem, setComingSoonItem] = React.useState(null);
-  const [videoSheetItem, setVideoSheetItem] = React.useState(null);
-  const [videoPlayingItem, setVideoPlayingItem] = React.useState(null);
+  // Sub-fase 0.3 · El estado del player vive en window.__mtxGlobalPlayer
+  // (consultable vía useGlobalPlayer). ExploreScreen ya no monta el VideoSheet
+  // ni el VideoPlayerFullscreen — los renderiza GlobalPlayerOverlay a nivel
+  // del MentexApp. Estos shims se mantienen para no romper handlers locales
+  // que aún consumen el setter (handlePlayerComplete, etc.).
+  const _gp = (typeof window !== 'undefined' && window.useGlobalPlayer)
+    ? window.useGlobalPlayer()
+    : { activeItem: null, mode: null };
+  const videoSheetItem    = _gp.mode === 'sheet'  ? _gp.activeItem : null;
+  const videoPlayingItem  = _gp.mode === 'player' ? _gp.activeItem : null;
+  const setVideoSheetItem   = (it) => it ? window.__mtxGlobalPlayer?.openSheet(it)   : window.__mtxGlobalPlayer?.close();
+  const setVideoPlayingItem = (it) => it ? window.__mtxGlobalPlayer?.openPlayer(it)  : window.__mtxGlobalPlayer?.close();
   const [videoPlayingFromPlaylist, setVideoPlayingFromPlaylist] = React.useState(null);
   const [videoCompletedItem, setVideoCompletedItem] = React.useState(null);
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -7583,30 +7622,32 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     }
   };
 
-  // Listener: cuando el usuario tap un item desde Comunidad/Perfil, abrimos el VideoSheet aquí
-  React.useEffect(() => {
-    const handler = (e) => {
-      const itemId = e.detail && e.detail.itemId;
-      if (!itemId) return;
-      const it = EXPLORE_CONTENT.find(c => c.id === itemId);
-      if (it) handleItemClick(it);
-    };
-    window.addEventListener('mtx:explore-open-item', handler);
-    return () => window.removeEventListener('mtx:explore-open-item', handler);
-  }, []);
+  // Sub-fase 0.3 · Los listeners 'mtx:explore-open-item' y 'mtx:expand-player'
+  // ahora viven en GlobalPlayerOverlay (a nivel del MentexApp). ExploreScreen
+  // ya no necesita escucharlos.
 
-  // Listener: tap en el mini player (MtxNowPlayingBar) → expandir directo al
-  // VideoPlayerFullscreen sin pasar por el VideoSheet (el item ya está activo).
+  // Listeners de eventos request-* — son los que el GlobalPlayer dispara
+  // cuando el usuario tap acciones del player (share, save, etc.). Si el
+  // user está en otro tab, ExploreScreen no está montado y los sheets no
+  // aparecen — comportamiento aceptado por ahora; en una iteración futura
+  // los movemos al overlay global también.
   React.useEffect(() => {
-    const handler = (e) => {
-      const item = e.detail && e.detail.item;
-      if (!item) return;
-      // Si recibimos un item por id, hidratarlo desde EXPLORE_CONTENT por seguridad
-      const it = item.id ? (EXPLORE_CONTENT.find(c => c.id === item.id) || item) : item;
-      setVideoPlayingItem(it);
+    const handlers = {
+      share:    (e) => e.detail?.item && setShareItem(e.detail.item),
+      save:     (e) => e.detail?.item && setSaveToPlaylistItem(e.detail.item),
+      schedule: (e) => e.detail?.item && setScheduleItem(e.detail.item),
+      options:  (e) => e.detail?.item && setVideoOptionsCtx({
+        item: e.detail.item, currentTime: e.detail.currentTime, fromPlayer: true,
+      }),
+      completed: (e) => e.detail?.item && setVideoCompletedItem(e.detail.item),
+      'add-to-playlist': (e) => e.detail?.playlist && setAddContentOverlay(e.detail.playlist),
     };
-    window.addEventListener('mtx:expand-player', handler);
-    return () => window.removeEventListener('mtx:expand-player', handler);
+    const subs = Object.entries(handlers).map(([kind, fn]) => {
+      const ev = `mtx:request-${kind}`;
+      window.addEventListener(ev, fn);
+      return () => window.removeEventListener(ev, fn);
+    });
+    return () => subs.forEach(unsub => unsub());
   }, []);
   const handleViewAll = (category) => {
     nav.push({ view: 'category-full', categoryId: category.id });
@@ -7918,20 +7959,11 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
       {comingSoonItem && (
         <ComingSoonSheet item={comingSoonItem} onClose={() => setComingSoonItem(null)}/>
       )}
-      {videoSheetItem && (
-        <VideoSheet
-          item={videoSheetItem}
-          onClose={() => {
-            setVideoSheetItem(null);
-            // Notifica al HTML para que vuelva al tab origen si vino de community/profile
-            window.dispatchEvent(new CustomEvent('mtx:videosheet-closed'));
-          }}
-          onPlay={handlePlayFromSheet}
-          onShare={(it) => setShareItem(it)}
-          onSaveToPlaylist={(it) => setSaveToPlaylistItem(it)}
-          onScheduleForToday={(it) => setScheduleItem(it)}
-        />
-      )}
+      {/* Sub-fase 0.3 · VideoSheet, VideoPlayerFullscreen y PlaylistQueueSheet
+          se mueven a GlobalPlayerOverlay (un solo punto de montaje en toda
+          la app). Los handlers internos (Share/Save/Schedule/Options/
+          Completion) viven aquí y reaccionan a eventos `mtx:request-*` que
+          dispara el player global. */}
       {shareItem && (
         <ShareSheet item={shareItem} onClose={() => setShareItem(null)}/>
       )}
@@ -7940,41 +7972,6 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
       )}
       {scheduleItem && (
         <ScheduleTodaySheet item={scheduleItem} onClose={() => setScheduleItem(null)}/>
-      )}
-      {videoPlayingItem && (
-        <VideoPlayerFullscreen
-          item={videoPlayingItem}
-          onClose={() => { setVideoPlayingItem(null); setVideoPlayingFromPlaylist(null); }}
-          onComplete={handlePlayerComplete}
-          onOptions={(curSec) => setVideoOptionsCtx({
-            item: videoPlayingItem,
-            playlist: videoPlayingFromPlaylist,
-            currentTime: curSec,
-            fromPlayer: true,
-          })}
-          activePlaylist={activePlaylist}
-          activePlaylistItems={activePlaylistItems}
-          onOpenQueue={() => setQueueSheetOpen(true)}
-          onPrev={handlePlayerPrev}
-          onNext={handlePlayerNext}
-          canPrev={activePlaylistIndex > 0}
-          canNext={activePlaylistIndex >= 0 && activePlaylistIndex < activePlaylistItems.length - 1}
-        />
-      )}
-      {queueSheetOpen && activePlaylist && activePlaylistItems.length > 0 && (
-        <PlaylistQueueSheet
-          playlist={activePlaylist}
-          items={activePlaylistItems}
-          currentIndex={activePlaylistIndex}
-          onSelect={handleSelectFromQueue}
-          onClose={() => setQueueSheetOpen(false)}
-          onShareItem={(it) => { setQueueSheetOpen(false); setShareItem(it); }}
-          onRemoveItem={handleRemoveFromQueue}
-          onAddMore={() => {
-            setQueueSheetOpen(false);
-            setAddContentOverlay(activePlaylist);
-          }}
-        />
       )}
       {addContentOverlay && (
         <div style={{

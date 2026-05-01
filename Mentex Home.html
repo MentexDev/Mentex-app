@@ -43,14 +43,15 @@
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=42"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=43"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
   <script type="text/babel" src="screens/user-profile-flow.jsx?v=12"></script>
   <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
-  <script type="text/babel" src="screens/ritual-player.jsx?v=3"></script>
+  <script type="text/babel" src="screens/global-player.jsx?v=1"></script>
+  <script type="text/babel" src="screens/ritual-player.jsx?v=4"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -388,11 +389,11 @@
                 not to the (often very tall) scrollable mtx-bg content. */}
             <div id="mtx-overlay-root"/>
 
-            {/* Fase B · Wiring activities del ritual → reproductor de Explorar.
-                El overlay se monta SIEMPRE (cualquier tab) para que el usuario
-                pueda abrir VideoSheet → VideoPlayerFullscreen sin salir del Home
-                activo. Reusa los componentes de explore-flow.jsx vía portal. */}
-            {typeof RitualPlayerOverlay !== 'undefined' && <RitualPlayerOverlay/>}
+            {/* Sub-fase 0.3 · Player global unificado. Único punto de montaje
+                del VideoSheet + VideoPlayerFullscreen + PlaylistQueueSheet en
+                toda la app. Reemplaza al RitualPlayerOverlay (ahora delegado
+                via alias) y al render de player que vivía en ExploreScreen. */}
+            {typeof GlobalPlayerOverlay !== 'undefined' && <GlobalPlayerOverlay/>}
 
             {/* Sub-fase 0.2 · Switcher de playlist global. Único punto de
                 montaje. Se abre via window.__mtxActiveQueue.openSwitcher()
