@@ -187,6 +187,12 @@ function RunnerOptionsSheet({
   // Fase 3: binary no tiene reset semántico (no hay state acumulado que
   // resetear). El sheet entonces solo muestra "Marcar como completada".
   hideReset = false,
+  // Add more — extiende el objetivo (cuando el user va más allá del
+  // target original). Solo se muestra si onAddMore está provisto;
+  // binary lo omite (no aplica a hábitos sí/no).
+  onAddMore = null,
+  addMoreLabel = 'Añadir más',
+  addMoreDesc  = 'Extiende el objetivo',
   // Slot opcional para controles específicos de la métrica activa
   // (ej. selector de step size en distance). Se renderiza ANTES de la
   // lista de opciones, dentro del mismo sheet, sin nesting.
@@ -197,6 +203,9 @@ function RunnerOptionsSheet({
 
   const options = [
     { id: 'mark-complete', label: 'Marcar como completada', desc: 'Termina la actividad y celebra', Ic: IcCheck,   accent: accent,    handler: onMarkComplete },
+    ...(onAddMore ? [
+      { id: 'add-more',    label: addMoreLabel,             desc: addMoreDesc,                      Ic: IcPlus,    accent: '#5dd3ff', handler: onAddMore },
+    ] : []),
     ...(hideReset ? [] : [
       { id: 'reset',       label: resetLabel,               desc: resetDesc,                        Ic: IcRefresh, accent: '#ffd47a', handler: onReset },
     ]),
@@ -336,6 +345,11 @@ function RunnerShell({
   // Fase 3: binary oculta la opción reset del menú (no aplica a hábitos
   // sin estado acumulable).
   hideReset = false,
+  // Add more — extiende el target. Counter/Duration lo proveen; Binary
+  // lo omite (no aplica a hábitos sí/no).
+  onAddMore = null,
+  addMoreLabel,
+  addMoreDesc,
   // Slot opcional pasado al RunnerOptionsSheet (ej. selector de step
   // size para distance).
   optionsTopExtras = null,
@@ -458,6 +472,9 @@ function RunnerShell({
           resetLabel={resetLabel}
           resetDesc={resetDesc}
           hideReset={hideReset}
+          onAddMore={onAddMore ? () => { setOptionsOpen(false); onAddMore?.(); } : null}
+          addMoreLabel={addMoreLabel}
+          addMoreDesc={addMoreDesc}
           topExtras={optionsTopExtras}
         />
       )}
@@ -472,7 +489,7 @@ function RunnerShell({
 // Este es el comportamiento clásico que viene desde Fase C — preservado
 // pixel-perfect post-refactor (Fase 1 del plan de métricas alternativas).
 function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
-  const totalSec = Math.max(60, Number(activity?.runnerDurationSec) || (activity?.totalSec) || 5 * 60);
+  const baseTotalSec = Math.max(60, Number(activity?.runnerDurationSec) || (activity?.totalSec) || 5 * 60);
   const accent = activity?.accent || '#3dffd1';
   const copy = _resolveCopy(activity?.runnerKind);
 
@@ -482,12 +499,17 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
     ? window.__mtxRunnerProgress.get(activity?.id) : null;
   const _wasCompleted = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
     ? window.__mtxRunnerCompleted.isDone(activity?.id) : false;
-  const _restoredSeconds = (_saved && _saved.metricType === 'duration' && _saved.target === totalSec)
+  const _restoredSeconds = (_saved && _saved.metricType === 'duration' && _saved.target === baseTotalSec)
     ? Math.max(0, _saved.current)
-    : (_wasCompleted ? 0 : totalSec);
+    : (_wasCompleted ? 0 : baseTotalSec);
   // Si reabre completed, no auto-arranca el countdown — el user puede
-  // skip back o reset desde el menú "···" para volver a empezar.
+  // skip back, reset o "Añadir más" desde el menú "···".
   const _initialPlaying = !_wasCompleted;
+
+  // Extend totalSec: el user puede sumar 5 min al objetivo desde "···"
+  // → "Añadir más". Reset vuelve extendBy a 0.
+  const [extendSec, setExtendSec] = React.useState(0);
+  const totalSec = baseTotalSec + extendSec;
 
   const [secondsLeft, setSecondsLeft] = React.useState(_restoredSeconds);
   const [isPlaying, setIsPlaying] = React.useState(_initialPlaying);
@@ -503,6 +525,15 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
     }
   }, [secondsLeft, activity?.id]);
 
+  // Skip-completion ref — si la activity venía completed al mount, el
+  // countdown que arranque después de un resume con secondsLeft=0 NO
+  // debe disparar la celebración otra vez. Igual que en Counter, el
+  // flag se desactiva cuando secondsLeft > 0 (user retrocedió o añadió).
+  const _initialCompletedRef = React.useRef(_wasCompleted);
+  React.useEffect(() => {
+    if (secondsLeft > 0) _initialCompletedRef.current = false;
+  }, [secondsLeft]);
+
   // Countdown del timer
   React.useEffect(() => {
     if (!isPlaying) return;
@@ -510,7 +541,12 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
       setSecondsLeft(s => {
         if (s <= 1) {
           clearInterval(id);
-          setTimeout(() => onCompleteRef.current?.(), 200);
+          // Skip celebración si la activity ya estaba completed al mount
+          // y el user no retrocedió el timer (current sigue en 0). Esto
+          // ocurre si user reabre completed y tap "Reanudar" sin avanzar.
+          if (!_initialCompletedRef.current) {
+            setTimeout(() => onCompleteRef.current?.(), 200);
+          }
           return 0;
         }
         return s - 1;
@@ -573,10 +609,20 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
   const handleSkipForward = () => setSecondsLeft(s => Math.max(0, s - 30));
   const handleSkipBack = () => setSecondsLeft(s => Math.min(totalSec, s + 30));
   const handleReset = () => {
-    setSecondsLeft(totalSec);
+    setExtendSec(0);
+    setSecondsLeft(baseTotalSec);
     setIsPlaying(true);
   };
   const handleMarkComplete = () => onCompleteRef.current?.();
+  // "Añadir más" — extiende totalSec en 5 min y arranca countdown si
+  // estaba pausado al final (reabrió completed).
+  const handleAddMore = () => {
+    const ADD_SEC = 5 * 60;
+    setExtendSec(e => e + ADD_SEC);
+    setSecondsLeft(s => s + ADD_SEC);
+    setIsPlaying(true);
+    _initialCompletedRef.current = false;
+  };
 
   return (
     <RunnerShell
@@ -585,6 +631,9 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
       onMarkComplete={handleMarkComplete}
       onReset={handleReset}
       hasCompanion={true}
+      onAddMore={handleAddMore}
+      addMoreLabel="Añadir 5 min más"
+      addMoreDesc={`Sube el objetivo a ${Math.floor((totalSec + 5*60) / 60)} min`}
     >
       <div style={{ textAlign:'center', marginBottom:28 }}>
         <h1 style={{
@@ -854,16 +903,17 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
 
   const [current, setCurrent] = React.useState(_restoredCurrent);
 
-  // Si el user reabre una activity completed y modifica el state hacia
-  // abajo (decrement, reset, quickAdd que aterriza menos por floating),
-  // se desmarca automáticamente — la activity vuelve a estar pendiente
-  // hasta que el ring vuelva a llenarse.
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || !window.__mtxRunnerCompleted || !activity?.id) return;
-    if (current < target && window.__mtxRunnerCompleted.isDone(activity.id)) {
-      window.__mtxRunnerCompleted.unmark(activity.id);
-    }
-  }, [current, target, activity?.id]);
+  // Extend target — el user puede sumar al objetivo desde el menú "···"
+  // → "Añadir más" cuando quiere ir más allá del original (ej. caminó
+  // 4 km cuando el ritual era de 3). Step por métrica:
+  //   count    → +1 vez
+  //   pages    → +5 páginas
+  //   distance → +1 km
+  // Reset vuelve current y extendBy a 0.
+  const baseTarget = target;
+  const [extendBy, setExtendBy] = React.useState(0);
+  const effectiveTarget = baseTarget + extendBy;
+
   // Step size — cuánto suma cada tap del botón "+1".
   //   • count, pages → 1 (siempre entero).
   //   • distance     → user puede elegir 0.1 / 0.25 / 0.5 / 1 km desde
@@ -874,16 +924,37 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
-  // Auto-complete cuando se alcanza el target. Pequeño delay para que el
-  // último +1 se vea antes del completion screen (mejor feedback).
+  // Si el user reabre una activity completed y modifica el state hacia
+  // abajo (decrement, reset, quickAdd que aterriza menos por floating),
+  // se desmarca automáticamente — la activity vuelve a estar pendiente
+  // hasta que el ring vuelva a llenarse.
   React.useEffect(() => {
-    if (current >= target) {
+    if (typeof window === 'undefined' || !window.__mtxRunnerCompleted || !activity?.id) return;
+    if (current < effectiveTarget && window.__mtxRunnerCompleted.isDone(activity.id)) {
+      window.__mtxRunnerCompleted.unmark(activity.id);
+    }
+  }, [current, effectiveTarget, activity?.id]);
+
+  // Flag mutable: la activity ya estaba completed al mount inicial. Si
+  // current sigue en effectiveTarget desde el mount (user solo abrió a
+  // revisar sin tocar nada), NO se dispara la celebración. Una vez current
+  // cae debajo del target, el flag se desactiva y el siguiente full
+  // re-llenado SÍ dispara la celebración normal.
+  const _initialCompletedRef = React.useRef(_wasCompleted);
+
+  // Auto-complete cuando se alcanza el target. Pequeño delay para que el
+  // último +1 se vea antes del completion screen.
+  React.useEffect(() => {
+    if (current >= effectiveTarget) {
+      if (_initialCompletedRef.current) return; // skip al reabrir completed
       const t = setTimeout(() => onCompleteRef.current?.(), 380);
       return () => clearTimeout(t);
+    } else {
+      _initialCompletedRef.current = false;
     }
-  }, [current, target]);
+  }, [current, effectiveTarget]);
 
-  const pct = Math.max(0, Math.min(1, current / target));
+  const pct = Math.max(0, Math.min(1, current / effectiveTarget));
   // Stat tile primario para exit/completion + pluralización de unit:
   //   count    → "Repeticiones" / 1 vez · 2 veces · ...
   //   pages    → "Páginas"      / "pp" siempre
@@ -896,10 +967,8 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   );
 
   // Snapshot polimórfico — RunnerCompletionScreen lee completionPct +
-  // primaryValue + primaryUnit + statLabel sin conocer la implementación
-  // de Counter. current/target adicionales por si algún consumidor
-  // futuro los necesita. Persiste el progreso parcial en
-  // __mtxRunnerProgress: si pct<1 guarda parcial, al completar borra.
+  // primaryValue + primaryUnit + statLabel. Persiste progreso parcial
+  // en __mtxRunnerProgress: si pct<1 guarda parcial, al completar borra.
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
@@ -909,7 +978,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
         primaryValue: String(current),
         primaryUnit: displayUnit,
         statLabel,
-        current, target, unit,
+        current, target: effectiveTarget, unit,
       },
     }));
     if (window.__mtxRunnerProgress && activity?.id) {
@@ -917,11 +986,11 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
         window.__mtxRunnerProgress.clear(activity.id);
       } else {
         window.__mtxRunnerProgress.set(activity.id, {
-          metricType, current, target, completionPct: pct,
+          metricType, current, target: effectiveTarget, completionPct: pct,
         });
       }
     }
-  }, [current, target, pct, metricType, displayUnit, statLabel, unit, activity?.id]);
+  }, [current, effectiveTarget, pct, metricType, displayUnit, statLabel, unit, activity?.id]);
 
   const RING_SIZE = 232;
   const R = 104;
@@ -932,15 +1001,26 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   // (configurable). _round corrige el float drift cuando step es 0.1
   // (ej. 0.1+0.1+0.1 = 0.30000000000000004 sin round).
   const _round = (n) => Math.round(n * 1000) / 1000;
-  const handleIncrement = () => setCurrent(c => _round(Math.min(target, c + stepSize)));
+  const handleIncrement = () => setCurrent(c => _round(Math.min(effectiveTarget, c + stepSize)));
   const handleDecrement = () => setCurrent(c => _round(Math.max(0, c - stepSize)));
-  const handleQuickAdd  = () => setCurrent(c => _round(Math.min(target, c + stepSize * 5)));
-  const handleReset = () => setCurrent(0);
+  const handleQuickAdd  = () => setCurrent(c => _round(Math.min(effectiveTarget, c + stepSize * 5)));
+  const handleReset = () => { setCurrent(0); setExtendBy(0); };
   const handleMarkComplete = () => onCompleteRef.current?.();
+  // "Añadir más" — extiende el target. Step depende de la métrica.
+  const handleAddMore = () => {
+    const extendStep = (
+      metricType === 'distance' ? 1
+      : metricType === 'pages'  ? 5
+      : 1 // count
+    );
+    setExtendBy(e => _round(e + extendStep));
+    // Si el user añade después de completar, vuelve a permitir auto-complete
+    _initialCompletedRef.current = false;
+  };
 
   // El skip rápido +5 solo aparece para targets grandes (>5 step units) —
   // para targets chicos sería overshoot inmediato y confunde la UX.
-  const showQuickAdd = target > stepSize * 5;
+  const showQuickAdd = effectiveTarget > stepSize * 5;
 
   // Labels de los botones reflejan el stepSize actual:
   //   distance step 0.5 → "−0.5", "+0.5", "+2.5"
@@ -974,6 +1054,12 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
       hasCompanion={hasCompanion}
       resetLabel={resetLabel}
       resetDesc="Vuelve a cero y empieza de nuevo"
+      onAddMore={handleAddMore}
+      addMoreLabel={(() => {
+        const extendStep = metricType === 'distance' ? 1 : metricType === 'pages' ? 5 : 1;
+        return `Añadir ${extendStep} ${displayUnit} más`;
+      })()}
+      addMoreDesc={`Sube el objetivo a ${effectiveTarget + (metricType === 'pages' ? 5 : 1)} ${unit}`}
       optionsTopExtras={metricType === 'distance' ? (
         <DistanceStepSelector
           value={stepSize}
@@ -1058,7 +1144,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
             letterSpacing:'-0.01em', marginTop:4,
             fontVariantNumeric:'tabular-nums',
           }}>
-            de {target} {unit}
+            de {_fmtStep(effectiveTarget)} {unit}
           </div>
           <style>{`@keyframes mtxCounterPulse { 0% { transform:scale(0.92); opacity:0.65; } 60% { transform:scale(1.04); opacity:1; } 100% { transform:scale(1); opacity:1; } }`}</style>
         </div>
@@ -1069,7 +1155,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
         color:'rgba(255,255,255,0.5)', letterSpacing:'-0.005em',
         fontVariantNumeric:'tabular-nums',
       }}>
-        {Math.round(pct * 100)}% completado · {target} {unit} totales
+        {Math.round(pct * 100)}% completado · {_fmtStep(effectiveTarget)} {unit} totales
       </div>
 
       <div style={{
@@ -1092,8 +1178,8 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
           <IcChevL size={17} stroke="currentColor" strokeWidth={1.8}/>
           <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>{labelDecrement}</span>
         </button>
-        <button onClick={handleIncrement} disabled={current >= target}
-          aria-label={`Sumar ${_fmtStep(stepSize)} · ${_round(current + stepSize)} de ${target}`}
+        <button onClick={handleIncrement} disabled={current >= effectiveTarget}
+          aria-label={`Sumar ${_fmtStep(stepSize)} · ${_round(current + stepSize)} de ${_fmtStep(effectiveTarget)}`}
           className="mtx-tap" style={{
             appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
             width:74, height:74, borderRadius:'50%', border:0,
@@ -1108,7 +1194,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
             <IcPlus size={28} stroke="currentColor" strokeWidth={2.4}/>
         </button>
         {showQuickAdd ? (
-          <button onClick={handleQuickAdd} disabled={current >= target}
+          <button onClick={handleQuickAdd} disabled={current >= effectiveTarget}
             aria-label={`Sumar ${_fmtStep(stepSize * 5)}`}
             className="mtx-tap" style={{
               appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
