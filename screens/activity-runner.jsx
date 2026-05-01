@@ -307,11 +307,15 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </div>
       </div>
 
-      {/* Body — cuerpo principal centrado */}
+      {/* Body — cuerpo principal centrado.
+          paddingBottom:130 reserva espacio para el companion absoluto al
+          bottom (~88px alto + 18px safe + margen) — así el contenido nunca
+          queda detrás del companion bar. min-height:0 evita overflow del
+          flex column si el contenido excede su altura. */}
       <div style={{
-        flex:1, position:'relative', zIndex:2,
+        flex:1, minHeight:0, position:'relative', zIndex:2,
         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-        padding:'8px 28px',
+        padding:'8px 28px 130px',
       }}>
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <h1 style={{
@@ -444,14 +448,21 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </div>
       </div>
 
-      {/* Companion al fondo del runner — sticky bottom + safe space inferior */}
-      <RunnerCompanionBar
-        activity={activity}
-        suggestionCount={_resolveSuggestions(activity).length}
-      />
-
-      {/* Safe space inferior */}
-      <div style={{ height:18, flexShrink:0 }}/>
+      {/* Companion al fondo del runner — position:absolute para garantizar
+          que siempre quede pegado al bottom del overlay, incluso si el body
+          flex:1 se desborda (en pantallas pequeñas, el contenido del timer
+          + copy + controles puede exceder y empujar al companion fuera del
+          viewport). zIndex:3 lo deja encima del Aurora y el body. bottom:6
+          lo pega al borde — el componente RunnerCompanionBar ya tiene
+          padding interno de 4-10px que da el aire visual. */}
+      <div style={{
+        position:'absolute', left:0, right:0, bottom:6, zIndex:3,
+      }}>
+        <RunnerCompanionBar
+          activity={activity}
+          suggestionCount={_resolveSuggestions(activity).length}
+        />
+      </div>
     </div>
   );
 }
@@ -1148,13 +1159,17 @@ function ActivityRunnerOverlay() {
           <AddContentScreen
             playlist={runnerPlaylist}
             onBack={handleAddContentBack}
+            footerBottomOffset={currentItem ? 84 : 14}
           />
           {/* Mini player (RunnerCompanionBar en estado activo) flotante encima
               del AddContentScreen cuando hay item reproduciéndose. Reusa el
-              mismo componente del companion del runner para diseño consistente. */}
+              mismo componente del companion del runner para diseño consistente.
+              bottom:0 lo pega al borde inferior del frame del iPhone — el
+              footerBottomOffset del AddContent (84) lo deja justo encima sin
+              gap. */}
           {currentItem && (
             <div style={{
-              position:'absolute', left:0, right:0, bottom:8,
+              position:'absolute', left:0, right:0, bottom:0,
               pointerEvents:'auto',
             }}>
               <RunnerCompanionBar activity={activity} suggestionCount={runnerItems.length}/>
@@ -1166,7 +1181,7 @@ function ActivityRunnerOverlay() {
           usuario sepa qué está reproduciéndose mientras navega la cola. */}
       {queueOpen && currentItem && (
         <div style={{
-          position:'absolute', left:0, right:0, bottom:8, zIndex:232,
+          position:'absolute', left:0, right:0, bottom:0, zIndex:232,
           pointerEvents:'auto',
         }}>
           <RunnerCompanionBar activity={activity} suggestionCount={runnerItems.length}/>

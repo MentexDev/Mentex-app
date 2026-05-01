@@ -5233,7 +5233,7 @@ function SelectableContentCard({ item, checked, onToggle, accentTone = '#3dffd1'
 }
 
 // ── AddContentScreen — pantalla full para agregar items a una playlist ───────
-function AddContentScreen({ playlist, onBack }) {
+function AddContentScreen({ playlist, onBack, footerBottomOffset = 96 }) {
   const toast = window.useToast ? window.useToast() : { show: () => {} };
   const [filterType, setFilterType] = React.useState('all');
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -5428,12 +5428,16 @@ function AddContentScreen({ playlist, onBack }) {
           (z=200), queue sheet (z=230), AddContentScreen wrapper (z=235) y
           PlaylistSwitcherSheet (z=240) cuando AddContentScreen está montado
           dentro del runner. Solo se renderiza con selected.size>0, así que
-          no tapa nada en flujos sin selección. */}
+          no tapa nada en flujos sin selección.
+          footerBottomOffset (default 96) controla la separación inferior:
+          en explore normal queda encima del tab bar (78+18=96); cuando el
+          AddContent se monta desde el runner sin mini player, baja a ~24;
+          con mini player se mantiene en 96 para no solaparlo. */}
       {selected.size > 0 && (() => {
         const overlayRoot = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
         const footer = (
           <div style={{
-            position:'absolute', left:12, right:12, bottom:96, zIndex:245,
+            position:'absolute', left:12, right:12, bottom: footerBottomOffset, zIndex:245,
             padding:'10px',
             borderRadius:18,
             background:'rgba(12,15,14,0.88)',
