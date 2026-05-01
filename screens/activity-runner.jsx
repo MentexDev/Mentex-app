@@ -104,13 +104,20 @@ function _buildRunnerPlaylist(activity) {
 // para mantener consistencia: drag handle, header con ícono + label, lista de
 // opciones, botón Cancelar al fondo. Abre desde abajo en lugar del dropdown
 // inline previo (que rompía la jerarquía visual del fullscreen runner).
-function RunnerOptionsSheet({ activity, onClose, onMarkComplete, onReset }) {
+function RunnerOptionsSheet({
+  activity, onClose, onMarkComplete, onReset,
+  // Fase 2+: el label/desc del reset varía por métrica ("Reiniciar contador",
+  // "Reiniciar distancia", etc.). Los defaults preservan el comportamiento
+  // de Duration que existía antes del refactor.
+  resetLabel = 'Empezar desde cero',
+  resetDesc  = 'Reinicia el cronómetro al inicio',
+}) {
   if (!activity) return null;
   const accent = activity?.accent || '#3dffd1';
 
   const options = [
-    { id: 'mark-complete', label: 'Marcar como completada', desc: 'Termina la actividad y celebra',           Ic: IcCheck,    accent: accent,    handler: onMarkComplete },
-    { id: 'reset',         label: 'Empezar desde cero',     desc: 'Reinicia el cronómetro al inicio',         Ic: IcRefresh,  accent: '#ffd47a', handler: onReset         },
+    { id: 'mark-complete', label: 'Marcar como completada', desc: 'Termina la actividad y celebra', Ic: IcCheck,   accent: accent,    handler: onMarkComplete },
+    { id: 'reset',         label: resetLabel,               desc: resetDesc,                        Ic: IcRefresh, accent: '#ffd47a', handler: onReset         },
   ];
 
   const handleSelect = (opt) => {
@@ -214,16 +221,30 @@ function RunnerOptionsSheet({ activity, onClose, onMarkComplete, onReset }) {
   );
 }
 
-// ── ActivityRunner ───────────────────────────────────────────────────────────
-function ActivityRunner({ activity, onRequestClose, onComplete }) {
-  const totalSec = Math.max(60, Number(activity?.runnerDurationSec) || (activity?.totalSec) || 5 * 60);
+// ── RunnerShell ───────────────────────────────────────────────────────────────
+// Shell genérico del runner full-screen. Envuelve cualquier body de métrica
+// (Duration, Counter, Distance, Binary…) con la misma:
+//   • estructura: container con Aurora + flex column + safe space + sheets
+//   • header: back chev + chip eyebrow del kind + botón "···" más opciones
+//   • companion bar (cuando hasCompanion=true) — para métricas que pueden
+//     reproducir audio durante la actividad (Duration, Cantidad, Distancia)
+//   • efecto de player.stop + setFullscreenOpen al montar/desmontar
+//   • RunnerOptionsSheet con onMarkComplete + onReset que el body provee
+// El body se renderiza como children y maneja su propio state interno
+// (countdown, contador, etc.). Esta separación permite que cada métrica
+// tenga su lógica sin duplicar layout/header/sheets.
+function RunnerShell({
+  activity,
+  onRequestClose,
+  onMarkComplete,
+  onReset,
+  hasCompanion = true,
+  resetLabel,
+  children,
+}) {
   const accent = activity?.accent || '#3dffd1';
   const copy = _resolveCopy(activity?.runnerKind);
-
-  const [secondsLeft, setSecondsLeft] = React.useState(totalSec);
-  const [isPlaying, setIsPlaying] = React.useState(true);
-  const onCompleteRef = React.useRef(onComplete);
-  React.useEffect(() => { onCompleteRef.current = onComplete; });
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
 
   const theme = React.useMemo(() => {
     if (typeof window !== 'undefined' && window._pickAndAdvanceModalTheme) {
@@ -248,62 +269,6 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
       };
     }
   }, []);
-
-  // Countdown del timer
-  React.useEffect(() => {
-    if (!isPlaying) return;
-    const id = setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) {
-          clearInterval(id);
-          setTimeout(() => onCompleteRef.current?.(), 200);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [isPlaying]);
-
-  // Snapshot al window para que ConfirmExitRunnerModal lea sin duplicar state
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
-        detail: { secondsLeft, totalSec },
-      }));
-    }
-  }, [secondsLeft, totalSec]);
-
-  const elapsed = totalSec - secondsLeft;
-  const pct = elapsed / totalSec;
-  const phaseIdx = Math.floor(elapsed / copy.phaseEvery) % copy.phases.length;
-  const phaseText = copy.phases[phaseIdx];
-  const phaseSec = elapsed % copy.phaseEvery;
-  const breathScale = 1 + (Math.sin((phaseSec / copy.phaseEvery) * Math.PI) * 0.04);
-
-  const mm = Math.floor(secondsLeft / 60);
-  const ss = secondsLeft % 60;
-  const timeStr = `${mm}:${String(ss).padStart(2, '0')}`;
-
-  const RING_SIZE = 232;
-  const R = 104;
-  const C = 2 * Math.PI * R;
-  const dashOffset = C * (1 - pct);
-
-  const handleSkipForward = () => setSecondsLeft(s => Math.max(0, s - 30));
-  const handleSkipBack = () => setSecondsLeft(s => Math.min(totalSec, s + 30));
-
-  // Menú de opciones (3 puntos arriba derecha)
-  const [optionsOpen, setOptionsOpen] = React.useState(false);
-  const handleReset = () => {
-    setSecondsLeft(totalSec);
-    setIsPlaying(true);
-    setOptionsOpen(false);
-  };
-  const handleMarkComplete = () => {
-    setOptionsOpen(false);
-    onCompleteRef.current?.();
-  };
 
   return (
     <div style={{
@@ -360,152 +325,28 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </button>
       </div>
 
-      {/* Body — cuerpo principal centrado */}
+      {/* Body slot — el componente body de cada métrica se renderiza aquí.
+          flex:1 + center alignment + padding lateral consistente. */}
       <div style={{
         flex:1, position:'relative', zIndex:2,
         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
         padding:'8px 28px',
       }}>
-        <div style={{ textAlign:'center', marginBottom:28 }}>
-          <h1 style={{
-            margin:0, fontSize:23, fontWeight:800,
-            color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
-            fontFamily:'var(--ff-display)',
-          }}>
-            {activity?.title || copy.eyebrow}
-          </h1>
-          <p style={{
-            margin:'8px 0 0', fontSize:12.5, color:'rgba(255,255,255,0.6)',
-            letterSpacing:'-0.005em', lineHeight:1.5, maxWidth:280, marginInline:'auto',
-          }}>
-            {activity?.runnerLabel || copy.motto}
-          </p>
-        </div>
-
-        <div style={{
-          position:'relative', width:RING_SIZE, height:RING_SIZE,
-          transform:`scale(${breathScale})`,
-          transition:'transform 1s ease-in-out',
-        }}>
-          <div style={{
-            position:'absolute', inset:-30, borderRadius:'50%',
-            background:`radial-gradient(50% 50% at 50% 50%, ${accent}40 0%, transparent 70%)`,
-            filter:'blur(24px)', pointerEvents:'none',
-          }}/>
-          <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} style={{ transform:'rotate(-90deg)', position:'relative' }}>
-            <defs>
-              <linearGradient id="runner-grad" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0" stopColor="#6affd9"/>
-                <stop offset="1" stopColor="#1ad9ad"/>
-              </linearGradient>
-              <filter id="runner-glow">
-                <feGaussianBlur stdDeviation="3.5"/>
-                <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3.5"/>
-            <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none"
-              stroke="url(#runner-grad)" strokeWidth="5" strokeLinecap="round"
-              strokeDasharray={C}
-              strokeDashoffset={dashOffset}
-              filter="url(#runner-glow)"
-              style={{ transition:'stroke-dashoffset 1s linear' }}/>
-            {Array.from({ length: 60 }).map((_, i) => {
-              const a = (i / 60) * Math.PI * 2;
-              const r1 = R + 12, r2 = i % 5 === 0 ? R + 18 : R + 14;
-              return (
-                <line key={i}
-                  x1={RING_SIZE/2 + Math.cos(a) * r1} y1={RING_SIZE/2 + Math.sin(a) * r1}
-                  x2={RING_SIZE/2 + Math.cos(a) * r2} y2={RING_SIZE/2 + Math.sin(a) * r2}
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeWidth={i % 5 === 0 ? 1 : 0.5}/>
-              );
-            })}
-          </svg>
-          <div style={{
-            position:'absolute', inset:0,
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            gap:6,
-          }}>
-            <div style={{
-              fontSize:60, fontWeight:600, color:'var(--ink-1)',
-              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
-              fontFamily:'var(--ff-display)',
-              textShadow:`0 0 20px ${accent}55`,
-            }}>{timeStr}</div>
-            <div key={phaseText} style={{
-              fontSize:11, fontWeight:700, color: accent,
-              letterSpacing:'0.22em', textTransform:'uppercase',
-              animation:'mtxRunnerPhaseIn .35s ease both',
-            }}>
-              {phaseText}
-            </div>
-            <style>{`@keyframes mtxRunnerPhaseIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }`}</style>
-          </div>
-        </div>
-
-        <div style={{
-          marginTop:18, fontSize:11, fontWeight:600,
-          color:'rgba(255,255,255,0.5)', letterSpacing:'-0.005em',
-          fontVariantNumeric:'tabular-nums',
-        }}>
-          {Math.round(pct * 100)}% completado · {Math.floor(totalSec / 60)} min totales
-        </div>
-
-        <div style={{
-          marginTop:22,
-          display:'flex', alignItems:'center', justifyContent:'center', gap:32,
-        }}>
-          <button onClick={handleSkipBack} aria-label="Retroceder 30 segundos" className="mtx-tap" style={{
-            appearance:'none', cursor:'pointer',
-            background:'rgba(255,255,255,0.06)',
-            border:'0.5px solid rgba(255,255,255,0.1)',
-            backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-            width:48, height:48, borderRadius:'50%',
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            color:'var(--ink-1)', gap:1,
-          }}>
-            <IcChevL size={17} stroke="currentColor" strokeWidth={1.8}/>
-            <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>30s</span>
-          </button>
-          <button onClick={() => setIsPlaying(p => !p)} aria-label={isPlaying ? 'Pausar' : 'Reanudar'} className="mtx-tap" style={{
-            appearance:'none', cursor:'pointer',
-            width:74, height:74, borderRadius:'50%', border:0,
-            background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
-            color:'#0a1410',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            boxShadow:`0 0 0 1px ${accent}88, 0 0 44px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
-            flexShrink:0,
-          }}>
-            {isPlaying
-              ? <IcPause size={26} stroke="currentColor" strokeWidth={2.2}/>
-              : <IcPlay  size={24} stroke="currentColor" strokeWidth={2}/>
-            }
-          </button>
-          <button onClick={handleSkipForward} aria-label="Avanzar 30 segundos" className="mtx-tap" style={{
-            appearance:'none', cursor:'pointer',
-            background:'rgba(255,255,255,0.06)',
-            border:'0.5px solid rgba(255,255,255,0.1)',
-            backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-            width:48, height:48, borderRadius:'50%',
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            color:'var(--ink-1)', gap:1,
-          }}>
-            <IcChevR size={17} stroke="currentColor" strokeWidth={1.8}/>
-            <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>30s</span>
-          </button>
-        </div>
+        {children}
       </div>
 
-      {/* Companion al fondo del runner — sticky bottom + safe space inferior.
-          height:28 deja más aire al borde inferior del iPhone (vs 18 previo)
-          que quedaba muy pegado al home indicator. */}
-      <RunnerCompanionBar
-        activity={activity}
-        suggestionCount={_resolveSuggestions(activity).length}
-      />
+      {/* Companion al fondo del runner — solo en métricas que tienen sentido
+          con audio (Duration, Cantidad, Distancia). Páginas y Hecho lo
+          omiten via hasCompanion=false. */}
+      {hasCompanion && (
+        <RunnerCompanionBar
+          activity={activity}
+          suggestionCount={_resolveSuggestions(activity).length}
+        />
+      )}
 
-      {/* Safe space inferior */}
+      {/* Safe space inferior — 28 px deja aire al borde del iPhone sin
+          quedar pegado al home indicator. */}
       <div style={{ height:28, flexShrink:0 }}/>
 
       {/* Bottom sheet de opciones (3 puntos del header) */}
@@ -513,12 +354,234 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         <RunnerOptionsSheet
           activity={activity}
           onClose={() => setOptionsOpen(false)}
-          onMarkComplete={handleMarkComplete}
-          onReset={handleReset}
+          onMarkComplete={() => { setOptionsOpen(false); onMarkComplete?.(); }}
+          onReset={() => { setOptionsOpen(false); onReset?.(); }}
+          resetLabel={resetLabel}
         />
       )}
     </div>
   );
+}
+
+// ── DurationRunnerBody ────────────────────────────────────────────────────────
+// Body para activities con metricType='duration': timer countdown circular
+// con anillo de progreso, skip ±30s, play/pause grande, phase text.
+//
+// Este es el comportamiento clásico que viene desde Fase C — preservado
+// pixel-perfect post-refactor (Fase 1 del plan de métricas alternativas).
+function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
+  const totalSec = Math.max(60, Number(activity?.runnerDurationSec) || (activity?.totalSec) || 5 * 60);
+  const accent = activity?.accent || '#3dffd1';
+  const copy = _resolveCopy(activity?.runnerKind);
+
+  const [secondsLeft, setSecondsLeft] = React.useState(totalSec);
+  const [isPlaying, setIsPlaying] = React.useState(true);
+  const onCompleteRef = React.useRef(onComplete);
+  React.useEffect(() => { onCompleteRef.current = onComplete; });
+
+  // Countdown del timer
+  React.useEffect(() => {
+    if (!isPlaying) return;
+    const id = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          clearInterval(id);
+          setTimeout(() => onCompleteRef.current?.(), 200);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isPlaying]);
+
+  // Snapshot al window para que ConfirmExitRunnerModal lea sin duplicar state
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+        detail: { secondsLeft, totalSec },
+      }));
+    }
+  }, [secondsLeft, totalSec]);
+
+  const elapsed = totalSec - secondsLeft;
+  const pct = elapsed / totalSec;
+  const phaseIdx = Math.floor(elapsed / copy.phaseEvery) % copy.phases.length;
+  const phaseText = copy.phases[phaseIdx];
+  const phaseSec = elapsed % copy.phaseEvery;
+  const breathScale = 1 + (Math.sin((phaseSec / copy.phaseEvery) * Math.PI) * 0.04);
+
+  const mm = Math.floor(secondsLeft / 60);
+  const ss = secondsLeft % 60;
+  const timeStr = `${mm}:${String(ss).padStart(2, '0')}`;
+
+  const RING_SIZE = 232;
+  const R = 104;
+  const C = 2 * Math.PI * R;
+  const dashOffset = C * (1 - pct);
+
+  const handleSkipForward = () => setSecondsLeft(s => Math.max(0, s - 30));
+  const handleSkipBack = () => setSecondsLeft(s => Math.min(totalSec, s + 30));
+  const handleReset = () => {
+    setSecondsLeft(totalSec);
+    setIsPlaying(true);
+  };
+  const handleMarkComplete = () => onCompleteRef.current?.();
+
+  return (
+    <RunnerShell
+      activity={activity}
+      onRequestClose={onRequestClose}
+      onMarkComplete={handleMarkComplete}
+      onReset={handleReset}
+      hasCompanion={true}
+    >
+      <div style={{ textAlign:'center', marginBottom:28 }}>
+        <h1 style={{
+          margin:0, fontSize:23, fontWeight:800,
+          color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
+          fontFamily:'var(--ff-display)',
+        }}>
+          {activity?.title || copy.eyebrow}
+        </h1>
+        <p style={{
+          margin:'8px 0 0', fontSize:12.5, color:'rgba(255,255,255,0.6)',
+          letterSpacing:'-0.005em', lineHeight:1.5, maxWidth:280, marginInline:'auto',
+        }}>
+          {activity?.runnerLabel || copy.motto}
+        </p>
+      </div>
+
+      <div style={{
+        position:'relative', width:RING_SIZE, height:RING_SIZE,
+        transform:`scale(${breathScale})`,
+        transition:'transform 1s ease-in-out',
+      }}>
+        <div style={{
+          position:'absolute', inset:-30, borderRadius:'50%',
+          background:`radial-gradient(50% 50% at 50% 50%, ${accent}40 0%, transparent 70%)`,
+          filter:'blur(24px)', pointerEvents:'none',
+        }}/>
+        <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} style={{ transform:'rotate(-90deg)', position:'relative' }}>
+          <defs>
+            <linearGradient id="runner-grad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stopColor="#6affd9"/>
+              <stop offset="1" stopColor="#1ad9ad"/>
+            </linearGradient>
+            <filter id="runner-glow">
+              <feGaussianBlur stdDeviation="3.5"/>
+              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3.5"/>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none"
+            stroke="url(#runner-grad)" strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={C}
+            strokeDashoffset={dashOffset}
+            filter="url(#runner-glow)"
+            style={{ transition:'stroke-dashoffset 1s linear' }}/>
+          {Array.from({ length: 60 }).map((_, i) => {
+            const a = (i / 60) * Math.PI * 2;
+            const r1 = R + 12, r2 = i % 5 === 0 ? R + 18 : R + 14;
+            return (
+              <line key={i}
+                x1={RING_SIZE/2 + Math.cos(a) * r1} y1={RING_SIZE/2 + Math.sin(a) * r1}
+                x2={RING_SIZE/2 + Math.cos(a) * r2} y2={RING_SIZE/2 + Math.sin(a) * r2}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth={i % 5 === 0 ? 1 : 0.5}/>
+            );
+          })}
+        </svg>
+        <div style={{
+          position:'absolute', inset:0,
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          gap:6,
+        }}>
+          <div style={{
+            fontSize:60, fontWeight:600, color:'var(--ink-1)',
+            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+            fontFamily:'var(--ff-display)',
+            textShadow:`0 0 20px ${accent}55`,
+          }}>{timeStr}</div>
+          <div key={phaseText} style={{
+            fontSize:11, fontWeight:700, color: accent,
+            letterSpacing:'0.22em', textTransform:'uppercase',
+            animation:'mtxRunnerPhaseIn .35s ease both',
+          }}>
+            {phaseText}
+          </div>
+          <style>{`@keyframes mtxRunnerPhaseIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }`}</style>
+        </div>
+      </div>
+
+      <div style={{
+        marginTop:18, fontSize:11, fontWeight:600,
+        color:'rgba(255,255,255,0.5)', letterSpacing:'-0.005em',
+        fontVariantNumeric:'tabular-nums',
+      }}>
+        {Math.round(pct * 100)}% completado · {Math.floor(totalSec / 60)} min totales
+      </div>
+
+      <div style={{
+        marginTop:22,
+        display:'flex', alignItems:'center', justifyContent:'center', gap:32,
+      }}>
+        <button onClick={handleSkipBack} aria-label="Retroceder 30 segundos" className="mtx-tap" style={{
+          appearance:'none', cursor:'pointer',
+          background:'rgba(255,255,255,0.06)',
+          border:'0.5px solid rgba(255,255,255,0.1)',
+          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+          width:48, height:48, borderRadius:'50%',
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', gap:1,
+        }}>
+          <IcChevL size={17} stroke="currentColor" strokeWidth={1.8}/>
+          <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>30s</span>
+        </button>
+        <button onClick={() => setIsPlaying(p => !p)} aria-label={isPlaying ? 'Pausar' : 'Reanudar'} className="mtx-tap" style={{
+          appearance:'none', cursor:'pointer',
+          width:74, height:74, borderRadius:'50%', border:0,
+          background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
+          color:'#0a1410',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          boxShadow:`0 0 0 1px ${accent}88, 0 0 44px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
+          flexShrink:0,
+        }}>
+          {isPlaying
+            ? <IcPause size={26} stroke="currentColor" strokeWidth={2.2}/>
+            : <IcPlay  size={24} stroke="currentColor" strokeWidth={2}/>
+          }
+        </button>
+        <button onClick={handleSkipForward} aria-label="Avanzar 30 segundos" className="mtx-tap" style={{
+          appearance:'none', cursor:'pointer',
+          background:'rgba(255,255,255,0.06)',
+          border:'0.5px solid rgba(255,255,255,0.1)',
+          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+          width:48, height:48, borderRadius:'50%',
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', gap:1,
+        }}>
+          <IcChevR size={17} stroke="currentColor" strokeWidth={1.8}/>
+          <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>30s</span>
+        </button>
+      </div>
+    </RunnerShell>
+  );
+}
+
+// ── ActivityRunner — router por metricType ───────────────────────────────────
+// Entry point del runner full-screen. Selecciona el body apropiado según
+// activity.metricType (default 'duration' para backward compat con activities
+// pre-feature que solo tenían runnerType='timer'). Fases 2-4 agregarán:
+//   • CounterRunnerBody  (cantidad + páginas)
+//   • DistanceRunnerBody (distancia, métrica nueva)
+//   • BinaryRunnerBody   (hecho)
+function ActivityRunner({ activity, onRequestClose, onComplete }) {
+  // Por ahora solo tenemos DurationRunnerBody. Cuando se activen las demás
+  // métricas en Fases 2-4, este switch enrutará al body correcto.
+  // const metric = activity?.metricType || 'duration';
+  // switch (metric) { case 'count': return <CounterRunnerBody.../>; ... }
+  return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
 }
 
 // ── RunnerCompanionBar ────────────────────────────────────────────────────────
@@ -1294,5 +1357,9 @@ function ActivityRunnerOverlay() {
 Object.assign(window, {
   ActivityRunner, ActivityRunnerOverlay, ConfirmExitRunnerModal,
   RunnerCompanionBar, RunnerCompletionScreen,
+  // Componentes extraídos en Fase 1 del plan de métricas alternativas.
+  // Exportados para que Fases 2-4 puedan crear nuevos bodies que reusen
+  // el shell sin importar la implementación interna.
+  RunnerShell, DurationRunnerBody,
   useActivityRunner,
 });
