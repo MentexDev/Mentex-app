@@ -5931,11 +5931,22 @@ function SwipeableQueueRow({ item, index, isPlaying, accent, isOpen, onOpenChang
   );
 }
 
-function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, onShareItem, onRemoveItem, onAddMore }) {
+function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, onShareItem, onRemoveItem, onAddMore, onSwitch }) {
   const [openRowId, setOpenRowId] = React.useState(null);
   const toast = window.useToast ? window.useToast() : { show: () => {} };
   if (!playlist) return null;
   const accent = playlist.accent || '#3dffd1';
+  const isEmpty = !items || items.length === 0;
+
+  // Si onSwitch no se pasó como prop, usamos el store global directamente.
+  // Eso simplifica el cableo: ningún consumer del PlaylistQueueSheet tiene
+  // que pasar el handler — el botón "Cambiar playlist" siempre funciona.
+  const handleSwitch = onSwitch || (() => {
+    if (typeof window !== 'undefined' && window.__mtxActiveQueue) {
+      window.__mtxActiveQueue.openSwitcher();
+      onClose?.();
+    }
+  });
 
   const handleShare = (item) => {
     if (onShareItem) onShareItem(item);
@@ -6004,20 +6015,54 @@ function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, 
           </button>
         </div>
 
-        {/* Hint de swipe */}
-        <div style={{ padding:'0 22px 12px' }}>
-          <div style={{
-            fontSize:10.5, color:'var(--ink-3)', letterSpacing:'-0.005em',
-            display:'flex', alignItems:'center', gap:5,
-          }}>
-            <IcChevL size={10} stroke="currentColor" strokeWidth={2}/>
-            Desliza un item para más opciones
+        {/* Hint de swipe — solo cuando hay items */}
+        {!isEmpty && (
+          <div style={{ padding:'0 22px 12px' }}>
+            <div style={{
+              fontSize:10.5, color:'var(--ink-3)', letterSpacing:'-0.005em',
+              display:'flex', alignItems:'center', gap:5,
+            }}>
+              <IcChevL size={10} stroke="currentColor" strokeWidth={2}/>
+              Desliza un item para más opciones
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Empty state — cuando la cola no tiene items */}
+        {isEmpty && (
+          <div style={{ padding:'8px 22px 18px' }}>
+            <div style={{
+              padding:'24px 18px', borderRadius:18,
+              background:'rgba(255,255,255,0.03)',
+              border:'0.5px dashed rgba(255,255,255,0.12)',
+              textAlign:'center',
+            }}>
+              <div style={{
+                width:44, height:44, margin:'0 auto 10px',
+                borderRadius:14,
+                background:`${accent}1a`,
+                border:`0.5px solid ${accent}40`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color:accent,
+              }}>
+                <IcBookmark size={18} stroke="currentColor" strokeWidth={1.8}/>
+              </div>
+              <div style={{
+                fontSize:14, fontWeight:700, color:'var(--ink-1)',
+                letterSpacing:'-0.01em', marginBottom:4,
+              }}>
+                Aún no hay nada aquí
+              </div>
+              <div style={{ fontSize:12, color:'var(--ink-3)', lineHeight:1.5, maxWidth:260, margin:'0 auto' }}>
+                Suma contenido para crear tu cola, o cambia a otra playlist.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Items con swipe */}
         <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
-          {items.map((it, i) => (
+          {items && items.map((it, i) => (
             <SwipeableQueueRow
               key={it.id}
               item={it}
@@ -6083,10 +6128,291 @@ function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, 
               <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8} style={{ position:'relative', zIndex:1 }}/>
             </button>
           )}
+
+          {/* Sub-fase 0.2 · CTA "Cambiar playlist" — siempre visible cuando el
+              store está disponible. Permite saltar a otra playlist o al ritual. */}
+          <button onClick={handleSwitch} className="mtx-tap" style={{
+            appearance:'none', cursor:'pointer', textAlign:'left',
+            width:'100%', minWidth:0, boxSizing:'border-box',
+            padding:'12px 14px', borderRadius:14,
+            border:'0.5px solid rgba(255,255,255,0.08)',
+            background:'rgba(255,255,255,0.03)',
+            display:'flex', alignItems:'center', gap:11,
+            fontFamily:'var(--ff-sans)',
+            transition:'background .2s, border-color .2s',
+          }}>
+            <div style={{
+              width:36, height:36, borderRadius:10, flexShrink:0,
+              background:'rgba(255,255,255,0.04)',
+              border:'0.5px solid rgba(255,255,255,0.08)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              color:'var(--ink-2)',
+            }}>
+              <IcList size={15} stroke="currentColor" strokeWidth={1.8}/>
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{
+                fontSize:13, fontWeight:600, color:'var(--ink-1)',
+                letterSpacing:'-0.01em', marginBottom:2,
+              }}>
+                Cambiar playlist
+              </div>
+              <div style={{ fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em' }}>
+                Elige otra cola desde tus playlists disponibles
+              </div>
+            </div>
+            <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
+          </button>
         </div>
       </div>
     </div>
   );
+}
+
+
+// ── PlaylistSwitcherSheet — sub-fase 0.2 ─────────────────────────────────────
+// Bottom sheet que aparece desde el PlaylistQueueSheet con el CTA "Cambiar
+// playlist". Lista todas las playlists disponibles + el ritual del día (si
+// está activo) + un item especial "Vacía / Ninguna" para limpiar el override.
+//
+// Tap en una playlist → llama __mtxActiveQueue.setOverride(playlist) y cierra
+// los sheets. La nueva cola toma precedencia sobre ritual y default.
+//
+// Se monta a nivel del MentexApp via ActiveQueueSwitcherOverlay (vive en
+// active-queue.jsx con state switcherOpen). Consume EXPLORE_PLAYLISTS y la
+// ritualPlaylist sintética del store.
+function PlaylistSwitcherSheet({ onClose }) {
+  const aq = (typeof window !== 'undefined' && window.useActiveQueue)
+    ? window.useActiveQueue()
+    : { activePlaylist: null };
+  const currentId = aq.activePlaylist?.id || null;
+
+  // Listas: oficiales primero, después playlists de usuario, después watch-later
+  // y al final "Limpiar selección" (clearOverride). El ritual del día (si está
+  // activo) aparece marcado al inicio con badge especial.
+  const ritualInputs = (typeof window !== 'undefined' && window.__mtxActiveQueue)
+    ? window.__mtxActiveQueue._debugInputs()
+    : { ritualPlaylist: null };
+  const ritualPlaylist = ritualInputs.ritualPlaylist || null;
+
+  const otherPlaylists = (window.EXPLORE_PLAYLISTS || []).filter(p => p && !p.isWatchLater);
+  const watchLater = (window.EXPLORE_PLAYLISTS || []).find(p => p && p.isWatchLater) || null;
+
+  const handlePick = (playlist) => {
+    if (!window.__mtxActiveQueue) return;
+    if (!playlist) {
+      // "Limpiar selección" → vuelve a la jerarquía natural (ritual o watch-later)
+      window.__mtxActiveQueue.clearOverride();
+    } else if (ritualPlaylist && playlist.id === ritualPlaylist.id) {
+      // Tap en el ritual → limpia override (el ritual ya gana naturalmente)
+      window.__mtxActiveQueue.clearOverride();
+    } else {
+      window.__mtxActiveQueue.setOverride(playlist);
+    }
+    if (typeof window.__mtxActiveQueue.closeSwitcher === 'function') {
+      window.__mtxActiveQueue.closeSwitcher();
+    }
+    onClose && onClose();
+  };
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:170,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.55)',
+      backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+      animation:'mtx-fade-up .25s ease',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="mtx-no-scrollbar" style={{
+        background:'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
+        backdropFilter:'blur(28px)',
+        border:'0.5px solid rgba(255,255,255,0.08)', borderBottom:0,
+        borderTopLeftRadius:28, borderTopRightRadius:28,
+        width:'100%', maxHeight:'85%', overflowY:'auto', paddingBottom:24,
+        boxShadow:'0 -20px 60px -12px rgba(0,0,0,0.6)',
+        animation:'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+      }}>
+        {/* Drag handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:14, paddingBottom:10 }}>
+          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
+        </div>
+
+        {/* Header */}
+        <div style={{ padding:'4px 22px 18px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--neon)', marginBottom:4, letterSpacing:'0.14em' }}>
+              Cambiar cola
+            </div>
+            <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em' }}>
+              Elige una playlist
+            </h2>
+            <div style={{ fontSize:12, color:'var(--ink-3)', marginTop:2 }}>
+              La que elijas se vuelve tu cola personal mientras la mantengas activa.
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="mtx-tap" style={{
+            width:36, height:36, borderRadius:999, border:0, cursor:'pointer',
+            background:'rgba(255,255,255,0.06)', color:'var(--ink-1)',
+            display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+          }}>
+            <IcClose size={16} stroke="currentColor"/>
+          </button>
+        </div>
+
+        <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
+          {/* Ritual del día — sólo aparece si hay sesión activa */}
+          {ritualPlaylist && (
+            <PlaylistSwitcherRow
+              playlist={ritualPlaylist}
+              isActive={currentId === ritualPlaylist.id}
+              ribbon="Ritual del día"
+              onClick={() => handlePick(ritualPlaylist)}
+            />
+          )}
+          {/* Watch-later (cola personal default) */}
+          {watchLater && (
+            <PlaylistSwitcherRow
+              playlist={watchLater}
+              isActive={currentId === watchLater.id && !ritualPlaylist}
+              ribbon="Por ver"
+              onClick={() => handlePick(watchLater)}
+            />
+          )}
+          {/* Resto de playlists */}
+          {otherPlaylists.map(p => (
+            <PlaylistSwitcherRow
+              key={p.id}
+              playlist={p}
+              isActive={currentId === p.id}
+              onClick={() => handlePick(p)}
+            />
+          ))}
+
+          {/* Clear override — solo aparece si hay override activo */}
+          {ritualInputs.override && (
+            <button onClick={() => handlePick(null)} className="mtx-tap" style={{
+              appearance:'none', cursor:'pointer', textAlign:'left',
+              width:'100%', boxSizing:'border-box',
+              marginTop:6, padding:'12px 14px',
+              borderRadius:14,
+              border:'0.5px dashed rgba(255,255,255,0.18)',
+              background:'transparent',
+              color:'var(--ink-3)',
+              fontSize:12, fontWeight:600,
+              fontFamily:'var(--ff-sans)',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            }}>
+              <IcClose size={11} stroke="currentColor" strokeWidth={2}/>
+              Quitar selección manual
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlaylistSwitcherRow({ playlist, isActive, ribbon, onClick }) {
+  const accent = playlist.accent || '#3dffd1';
+  const itemCount = (() => {
+    if (Array.isArray(playlist.items)) return playlist.items.length + (playlist._extraItemIds?.length || 0);
+    if (typeof playlist.totalVideos === 'number') return playlist.totalVideos;
+    return 0;
+  })();
+  return (
+    <button onClick={onClick} className="mtx-tap" style={{
+      appearance:'none', cursor:'pointer', textAlign:'left',
+      width:'100%', boxSizing:'border-box',
+      padding:'10px 12px', borderRadius:14,
+      border: isActive ? `0.5px solid ${accent}66` : '0.5px solid rgba(255,255,255,0.06)',
+      background: isActive
+        ? `linear-gradient(180deg, ${accent}14, ${accent}04)`
+        : 'rgba(255,255,255,0.03)',
+      boxShadow: isActive ? `0 0 0 1px ${accent}28, 0 8px 22px -10px ${accent}55` : 'none',
+      display:'flex', alignItems:'center', gap:11,
+      fontFamily:'var(--ff-sans)',
+      transition:'background .25s, border-color .25s, box-shadow .25s',
+    }}>
+      {/* Thumb */}
+      <div style={{
+        width:42, height:42, borderRadius:10, flexShrink:0,
+        position:'relative', overflow:'hidden',
+        background: playlist.bg || `linear-gradient(135deg, ${accent}33, ${accent}10)`,
+        border:`0.5px solid ${accent}40`,
+      }}>
+        {playlist.thumbnail && (
+          <img src={playlist.thumbnail} alt="" loading="lazy" style={{
+            position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover',
+          }}/>
+        )}
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{
+          display:'flex', alignItems:'center', gap:6, marginBottom:2,
+        }}>
+          <div style={{
+            fontSize:13.5, fontWeight:700, color:'var(--ink-1)',
+            letterSpacing:'-0.01em',
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+            maxWidth:'100%',
+          }}>{playlist.title}</div>
+          {ribbon && (
+            <span style={{
+              flexShrink:0,
+              fontSize:8.5, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase',
+              color: accent,
+              padding:'2px 6px', borderRadius:4,
+              background:`${accent}1f`,
+              border:`0.5px solid ${accent}40`,
+            }}>{ribbon}</span>
+          )}
+        </div>
+        <div style={{ fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em' }}>
+          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+          {playlist.totalDuration ? ` · ${playlist.totalDuration}` : ''}
+        </div>
+      </div>
+      {isActive && (
+        <div style={{
+          width:24, height:24, borderRadius:'50%',
+          background:`${accent}22`,
+          border:`0.5px solid ${accent}55`,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color: accent,
+          flexShrink:0,
+        }}>
+          <IcCheck size={12} stroke="currentColor" strokeWidth={2.5}/>
+        </div>
+      )}
+    </button>
+  );
+}
+
+// ── ActiveQueueSwitcherOverlay ───────────────────────────────────────────────
+// Componente delgado que se monta a nivel del MentexApp. Consume el store
+// __mtxActiveQueue y renderiza PlaylistSwitcherSheet via portal cuando
+// switcherOpen=true. Único punto de montaje en la app — evita duplicación si
+// se intentara desde múltiples players.
+function ActiveQueueSwitcherOverlay() {
+  const aq = (typeof window !== 'undefined' && window.useActiveQueue)
+    ? window.useActiveQueue()
+    : { switcherOpen: false };
+  const overlayRoot = typeof document !== 'undefined'
+    ? document.getElementById('mtx-overlay-root')
+    : null;
+  const reactDom = typeof window !== 'undefined' ? window.ReactDOM : null;
+
+  if (!aq.switcherOpen) return null;
+
+  const content = (
+    <PlaylistSwitcherSheet
+      onClose={() => window.__mtxActiveQueue?.closeSwitcher()}
+    />
+  );
+
+  return (overlayRoot && reactDom && reactDom.createPortal)
+    ? reactDom.createPortal(content, overlayRoot)
+    : content;
 }
 
 
@@ -7809,6 +8135,8 @@ Object.assign(window, {
   SwipeableQueueRow, SkipDurationSheet, BookmarksSheet, BookmarkNameSheet,
   ReviewSheet, ReviewSuccessSheet,
   useRitualItems, useIsScheduled,
+  // Sub-fase 0.2 · switcher de playlist
+  PlaylistSwitcherSheet, PlaylistSwitcherRow, ActiveQueueSwitcherOverlay,
   // Helpers expuestos para que active-queue.jsx pueda resolver items de
   // cualquier playlist (incluyendo la sintética del ritual con _extraItemIds).
   _resolvePlaylistItems,

@@ -43,13 +43,13 @@
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=41"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=42"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
   <script type="text/babel" src="screens/user-profile-flow.jsx?v=12"></script>
   <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
-  <script type="text/babel" src="screens/active-queue.jsx?v=1"></script>
+  <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
   <script type="text/babel" src="screens/ritual-player.jsx?v=3"></script>
 
   <script type="text/babel">
@@ -393,6 +393,11 @@
                 pueda abrir VideoSheet → VideoPlayerFullscreen sin salir del Home
                 activo. Reusa los componentes de explore-flow.jsx vía portal. */}
             {typeof RitualPlayerOverlay !== 'undefined' && <RitualPlayerOverlay/>}
+
+            {/* Sub-fase 0.2 · Switcher de playlist global. Único punto de
+                montaje. Se abre via window.__mtxActiveQueue.openSwitcher()
+                desde cualquier PlaylistQueueSheet. */}
+            {typeof ActiveQueueSwitcherOverlay !== 'undefined' && <ActiveQueueSwitcherOverlay/>}
 
             {/* User profile overlay — fase 4-B */}
             {userProfileId && typeof UserProfileScreen !== 'undefined' && (

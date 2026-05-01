@@ -38,7 +38,9 @@
   };
 
   // Snapshot cacheado del último compute — devuelto por get() sin recalcular.
-  let snapshot = { activePlaylist: null, activePlaylistItems: [] };
+  // switcherOpen es UI state: cuando true, el ActiveQueueSwitcherOverlay
+  // monta PlaylistSwitcherSheet para que el usuario elija otra playlist.
+  let snapshot = { activePlaylist: null, activePlaylistItems: [], switcherOpen: false };
 
   // Aplica jerarquía y devuelve la playlist activa (o null).
   function compute() {
@@ -69,7 +71,13 @@
   function recompute() {
     const playlist = compute();
     const items = resolveItems(playlist);
-    snapshot = { activePlaylist: playlist, activePlaylistItems: items };
+    // Preserva switcherOpen entre recomputes — es UI state, no derivado de inputs.
+    snapshot = { activePlaylist: playlist, activePlaylistItems: items, switcherOpen: snapshot.switcherOpen };
+    window.dispatchEvent(new CustomEvent('mtx:active-queue-changed', { detail: { ...snapshot } }));
+  }
+
+  function emitSwitcher(open) {
+    snapshot = { ...snapshot, switcherOpen: !!open };
     window.dispatchEvent(new CustomEvent('mtx:active-queue-changed', { detail: { ...snapshot } }));
   }
 
@@ -77,6 +85,7 @@
     get: () => ({
       activePlaylist: snapshot.activePlaylist,
       activePlaylistItems: snapshot.activePlaylistItems,
+      switcherOpen: snapshot.switcherOpen,
     }),
 
     setRitualPlaylist: (playlist) => {
@@ -95,6 +104,10 @@
       inputs.override = null;
       recompute();
     },
+
+    // Switcher UI controls (sub-fase 0.2)
+    openSwitcher:  () => emitSwitcher(true),
+    closeSwitcher: () => emitSwitcher(false),
 
     _debugInputs: () => ({ ...inputs }),
   };
