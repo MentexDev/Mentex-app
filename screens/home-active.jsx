@@ -1042,11 +1042,10 @@ function HomeActive({
   onOpenPlayer = () => {},
   onFinishSession = () => {},
   onEditRoutines = () => {},
-  onChangeTime = () => {}, // (newMinutes) → MentexApp.setState({ time: m })
+  // (ctx) → MentexApp setea editTimeCtx con { initialMinutes,
+  // elapsedMinutes, minMinutes } para hidratar el CustomTimeModal global.
+  onEditTime = () => {},
 }) {
-  // Sheet de edición del tiempo de sesión (lápiz top-right de la card
-  // del cronómetro).
-  const [editTimeOpen, setEditTimeOpen] = React.useState(false);
   // Filtrar ACTIVITIES por las rutinas que el usuario activó en HomeInactive
   // (state.routines). Antes se mostraban todas las defaults siempre, ignorando
   // la selección — bug reportado: "se cargan elementos por defecto que no
@@ -1168,11 +1167,16 @@ function HomeActive({
             pointerEvents:'none', filter:'blur(24px)',
           }}/>
 
-          {/* Editar tiempo — lápiz arriba a la derecha de la card. Tap →
-              abre EditSessionTimeSheet con los chips de TIME_OPTIONS para
-              extender o reducir la duración planeada en cualquier momento. */}
+          {/* Editar tiempo — lápiz arriba a la derecha de la card. Abre
+              el CustomTimeModal global del MentexApp (UNICO mount point)
+              hidratado con el totalMin actual, los minutos transcurridos
+              y el mínimo viable (para no permitir saltar a completed). */}
           <button
-            onClick={() => setEditTimeOpen(true)}
+            onClick={() => onEditTime({
+              initialMinutes: totalMin,
+              elapsedMinutes: Math.floor(elapsedSec / 60),
+              minMinutes: Math.max(1, Math.ceil(elapsedSec / 60)),
+            })}
             aria-label="Editar tiempo de la sesión"
             className="mtx-tap"
             style={{
@@ -1336,20 +1340,12 @@ function HomeActive({
         </div>
       )}
 
-      {/* Modal de edición del tiempo — reusa CustomTimeModal (ya existente
-          en HomeInactive). Tap del lápiz top-right del cronómetro lo
-          abre; al aplicar pasa minutos a onChangeTime. minViableMin
-          previene seleccionar tiempo menor al ya transcurrido. */}
-      {window.CustomTimeModal && (
-        <window.CustomTimeModal
-          open={editTimeOpen}
-          onClose={() => setEditTimeOpen(false)}
-          onApply={(m) => onChangeTime?.(m)}
-          initialMinutes={totalMin}
-          minMinutes={Math.max(1, Math.ceil(elapsedSec / 60))}
-          elapsedMinutes={Math.floor(elapsedSec / 60)}
-        />
-      )}
+      {/* CustomTimeModal NO se monta aquí — vive a nivel de MentexApp
+          como único mount point. HomeActive abre el modal vía la prop
+          onEditTime que actualiza editTimeCtx en MentexApp. Esto evita
+          duplicación de instancias y mantiene un solo lugar de verdad
+          para la edición del tiempo de enfoque (tanto desde HomeInactive
+          como desde HomeActive). */}
     </div>
   );
 }

@@ -78,7 +78,11 @@ function CustomTimeModal({
         borderTopLeftRadius: 32, borderTopRightRadius: 32,
         padding: '12px 20px 28px',
         boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
-        maxHeight: '88%', overflow: 'auto',
+        // Height fijo para que el modal SIEMPRE abra al tamaño completo
+        // (~88% del viewport) en lugar de quedar anclado al bottom con
+        // espacio vacío arriba cuando el contenido natural es menor.
+        // overflow:auto permite scroll interno si el contenido excede.
+        height: '88%', overflow: 'auto',
         animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
       }} className="mtx-no-scrollbar">
         {/* Grabber */}
