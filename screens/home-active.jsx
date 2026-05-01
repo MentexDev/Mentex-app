@@ -1,11 +1,14 @@
 // home-active.jsx — Sesión de enfoque activa (v5)
 
+// `exploreId` mapea cada activity a su contenido en EXPLORE_CONTENT cuando
+// existe. Si no hay exploreId (ej. Journaling, gratitud), Fase B muestra
+// un toast "próximamente" — Fase C/D habilitará ActivityRunner para esas.
 const ACTIVITIES = [
-  { id:'a1', kind:'Meditación',      title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,   accent:'#3dffd1', done:true,  playPct:1.0  },
-  { id:'a2', kind:'Resumen',          title:'Hábitos Atómicos',        dur:'18 min', totalSec:1080, Ic:IcBook,   accent:'#7dffe0', done:false, playing:true, playPct:0.38 },
-  { id:'a3', kind:'Desafío · Día 3', title:'Meditación de 7 días',   dur:'12 min', totalSec:720,  Ic:IcTarget, accent:'#a8ffec', done:false },
-  { id:'a4', kind:'Journaling',       title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,   accent:'#3dffd1', done:false },
-  { id:'a5', kind:'Lección',          title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,  accent:'#7dffe0', done:false },
+  { id:'a1', kind:'Meditación',      title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,   accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
+  { id:'a2', kind:'Resumen',          title:'Hábitos Atómicos',        dur:'18 min', totalSec:1080, Ic:IcBook,   accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
+  { id:'a3', kind:'Desafío · Día 3', title:'Meditación de 7 días',   dur:'12 min', totalSec:720,  Ic:IcTarget, accent:'#a8ffec', done:false,                              exploreId:'c-respira'   },
+  { id:'a4', kind:'Journaling',       title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,   accent:'#3dffd1', done:false                                                       },
+  { id:'a5', kind:'Lección',          title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,  accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
 ];
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
@@ -209,18 +212,44 @@ function NowPlayingScreen({ activity, onClose }) {
 }
 
 // ── ActivityRow ───────────────────────────────────────────────────────────────
+// Tap en cualquier activity NO completada abre el reproductor:
+//   - Si la activity está en reproducción ("ahora") → atajo directo al
+//     VideoPlayerFullscreen (resuelve el item de Explorar y lo abre).
+//   - Si la activity está pendiente → abre VideoSheet de detalle primero.
+//   - Si la activity NO tiene contenido en Explorar (ej. journaling, gratitud)
+//     → toast "próximamente" (Fase C/D habilitará ActivityRunner).
 function ActivityRow({ a, onOpenPlayer, onRemove }) {
   const handleRemove = onRemove ? (e) => {
     e.stopPropagation();
     onRemove();
   } : null;
+
+  const isClickable = !a.done;
+  const handleActivate = () => {
+    if (a.done) return;
+    if (a.playing && typeof window !== 'undefined') {
+      // Atajo: si está en reproducción, salta directo al fullscreen.
+      const item = window._resolveActivityToExploreItem
+        ? window._resolveActivityToExploreItem(a)
+        : null;
+      if (item) {
+        window.__mtxRitualPlayer?.openPlayer(item);
+        return;
+      }
+    }
+    // Default: abre VideoSheet de detalle (o toast si no hay contenido)
+    if (typeof window !== 'undefined' && window.openRitualActivity) {
+      window.openRitualActivity(a);
+    }
+  };
+
   return (
     <div className="mtx-glass mtx-tap" style={{
       display:'flex', alignItems:'center', gap:12, padding:14,
       borderRadius:18, position:'relative', overflow:'hidden',
       opacity: a.done ? 0.5 : 1,
       transition:'transform .25s ease, box-shadow .3s ease',
-      cursor: a.playing ? 'pointer' : 'default',
+      cursor: isClickable ? 'pointer' : 'default',
       ...(a.playing ? {
         borderColor:'rgba(61,255,209,0.35)',
         background:'linear-gradient(180deg,rgba(61,255,209,0.08),rgba(61,255,209,0.01))',
@@ -232,11 +261,12 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
         background:`linear-gradient(180deg, ${a.accent}0c, ${a.accent}02)`,
       } : {}),
     }}
-    onClick={a.playing ? onOpenPlayer : undefined}
-    role={a.playing ? 'button' : undefined}
-    tabIndex={a.playing ? 0 : undefined}
-    onKeyDown={a.playing ? (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPlayer?.(); }
+    onClick={isClickable ? handleActivate : undefined}
+    role={isClickable ? 'button' : undefined}
+    tabIndex={isClickable ? 0 : undefined}
+    aria-label={isClickable ? `Abrir ${a.title}` : undefined}
+    onKeyDown={isClickable ? (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActivate(); }
     } : undefined}
     >
       {a.playing && (
@@ -292,12 +322,17 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
           <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
         </button>
       ) : !a.done ? (
-        <button className="mtx-tap" style={{
-          width:40, height:40, borderRadius:999, border:0, flexShrink:0,
-          background:'rgba(255,255,255,0.06)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          cursor:'pointer', color:'var(--ink-1)',
-        }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleActivate(); }}
+          aria-label={`Reproducir ${a.title}`}
+          className="mtx-tap"
+          style={{
+            width:40, height:40, borderRadius:999, border:0, flexShrink:0,
+            background:'rgba(255,255,255,0.06)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            cursor:'pointer', color:'var(--ink-1)',
+          }}
+        >
           <IcPlay size={14} stroke="currentColor"/>
         </button>
       ) : null}
