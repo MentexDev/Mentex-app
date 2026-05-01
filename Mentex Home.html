@@ -28,12 +28,12 @@
 
   <script type="text/babel" src="frames/ios-frame.jsx?v=2"></script>
   <script type="text/babel" src="frames/tweaks-panel.jsx?v=2"></script>
-  <script type="text/babel" src="components/mentex-icons.jsx?v=12"></script>
+  <script type="text/babel" src="components/mentex-icons.jsx?v=13"></script>
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=26"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=8"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=11"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
@@ -74,9 +74,8 @@
       const [notifsOpen, setNotifsOpen] = React.useState(false);
       const [notifCount, setNotifCount] = React.useState(4);
       const [nowPlayingOpen, setNowPlayingOpen] = React.useState(false);
-      const [breakPickerOpen, setBreakPickerOpen] = React.useState(false);
-      const [breakActive, setBreakActive] = React.useState(null); // null | { minutes, number }
-      const [breakCount, setBreakCount] = React.useState(0);
+      // breakPickerOpen/breakActive/breakCount eliminados en Fase A — el descanso
+      // ya no es un fullscreen; vive dentro de AppsProtectionCard del Home activo.
       const [reflectionOpen, setReflectionOpen] = React.useState(false);
       const [completionOpen, setCompletionOpen] = React.useState(false);
       const [userProfileId, setUserProfileId] = React.useState(null); // userId del perfil de otro usuario abierto
@@ -346,25 +345,11 @@
                 onClose={() => setUserProfileId(null)}/>
             )}
 
-            {/* Session-flow sheets */}
-            {breakPickerOpen && typeof BreakPickerSheet !== 'undefined' && (
-              <BreakPickerSheet
-                breakCount={breakCount}
-                onClose={() => setBreakPickerOpen(false)}
-                onPick={(min) => {
-                  setBreakPickerOpen(false);
-                  setBreakActive({ minutes: min, number: breakCount + 1 });
-                }}/>
-            )}
-            {breakActive && typeof BreakActiveScreen !== 'undefined' && (
-              <BreakActiveScreen
-                minutes={breakActive.minutes}
-                breakNumber={breakActive.number}
-                onEnd={() => {
-                  setBreakCount(c => c + 1);
-                  setBreakActive(null);
-                }}/>
-            )}
+            {/* Session-flow sheets — el descanso fullscreen se eliminó en Fase A.
+                Ahora el descanso de apps vive contextualmente dentro de la
+                AppsProtectionCard, y su picker se monta aquí para que su
+                position:absolute cubra el device viewport correctamente. */}
+            {typeof AppsBreakPickerSheet !== 'undefined' && <AppsBreakPickerSheet/>}
             {reflectionOpen && typeof ReflectionDelayScreen !== 'undefined' && (
               <ReflectionDelayScreen
                 elapsedMin={32}
@@ -425,40 +410,34 @@
               100% { transform: translateY(0) scale(1); opacity: 1; }
             }
           `}</style>
-          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && !breakPickerOpen && !breakActive && !reflectionOpen && !completionOpen && (
+          {/* Overlay flotante en sesión activa — ahora un solo botón "Detener
+              sesión". El "Tomar un descanso" se eliminó porque vive
+              contextualmente dentro de la AppsProtectionCard. */}
+          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && !reflectionOpen && !completionOpen && (
             <div style={{
               position:'absolute', left:'50%', transform:'translateX(-50%)',
-              bottom:96, display:'flex', flexDirection:'column', alignItems:'center', gap:10,
+              bottom:104, display:'flex', flexDirection:'column', alignItems:'center', gap:10,
               width:'calc(100% - 56px)', maxWidth:360,
               zIndex:8,
             }}>
               <button className="mtx-tap"
-                onClick={() => setBreakPickerOpen(true)}
-                style={{
-                  width:'100%', height:56, borderRadius:999, cursor:'pointer',
-                  background:'#fff', color:'#0a0d0a',
-                  border:0, fontSize:16, fontWeight:700,
-                  fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:10,
-                  boxShadow:'0 12px 36px -10px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.6)',
-                }}>
-                <IcPause size={16} stroke="currentColor" strokeWidth={2.4}/>
-                Tomar un descanso
-                <span style={{ fontSize:13, color:'rgba(10,13,10,0.4)', fontWeight:600 }}>#{breakCount + 1}</span>
-              </button>
-
-              <button className="mtx-tap"
                 onClick={() => setReflectionOpen(true)}
                 style={{
-                  background:'transparent', border:0, cursor:'pointer',
-                  color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
-                  fontFamily:'var(--ff-sans)', padding:'4px 10px',
-                  display:'flex', alignItems:'center', gap:6,
+                  width:'100%', height:54, borderRadius:999, cursor:'pointer',
+                  background:'rgba(255,107,107,0.12)',
+                  border:'0.5px solid rgba(255,107,107,0.35)',
+                  color:'rgba(255,140,140,0.95)',
+                  fontSize:14.5, fontWeight:700,
+                  fontFamily:'var(--ff-sans)', letterSpacing:'-0.005em',
+                  backdropFilter:'blur(20px) saturate(160%)',
+                  WebkitBackdropFilter:'blur(20px) saturate(160%)',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                  boxShadow:'0 12px 36px -10px rgba(255,107,107,0.3), inset 0 1px 0 rgba(255,255,255,0.06)',
                 }}>
                 <span style={{
-                  width:10, height:10, borderRadius:2,
-                  background:'rgba(255,107,107,0.85)',
-                  boxShadow:'0 0 8px rgba(255,107,107,0.5)',
+                  width:9, height:9, borderRadius:2,
+                  background:'rgba(255,107,107,0.95)',
+                  boxShadow:'0 0 10px rgba(255,107,107,0.7)',
                 }}/>
                 Detener sesión
               </button>

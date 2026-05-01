@@ -305,6 +305,334 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
   );
 }
 
+// ── Store global del descanso de apps ────────────────────────────────────────
+// Patrón pubsub idéntico a __mtxPlayer / __mtxRitual / __mtxFollows. Vive en
+// window porque el sheet del picker debe renderizarse a nivel del MentexApp
+// (para que el position:absolute inset:0 cubra el device viewport, no el
+// scroll completo de la página). La card que muestra el countdown vive en
+// HomeActive y se sincroniza vía useAppsBreak().
+const APPS_BREAK_OPTIONS = [5, 10, 15, 30];
+const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
+
+// IIFE para encapsular completamente el estado interno. Sin esto, Babel-standalone
+// puede hoist-ar `let` → `var` al scope global y el `_state` del player y este
+// terminan apuntando al mismo binding. Confirmado: el bug aparece como el get()
+// de un store devolviendo campos de OTRO store. Lección: cualquier store global
+// nuevo debe encapsularse en una IIFE en este proyecto.
+(function() {
+  if (typeof window === 'undefined' || window.__mtxAppsBreak) return;
+
+  let state = {
+    breakState: null,    // null = protegidas; { totalSec, secondsLeft } = pausa
+    pickerOpen: false,
+  };
+  let intervalId = null;
+
+  const emit = () => window.dispatchEvent(new CustomEvent(_APPS_BREAK_EVENT, { detail: { ...state } }));
+
+  const stopInterval = () => {
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  };
+
+  const startInterval = () => {
+    stopInterval();
+    intervalId = setInterval(() => {
+      if (!state.breakState) { stopInterval(); return; }
+      const next = state.breakState.secondsLeft - 1;
+      if (next <= 0) {
+        state = { ...state, breakState: null };
+        stopInterval();
+      } else {
+        state = { ...state, breakState: { ...state.breakState, secondsLeft: next } };
+      }
+      emit();
+    }, 1000);
+  };
+
+  window.__mtxAppsBreak = {
+    get: () => ({ ...state }),
+    openPicker:  () => { state = { ...state, pickerOpen: true  }; emit(); },
+    closePicker: () => { state = { ...state, pickerOpen: false }; emit(); },
+    pick: (minutes) => {
+      const totalSec = Math.max(1, Math.floor(minutes * 60));
+      state = { breakState: { totalSec, secondsLeft: totalSec }, pickerOpen: false };
+      emit();
+      startInterval();
+    },
+    stop: () => {
+      stopInterval();
+      state = { ...state, breakState: null };
+      emit();
+    },
+  };
+})();
+
+function useAppsBreak() {
+  const [, force] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const handler = () => force();
+    window.addEventListener(_APPS_BREAK_EVENT, handler);
+    return () => window.removeEventListener(_APPS_BREAK_EVENT, handler);
+  }, []);
+  return window.__mtxAppsBreak
+    ? window.__mtxAppsBreak.get()
+    : { breakState: null, pickerOpen: false };
+}
+
+// ── AppsProtectionCard ────────────────────────────────────────────────────────
+// Card independiente para mostrar las apps bloqueadas y permitir un descanso
+// CONTEXTUAL (las apps se desbloquean por X minutos sin parar la sesión).
+// El countdown corre DENTRO de esta card — no en una pantalla fullscreen
+// porque "descansar del aprendizaje" no tiene sentido en una app de aprendizaje.
+function AppsProtectionCard({ blockedApps = [] }) {
+  const { breakState } = useAppsBreak();
+  const startBreakPicker = () => window.__mtxAppsBreak?.openPicker();
+  const stopBreak = () => window.__mtxAppsBreak?.stop();
+
+  const isOnBreak = !!breakState;
+  const breakMin = isOnBreak ? Math.floor(breakState.secondsLeft / 60) : 0;
+  const breakSs  = isOnBreak ? breakState.secondsLeft % 60 : 0;
+  const breakStr = isOnBreak ? `${breakMin}:${String(breakSs).padStart(2,'0')}` : '';
+  const breakPct = isOnBreak ? (breakState.totalSec - breakState.secondsLeft) / breakState.totalSec : 0;
+
+  // Color de estado: neon = protegidas, ámbar = en pausa
+  const accent = isOnBreak ? '#FFB347' : 'var(--neon)';
+  const accentRaw = isOnBreak ? '255,179,71' : '61,255,209';
+
+  return (
+    <div style={{ padding:'0 20px 16px' }}>
+      <div className="mtx-glass" style={{
+        borderRadius:22, padding:'18px 18px 16px',
+        background: isOnBreak
+          ? 'radial-gradient(70% 100% at 50% 0%, rgba(255,179,71,0.06), transparent 60%), var(--glass-2)'
+          : 'radial-gradient(70% 100% at 50% 0%, rgba(61,255,209,0.05), transparent 60%), var(--glass-2)',
+        border: isOnBreak ? '0.5px solid rgba(255,179,71,0.25)' : '0.5px solid rgba(61,255,209,0.12)',
+        position:'relative', overflow:'hidden',
+        transition:'background .3s, border-color .3s',
+      }}>
+        {/* Header de estado */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:14 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+            <div style={{
+              width:30, height:30, borderRadius:'50%',
+              background: `rgba(${accentRaw},0.14)`,
+              border: `0.5px solid rgba(${accentRaw},0.35)`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              color: accent, flexShrink:0,
+            }}>
+              {isOnBreak
+                ? <IcPause size={13} stroke="currentColor" strokeWidth={2.4}/>
+                : <IcShield size={14} stroke="currentColor" strokeWidth={2}/>
+              }
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div className="mtx-eyebrow" style={{ fontSize:9, color: accent, marginBottom:2, letterSpacing:'0.14em' }}>
+                {isOnBreak ? 'Pausa activa' : 'Protección activa'}
+              </div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>
+                {isOnBreak
+                  ? <span style={{ fontVariantNumeric:'tabular-nums' }}>{breakStr} restantes</span>
+                  : `${blockedApps.length} apps fuera de tu mente`}
+              </div>
+            </div>
+          </div>
+
+          {/* CTA contextual: en protección → "Tomar descanso"; en pausa → "Reanudar" */}
+          {!isOnBreak ? (
+            <button
+              onClick={startBreakPicker}
+              className="mtx-tap"
+              style={{
+                appearance:'none', cursor:'pointer', flexShrink:0,
+                padding:'7px 12px', borderRadius:999,
+                background:'rgba(255,255,255,0.05)',
+                border:'0.5px solid rgba(255,255,255,0.1)',
+                color:'var(--ink-2)',
+                fontSize:11.5, fontWeight:600, letterSpacing:'-0.005em',
+                fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', gap:5,
+                transition:'background .2s, color .2s, border-color .2s',
+              }}
+            >
+              <IcPause size={11} stroke="currentColor" strokeWidth={2}/>
+              Descanso
+            </button>
+          ) : (
+            <button
+              onClick={stopBreak}
+              className="mtx-tap"
+              aria-label="Reanudar protección"
+              style={{
+                appearance:'none', cursor:'pointer', flexShrink:0,
+                padding:'7px 12px', borderRadius:999,
+                background:`rgba(${accentRaw},0.16)`,
+                border:`0.5px solid rgba(${accentRaw},0.4)`,
+                color: accent,
+                fontSize:11.5, fontWeight:700, letterSpacing:'-0.005em',
+                fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', gap:5,
+              }}
+            >
+              <IcShield size={11} stroke="currentColor" strokeWidth={2}/>
+              Reanudar
+            </button>
+          )}
+        </div>
+
+        {/* Progress bar de la pausa (solo cuando hay break) */}
+        {isOnBreak && (
+          <div style={{
+            height:3, borderRadius:999, background:'rgba(255,255,255,0.05)',
+            marginBottom:14, overflow:'hidden',
+          }}>
+            <div style={{
+              width:`${breakPct * 100}%`, height:'100%',
+              background: `linear-gradient(90deg, ${accent}, ${accent}aa)`,
+              boxShadow: `0 0 8px ${accent}99`,
+              transition:'width 1s linear',
+            }}/>
+          </div>
+        )}
+
+        {/* Lista compacta de apps con icon + lock/unlock por estado */}
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {APPS.filter(a => blockedApps.includes(a.id)).slice(0, 6).map(app => (
+            <div key={app.id} style={{
+              display:'flex', alignItems:'center', gap:6,
+              padding:'5px 10px 5px 5px', borderRadius:999,
+              background:'rgba(255,255,255,0.04)',
+              border:'0.5px solid rgba(255,255,255,0.06)',
+              fontSize:11, color: isOnBreak ? 'rgba(255,255,255,0.45)' : 'var(--ink-2)',
+              opacity: isOnBreak ? 0.7 : 1,
+              transition:'opacity .3s, color .3s',
+            }}>
+              <app.Icon size={20}/>
+              {app.name}
+              {isOnBreak
+                ? <IcUnlock size={9} stroke={accent} strokeWidth={1.8}/>
+                : <IcLock   size={9} stroke="var(--neon)" strokeWidth={1.8}/>
+              }
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* El sheet del picker se monta a nivel del MentexApp (no aquí) para
+          que su position:absolute cubra el device viewport, no el scroll
+          completo. Ver AppsBreakPickerSheet en Mentex Home.html. */}
+    </div>
+  );
+}
+
+// Mini sheet (bottom) para elegir minutos de descanso de apps. Patrón anclado
+// al device viewport, idéntico al de BreakPickerSheet pero compacto.
+// Usa el store global __mtxAppsBreak — abre/pick lo controlan handlers globales.
+function AppsBreakPickerSheet() {
+  const { pickerOpen } = useAppsBreak();
+  if (!pickerOpen) return null;
+  return <_AppsBreakPickerImpl
+    onClose={() => window.__mtxAppsBreak?.closePicker()}
+    onPick={(min) => window.__mtxAppsBreak?.pick(min)}
+  />;
+}
+
+function _AppsBreakPickerImpl({ onClose, onPick }) {
+  const [picked, setPicked] = React.useState(5);
+  const [dragY, setDragY] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragStart = React.useRef(0);
+  const dragActive = React.useRef(false);
+
+  const onDown = (e) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStart.current = e.clientY;
+    dragActive.current = true;
+    setIsDragging(true);
+  };
+  const onMove = (e) => {
+    if (!dragActive.current) return;
+    setDragY(Math.max(0, e.clientY - dragStart.current));
+  };
+  const onUp = () => {
+    dragActive.current = false;
+    setIsDragging(false);
+    if (dragY > 80) onClose();
+    else setDragY(0);
+  };
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:80,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.55)',
+      backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+      animation:'mtx-fade-up .25s ease',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:'linear-gradient(180deg, rgba(20,24,22,0.96), rgba(15,19,18,0.98))',
+        backdropFilter:'blur(28px)',
+        border:'0.5px solid rgba(255,255,255,0.08)',
+        borderBottom:0,
+        borderTopLeftRadius:28, borderTopRightRadius:28,
+        width:'100%',
+        paddingBottom:32,
+        boxShadow:'0 -20px 60px -12px rgba(0,0,0,0.6)',
+        transform:`translateY(${dragY}px)`,
+        transition: isDragging ? 'none' : 'transform .35s cubic-bezier(.25,.8,.25,1)',
+        animation:'mtxAppsBreakUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+      }}>
+        <style>{`@keyframes mtxAppsBreakUp { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
+        <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+          style={{ display:'flex', justifyContent:'center', paddingTop:14, paddingBottom:10, cursor:'grab', touchAction:'none' }}>
+          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
+        </div>
+        <div style={{ padding:'4px 24px 18px' }}>
+          <div className="mtx-eyebrow" style={{ fontSize:9, color:'#FFB347', marginBottom:6, letterSpacing:'0.14em' }}>
+            Descanso de apps
+          </div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em' }}>
+            Desbloquea por unos minutos
+          </h2>
+          <p style={{ margin:'6px 0 0', fontSize:12.5, color:'var(--ink-3)', lineHeight:1.5 }}>
+            Tu sesión sigue corriendo. Cuando termine el descanso, las apps vuelven a bloquearse solas.
+          </p>
+        </div>
+        <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap', padding:'0 20px', marginBottom:18 }}>
+          {APPS_BREAK_OPTIONS.map(m => {
+            const active = picked === m;
+            return (
+              <button key={m} onClick={() => setPicked(m)} className="mtx-tap" style={{
+                height:44, minWidth:64, padding:'0 16px', borderRadius:14, cursor:'pointer',
+                border: active ? '0.5px solid rgba(255,179,71,0.55)' : '0.5px solid var(--glass-stroke)',
+                background: active ? 'linear-gradient(180deg, rgba(255,179,71,0.18), rgba(255,179,71,0.06))' : 'rgba(255,255,255,0.04)',
+                color: active ? '#FFB347' : 'var(--ink-1)',
+                fontSize:14, fontWeight:600, fontFamily:'var(--ff-sans)',
+                boxShadow: active ? '0 0 0 1px rgba(255,179,71,0.25), 0 6px 20px -8px rgba(255,179,71,0.5)' : 'none',
+                transform: active ? 'translateY(-1px)' : 'translateY(0)',
+                transition:'transform .2s, box-shadow .25s, background .2s, border-color .2s',
+              }}>
+                {m} min
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ padding:'0 20px' }}>
+          <button onClick={() => onPick(picked)} className="mtx-tap" style={{
+            width:'100%', height:52, borderRadius:16, border:0, cursor:'pointer',
+            background:'linear-gradient(180deg, #FFC56B 0%, #FF9F40 100%)',
+            color:'#1a0f00', fontSize:14.5, fontWeight:700, fontFamily:'var(--ff-sans)',
+            letterSpacing:'-0.01em',
+            boxShadow:'0 0 0 1px rgba(255,179,71,0.4), 0 12px 32px -8px rgba(255,159,64,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+          }}>
+            <IcUnlock size={15} stroke="currentColor" strokeWidth={2.4}/>
+            Desbloquear por {picked} min
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── HomeActive ────────────────────────────────────────────────────────────────
 function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = [], onOpenPlayer = () => {} }) {
   const [seconds,  setSeconds]  = React.useState(45 * 60 - 13 * 60);
@@ -336,7 +664,7 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
                    'Dominas tu mente.';
 
   return (
-    <div style={{ paddingTop:60, paddingBottom:200, animation:'mtx-fade-up .4s ease both' }}>
+    <div style={{ paddingTop:60, paddingBottom:160, animation:'mtx-fade-up .4s ease both' }}>
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div style={{ padding:'8px 20px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -377,16 +705,15 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
         </button>
       </div>
 
-      {/* ── Timer card ────────────────────────────────────────────────────── */}
-      <div style={{ padding:'0 20px 24px' }}>
+      {/* ── CARD 1 · Cronómetro (sin apps adentro) ─────────────────────── */}
+      <div style={{ padding:'0 20px 16px' }}>
         <div className="mtx-glass" style={{
-          borderRadius:28, padding:'28px 20px 24px',
+          borderRadius:28, padding:'24px 20px 20px',
           display:'flex', flexDirection:'column', alignItems:'center',
           background:'radial-gradient(70% 80% at 50% 0%, rgba(61,255,209,0.07), transparent 60%), var(--glass-2)',
           borderColor:'rgba(61,255,209,0.12)',
           position:'relative', overflow:'hidden',
         }}>
-          {/* Ambient halo */}
           <div style={{
             position:'absolute', top:-50, left:'50%', transform:'translateX(-50%)',
             width:260, height:90, borderRadius:'50%',
@@ -394,7 +721,6 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
             pointerEvents:'none', filter:'blur(24px)',
           }}/>
 
-          {/* Ring */}
           <div style={{ position:'relative', width:216, height:216 }}>
             <svg width="216" height="216" viewBox="0 0 216 216" style={{ transform:'rotate(-90deg)' }}>
               <defs>
@@ -442,40 +768,16 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
             </div>
           </div>
 
-          {/* Sub-label */}
-          <div style={{ marginTop:4, marginBottom:16, fontSize:12, color:'var(--ink-3)', textAlign:'center' }}>
+          <div style={{ marginTop:6, fontSize:12, color:'var(--ink-3)', textAlign:'center' }}>
             de {Math.floor(total / 60)} min · {elMin === 0 ? 'Recién empezaste' : `${elMin} min de claridad`}
-          </div>
-
-          {/* Divider */}
-          <div style={{ width:'100%', height:'0.5px', background:'rgba(255,255,255,0.06)', marginBottom:16 }}/>
-
-          {/* Apps protegidas */}
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, width:'100%' }}>
-            <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-3)', display:'flex', alignItems:'center', gap:4 }}>
-              <IcShield size={9} stroke="currentColor"/>
-              Protección activa · {blockedApps.length} apps
-            </div>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'center' }}>
-              {APPS.filter(a => blockedApps.includes(a.id)).slice(0, 5).map(app => (
-                <div key={app.id} style={{
-                  display:'flex', alignItems:'center', gap:6,
-                  padding:'4px 10px 4px 4px', borderRadius:999,
-                  background:'rgba(255,255,255,0.04)',
-                  border:'0.5px solid rgba(255,255,255,0.06)',
-                  fontSize:11, color:'var(--ink-2)',
-                }}>
-                  <app.Icon size={20}/>
-                  {app.name}
-                  <IcLock size={9} stroke="var(--neon)"/>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Actividades del día ───────────────────────────────────────────── */}
+      {/* ── CARD 2 · Apps protegidas (con descanso contextual) ─────────── */}
+      <AppsProtectionCard blockedApps={blockedApps}/>
+
+      {/* ── CARD 3 · Ritual de hoy (actividades) ───────────────────────── */}
       <div style={{ marginBottom:24 }}>
         <MtxSectionHead
           title="Tu ritual de hoy"
@@ -526,4 +828,7 @@ function _extraToActivity(extra) {
   };
 }
 
-Object.assign(window, { HomeActive, NowPlayingScreen, ACTIVITIES });
+Object.assign(window, {
+  HomeActive, NowPlayingScreen, ACTIVITIES,
+  AppsProtectionCard, AppsBreakPickerSheet, useAppsBreak,
+});
