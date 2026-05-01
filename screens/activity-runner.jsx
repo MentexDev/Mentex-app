@@ -111,13 +111,18 @@ function RunnerOptionsSheet({
   // de Duration que existía antes del refactor.
   resetLabel = 'Empezar desde cero',
   resetDesc  = 'Reinicia el cronómetro al inicio',
+  // Fase 3: binary no tiene reset semántico (no hay state acumulado que
+  // resetear). El sheet entonces solo muestra "Marcar como completada".
+  hideReset = false,
 }) {
   if (!activity) return null;
   const accent = activity?.accent || '#3dffd1';
 
   const options = [
     { id: 'mark-complete', label: 'Marcar como completada', desc: 'Termina la actividad y celebra', Ic: IcCheck,   accent: accent,    handler: onMarkComplete },
-    { id: 'reset',         label: resetLabel,               desc: resetDesc,                        Ic: IcRefresh, accent: '#ffd47a', handler: onReset         },
+    ...(hideReset ? [] : [
+      { id: 'reset',       label: resetLabel,               desc: resetDesc,                        Ic: IcRefresh, accent: '#ffd47a', handler: onReset },
+    ]),
   ];
 
   const handleSelect = (opt) => {
@@ -240,6 +245,10 @@ function RunnerShell({
   onReset,
   hasCompanion = true,
   resetLabel,
+  resetDesc,
+  // Fase 3: binary oculta la opción reset del menú (no aplica a hábitos
+  // sin estado acumulable).
+  hideReset = false,
   children,
 }) {
   const accent = activity?.accent || '#3dffd1';
@@ -357,6 +366,8 @@ function RunnerShell({
           onMarkComplete={() => { setOptionsOpen(false); onMarkComplete?.(); }}
           onReset={() => { setOptionsOpen(false); onReset?.(); }}
           resetLabel={resetLabel}
+          resetDesc={resetDesc}
+          hideReset={hideReset}
         />
       )}
     </div>
@@ -598,8 +609,10 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
   if (metric === 'count' || metric === 'pages') {
     return <CounterRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
   }
+  if (metric === 'binary') {
+    return <BinaryRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
+  }
   // Fase 4: distance → DistanceRunnerBody. Por ahora cae a Duration.
-  // Fase 3: binary → BinaryRunnerBody.
   return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
 }
 
@@ -839,6 +852,143 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
           // visual del row (botón central queda perfectamente centrado).
           <div style={{ width:48, height:48, flexShrink:0 }} aria-hidden/>
         )}
+      </div>
+    </RunnerShell>
+  );
+}
+
+// ── BinaryRunnerBody ──────────────────────────────────────────────────────────
+// Body para metricType='binary' — hábitos sin medición acumulable, solo
+// "hecho / no hecho" (suplementos, frío matinal, vitamina, oración matinal).
+//
+// Diseño minimalista a propósito: el usuario solo necesita confirmar.
+// No hay cronómetro, no hay contador, no hay companion (acción instantánea).
+//   • Ícono grande de la rutina (140px) con halo accent
+//   • Title font-display + motto opcional
+//   • CTA gigante "Marcar como hecho" full-width, accent gradient, shadow neon
+//   • Hint pequeño "Toca cuando lo hayas completado"
+//
+// Reusa <RunnerShell hasCompanion={false} hideReset={true}> — el menú "···"
+// del header solo muestra "Marcar como completada" (sin reset, no aplica).
+function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
+  const accent = activity?.accent || '#3dffd1';
+  const Ic = activity?.Ic || (typeof window !== 'undefined' && window.IcCheck) || (() => null);
+  const motto = activity?.runnerLabel || 'Confirma cuando lo hayas completado.';
+  const onCompleteRef = React.useRef(onComplete);
+  React.useEffect(() => { onCompleteRef.current = onComplete; });
+
+  // Snapshot inicial — primaryValue '—' indica "aún no marcado". El stat
+  // tile del completion screen mostrará "Estado: Hecho" tras el tap.
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+        detail: {
+          metricType: 'binary',
+          completionPct: 0,
+          primaryValue: '—',
+          primaryUnit: '',
+          statLabel: 'Estado',
+        },
+      }));
+    }
+  }, []);
+
+  // Tap del CTA → emite snapshot final (primaryValue='Hecho', pct=1) antes
+  // de invocar onComplete. Pequeño delay para que el último estado se
+  // propague al modal de completion antes de su mount.
+  const handleMarkDone = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+        detail: {
+          metricType: 'binary',
+          completionPct: 1,
+          primaryValue: 'Hecho',
+          primaryUnit: '',
+          statLabel: 'Estado',
+        },
+      }));
+    }
+    setTimeout(() => onCompleteRef.current?.(), 80);
+  };
+
+  return (
+    <RunnerShell
+      activity={activity}
+      onRequestClose={onRequestClose}
+      onMarkComplete={handleMarkDone}
+      hasCompanion={false}
+      hideReset={true}
+    >
+      {/* Centro: ícono + título + motto. flex:1 + justifyContent:center
+          del shell ya centra todo verticalmente; aquí solo agrupamos. */}
+      <div style={{
+        display:'flex', flexDirection:'column', alignItems:'center',
+        gap:28, marginBottom:36, width:'100%', maxWidth:340,
+      }}>
+        {/* Ícono grande con halo radial accent */}
+        <div style={{ position:'relative', width:140, height:140 }}>
+          <div style={{
+            position:'absolute', inset:-30, borderRadius:'50%',
+            background:`radial-gradient(50% 50% at 50% 50%, ${accent}55 0%, transparent 70%)`,
+            filter:'blur(28px)', pointerEvents:'none',
+          }}/>
+          <div style={{
+            width:140, height:140, borderRadius:32,
+            background:`linear-gradient(180deg, ${accent}30, ${accent}08)`,
+            border:`0.5px solid ${accent}55`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color: accent,
+            boxShadow:`0 0 0 1px ${accent}22, 0 24px 48px -16px ${accent}66, inset 0 0 32px ${accent}10`,
+            position:'relative', zIndex:1,
+          }}>
+            <Ic size={56} stroke="currentColor" strokeWidth={1.6}/>
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <h1 style={{
+            margin:0, fontSize:28, fontWeight:800, color:'var(--ink-1)',
+            letterSpacing:'-0.025em', lineHeight:1.15,
+            fontFamily:'var(--ff-display)',
+          }}>
+            {activity?.title || 'Tu hábito'}
+          </h1>
+          <p style={{
+            margin:'12px 0 0', fontSize:13.5, color:'rgba(255,255,255,0.6)',
+            letterSpacing:'-0.005em', lineHeight:1.55, maxWidth:300,
+            marginInline:'auto',
+          }}>
+            {motto}
+          </p>
+        </div>
+      </div>
+
+      {/* CTA gigante full-width + hint sutil */}
+      <div style={{
+        display:'flex', flexDirection:'column', alignItems:'center', gap:10,
+        width:'100%', maxWidth:320,
+      }}>
+        <button onClick={handleMarkDone} aria-label="Marcar como hecho"
+          className="mtx-tap" style={{
+            appearance:'none', cursor:'pointer',
+            width:'100%', height:64, borderRadius:22, border:0,
+            background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
+            color:'#0a1410',
+            fontSize:16, fontWeight:700, fontFamily:'var(--ff-sans)',
+            letterSpacing:'-0.01em',
+            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10,
+            boxShadow:`0 0 0 1px ${accent}88, 0 18px 44px -12px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
+            transition:'transform .12s, box-shadow .25s',
+          }}>
+          <IcCheck size={18} stroke="currentColor" strokeWidth={2.6}/>
+          Marcar como hecho
+        </button>
+        <span style={{
+          fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em',
+          letterSpacing:'0.01em',
+        }}>
+          Toca cuando lo hayas completado
+        </span>
       </div>
     </RunnerShell>
   );
@@ -1676,5 +1826,6 @@ Object.assign(window, {
   RunnerShell,
   DurationRunnerBody,    // Fase 1 — timer countdown circular
   CounterRunnerBody,     // Fase 2 — contador +1/-1/+5 (count + pages)
+  BinaryRunnerBody,      // Fase 3 — minimalista CTA "Marcar como hecho"
   useActivityRunner,
 });

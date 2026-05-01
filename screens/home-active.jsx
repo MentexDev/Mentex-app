@@ -34,6 +34,11 @@ const ACTIVITIES = [
   { id:'a8', routineId:'read',      kind:'Lectura',         title:'Lectura del libro actual', dur:'10 pp', Ic:IcBook,    accent:'#9b8aff', done:false,
     runnerType:'timer', metricType:'pages', metricValue:10, metricUnit:'pp',
     runnerLabel:'Una página a la vez.' },
+  // Binary (hecho): hábito sin medición acumulable — sólo confirmar.
+  // Sin companion (acción instantánea), sin reset (no hay state).
+  { id:'a9', routineId:'supplements', kind:'Hábito',         title:'Tomé mis suplementos',     dur:'Hecho', Ic:IcCheck,   accent:'#3dffd1', done:false,
+    runnerType:'timer', metricType:'binary', metricValue:0, metricUnit:'',
+    runnerLabel:'Confirma cuando los hayas tomado hoy.' },
 ];
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
