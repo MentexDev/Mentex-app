@@ -76,7 +76,11 @@ function CustomTimeModal({
         WebkitBackdropFilter: 'blur(28px) saturate(160%)',
         borderTop: '0.5px solid rgba(255,255,255,0.12)',
         borderTopLeftRadius: 32, borderTopRightRadius: 32,
-        padding: '12px 20px 28px',
+        // padding-bottom 44 (vs 28 previo) deja aire entre el botón Aplicar
+        // y el borde inferior del frame del iPhone (espacio para el home
+        // indicator de iOS y respiro visual). Top 18 (vs 12) sube un poco
+        // el grabber para que no quede pegado al borde redondeado.
+        padding: '18px 20px 44px',
         boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
         // Height fijo para que el modal SIEMPRE abra al tamaño completo
         // (~88% del viewport) en lugar de quedar anclado al bottom con
