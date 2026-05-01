@@ -760,68 +760,95 @@ function DisableProtectionConfirmModal() {
   if (!confirmDisableOpen) return null;
 
   const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
-  // Ring grande arriba, mismo patrón que ReflectionDelayScreen.
-  const ringR = 64, ringC = 2 * Math.PI * ringR;
+  // Ring 180x180 — mismo patrón hero que ReflectionDelayScreen
+  const ringR = 82, ringC = 2 * Math.PI * ringR;
+
+  // Theme rotativo + breath phase compartidos desde session-flow.jsx
+  const theme = React.useMemo(
+    () => (typeof window !== 'undefined' && window._pickAndAdvanceModalTheme)
+      ? window._pickAndAdvanceModalTheme()
+      : null,
+    []
+  );
+  const breathText = (typeof window !== 'undefined' && window.useBreathPhase)
+    ? window.useBreathPhase(5000)
+    : 'Respira';
+  const Aurora = (typeof window !== 'undefined' && window.ConfirmAuroraBackground) || (() => null);
 
   return (
     <div style={{
-      position:'absolute', inset:0, zIndex:96,
-      background:'rgba(0,0,0,0.82)',
-      backdropFilter:'blur(20px) saturate(140%)',
-      WebkitBackdropFilter:'blur(20px) saturate(140%)',
+      position:'absolute', inset:0, zIndex:200,
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-      padding:'40px 28px',
-      animation:'mtx-fade-up .28s ease',
+      padding:'32px 28px',
+      animation:'mtx-fade-up .32s ease',
+      overflow:'hidden',
+      background:'#0a0d0a',
     }}>
-      <div style={{
-        position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
-        width:280, height:160, borderRadius:'50%',
-        background:'radial-gradient(50% 100% at 50% 50%, rgba(61,255,209,0.18), transparent 70%)',
-        filter:'blur(32px)', pointerEvents:'none',
-      }}/>
+      <Aurora theme={theme}/>
 
-      {/* Ring countdown grande — al llegar a 0, vuelve a "Mantener mi escudo". */}
-      <div style={{ position:'relative', width:140, height:140, marginBottom:22, zIndex:1 }}>
-        <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform:'rotate(-90deg)' }}>
-          <defs>
-            <linearGradient id="disable-grad" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0" stopColor="#6affd9"/>
-              <stop offset="1" stopColor="#1ad9ad"/>
-            </linearGradient>
-            <filter id="disable-glow">
-              <feGaussianBlur stdDeviation="2.5"/>
-              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-          <circle cx="70" cy="70" r={ringR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3.5"/>
-          <circle cx="70" cy="70" r={ringR} fill="none"
-            stroke="url(#disable-grad)" strokeWidth="4" strokeLinecap="round"
-            strokeDasharray={ringC}
-            strokeDashoffset={ringC * (1 - ringPct)}
-            filter="url(#disable-glow)"
-            style={{ transition:'stroke-dashoffset 1s linear' }}/>
-        </svg>
-        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+      <div style={{
+        display:'flex', flexDirection:'column', alignItems:'center',
+        marginBottom:36, position:'relative', zIndex:1,
+      }}>
+        <div style={{ position:'relative', width:180, height:180 }}>
           <div style={{
-            fontSize:46, fontWeight:600, color:'var(--neon)',
-            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
-            fontFamily:'var(--ff-display)',
-          }}>{seconds}</div>
-          <div style={{
-            fontSize:9, fontWeight:700, color:'var(--ink-3)', marginTop:6,
-            letterSpacing:'0.14em', textTransform:'uppercase',
-          }}>
-            escudo activo
+            position:'absolute', inset:-30, borderRadius:'50%',
+            background:'radial-gradient(50% 50% at 50% 50%, rgba(61,255,209,0.22), transparent 70%)',
+            filter:'blur(20px)', pointerEvents:'none',
+          }}/>
+          <svg width="180" height="180" viewBox="0 0 180 180" style={{ transform:'rotate(-90deg)', position:'relative' }}>
+            <defs>
+              <linearGradient id="disable-grad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#6affd9"/>
+                <stop offset="1" stopColor="#1ad9ad"/>
+              </linearGradient>
+              <filter id="disable-glow">
+                <feGaussianBlur stdDeviation="3"/>
+                <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <circle cx="90" cy="90" r={ringR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3"/>
+            <circle cx="90" cy="90" r={ringR} fill="none"
+              stroke="url(#disable-grad)" strokeWidth="4.5" strokeLinecap="round"
+              strokeDasharray={ringC}
+              strokeDashoffset={ringC * (1 - ringPct)}
+              filter="url(#disable-glow)"
+              style={{ transition:'stroke-dashoffset 1s linear' }}/>
+          </svg>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <div style={{
+              fontSize:62, fontWeight:600, color:'var(--neon)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+              fontFamily:'var(--ff-display)',
+              textShadow:'0 0 24px rgba(61,255,209,0.5)',
+            }}>{seconds}</div>
+            <div style={{
+              fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.85)', marginTop:8,
+              letterSpacing:'0.18em', textTransform:'uppercase',
+              transition:'opacity .4s ease',
+            }} key={breathText}>
+              {breathText}
+            </div>
           </div>
+        </div>
+
+        {/* "Escudo / activo" en 2 renglones AFUERA del ring */}
+        <div style={{
+          marginTop:18, fontSize:9.5, fontWeight:700,
+          color:'rgba(255,255,255,0.55)', letterSpacing:'0.22em', textTransform:'uppercase',
+          textAlign:'center', lineHeight:1.6,
+        }}>
+          Escudo<br/>activo
         </div>
       </div>
 
       <div style={{
         display:'inline-flex', alignItems:'center', gap:6,
         padding:'5px 11px 5px 9px', borderRadius:999,
-        background:'rgba(255,107,107,0.1)',
-        border:'0.5px solid rgba(255,107,107,0.3)',
-        color:'rgba(255,140,140,0.95)',
+        background:'rgba(255,107,107,0.14)',
+        border:'0.5px solid rgba(255,107,107,0.35)',
+        backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+        color:'rgba(255,160,160,1)',
         fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
         marginBottom:14, position:'relative', zIndex:1,
       }}>
@@ -830,27 +857,26 @@ function DisableProtectionConfirmModal() {
       </div>
 
       <h1 style={{
-        margin:'0 0 8px', fontSize:22, fontWeight:800,
-        color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
+        margin:'0 0 10px', fontSize:22, fontWeight:800,
+        color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.22,
         fontFamily:'var(--ff-display)', textAlign:'center', position:'relative', zIndex:1,
         maxWidth:300,
       }}>
         ¿Soltar la mente al ruido?
       </h1>
       <p style={{
-        margin:'0 0 22px', fontSize:13, color:'var(--ink-3)',
-        textAlign:'center', lineHeight:1.5, maxWidth:320, position:'relative', zIndex:1,
+        margin:'0 0 22px', fontSize:12.5, color:'rgba(255,255,255,0.65)',
+        textAlign:'center', lineHeight:1.5, maxWidth:300, position:'relative', zIndex:1,
       }}>
         Si apagas la protección, las apps quedan libres durante el resto de la sesión.
-        Tu cronómetro sigue, pero el escudo deja de cuidarte.
       </p>
 
       <button onClick={onCancel} className="mtx-tap" style={{
         width:'100%', maxWidth:320, height:52, borderRadius:18, border:0, cursor:'pointer',
-        background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+        background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.9)), var(--neon-deep, #1ad9ad))',
         color:'#0a1410', fontSize:15, fontWeight:700,
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-        boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+        boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 14px 36px -10px rgba(61,255,209,0.6), inset 0 1px 0 rgba(255,255,255,0.4)',
         marginBottom:10, position:'relative', zIndex:1,
       }}>
         Mantener mi escudo
@@ -858,7 +884,7 @@ function DisableProtectionConfirmModal() {
 
       <button onClick={onConfirm} className="mtx-tap" style={{
         background:'transparent', border:0, cursor:'pointer',
-        color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
+        color:'rgba(255,140,140,0.92)', fontSize:13, fontWeight:600,
         fontFamily:'var(--ff-sans)', padding:'8px 12px',
         position:'relative', zIndex:1,
       }}>

@@ -2,6 +2,96 @@
 
 const BREAK_OPTIONS = [5, 10, 15, 20, 30];
 
+// ── ConfirmAuroraBackground ──────────────────────────────────────────────────
+// Background "aurora" para los modales de confirmación (ReflectionDelayScreen,
+// DisableProtectionConfirmModal). 3 blobs radial-gradient con blur, animados
+// con keyframes desfasados — simulan aurora viva. Un veil sutil encima para
+// que el texto se lea sin matar la luz del fondo.
+//
+// Themes rotativos: cada vez que se monta un modal se incrementa el índice
+// global en `window.__mtxConfirmModalThemeIdx`, así sesiones consecutivas
+// ven paletas distintas y el modal se siente vivo en lugar de repetitivo.
+const _MODAL_THEMES = [
+  // 0 · aurora-green: neon + lavanda + cielo. Default, contraste alto.
+  { name:'aurora-green',  colors:['rgba(61,255,209,0.35)', 'rgba(155,138,255,0.26)', 'rgba(106,184,255,0.22)'] },
+  // 1 · sunset-amber: dorado + coral + violeta. Cálido, atardecer.
+  { name:'sunset-amber',  colors:['rgba(255,194,107,0.35)', 'rgba(255,107,107,0.24)', 'rgba(155,138,255,0.22)'] },
+  // 2 · ocean-deep: azul + cyan + teal. Frío, calmo.
+  { name:'ocean-deep',    colors:['rgba(94,195,255,0.34)', 'rgba(61,255,209,0.22)', 'rgba(125,116,225,0.22)'] },
+  // 3 · forest-emerald: lima + verde + cielo. Vegetal, aterrizado.
+  { name:'forest-emerald',colors:['rgba(155,212,94,0.30)', 'rgba(61,255,209,0.24)', 'rgba(94,195,255,0.20)'] },
+];
+
+function _pickAndAdvanceModalTheme() {
+  if (typeof window === 'undefined') return _MODAL_THEMES[0];
+  const idx = window.__mtxConfirmModalThemeIdx ?? 0;
+  const theme = _MODAL_THEMES[idx % _MODAL_THEMES.length];
+  window.__mtxConfirmModalThemeIdx = (idx + 1) % _MODAL_THEMES.length;
+  return theme;
+}
+
+function ConfirmAuroraBackground({ theme }) {
+  const t = theme || _MODAL_THEMES[0];
+  return (
+    <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+      <style>{`
+        @keyframes mtxAurora0 {
+          0%   { transform:translate(0, 0) scale(1);     opacity:0.65; }
+          50%  { transform:translate(40px, -28px) scale(1.18); opacity:0.92; }
+          100% { transform:translate(-22px, 20px) scale(0.96); opacity:0.72; }
+        }
+        @keyframes mtxAurora1 {
+          0%   { transform:translate(0, 0) scale(1);     opacity:0.6; }
+          50%  { transform:translate(-32px, 26px) scale(1.12); opacity:0.85; }
+          100% { transform:translate(20px, -18px) scale(1.02); opacity:0.7; }
+        }
+        @keyframes mtxAurora2 {
+          0%   { transform:translate(0, 0) scale(1);     opacity:0.55; }
+          50%  { transform:translate(24px, 22px) scale(1.10); opacity:0.78; }
+          100% { transform:translate(-26px, -16px) scale(0.98); opacity:0.66; }
+        }
+      `}</style>
+      {/* Capa base oscura — apenas tinta, deja que la aurora protagonice */}
+      <div style={{ position:'absolute', inset:0, background:'#0a0d0a' }}/>
+      {/* 3 blobs aurora — tamaño grande + blur + animación lenta */}
+      <div style={{
+        position:'absolute', top:'-10%', left:'-15%', width:520, height:520, borderRadius:'50%',
+        background:`radial-gradient(circle, ${t.colors[0]} 0%, transparent 65%)`,
+        filter:'blur(60px)',
+        animation:'mtxAurora0 14s ease-in-out infinite alternate',
+      }}/>
+      <div style={{
+        position:'absolute', top:'30%', right:'-20%', width:560, height:560, borderRadius:'50%',
+        background:`radial-gradient(circle, ${t.colors[1]} 0%, transparent 65%)`,
+        filter:'blur(70px)',
+        animation:'mtxAurora1 18s ease-in-out infinite alternate',
+      }}/>
+      <div style={{
+        position:'absolute', bottom:'-15%', left:'25%', width:480, height:480, borderRadius:'50%',
+        background:`radial-gradient(circle, ${t.colors[2]} 0%, transparent 65%)`,
+        filter:'blur(60px)',
+        animation:'mtxAurora2 16s ease-in-out infinite alternate',
+      }}/>
+      {/* Veil sutil para legibilidad sin matar la luz */}
+      <div style={{
+        position:'absolute', inset:0,
+        background:'linear-gradient(180deg, rgba(10,13,10,0.35) 0%, rgba(10,13,10,0.55) 100%)',
+      }}/>
+    </div>
+  );
+}
+
+// Hook simple: alterna entre "Respira" y "Suelta" cada 5 segundos. Pensado
+// para acompañar el countdown de 10s — el usuario ve dos transiciones suaves.
+function useBreathPhase(intervalMs = 5000) {
+  const [phase, setPhase] = React.useState(0); // 0 = "Respira", 1 = "Suelta"
+  React.useEffect(() => {
+    const id = setInterval(() => setPhase(p => 1 - p), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return phase === 0 ? 'Respira' : 'Suelta';
+}
+
 // ── BreakPickerSheet ──────────────────────────────────────────────────────────
 function BreakPickerSheet({ onClose, onPick, breakCount = 2 }) {
   const [picked, setPicked] = React.useState(5);
@@ -290,98 +380,117 @@ function ReflectionDelayScreen({
   }, []);
 
   const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
-  // Ring grande arriba — protagonista visual del modal. R=64 (140x140), grueso
-  // 4px, glow neon para reforzar que el destino del countdown es "volver al
-  // enfoque" (el primary). El número adentro es grande y tabular-nums.
-  const ringR = 64, ringC = 2 * Math.PI * ringR;
+  // Ring 180x180 (R=82). Más grande, más respiración, más presencia.
+  const ringR = 82, ringC = 2 * Math.PI * ringR;
+
+  // Theme rotativo + breath phase ("Respira" / "Suelta" alternando 5s)
+  const theme = React.useMemo(() => _pickAndAdvanceModalTheme(), []);
+  const breathText = useBreathPhase(5000);
 
   return (
     <div style={{
-      position:'absolute', inset:0, zIndex:95,
-      background:'rgba(0,0,0,0.82)',
-      backdropFilter:'blur(20px) saturate(140%)',
-      WebkitBackdropFilter:'blur(20px) saturate(140%)',
+      position:'absolute', inset:0, zIndex:200,
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-      padding:'40px 28px',
-      animation:'mtx-fade-up .28s ease',
+      padding:'32px 28px',
+      animation:'mtx-fade-up .32s ease',
+      overflow:'hidden',
+      // Fallback opaco — si el aurora no pinta, al menos el modal tapa lo de abajo
+      background:'#0a0d0a',
     }}>
-      {/* Halo neon detrás del ring para darle presencia */}
-      <div style={{
-        position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
-        width:280, height:160, borderRadius:'50%',
-        background:'radial-gradient(50% 100% at 50% 50%, rgba(61,255,209,0.18), transparent 70%)',
-        filter:'blur(32px)', pointerEvents:'none',
-      }}/>
+      <ConfirmAuroraBackground theme={theme}/>
 
-      {/* Ring countdown grande — arriba como protagonista. Se va completando
-          en 10s; al llegar a 0, el modal se auto-cancela y vuelve al enfoque. */}
-      <div style={{ position:'relative', width:140, height:140, marginBottom:22, zIndex:1 }}>
-        <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform:'rotate(-90deg)' }}>
-          <defs>
-            <linearGradient id="reflect-grad" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0" stopColor="#6affd9"/>
-              <stop offset="1" stopColor="#1ad9ad"/>
-            </linearGradient>
-            <filter id="reflect-glow">
-              <feGaussianBlur stdDeviation="2.5"/>
-              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-          <circle cx="70" cy="70" r={ringR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3.5"/>
-          <circle cx="70" cy="70" r={ringR} fill="none"
-            stroke="url(#reflect-grad)" strokeWidth="4" strokeLinecap="round"
-            strokeDasharray={ringC}
-            strokeDashoffset={ringC * (1 - ringPct)}
-            filter="url(#reflect-glow)"
-            style={{ transition:'stroke-dashoffset 1s linear' }}/>
-        </svg>
-        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+      {/* Bloque ring — el héroe visual del modal */}
+      <div style={{
+        display:'flex', flexDirection:'column', alignItems:'center',
+        marginBottom:36, position:'relative', zIndex:1,
+      }}>
+        <div style={{ position:'relative', width:180, height:180 }}>
+          {/* Halo extra alrededor del ring para que respire visual */}
           <div style={{
-            fontSize:46, fontWeight:600, color:'var(--neon)',
-            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
-            fontFamily:'var(--ff-display)',
-          }}>{seconds}</div>
-          <div style={{
-            fontSize:9, fontWeight:700, color:'var(--ink-3)', marginTop:6,
-            letterSpacing:'0.14em', textTransform:'uppercase',
-          }}>
-            volviendo al foco
+            position:'absolute', inset:-30, borderRadius:'50%',
+            background:'radial-gradient(50% 50% at 50% 50%, rgba(61,255,209,0.22), transparent 70%)',
+            filter:'blur(20px)', pointerEvents:'none',
+          }}/>
+          <svg width="180" height="180" viewBox="0 0 180 180" style={{ transform:'rotate(-90deg)', position:'relative' }}>
+            <defs>
+              <linearGradient id="reflect-grad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#6affd9"/>
+                <stop offset="1" stopColor="#1ad9ad"/>
+              </linearGradient>
+              <filter id="reflect-glow">
+                <feGaussianBlur stdDeviation="3"/>
+                <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <circle cx="90" cy="90" r={ringR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3"/>
+            <circle cx="90" cy="90" r={ringR} fill="none"
+              stroke="url(#reflect-grad)" strokeWidth="4.5" strokeLinecap="round"
+              strokeDasharray={ringC}
+              strokeDashoffset={ringC * (1 - ringPct)}
+              filter="url(#reflect-glow)"
+              style={{ transition:'stroke-dashoffset 1s linear' }}/>
+          </svg>
+          {/* Número grande adentro + label "Respira/Suelta" abajo */}
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <div style={{
+              fontSize:62, fontWeight:600, color:'var(--neon)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+              fontFamily:'var(--ff-display)',
+              textShadow:'0 0 24px rgba(61,255,209,0.5)',
+            }}>{seconds}</div>
+            <div style={{
+              fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.85)', marginTop:8,
+              letterSpacing:'0.18em', textTransform:'uppercase',
+              transition:'opacity .4s ease',
+            }} key={breathText}>
+              {breathText}
+            </div>
           </div>
+        </div>
+
+        {/* "Volviendo / al foco" en 2 renglones AFUERA del ring, debajo */}
+        <div style={{
+          marginTop:18, fontSize:9.5, fontWeight:700,
+          color:'rgba(255,255,255,0.55)', letterSpacing:'0.22em', textTransform:'uppercase',
+          textAlign:'center', lineHeight:1.6,
+        }}>
+          Volviendo<br/>al foco
         </div>
       </div>
 
+      {/* Eyebrow de advertencia */}
       <div style={{
         display:'inline-flex', alignItems:'center', gap:6,
         padding:'5px 11px 5px 9px', borderRadius:999,
-        background:'rgba(255,107,107,0.1)',
-        border:'0.5px solid rgba(255,107,107,0.3)',
-        color:'rgba(255,140,140,0.95)',
+        background:'rgba(255,107,107,0.14)',
+        border:'0.5px solid rgba(255,107,107,0.35)',
+        backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+        color:'rgba(255,160,160,1)',
         fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
         marginBottom:14, position:'relative', zIndex:1,
       }}>
         <span style={{
-          width:6, height:6, borderRadius:999, background:'rgba(255,107,107,0.95)',
-          boxShadow:'0 0 8px rgba(255,107,107,0.6)',
+          width:6, height:6, borderRadius:999, background:'rgba(255,107,107,1)',
+          boxShadow:'0 0 8px rgba(255,107,107,0.7)',
         }}/>
         Romper el momentum
       </div>
 
       <h1 style={{
-        margin:'0 0 8px', fontSize:24, fontWeight:800,
-        color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.18,
+        margin:'0 0 10px', fontSize:23, fontWeight:800,
+        color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.2,
         fontFamily:'var(--ff-display)', textAlign:'center', position:'relative', zIndex:1,
       }}>
         Tu mente se está afilando.
         <br/>¿Detener ahora?
       </h1>
       <p style={{
-        margin:'0 0 18px', fontSize:13, color:'var(--ink-3)',
-        textAlign:'center', lineHeight:1.5, maxWidth:300, position:'relative', zIndex:1,
+        margin:'0 0 18px', fontSize:12.5, color:'rgba(255,255,255,0.65)',
+        textAlign:'center', lineHeight:1.5, maxWidth:280, position:'relative', zIndex:1,
       }}>
         Llevas <span style={{ color:'var(--neon)', fontWeight:700 }}>{elapsedMin} min</span> sosteniendo el foco. Estás a un paso de cerrar el ritual.
       </p>
 
-      {/* Stats grid — 1 renglón cada card. */}
       <div style={{
         display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
         width:'100%', maxWidth:320, marginBottom:18,
@@ -389,10 +498,11 @@ function ReflectionDelayScreen({
       }}>
         <div style={{
           padding:'10px 12px', borderRadius:14,
-          background:'rgba(255,255,255,0.03)',
-          border:'0.5px solid rgba(255,255,255,0.06)',
+          background:'rgba(255,255,255,0.06)',
+          border:'0.5px solid rgba(255,255,255,0.1)',
+          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
         }}>
-          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:4 }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(255,255,255,0.55)', marginBottom:4 }}>
             Te faltan
           </div>
           <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
@@ -401,15 +511,16 @@ function ReflectionDelayScreen({
               fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
               fontFamily:'var(--ff-display)',
             }}>{remainingMin}</span>
-            <span style={{ fontSize:11, color:'var(--ink-3)' }}>min</span>
+            <span style={{ fontSize:11, color:'rgba(255,255,255,0.55)' }}>min</span>
           </div>
         </div>
         <div style={{
           padding:'10px 12px', borderRadius:14,
-          background:'rgba(255,255,255,0.03)',
-          border:'0.5px solid rgba(255,255,255,0.06)',
+          background:'rgba(255,255,255,0.06)',
+          border:'0.5px solid rgba(255,255,255,0.1)',
+          backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
         }}>
-          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:4 }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(255,255,255,0.55)', marginBottom:4 }}>
             En curso
           </div>
           <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
@@ -418,17 +529,17 @@ function ReflectionDelayScreen({
               fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
               fontFamily:'var(--ff-display)',
             }}>{pendingRituals}</span>
-            <span style={{ fontSize:11, color:'var(--ink-3)' }}>pendientes</span>
+            <span style={{ fontSize:11, color:'rgba(255,255,255,0.55)' }}>pendientes</span>
           </div>
         </div>
       </div>
 
       <button onClick={onCancel} className="mtx-tap" style={{
         width:'100%', maxWidth:320, height:52, borderRadius:18, border:0, cursor:'pointer',
-        background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+        background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.9)), var(--neon-deep, #1ad9ad))',
         color:'#0a1410', fontSize:15, fontWeight:700,
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-        boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+        boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 14px 36px -10px rgba(61,255,209,0.6), inset 0 1px 0 rgba(255,255,255,0.4)',
         marginBottom:10, position:'relative', zIndex:1,
       }}>
         Volver al enfoque
@@ -436,7 +547,7 @@ function ReflectionDelayScreen({
 
       <button onClick={onConfirm} className="mtx-tap" style={{
         background:'transparent', border:0, cursor:'pointer',
-        color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
+        color:'rgba(255,140,140,0.92)', fontSize:13, fontWeight:600,
         fontFamily:'var(--ff-sans)', padding:'8px 12px',
         position:'relative', zIndex:1,
       }}>
@@ -745,4 +856,7 @@ Object.assign(window, {
   // es ahora contextual dentro de la card de apps protegidas (Fase A).
   BreakPickerSheet, BreakActiveScreen,
   ReflectionDelayScreen, CompletionScreen, SessionInterruptedScreen,
+  // Reutilizables para otros modales de confirmación (DisableProtectionConfirmModal)
+  ConfirmAuroraBackground, useBreathPhase,
+  _pickAndAdvanceModalTheme,
 });
