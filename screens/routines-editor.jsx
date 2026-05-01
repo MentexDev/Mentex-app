@@ -341,30 +341,30 @@ function RoutineRow({ routine: r, bouncing, menuOpen, isActive = false, onActive
           </div>
         </div>
 
-        {/* Acciones secundarias: lápiz (editar — solo custom) + checkbox
-            (seleccionar/activar). El tap en row ya toggle activo, así que
-            el checkbox refleja state visualmente sin handler propio.
-            Para defaults solo aparece el checkbox (no son editables). */}
+        {/* Acciones secundarias: lápiz (editar) + checkbox (seleccionar/activar).
+            El tap en row ya toggle activo, así que el checkbox refleja state
+            visualmente sin handler propio.
+            Defaults también muestran el menú "···" — opciones adaptadas
+            (Editar + Duplicar; Eliminar solo en custom para preservar
+            las rutinas base de la app). */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          {!isDefault && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onMenuToggle(); }}
-              className="mtx-tap"
-              aria-label="Opciones"
-              style={{
-                appearance: 'none', cursor: 'pointer',
-                width: 32, height: 32, borderRadius: 8, border: 0,
-                background: menuOpen ? 'rgba(255,255,255,0.10)' : 'transparent',
-                color: 'var(--ink-2)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <circle cx="5" cy="12" r="1.4" fill="currentColor"/>
-                <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-                <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onMenuToggle(); }}
+            className="mtx-tap"
+            aria-label="Opciones"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: 32, height: 32, borderRadius: 8, border: 0,
+              background: menuOpen ? 'rgba(255,255,255,0.10)' : 'transparent',
+              color: 'var(--ink-2)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <circle cx="5" cy="12" r="1.4" fill="currentColor"/>
+              <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+              <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
+            </svg>
+          </button>
           {/* Checkbox circular accent — refleja isActive visualmente.
               No tiene onClick propio: el tap en row entero (línea arriba)
               dispara onActiveToggle, que es más fácil de tocar en mobile
@@ -386,8 +386,9 @@ function RoutineRow({ routine: r, bouncing, menuOpen, isActive = false, onActive
         </div>
       </div>
 
-      {/* Popover menú (solo custom) */}
-      {menuOpen && !isDefault && (
+      {/* Popover menú — Editar + Duplicar siempre visibles (defaults editables);
+          Eliminar solo para custom (las defaults son base de la app). */}
+      {menuOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -410,10 +411,14 @@ function RoutineRow({ routine: r, bouncing, menuOpen, isActive = false, onActive
           <button onClick={onDuplicate} className="mtx-tap" style={menuItemStyle()}>
             <IcPlus size={14} stroke="currentColor"/> Duplicar
           </button>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '2px 4px' }}/>
-          <button onClick={onDelete} className="mtx-tap" style={menuItemStyle('#FF6B70')}>
-            <IcClose size={13} stroke="currentColor" strokeWidth={2.4}/> Eliminar
-          </button>
+          {!isDefault && (
+            <>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '2px 4px' }}/>
+              <button onClick={onDelete} className="mtx-tap" style={menuItemStyle('#FF6B70')}>
+                <IcClose size={13} stroke="currentColor" strokeWidth={2.4}/> Eliminar
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -434,18 +439,74 @@ const menuItemStyle = (color) => ({
 });
 
 // ─────────────────────────────────────────────────────────────
+// _METRIC_TYPES — tipos de medición soportados.
+// Default: 'duration' (legado de pre-feature). Cada tipo define su propio
+// rango de slider, unidad y label. 'binary' no tiene slider — la rutina
+// solo se marca como hecha al completar.
+// ─────────────────────────────────────────────────────────────
+const _METRIC_TYPES = [
+  { id: 'duration', label: 'Duración',  unit: 'min',   defaultValue: 15, min: 5,  max: 60, step: 5,  ticks: [5,15,30,45,60] },
+  { id: 'count',    label: 'Cantidad',  unit: 'veces', defaultValue: 3,  min: 1,  max: 20, step: 1,  ticks: [1,5,10,15,20]  },
+  { id: 'pages',    label: 'Páginas',   unit: 'pp',    defaultValue: 10, min: 1,  max: 50, step: 1,  ticks: [5,10,20,30,50] },
+  { id: 'binary',   label: 'Hecho',     unit: '',      defaultValue: 0,  slider: false },
+];
+const _getMetricType = (id) => _METRIC_TYPES.find(t => t.id === id) || _METRIC_TYPES[0];
+
+// Compose el dur display string para una rutina.
+//   duration → "15 min"
+//   count    → "3 veces"
+//   pages    → "10 pp"
+//   binary   → "Hecho"
+const _composeDur = (metricType, value, unit) => {
+  if (metricType === 'binary') return 'Hecho';
+  return `${value} ${unit}`.trim();
+};
+
+// Backward compat: rutinas pre-feature solo tienen `dur` y no `metricType`.
+// Inferimos el tipo del sufijo de la string ("15 min" → duration con value=15).
+// El tipo default es 'duration' para evitar romper rutinas existentes.
+const _inferMetricFromLegacy = (legacyDur) => {
+  if (!legacyDur || typeof legacyDur !== 'string') return { metricType: 'duration', metricValue: 15 };
+  const numMatch = legacyDur.match(/(\d+)/);
+  const value = numMatch ? parseInt(numMatch[1], 10) : 15;
+  if (/min/i.test(legacyDur))   return { metricType: 'duration', metricValue: value };
+  if (/veces/i.test(legacyDur)) return { metricType: 'count',    metricValue: value };
+  if (/pp/i.test(legacyDur))    return { metricType: 'pages',    metricValue: value };
+  if (/hecho/i.test(legacyDur)) return { metricType: 'binary',   metricValue: 0     };
+  return { metricType: 'duration', metricValue: value };
+};
+
+// ─────────────────────────────────────────────────────────────
 // RoutineCreateSheet — wizard de crear/editar rutina
 // ─────────────────────────────────────────────────────────────
 function RoutineCreateSheet({ mode = 'create', initial, onSave, onClose }) {
+  // Backward compat: si initial trae metricType lo usa; si no, lo deriva
+  // del dur legado (pre-feature).
+  const _initialMetric = React.useMemo(() => {
+    if (initial?.metricType) {
+      return { metricType: initial.metricType, metricValue: initial.metricValue ?? _getMetricType(initial.metricType).defaultValue };
+    }
+    return _inferMetricFromLegacy(initial?.dur);
+  }, [initial?.id]);
+
   const [name, setName] = React.useState(initial?.label || '');
-  const [duration, setDuration] = React.useState(() => {
-    if (!initial?.dur) return 15;
-    const m = initial.dur.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : 15;
-  });
+  const [metricType, setMetricType] = React.useState(_initialMetric.metricType);
+  const [metricValue, setMetricValue] = React.useState(_initialMetric.metricValue);
   const [iconId, setIconId] = React.useState(initial?.iconId || 'leaf');
   const [colorId, setColorId] = React.useState(initial?.colorId || 'neon');
   const [exiting, setExiting] = React.useState(false);
+
+  // Cambiar el tipo de métrica resetea el value al default del nuevo tipo
+  // (ej. 15 min → 3 veces). Evita estados raros como "60 veces" si el usuario
+  // cambia desde duration.
+  const handleMetricTypeChange = (nextTypeId) => {
+    if (nextTypeId === metricType) return;
+    const next = _getMetricType(nextTypeId);
+    setMetricType(nextTypeId);
+    setMetricValue(next.defaultValue);
+  };
+
+  const currentMetric = _getMetricType(metricType);
 
   const handleClose = () => {
     setExiting(true);
@@ -461,12 +522,18 @@ function RoutineCreateSheet({ mode = 'create', initial, onSave, onClose }) {
     onSave({
       id,
       label: trimmed,
-      dur: `${duration} min`,
+      dur: _composeDur(metricType, metricValue, currentMetric.unit),
+      metricType,
+      metricValue,
+      metricUnit: currentMetric.unit,
       iconId,
       colorId,
       Ic,
       accent,
       kind: initial?.kind,
+      // Preserva isDefault para que defaults editables sigan siendo defaults
+      // (no se "conviertan en custom" al editarlas).
+      isDefault: initial?.isDefault === true,
     });
   };
 
@@ -563,7 +630,7 @@ function RoutineCreateSheet({ mode = 'create', initial, onSave, onClose }) {
               {name || <span style={{ color: 'var(--ink-3)' }}>Tu rutina</span>}
             </div>
             <div style={{ marginTop: 2, fontSize: 12, color: 'var(--ink-3)' }}>
-              {duration} min
+              {_composeDur(metricType, metricValue, currentMetric.unit)}
             </div>
           </div>
 
@@ -591,14 +658,90 @@ function RoutineCreateSheet({ mode = 'create', initial, onSave, onClose }) {
             />
           </FieldGroup>
 
-          {/* Campo: Duración (slider) */}
-          <FieldGroup label="Duración" rightSlot={
-            <span style={{ fontSize: 13, color: accent, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-              {duration} min
-            </span>
-          }>
-            <DurationSlider value={duration} onChange={setDuration} accent={accent}/>
+          {/* Campo: Tipo de medición — pills horizontales scroll-x */}
+          <FieldGroup label="Tipo de medición">
+            <div className="mtx-scroll-x" style={{
+              display: 'flex', gap: 8, padding: '0 0 4px',
+            }}>
+              {_METRIC_TYPES.map((t) => {
+                const active = t.id === metricType;
+                return (
+                  <button key={t.id}
+                    onClick={() => handleMetricTypeChange(t.id)}
+                    className="mtx-tap"
+                    style={{
+                      flexShrink: 0,
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '9px 16px',
+                      borderRadius: 999,
+                      border: active ? `0.5px solid ${accent}66` : '0.5px solid rgba(255,255,255,0.08)',
+                      background: active
+                        ? `linear-gradient(180deg, ${accent}1f, ${accent}05)`
+                        : 'rgba(255,255,255,0.03)',
+                      color: active ? accent : 'var(--ink-2)',
+                      fontFamily: 'var(--ff-sans)', fontSize: 13,
+                      fontWeight: active ? 600 : 500,
+                      letterSpacing: '-0.005em',
+                      boxShadow: active ? `0 0 14px ${accent}33, inset 0 0 12px ${accent}10` : 'none',
+                      transition: 'all .22s cubic-bezier(.34,1.56,.64,1)',
+                    }}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
           </FieldGroup>
+
+          {/* Campo: valor de medición — slider para duration/count/pages,
+              info card para binary (no requiere valor numérico). */}
+          {currentMetric.slider !== false ? (
+            <FieldGroup
+              label={currentMetric.label}
+              rightSlot={
+                <span style={{ fontSize: 13, color: accent, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                  {metricValue} {currentMetric.unit}
+                </span>
+              }>
+              <MetricSlider
+                value={metricValue}
+                onChange={setMetricValue}
+                accent={accent}
+                min={currentMetric.min}
+                max={currentMetric.max}
+                step={currentMetric.step}
+                ticks={currentMetric.ticks}
+              />
+            </FieldGroup>
+          ) : (
+            <FieldGroup label="Cómo se completa">
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: 12,
+                background: `linear-gradient(180deg, ${accent}10, ${accent}03)`,
+                border: `0.5px solid ${accent}22`,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: `${accent}22`,
+                  border: `0.5px solid ${accent}44`,
+                  color: accent,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <IcCheck size={16} stroke="currentColor" strokeWidth={2.4}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)', letterSpacing: '-0.005em' }}>
+                    Hábito binario
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2, lineHeight: 1.4 }}>
+                    Sin medición específica — la rutina se marca como hecha al completarla.
+                  </div>
+                </div>
+              </div>
+            </FieldGroup>
+          )}
 
           {/* Campo: Ícono — scroll horizontal */}
           <FieldGroup label="Ícono">
@@ -701,10 +844,14 @@ function FieldGroup({ label, rightSlot, children }) {
   );
 }
 
-function DurationSlider({ value, onChange, accent }) {
-  const min = 5, max = 60, step = 5;
-  const pct = ((value - min) / (max - min)) * 100;
-  const ticks = [5, 15, 30, 45, 60];
+// MetricSlider — slider genérico que reemplaza al DurationSlider previo.
+// Recibe min/max/step/ticks como props (parametrizado por el tipo de
+// métrica seleccionado en el RoutineCreateSheet). Los ticks se muestran
+// sin sufijo de unidad para mantenerlo limpio (la unidad ya se ve en el
+// rightSlot del FieldGroup).
+function MetricSlider({ value, onChange, accent, min = 5, max = 60, step = 5, ticks = [5,15,30,45,60] }) {
+  const range = Math.max(1, max - min);
+  const pct = Math.max(0, Math.min(100, ((value - min) / range) * 100));
 
   return (
     <div>
@@ -768,7 +915,7 @@ function DurationSlider({ value, onChange, accent }) {
             color: value === t ? accent : 'var(--ink-3)',
             fontWeight: value === t ? 600 : 400,
             transition: 'all .2s ease',
-          }}>{t}m</span>
+          }}>{t}</span>
         ))}
       </div>
     </div>
