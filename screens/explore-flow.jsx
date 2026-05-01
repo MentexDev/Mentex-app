@@ -5423,12 +5423,17 @@ function AddContentScreen({ playlist, onBack }) {
         )}
       </div>
 
-      {/* Sticky footer — flota sobre el contenido, encima de la tab bar */}
+      {/* Sticky footer — flota sobre el contenido, encima de la tab bar.
+          zIndex 245 para aparecer también encima del ActivityRunnerOverlay
+          (z=200), queue sheet (z=230), AddContentScreen wrapper (z=235) y
+          PlaylistSwitcherSheet (z=240) cuando AddContentScreen está montado
+          dentro del runner. Solo se renderiza con selected.size>0, así que
+          no tapa nada en flujos sin selección. */}
       {selected.size > 0 && (() => {
         const overlayRoot = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
         const footer = (
           <div style={{
-            position:'absolute', left:12, right:12, bottom:96, zIndex:50,
+            position:'absolute', left:12, right:12, bottom:96, zIndex:245,
             padding:'10px',
             borderRadius:18,
             background:'rgba(12,15,14,0.88)',

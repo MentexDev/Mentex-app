@@ -85,10 +85,10 @@ function _buildRunnerPlaylist(activity) {
   const accent = activity?.accent || '#3dffd1';
   return {
     id: 'runner-suggestions',
-    title: 'Tu ritual de hoy',
+    title: 'Sugerencias para ti',
     author: { name: 'Mentex', isOfficial: true },
     isWatchLater: false,                          // NO es watch-later
-    _eyebrowOverride: 'Recomendados para ti',     // override del eyebrow del queue sheet
+    _eyebrowOverride: 'Cola de reproducción',     // override del eyebrow del queue sheet
     isPublic: false,
     createdBy: 'mentex',
     accent,
@@ -524,13 +524,13 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
               letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:3,
             }}>
               <IcList size={10} stroke="currentColor" strokeWidth={2}/>
-              Recomendados para ti
+              Cola de reproducción
             </div>
             <div style={{
               fontSize:16, fontWeight:800, color:'var(--ink-1)',
               letterSpacing:'-0.018em', lineHeight:1.18,
               fontFamily:'var(--ff-display)',
-            }}>Tu ritual de hoy</div>
+            }}>Sugerencias para ti</div>
             <div style={{ fontSize:11.5, color:'rgba(255,255,255,0.5)', marginTop:1, letterSpacing:'-0.005em' }}>
               {suggestionCount} {suggestionCount === 1 ? 'item' : 'items'}
             </div>
@@ -1149,6 +1149,27 @@ function ActivityRunnerOverlay() {
             playlist={runnerPlaylist}
             onBack={handleAddContentBack}
           />
+          {/* Mini player (RunnerCompanionBar en estado activo) flotante encima
+              del AddContentScreen cuando hay item reproduciéndose. Reusa el
+              mismo componente del companion del runner para diseño consistente. */}
+          {currentItem && (
+            <div style={{
+              position:'absolute', left:0, right:0, bottom:8,
+              pointerEvents:'auto',
+            }}>
+              <RunnerCompanionBar activity={activity} suggestionCount={runnerItems.length}/>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Mini player flotante también encima del queue sheet, para que el
+          usuario sepa qué está reproduciéndose mientras navega la cola. */}
+      {queueOpen && currentItem && (
+        <div style={{
+          position:'absolute', left:0, right:0, bottom:8, zIndex:232,
+          pointerEvents:'auto',
+        }}>
+          <RunnerCompanionBar activity={activity} suggestionCount={runnerItems.length}/>
         </div>
       )}
     </>
