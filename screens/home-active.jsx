@@ -276,16 +276,20 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
 
   // Completed today — cuando el runner alcanza 100% (auto-complete o
   // markComplete), __mtxRunnerCompleted.mark(a.id) hace que esta hook
-  // retorne true. La activity entera pasa a "done" visualmente:
-  // chulito ✓ en lugar del botón play, opacidad 0.5, line-through
-  // del título.
+  // retorne true. La activity entera pasa a "done" visualmente
+  // (opacity, chulito ✓, line-through) PERO sigue siendo clickeable —
+  // el usuario puede reabrir para revisar, devolverse o reiniciar. El
+  // body restaura el state como "completado" y permite modificarlo;
+  // bajar del target unmark automáticamente.
   const _useRunnerCompleted = (typeof window !== 'undefined' && window.useRunnerCompleted) || (() => false);
   const completedToday = _useRunnerCompleted(a.id);
   const effectiveDone = a.done || completedToday;
 
-  const isClickable = !effectiveDone;
+  // Siempre clickeable — incluyendo activities done. El styling visual
+  // (opacity, chulito ✓) sigue reflejando el estado completado, pero el
+  // tap reabre el runner para que el usuario pueda corregir errores.
+  const isClickable = true;
   const handleActivate = () => {
-    if (effectiveDone) return;
     if (a.playing && typeof window !== 'undefined') {
       // Atajo: si está en reproducción, salta directo al fullscreen.
       const item = window._resolveActivityToExploreItem
@@ -380,28 +384,30 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
         }}>
           <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
         </button>
-      ) : !effectiveDone ? (
-        // Botón play con anillo de progreso parcial superpuesto.
-        // Cuando el user salió del runner sin completar, el anillo
-        // muestra el % cumplido (accent neon, animado). Al completar
-        // 100% se marca como done en __mtxRunnerCompleted y este branch
-        // ya no se renderiza — el chulito ✓ se muestra en el ícono
-        // izquierdo del row (effectiveDone=true).
+      ) : (
+        // Botón con anillo SVG superpuesto al play/check.
+        //   • effectiveDone → ring lleno al 100% + IcCheck (revisable)
+        //   • partialPct > 0 → ring al % cumplido + IcPlay (continuar)
+        //   • sin progreso → ring invisible + IcPlay (empezar)
+        // En todos los casos el tap reabre el runner — el usuario puede
+        // corregir errores incluso después de completar.
         (() => {
           const SIZE = 40;
           const STROKE = 1.6;
           const R = (SIZE - STROKE) / 2;
           const C = 2 * Math.PI * R;
           const accent = a.accent || '#3dffd1';
+          const ringPct = effectiveDone ? 1 : partialPct;
+          const showRing = ringPct > 0;
           return (
             <div style={{ position:'relative', width:SIZE, height:SIZE, flexShrink:0 }}>
-              {partialPct > 0 && (
+              {showRing && (
                 <svg width={SIZE} height={SIZE} style={{ position:'absolute', inset:0, transform:'rotate(-90deg)', pointerEvents:'none' }}>
                   <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none"
                     stroke="rgba(255,255,255,0.08)" strokeWidth={STROKE}/>
                   <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none"
                     stroke={accent} strokeWidth={STROKE} strokeLinecap="round"
-                    strokeDasharray={C} strokeDashoffset={C * (1 - partialPct)}
+                    strokeDasharray={C} strokeDashoffset={C * (1 - ringPct)}
                     style={{
                       transition:'stroke-dashoffset .4s cubic-bezier(.34,1.56,.64,1)',
                       filter:`drop-shadow(0 0 4px ${accent}66)`,
@@ -410,24 +416,28 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); handleActivate(); }}
-                aria-label={`Reproducir ${a.title}${partialPct > 0 ? ` · ${Math.round(partialPct * 100)}% completado` : ''}`}
+                aria-label={effectiveDone
+                  ? `Revisar ${a.title} · completado`
+                  : `Reproducir ${a.title}${partialPct > 0 ? ` · ${Math.round(partialPct * 100)}% completado` : ''}`}
                 className="mtx-tap"
                 style={{
                   position:'absolute', inset:STROKE + 1,
                   borderRadius:999, border:0,
-                  background: partialPct > 0 ? `${accent}1a` : 'rgba(255,255,255,0.06)',
+                  background: showRing ? `${accent}1a` : 'rgba(255,255,255,0.06)',
                   display:'flex', alignItems:'center', justifyContent:'center',
                   cursor:'pointer',
-                  color: partialPct > 0 ? accent : 'var(--ink-1)',
+                  color: showRing ? accent : 'var(--ink-1)',
                   transition:'background .25s, color .25s',
                 }}
               >
-                <IcPlay size={14} stroke="currentColor"/>
+                {effectiveDone
+                  ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.6}/>
+                  : <IcPlay size={14} stroke="currentColor"/>}
               </button>
             </div>
           );
         })()
-      ) : null}
+      )}
     </div>
   );
 }

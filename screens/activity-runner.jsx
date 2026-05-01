@@ -476,17 +476,32 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
   const accent = activity?.accent || '#3dffd1';
   const copy = _resolveCopy(activity?.runnerKind);
 
-  // Restaurar progreso parcial si existe (user salió del runner antes de
-  // completar). Si no hay state previo, arranca en totalSec.
+  // Restaurar state — prioridad: 1) progreso parcial guardado;
+  // 2) activity completed (reabre con secondsLeft=0, pausado); 3) fresh.
   const _saved = (typeof window !== 'undefined' && window.__mtxRunnerProgress)
     ? window.__mtxRunnerProgress.get(activity?.id) : null;
+  const _wasCompleted = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+    ? window.__mtxRunnerCompleted.isDone(activity?.id) : false;
   const _restoredSeconds = (_saved && _saved.metricType === 'duration' && _saved.target === totalSec)
-    ? Math.max(0, _saved.current) : totalSec;
+    ? Math.max(0, _saved.current)
+    : (_wasCompleted ? 0 : totalSec);
+  // Si reabre completed, no auto-arranca el countdown — el user puede
+  // skip back o reset desde el menú "···" para volver a empezar.
+  const _initialPlaying = !_wasCompleted;
 
   const [secondsLeft, setSecondsLeft] = React.useState(_restoredSeconds);
-  const [isPlaying, setIsPlaying] = React.useState(true);
+  const [isPlaying, setIsPlaying] = React.useState(_initialPlaying);
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
+
+  // Auto-unmark cuando el user retrocede el timer (skip back / reset)
+  // sobre una activity completed — vuelve a estar pendiente.
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.__mtxRunnerCompleted || !activity?.id) return;
+    if (secondsLeft > 0 && window.__mtxRunnerCompleted.isDone(activity.id)) {
+      window.__mtxRunnerCompleted.unmark(activity.id);
+    }
+  }, [secondsLeft, activity?.id]);
 
   // Countdown del timer
   React.useEffect(() => {
@@ -825,13 +840,30 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
     : 'Cada repetición cuenta.'
   );
 
-  // Restaurar progreso parcial si existe (mismo target + métrica).
+  // Restaurar state inicial — orden de prioridad:
+  //   1. Progreso parcial guardado (user salió antes del target) → continúa.
+  //   2. Activity marcada como completed (user reabre para revisar) → current=target.
+  //   3. Default → current=0 (rutina fresh).
   const _saved = (typeof window !== 'undefined' && window.__mtxRunnerProgress)
     ? window.__mtxRunnerProgress.get(activity?.id) : null;
+  const _wasCompleted = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+    ? window.__mtxRunnerCompleted.isDone(activity?.id) : false;
   const _restoredCurrent = (_saved && _saved.metricType === metricType && _saved.target === target)
-    ? Math.max(0, Math.min(target, _saved.current)) : 0;
+    ? Math.max(0, Math.min(target, _saved.current))
+    : (_wasCompleted ? target : 0);
 
   const [current, setCurrent] = React.useState(_restoredCurrent);
+
+  // Si el user reabre una activity completed y modifica el state hacia
+  // abajo (decrement, reset, quickAdd que aterriza menos por floating),
+  // se desmarca automáticamente — la activity vuelve a estar pendiente
+  // hasta que el ring vuelva a llenarse.
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.__mtxRunnerCompleted || !activity?.id) return;
+    if (current < target && window.__mtxRunnerCompleted.isDone(activity.id)) {
+      window.__mtxRunnerCompleted.unmark(activity.id);
+    }
+  }, [current, target, activity?.id]);
   // Step size — cuánto suma cada tap del botón "+1".
   //   • count, pages → 1 (siempre entero).
   //   • distance     → user puede elegir 0.1 / 0.25 / 0.5 / 1 km desde
@@ -1121,9 +1153,12 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
-  // Estado: marked toggle. Mientras false, ring vacío; tras tap pasa a
-  // true, ring se anima al 100% y tras 380 ms abre completion screen.
-  const [marked, setMarked] = React.useState(false);
+  // Estado: marked toggle. Si la activity ya estaba completed (user
+  // reabre para revisar), arranca en true. El user puede tap el botón
+  // para desmarcar — útil para corregir un tap accidental.
+  const _wasCompleted = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+    ? window.__mtxRunnerCompleted.isDone(activity?.id) : false;
+  const [marked, setMarked] = React.useState(_wasCompleted);
   const pct = marked ? 1 : 0;
 
   // Snapshot — emite tanto al mount como al cambiar `marked`.
@@ -1143,13 +1178,30 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
 
   // Auto-complete con delay tras marcar — coherente con CounterRunnerBody
   // (380 ms): el usuario ve el ring llenarse antes del completion screen.
+  // Solo dispara cuando _justMarked es true (acción del user en este
+  // mount). Si el user reabre activity completed (marked inicial=true por
+  // _wasCompleted), NO se vuelve a abrir el completion screen — el state
+  // ya está marcado, el user vino solo a revisar.
+  const [_justMarked, setJustMarked] = React.useState(false);
   React.useEffect(() => {
-    if (!marked) return;
+    if (!_justMarked) return;
     const t = setTimeout(() => onCompleteRef.current?.(), 480);
     return () => clearTimeout(t);
-  }, [marked]);
+  }, [_justMarked]);
 
-  const handleMarkDone = () => setMarked(true);
+  // Toggle: si marked, untap → unmark + libera (vuelve a estar pendiente).
+  // Si not marked, tap → mark + dispara completion tras delay.
+  const handleToggleMark = () => {
+    if (marked) {
+      setMarked(false);
+      if (typeof window !== 'undefined' && window.__mtxRunnerCompleted && activity?.id) {
+        window.__mtxRunnerCompleted.unmark(activity.id);
+      }
+    } else {
+      setMarked(true);
+      setJustMarked(true);
+    }
+  };
   const handleMarkComplete = () => onCompleteRef.current?.();
 
   const RING_SIZE = 232;
@@ -1250,17 +1302,22 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
         display:'flex', alignItems:'center', justifyContent:'center', gap:32,
       }}>
         <div style={{ width:48, height:48, flexShrink:0 }} aria-hidden/>
-        <button onClick={handleMarkDone} disabled={marked}
-          aria-label="Marcar como hecho"
+        {/* Botón toggle — siempre clickeable. Si marked, tap lo desmarca
+            (unmark + ring vuelve a 0). Si no, tap marca y dispara
+            completion. Permite corregir errores: tap accidental →
+            tap de nuevo y vuelve a pendiente. */}
+        <button onClick={handleToggleMark}
+          aria-label={marked ? 'Desmarcar como hecho' : 'Marcar como hecho'}
+          aria-pressed={marked}
           className="mtx-tap" style={{
-            appearance:'none', cursor: marked ? 'default' : 'pointer',
+            appearance:'none', cursor:'pointer',
             width:74, height:74, borderRadius:'50%', border:0,
             background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
             color:'#0a1410',
             display:'flex', alignItems:'center', justifyContent:'center',
             boxShadow:`0 0 0 1px ${accent}88, 0 0 44px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
             flexShrink:0,
-            opacity: marked ? 0.55 : 1,
+            opacity: marked ? 0.65 : 1,
             transform: marked ? 'scale(0.96)' : 'scale(1)',
             transition:'opacity .25s, transform .2s',
           }}>
