@@ -33,7 +33,7 @@
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=26"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=19"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=20"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
@@ -51,7 +51,8 @@
   <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
   <script type="text/babel" src="screens/global-player.jsx?v=1"></script>
-  <script type="text/babel" src="screens/ritual-player.jsx?v=4"></script>
+  <script type="text/babel" src="screens/ritual-player.jsx?v=5"></script>
+  <script type="text/babel" src="screens/activity-runner.jsx?v=1"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -399,6 +400,11 @@
                 montaje. Se abre via window.__mtxActiveQueue.openSwitcher()
                 desde cualquier PlaylistQueueSheet. */}
             {typeof ActiveQueueSwitcherOverlay !== 'undefined' && <ActiveQueueSwitcherOverlay/>}
+
+            {/* Fase C · ActivityRunner fullscreen para activities timer-puro
+                (Respirar, Visualizar, Entrenar, Estudiar). Se abre via
+                window.__mtxActivityRunner.open(activity). */}
+            {typeof ActivityRunnerOverlay !== 'undefined' && <ActivityRunnerOverlay/>}
 
             {/* User profile overlay — fase 4-B */}
             {userProfileId && typeof UserProfileScreen !== 'undefined' && (

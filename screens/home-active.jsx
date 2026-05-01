@@ -1,14 +1,25 @@
 // home-active.jsx — Sesión de enfoque activa (v5)
 
-// `exploreId` mapea cada activity a su contenido en EXPLORE_CONTENT cuando
-// existe. Si no hay exploreId (ej. Journaling, gratitud), Fase B muestra
-// un toast "próximamente" — Fase C/D habilitará ActivityRunner para esas.
+// Cada activity declara cómo se reproduce:
+//   - exploreId  : abre VideoSheet → VideoPlayerFullscreen del global player.
+//   - runnerType : 'timer' → abre ActivityRunner (Fase C, sin contenido,
+//                  sólo countdown guiado).
+//   - sin nada   : toast "próximamente" (reservado para Fase D — actividades
+//                  con input como journaling/gratitud).
+//
+// runnerKind ('breath' | 'silence' | 'movement' | 'focus') escoge el set de
+// mensajes alternantes y meta visual que muestra el ActivityRunner.
 const ACTIVITIES = [
-  { id:'a1', kind:'Meditación',      title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,   accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
-  { id:'a2', kind:'Resumen',          title:'Hábitos Atómicos',        dur:'18 min', totalSec:1080, Ic:IcBook,   accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
-  { id:'a3', kind:'Desafío · Día 3', title:'Meditación de 7 días',   dur:'12 min', totalSec:720,  Ic:IcTarget, accent:'#a8ffec', done:false,                              exploreId:'c-respira'   },
-  { id:'a4', kind:'Journaling',       title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,   accent:'#3dffd1', done:false                                                       },
-  { id:'a5', kind:'Lección',          title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,  accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
+  { id:'a1', kind:'Meditación',      title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,    accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
+  { id:'a2', kind:'Resumen',          title:'Hábitos Atómicos',        dur:'18 min', totalSec:1080, Ic:IcBook,    accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
+  { id:'a3', kind:'Respiración',     title:'Respira profundo',         dur:'5 min',  totalSec:300,  Ic:IcWind,    accent:'#5dd3ff', done:false,
+    runnerType:'timer', runnerKind:'breath',  runnerDurationSec:300,  runnerLabel:'Vuelve a tu cuerpo en cinco minutos.' },
+  { id:'a4', kind:'Journaling',       title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,    accent:'#3dffd1', done:false                                                        },
+  { id:'a5', kind:'Lección',          title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,   accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
+  { id:'a6', kind:'Visualización',   title:'Visualiza tu día',         dur:'8 min',  totalSec:480,  Ic:IcEye,     accent:'#9b8aff', done:false,
+    runnerType:'timer', runnerKind:'silence', runnerDurationSec:480,  runnerLabel:'Imagina, sostén, suelta.' },
+  { id:'a7', kind:'Entrenar',         title:'Movimiento consciente',   dur:'30 min', totalSec:1800, Ic:IcDumbbell, accent:'#FFD66B', done:false,
+    runnerType:'timer', runnerKind:'movement', runnerDurationSec:1800, runnerLabel:'Treinta minutos de presencia.' },
 ];
 
 // ── Waveform ──────────────────────────────────────────────────────────────────

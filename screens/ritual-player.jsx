@@ -121,13 +121,28 @@ function _resolveActivityToExploreItem(activity) {
 }
 
 // ── openRitualActivity ────────────────────────────────────────────────────────
-// Single entry point para abrir una activity desde el Home activo.
+// Single entry point para abrir una activity desde el Home activo. Decide
+// qué experiencia montar según el tipo:
+//   1. Resuelve a item de Explorar → abre VideoSheet (player global).
+//   2. runnerType === 'timer'      → abre ActivityRunner fullscreen (Fase C).
+//   3. Sin match                    → toast "próximamente" (Fase D pendiente).
 function openRitualActivity(activity) {
+  if (!activity) return false;
+
+  // 1. Contenido de Explorar → player global
   const item = _resolveActivityToExploreItem(activity);
   if (item) {
     window.__mtxGlobalPlayer?.openSheet(item);
     return true;
   }
+
+  // 2. Timer-only → ActivityRunner
+  if (activity.runnerType === 'timer' && window.__mtxActivityRunner) {
+    window.__mtxActivityRunner.open(activity);
+    return true;
+  }
+
+  // 3. Default → toast informativo
   if (typeof window !== 'undefined' && window.dispatchEvent) {
     window.dispatchEvent(new CustomEvent('mtx:toast', {
       detail: {
