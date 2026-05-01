@@ -956,6 +956,12 @@ function HomeActive({
   const [seconds, setSeconds] = React.useState(totalMin * 60 - 13 * 60);
   const ritualExtras = (window.useRitualItems ? window.useRitualItems() : []);
 
+  // AddContentScreen del ritual del día — se monta a fullscreen overlay
+  // cuando el usuario tap el CTA "Agregar al ritual de hoy" debajo de la
+  // lista. Reutiliza el mismo AddContentScreen del Explorar via una
+  // playlist sintética (_customAdd persiste en window.__mtxRitual).
+  const [addToRitualOpen, setAddToRitualOpen] = React.useState(false);
+
   React.useEffect(() => {
     const id = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
     return () => clearInterval(id);
@@ -1152,10 +1158,72 @@ function HomeActive({
               onRemove={() => window.__mtxRitual?.remove(extra.id)}
             />
           ))}
+
+          {/* CTA "Agregar al ritual de hoy" — reusa MtxAddMoreCard con copy
+              ajustado. Tap → abre AddContentScreen con playlist sintética. */}
+          {window.MtxAddMoreCard && (
+            <window.MtxAddMoreCard
+              onClick={() => setAddToRitualOpen(true)}
+              title="Agregar al ritual de hoy"
+              subtitle="Suma items desde Explorar"
+            />
+          )}
         </div>
       </div>
+
+      {/* AddContentScreen overlay para el ritual del día. Se monta a nivel
+          del HomeActive (no global) — solo tiene sentido en la sesión activa
+          del Home. La playlist sintética enlaza con window.__mtxRitual: los
+          items seleccionados se persisten ahí vía _customAdd. items[] lista
+          los IDs ya en el ritual (ACTIVITIES base con exploreId resoluble +
+          ritualExtras) para que AddContentScreen los excluya del listado de
+          "disponibles". */}
+      {addToRitualOpen && window.AddContentScreen && (
+        <div style={{
+          position:'absolute', inset:0, zIndex:200,
+          background:'#050706',
+          animation:'mtx-fade-up .35s ease',
+        }}>
+          <window.AddContentScreen
+            playlist={_buildRitualSyntheticPlaylist(ritualExtras)}
+            onBack={() => setAddToRitualOpen(false)}
+            footerBottomOffset={24}
+          />
+        </div>
+      )}
     </div>
   );
+}
+
+// Playlist sintética del ritual del día — wraps window.__mtxRitual para que
+// el AddContentScreen del Explorar funcione tal cual sin saber del store.
+//   items:        IDs ya presentes (ACTIVITIES base resueltas vía exploreId
+//                 + ritualExtras) → AddContentScreen los excluye del grid.
+//   _customAdd:   hook que persiste cada selección en __mtxRitual.add().
+function _buildRitualSyntheticPlaylist(ritualExtras) {
+  const baseExploreIds = ACTIVITIES
+    .map(a => a.exploreId)
+    .filter(Boolean);
+  const extraIds = (ritualExtras || []).map(x => x.id);
+  const EC = (typeof window !== 'undefined' && window.EXPLORE_CONTENT) || [];
+  return {
+    id: 'ritual-today-add',
+    title: 'el ritual de hoy',
+    accent: '#3dffd1',
+    bg: 'linear-gradient(135deg, #1a3a35, #0f2520)',
+    items: [...baseExploreIds, ...extraIds],
+    _customAdd: (ids) => {
+      ids.forEach(id => {
+        const it = EC.find(c => c.id === id);
+        if (!it || !window.__mtxRitual) return;
+        window.__mtxRitual.add({
+          id: it.id, title: it.title, author: it.author,
+          kind: it.type, dur: it.dur, accent: it.accent,
+          cover: it.cover, bg: it.bg, exploreId: it.id,
+        });
+      });
+    },
+  };
 }
 
 // Convert a ritual extra (saved from Explore) into an ActivityRow-compatible shape

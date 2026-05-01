@@ -5255,9 +5255,18 @@ function AddContentScreen({ playlist, onBack, footerBottomOffset = 96 }) {
   const handleAdd = () => {
     const count = selected.size;
     if (count === 0) return;
-    if (!Array.isArray(playlist._extraItemIds)) playlist._extraItemIds = [];
-    selected.forEach(id => { if (!playlist._extraItemIds.includes(id)) playlist._extraItemIds.push(id); });
-    playlist.totalVideos = (playlist.totalVideos || 0) + count;
+    // Hook para hosts que NO usan el modelo de mutar _extraItemIds — p.ej.
+    // el ritual del día (HomeActive) que tiene su propio store en
+    // window.__mtxRitual y necesita que cada id seleccionado se persista
+    // ahí. Si la playlist define _customAdd, lo invoca con la lista de ids
+    // y omite la mutación default.
+    if (typeof playlist._customAdd === 'function') {
+      playlist._customAdd(Array.from(selected));
+    } else {
+      if (!Array.isArray(playlist._extraItemIds)) playlist._extraItemIds = [];
+      selected.forEach(id => { if (!playlist._extraItemIds.includes(id)) playlist._extraItemIds.push(id); });
+      playlist.totalVideos = (playlist.totalVideos || 0) + count;
+    }
     toast.show({ message: `${count} ${count === 1 ? 'item agregado' : 'items agregados'} a "${playlist.title}"`, duration: 2000 });
     setTimeout(onBack, 300);
   };
@@ -5969,6 +5978,68 @@ function SwipeableQueueRow({ item, index, isPlaying, accent, isOpen, onOpenChang
   );
 }
 
+// ── MtxAddMoreCard — neon dashed CTA reutilizable ────────────────────────────
+// Antes: vivía inline dentro de PlaylistQueueSheet. Extraído para que el
+// HomeActive lo pueda montar abajo del ritual del día con el mismo diseño
+// y sin duplicar JSX. El click handler queda libre (cada host decide si
+// abre el AddContentScreen, dispatcha un evento, etc.).
+function MtxAddMoreCard({
+  onClick,
+  title = 'Agregar más contenido',
+  subtitle = 'Explora y suma items a tu cola',
+}) {
+  return (
+    <button onClick={onClick} className="mtx-tap" style={{
+      appearance:'none', cursor:'pointer', textAlign:'left',
+      width:'100%', minWidth:0, boxSizing:'border-box',
+      marginTop:4, padding:'13px 14px',
+      borderRadius:14,
+      border:'1px dashed rgba(61,255,209,0.34)',
+      background:'linear-gradient(165deg, rgba(61,255,209,0.05) 0%, rgba(61,255,209,0.012) 70%)',
+      boxShadow:'inset 0 0 22px rgba(61,255,209,0.05)',
+      display:'flex', alignItems:'center', gap:11,
+      fontFamily:'var(--ff-sans)',
+      position:'relative', overflow:'hidden',
+      transition:'background .25s, border-color .25s, transform .15s',
+    }}>
+      {/* Decorative halo */}
+      <div style={{
+        position:'absolute', top:-22, right:-22,
+        width:78, height:78, borderRadius:'50%',
+        background:'radial-gradient(circle, rgba(61,255,209,0.22) 0%, transparent 65%)',
+        pointerEvents:'none',
+      }}/>
+
+      {/* Plus tile */}
+      <div style={{
+        width:40, height:40, borderRadius:11, flexShrink:0,
+        background:'linear-gradient(135deg, rgba(61,255,209,0.26), rgba(61,255,209,0.06))',
+        border:'0.5px solid rgba(61,255,209,0.45)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        color:'var(--neon)',
+        boxShadow:'0 0 16px rgba(61,255,209,0.22), inset 0 1px 0 rgba(255,255,255,0.12)',
+        position:'relative', zIndex:1,
+      }}>
+        <IcPlus size={16} stroke="currentColor" strokeWidth={2.4}/>
+      </div>
+
+      <div style={{ flex:1, minWidth:0, position:'relative', zIndex:1 }}>
+        <div style={{
+          fontSize:13, fontWeight:700, color:'var(--neon)',
+          letterSpacing:'-0.01em', lineHeight:1.2, marginBottom:2,
+        }}>
+          {title}
+        </div>
+        <div style={{ fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em' }}>
+          {subtitle}
+        </div>
+      </div>
+
+      <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8} style={{ position:'relative', zIndex:1 }}/>
+    </button>
+  );
+}
+
 function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, onShareItem, onRemoveItem, onAddMore, onSwitch }) {
   const [openRowId, setOpenRowId] = React.useState(null);
   const toast = window.useToast ? window.useToast() : { show: () => {} };
@@ -6116,57 +6187,8 @@ function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, 
             />
           ))}
 
-          {/* Add more content CTA — neon dashed card al final de la cola */}
-          {onAddMore && (
-            <button onClick={onAddMore} className="mtx-tap" style={{
-              appearance:'none', cursor:'pointer', textAlign:'left',
-              width:'100%', minWidth:0, boxSizing:'border-box',
-              marginTop:4, padding:'13px 14px',
-              borderRadius:14,
-              border:'1px dashed rgba(61,255,209,0.34)',
-              background:'linear-gradient(165deg, rgba(61,255,209,0.05) 0%, rgba(61,255,209,0.012) 70%)',
-              boxShadow:'inset 0 0 22px rgba(61,255,209,0.05)',
-              display:'flex', alignItems:'center', gap:11,
-              fontFamily:'var(--ff-sans)',
-              position:'relative', overflow:'hidden',
-              transition:'background .25s, border-color .25s, transform .15s',
-            }}>
-              {/* Decorative halo */}
-              <div style={{
-                position:'absolute', top:-22, right:-22,
-                width:78, height:78, borderRadius:'50%',
-                background:'radial-gradient(circle, rgba(61,255,209,0.22) 0%, transparent 65%)',
-                pointerEvents:'none',
-              }}/>
-
-              {/* Plus tile */}
-              <div style={{
-                width:40, height:40, borderRadius:11, flexShrink:0,
-                background:'linear-gradient(135deg, rgba(61,255,209,0.26), rgba(61,255,209,0.06))',
-                border:'0.5px solid rgba(61,255,209,0.45)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                color:'var(--neon)',
-                boxShadow:'0 0 16px rgba(61,255,209,0.22), inset 0 1px 0 rgba(255,255,255,0.12)',
-                position:'relative', zIndex:1,
-              }}>
-                <IcPlus size={16} stroke="currentColor" strokeWidth={2.4}/>
-              </div>
-
-              <div style={{ flex:1, minWidth:0, position:'relative', zIndex:1 }}>
-                <div style={{
-                  fontSize:13, fontWeight:700, color:'var(--neon)',
-                  letterSpacing:'-0.01em', lineHeight:1.2, marginBottom:2,
-                }}>
-                  Agregar más contenido
-                </div>
-                <div style={{ fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em' }}>
-                  Explora y suma items a tu cola
-                </div>
-              </div>
-
-              <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8} style={{ position:'relative', zIndex:1 }}/>
-            </button>
-          )}
+          {/* Add more content CTA — reusa MtxAddMoreCard. */}
+          {onAddMore && <MtxAddMoreCard onClick={onAddMore}/>}
 
           {/* Sub-fase 0.2 · CTA "Cambiar playlist" — siempre visible cuando el
               store está disponible. Permite saltar a otra playlist o al ritual. */}
@@ -8143,7 +8165,7 @@ Object.assign(window, {
   ShareSheet, SaveToPlaylistSheet, ScheduleTodaySheet,
   CreatePlaylistSheet, PlaylistOptionsSheet, VideoOptionsSheet,
   AddContentToPlaylistSheet, EditPlaylistSheet,
-  AddContentScreen, SelectableContentCard,
+  AddContentScreen, SelectableContentCard, MtxAddMoreCard,
   SleepTimerSheet, PlayerWaveform, PlaylistAccessCard,
   SwipeableQueueRow, SkipDurationSheet, BookmarksSheet, BookmarkNameSheet,
   ReviewSheet, ReviewSuccessSheet,
