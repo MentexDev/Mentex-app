@@ -949,6 +949,7 @@ function HomeActive({
   plannedMinutes = 45,
   onOpenPlayer = () => {},
   onFinishSession = () => {},
+  onEditRoutines = () => {},
 }) {
   // El total se basa en lo que el usuario eligió en el Home inactivo (state.time).
   // Fallback a 45 min si no llega prop (ej. en dev/preview).
@@ -1145,6 +1146,9 @@ function HomeActive({
             const done = ACTIVITIES.filter(a => a.done).length;
             return `${done} de ${total} completadas`;
           })()}
+          actionIcon={<IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>}
+          actionLabel="Editar rutinas del ritual"
+          onAction={onEditRoutines}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {ACTIVITIES.map(a => (

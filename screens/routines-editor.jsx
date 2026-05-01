@@ -179,6 +179,13 @@ function RoutinesEditorSheet({ routines, activeIds, onChange, onActiveChange, on
                 routine={r}
                 bouncing={bouncingId === r.id}
                 menuOpen={menuOpenId === r.id}
+                isActive={activeIds.includes(r.id)}
+                onActiveToggle={() => {
+                  const next = activeIds.includes(r.id)
+                    ? activeIds.filter(id => id !== r.id)
+                    : [...activeIds, r.id];
+                  onActiveChange(next);
+                }}
                 onMenuToggle={() => setMenuOpenId(prev => prev === r.id ? null : r.id)}
                 onMenuClose={() => setMenuOpenId(null)}
                 onEdit={() => { setMenuOpenId(null); setEditing(r); }}
@@ -224,8 +231,14 @@ function RoutinesEditorSheet({ routines, activeIds, onChange, onActiveChange, on
               {activeIds.length} de {routines.length}
             </div>
           </div>
-          <button onClick={handleClose} className="mtx-btn-neon mtx-tap" style={{ minWidth: 110 }}>
-            <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> Listo
+          {/* Override del .mtx-btn-neon — la clase global tiene height:56 y
+              font 16, lo cual queda desproporcionado en este footer compacto.
+              Aquí lo bajamos a 44 / 14, manteniendo el shadow neon. */}
+          <button onClick={handleClose} className="mtx-btn-neon mtx-tap" style={{
+            minWidth: 100, height: 44, padding: '0 18px',
+            fontSize: 14, gap: 7,
+          }}>
+            <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/> Listo
           </button>
         </div>
       </div>
@@ -266,7 +279,7 @@ function RoutinesEditorSheet({ routines, activeIds, onChange, onActiveChange, on
 // ─────────────────────────────────────────────────────────────
 // RoutineRow — fila con tap para editar; menú "···" solo en custom
 // ─────────────────────────────────────────────────────────────
-function RoutineRow({ routine: r, bouncing, menuOpen, onMenuToggle, onMenuClose, onEdit, onDuplicate, onDelete }) {
+function RoutineRow({ routine: r, bouncing, menuOpen, isActive = false, onActiveToggle, onMenuToggle, onMenuClose, onEdit, onDuplicate, onDelete }) {
   const Ic = r.Ic || getIconById(r.iconId);
   const accent = r.accent || getColorById(r.colorId);
   const isDefault = r.isDefault === true;
@@ -278,20 +291,23 @@ function RoutineRow({ routine: r, bouncing, menuOpen, onMenuToggle, onMenuClose,
         position: 'relative',
         animation: bouncing ? 'mtxRoutineBounce .7s cubic-bezier(.34,1.56,.64,1)' : 'none',
       }}>
-      {/* Fila */}
+      {/* Fila — tap en el área central toggle activo; el lápiz/menú al
+          final abre la edición. Esto separa "seleccionar" (acción primaria)
+          de "editar" (acción secundaria). */}
       <div
-        onClick={() => { if (menuOpen) onMenuClose(); else onEdit(); }}
+        onClick={() => { if (menuOpen) { onMenuClose(); return; } onActiveToggle && onActiveToggle(); }}
         className="mtx-tap"
         style={{
           position: 'relative',
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '12px 14px',
           borderRadius: 14,
-          background: 'var(--glass-2)',
-          border: '0.5px solid var(--glass-stroke)',
-          boxShadow: 'var(--shadow-card)',
+          background: isActive ? `linear-gradient(180deg, ${accent}10, ${accent}03)` : 'var(--glass-2)',
+          border: isActive ? `0.5px solid ${accent}55` : '0.5px solid var(--glass-stroke)',
+          boxShadow: isActive ? `inset 0 0 14px ${accent}10, var(--shadow-card)` : 'var(--shadow-card)',
           cursor: 'pointer',
           userSelect: 'none',
+          transition: 'background .25s, border-color .25s, box-shadow .25s',
         }}>
         <div style={{
           width: 38, height: 38, borderRadius: 11,
@@ -325,31 +341,49 @@ function RoutineRow({ routine: r, bouncing, menuOpen, onMenuToggle, onMenuClose,
           </div>
         </div>
 
-        {/* Botón "···" solo si es custom */}
-        {!isDefault ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onMenuToggle(); }}
-            className="mtx-tap"
-            aria-label="Opciones"
+        {/* Acciones secundarias: lápiz (editar — solo custom) + checkbox
+            (seleccionar/activar). El tap en row ya toggle activo, así que
+            el checkbox refleja state visualmente sin handler propio.
+            Para defaults solo aparece el checkbox (no son editables). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {!isDefault && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onMenuToggle(); }}
+              className="mtx-tap"
+              aria-label="Opciones"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                width: 32, height: 32, borderRadius: 8, border: 0,
+                background: menuOpen ? 'rgba(255,255,255,0.10)' : 'transparent',
+                color: 'var(--ink-2)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <circle cx="5" cy="12" r="1.4" fill="currentColor"/>
+                <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+                <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
+              </svg>
+            </button>
+          )}
+          {/* Checkbox circular accent — refleja isActive visualmente.
+              No tiene onClick propio: el tap en row entero (línea arriba)
+              dispara onActiveToggle, que es más fácil de tocar en mobile
+              que un círculo de 22px. El check icon aparece cuando active. */}
+          <div
+            aria-hidden
             style={{
-              appearance: 'none', cursor: 'pointer',
-              width: 32, height: 32, borderRadius: 8, border: 0,
-              background: menuOpen ? 'rgba(255,255,255,0.10)' : 'transparent',
-              color: 'var(--ink-2)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
+              width: 26, height: 26, borderRadius: '50%',
+              border: isActive ? `1.5px solid ${accent}` : '1.5px solid rgba(255,255,255,0.18)',
+              background: isActive ? `${accent}26` : 'transparent',
+              boxShadow: isActive ? `0 0 10px ${accent}55, inset 0 0 6px ${accent}33` : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: isActive ? accent : 'transparent',
+              transition: 'all .22s cubic-bezier(.2,.9,.3,1.2)',
+              marginLeft: 2,
             }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <circle cx="5" cy="12" r="1.4" fill="currentColor"/>
-              <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-              <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
-            </svg>
-          </button>
-        ) : (
-          <div style={{ color: 'var(--ink-3)', opacity: 0.4 }}>
-            <IcChevR size={16} stroke="currentColor"/>
+            <IcCheck size={13} stroke="currentColor" strokeWidth={2.6}/>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Popover menú (solo custom) */}
