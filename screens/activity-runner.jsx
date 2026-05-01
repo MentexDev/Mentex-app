@@ -790,23 +790,30 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
   return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
 }
 
-// ── DistanceStepSelector ─────────────────────────────────────────────────────
-// Mini control de pills para elegir el incremento por tap del runner de
-// distance: 0.1 / 0.25 / 0.5 / 1 km. Se renderiza dentro del
-// RunnerOptionsSheet (slot topExtras) — el usuario abre "···" del header
-// y elige el tamaño del paso sin salir del runner.
+// ── StepSizeSelector ─────────────────────────────────────────────────────────
+// Mini control de pills genérico para elegir el incremento por tap del
+// runner. Se renderiza dentro del RunnerOptionsSheet (slot topExtras).
+// Reusado por:
+//   • distance → 0.1 / 0.25 / 0.5 / 1 km
+//   • pages    → 1 / 5 / 10 / 25 páginas (chunk natural por capítulo)
 //
 // Diseño consistente con las pills de "Tipo de medición" del
-// RoutineCreateSheet: scroll-x si fuera necesario (4 pills caben en
-// pantalla), pill activa con accent + glow, transición suave.
+// RoutineCreateSheet: scroll-x si fuera necesario, pill activa con
+// accent + glow, transición suave.
 const _DISTANCE_STEPS = [
   { value: 0.1,  label: '0.1 km' },
   { value: 0.25, label: '0.25 km' },
   { value: 0.5,  label: '0.5 km' },
   { value: 1,    label: '1 km' },
 ];
+const _PAGES_STEPS = [
+  { value: 1,  label: '1 página' },
+  { value: 5,  label: '5 páginas' },
+  { value: 10, label: '10 páginas' },
+  { value: 25, label: '25 páginas' },
+];
 
-function DistanceStepSelector({ value, onChange, accent = '#3dffd1' }) {
+function StepSizeSelector({ value, onChange, accent = '#3dffd1', options, label = 'Tamaño del salto' }) {
   return (
     <div>
       <div style={{
@@ -814,12 +821,12 @@ function DistanceStepSelector({ value, onChange, accent = '#3dffd1' }) {
         letterSpacing: '0.16em', textTransform: 'uppercase',
         marginBottom: 8, padding: '0 2px',
       }}>
-        Tamaño del paso
+        {label}
       </div>
       <div className="mtx-scroll-x" style={{
         display: 'flex', gap: 8, padding: '0 0 4px',
       }}>
-        {_DISTANCE_STEPS.map(s => {
+        {options.map(s => {
           const active = Math.abs(s.value - value) < 0.001;
           return (
             <button key={s.value}
@@ -1076,9 +1083,17 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
       })()}
       addMoreDesc={`Sube el objetivo a ${effectiveTarget + (metricType === 'pages' ? 5 : 1)} ${unit}`}
       optionsTopExtras={metricType === 'distance' ? (
-        <DistanceStepSelector
+        <StepSizeSelector
           value={stepSize}
           accent={accent}
+          options={_DISTANCE_STEPS}
+          onChange={(s) => setStepSize(s)}
+        />
+      ) : metricType === 'pages' ? (
+        <StepSizeSelector
+          value={stepSize}
+          accent={accent}
+          options={_PAGES_STEPS}
           onChange={(s) => setStepSize(s)}
         />
       ) : null}
