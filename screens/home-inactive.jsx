@@ -326,7 +326,7 @@ function BannerCarousel({
           position:'relative', zIndex:1,
           height:'100%',
           boxSizing:'border-box', // sin esto, el padding cae FUERA del 100% y el CTA bottom se recorta por overflow:hidden del banner
-          padding: `${contentPaddingTop}px 22px ${fullBleed ? 36 : 18}px`,
+          padding: `${contentPaddingTop}px 22px ${fullBleed ? 40 : 18}px`,
           display:'flex', flexDirection:'column', justifyContent:'space-between',
           color: isPremium ? '#0a1410' : 'var(--ink-1)',
         }}>
@@ -525,7 +525,7 @@ function HomeInactive({
         <BannerCarousel
           slides={_HERO_BANNERS}
           onTap={handleBannerTap}
-          height={310}
+          height={290}
           hideTopIcon
           fullBleed
           contentPaddingTop={80}
