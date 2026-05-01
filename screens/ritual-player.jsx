@@ -204,37 +204,11 @@ function RitualPlayerOverlay() {
   const { activeItem, mode, queueOpen } = useRitualPlayer();
   const toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: () => {} };
 
-  // Playlist sintética del ritual del día — alimenta "Tu cola personal" del
-  // VideoPlayerFullscreen. Se recalcula cuando cambia el set de ritualExtras
-  // (consumimos useRitualItems aquí porque sí estamos en render).
-  const ritualExtras = (typeof window !== 'undefined' && window.useRitualItems)
-    ? window.useRitualItems()
-    : [];
-
-  const ritualPlaylist = React.useMemo(() => {
-    const base = _buildRitualPlaylist();
-    if (!base) return null;
-    // Si hay ritualExtras (del Explorar agregados al ritual), añadirlos a la
-    // playlist como _extraItemIds para que aparezcan al final del queue.
-    if (Array.isArray(ritualExtras) && ritualExtras.length > 0) {
-      const extraIds = ritualExtras
-        .map(e => e.id)
-        .filter(id => !base.items.includes(id));
-      if (extraIds.length > 0) {
-        return { ...base, _extraItemIds: extraIds, totalVideos: base.totalVideos + extraIds.length };
-      }
-    }
-    return base;
-  }, [ritualExtras]);
-
-  const ritualPlaylistItems = React.useMemo(() => {
-    if (!ritualPlaylist || typeof window === 'undefined' || !window.EXPLORE_CONTENT) return [];
-    const baseIds = ritualPlaylist.items || [];
-    const extraIds = ritualPlaylist._extraItemIds || [];
-    return [...baseIds, ...extraIds]
-      .map(id => window.EXPLORE_CONTENT.find(c => c.id === id))
-      .filter(Boolean);
-  }, [ritualPlaylist]);
+  // Lee la cola activa del store global (sub-fase 0.1). HomeActive empuja la
+  // ritual playlist; si no hay sesión activa el store cae al watch-later
+  // default. Garantiza que la cola no salte entre tabs.
+  const useAQ = (typeof window !== 'undefined' && window.useActiveQueue) || (() => ({ activePlaylist: null, activePlaylistItems: [] }));
+  const { activePlaylist: ritualPlaylist, activePlaylistItems: ritualPlaylistItems } = useAQ();
 
   const currentIndex = React.useMemo(() => {
     if (!activeItem) return -1;

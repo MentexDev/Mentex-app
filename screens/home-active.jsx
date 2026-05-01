@@ -950,6 +950,12 @@ function HomeActive({
     return () => clearInterval(id);
   }, []);
 
+  // El cableo del store __mtxActiveQueue NO vive aquí — se hace a nivel del
+  // MentexApp (Mentex Home.html) basándose en `tweaks.homeState === 'active'`.
+  // Esto es importante: HomeActive se desmonta al cambiar de tab, pero la
+  // sesión activa NO termina con eso. Si el push estuviera aquí, al ir a
+  // Explorar la cola caería a watch-later — el bug que motivó la sub-fase 0.1.
+
   const total   = totalMin * 60;
   const elapsed = total - seconds;
   const pct     = elapsed / total;

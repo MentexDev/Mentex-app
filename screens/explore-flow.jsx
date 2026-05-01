@@ -7339,16 +7339,24 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     nav.push({ view: 'add-content', playlistId: playlist.id });
   };
 
-  // Active playlist: la que se está reproduciendo, o "Ver más tarde" como cola personal
-  const activePlaylist = React.useMemo(() => {
-    if (videoPlayingFromPlaylist) return videoPlayingFromPlaylist;
-    return EXPLORE_PLAYLISTS.find(p => p.isWatchLater) || null;
+  // Empujar el contexto de Explorar al store global (sub-fase 0.1). Si el
+  // user está reproduciendo desde una playlist concreta, esa entra a la
+  // jerarquía con prioridad menor que el ritual del día (sesión activa).
+  // Cuando no hay playlist específica, el store cae a watch-later default.
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.__mtxActiveQueue) {
+      window.__mtxActiveQueue.setExploreContext(videoPlayingFromPlaylist || null);
+    }
   }, [videoPlayingFromPlaylist]);
 
-  const activePlaylistItems = React.useMemo(() => {
-    if (!activePlaylist) return [];
-    return _resolvePlaylistItems(activePlaylist);
-  }, [activePlaylist?.id, activePlaylist?._extraItemIds?.length]);
+  // Lee la cola activa del store global. Garantiza consistencia con
+  // RitualPlayerOverlay: si hay sesión activa con ritual, ambos players
+  // muestran la misma cola.
+  const _activeQueue = (typeof window !== 'undefined' && window.useActiveQueue)
+    ? window.useActiveQueue()
+    : { activePlaylist: null, activePlaylistItems: [] };
+  const activePlaylist = _activeQueue.activePlaylist;
+  const activePlaylistItems = _activeQueue.activePlaylistItems;
 
   const activePlaylistIndex = React.useMemo(() => {
     if (!videoPlayingItem) return -1;
@@ -7801,4 +7809,7 @@ Object.assign(window, {
   SwipeableQueueRow, SkipDurationSheet, BookmarksSheet, BookmarkNameSheet,
   ReviewSheet, ReviewSuccessSheet,
   useRitualItems, useIsScheduled,
+  // Helpers expuestos para que active-queue.jsx pueda resolver items de
+  // cualquier playlist (incluyendo la sintética del ritual con _extraItemIds).
+  _resolvePlaylistItems,
 });
