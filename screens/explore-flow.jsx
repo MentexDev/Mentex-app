@@ -7618,7 +7618,8 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   const [shareItem, setShareItem] = React.useState(null);
   const [saveToPlaylistItem, setSaveToPlaylistItem] = React.useState(null);
   const [scheduleItem, setScheduleItem] = React.useState(null);
-  const [videoOptionsCtx, setVideoOptionsCtx] = React.useState(null); // { item, playlist?, currentTime? }
+  // videoOptionsCtx state movido a VideoOptionsOverlay (global). Ver comentario
+  // en el useEffect de listeners abajo.
   const [queueSheetOpen, setQueueSheetOpen] = React.useState(false);
   const [addContentOverlay, setAddContentOverlay] = React.useState(null); // playlist target o null
   const [reviewItem, setReviewItem] = React.useState(null); // item a reseñar
@@ -7668,18 +7669,17 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   // ya no necesita escucharlos.
 
   // Listeners de eventos request-* — son los que el GlobalPlayer dispara
-  // cuando el usuario tap acciones del player (share, save, etc.). Si el
-  // user está en otro tab, ExploreScreen no está montado y los sheets no
-  // aparecen — comportamiento aceptado por ahora; en una iteración futura
-  // los movemos al overlay global también.
+  // cuando el usuario tap acciones del player (share, save, etc.). El
+  // `options` listener fue movido a VideoOptionsOverlay (global-player.jsx)
+  // para que el menú de 3 puntos del fullscreen funcione desde cualquier
+  // tab, no solo cuando ExploreScreen está montado. Los demás sheets siguen
+  // viviendo aquí — si user está en otro tab, no aparecen (degradación
+  // graceful por ahora).
   React.useEffect(() => {
     const handlers = {
       share:    (e) => e.detail?.item && setShareItem(e.detail.item),
       save:     (e) => e.detail?.item && setSaveToPlaylistItem(e.detail.item),
       schedule: (e) => e.detail?.item && setScheduleItem(e.detail.item),
-      options:  (e) => e.detail?.item && setVideoOptionsCtx({
-        item: e.detail.item, currentTime: e.detail.currentTime, fromPlayer: true,
-      }),
       completed: (e) => e.detail?.item && setVideoCompletedItem(e.detail.item),
       'add-to-playlist': (e) => e.detail?.playlist && setAddContentOverlay(e.detail.playlist),
     };
@@ -8027,32 +8027,7 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
           />
         </div>
       )}
-      {videoOptionsCtx && (
-        <VideoOptionsSheet
-          item={videoOptionsCtx.item}
-          playlist={videoOptionsCtx.playlist}
-          currentTime={videoOptionsCtx.currentTime}
-          skipSeconds={typeof window !== 'undefined' ? (window.__mtxSkipSec || 15) : 15}
-          onClose={() => setVideoOptionsCtx(null)}
-          onSchedule={(it) => { setVideoOptionsCtx(null); setScheduleItem(it); }}
-          onSaveToPlaylist={(it) => { setVideoOptionsCtx(null); setSaveToPlaylistItem(it); }}
-          onShare={(it) => { setVideoOptionsCtx(null); setShareItem(it); }}
-          onShareMoment={(it, t) => {
-            setVideoOptionsCtx(null);
-            setShareItem({ ...it, _shareMomentSec: t });
-            toast.show({ message: `Compartiendo desde ${_formatTime(t)}`, duration: 1700 });
-          }}
-          onConfigureSkip={videoOptionsCtx.fromPlayer ? () => {
-            setVideoOptionsCtx(null);
-            setTimeout(() => window.dispatchEvent(new CustomEvent('mtx:open-skip-config')), 220);
-          } : null}
-          onOpenBookmarks={videoOptionsCtx.fromPlayer ? () => {
-            setVideoOptionsCtx(null);
-            setTimeout(() => window.dispatchEvent(new CustomEvent('mtx:open-bookmarks')), 220);
-          } : null}
-          onRemoveFromPlaylist={() => { setVideoOptionsCtx(null); }}
-        />
-      )}
+      {/* VideoOptionsSheet movido a VideoOptionsOverlay global. */}
       {videoCompletedItem && (
         <VideoCompletionSheet
           item={videoCompletedItem}

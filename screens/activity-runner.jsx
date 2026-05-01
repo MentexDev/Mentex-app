@@ -531,8 +531,8 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
 //     icono lista (≡) (en lugar de X) que abre el queue. Tap en el wrap
 //     también abre el queue.
 function RunnerCompanionBar({ activity, suggestionCount }) {
-  const useNowPlaying = (typeof window !== 'undefined' && window.useNowPlaying) || (() => ({ currentItem:null, isPlaying:false, progress:0 }));
-  const { currentItem, isPlaying, progress } = useNowPlaying();
+  const useNowPlaying = (typeof window !== 'undefined' && window.useNowPlaying) || (() => ({ currentItem:null, isPlaying:false, progress:0, durationSec:0 }));
+  const { currentItem, isPlaying, progress, durationSec } = useNowPlaying();
   const accent = activity?.accent || '#3dffd1';
 
   const handleOpenQueue = () => window.__mtxActivityRunner?.openQueue();
@@ -542,6 +542,41 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
     if (isPlaying) window.__mtxPlayer.pause();
     else window.__mtxPlayer.resume();
   };
+
+  // Progress sintético — el VideoPlayerFullscreen es el que llama
+  // __mtxPlayer.setProgress() cada segundo, pero cuando el usuario está
+  // dentro del runner ese fullscreen no está montado, así que progress
+  // queda en 0 indefinidamente y la barra no se mueve. Simulamos un tick
+  // local que avanza progress mientras isPlaying=true. Usa el dur del
+  // item parseado para calcular incremento por segundo.
+  // IMPORTANTE: hooks ANTES del early return (Hook Rules).
+  const itemDurSec = React.useMemo(() => {
+    if (durationSec && durationSec > 0) return durationSec;
+    const d = currentItem?.dur || '';
+    let total = 0;
+    const hM = d.match(/(\d+)\s*h/i); if (hM) total += parseInt(hM[1], 10) * 3600;
+    const mM = d.match(/(\d+)\s*(?:m|min)/i); if (mM) total += parseInt(mM[1], 10) * 60;
+    const sM = d.match(/(\d+)\s*s(?!\w)/i); if (sM) total += parseInt(sM[1], 10);
+    return total > 0 ? total : 600; // default 10 min si no parsea
+  }, [currentItem?.id, durationSec]);
+
+  // RunnerCompanionBar solo se monta dentro del ActivityRunner overlay,
+  // entonces NO hay VideoPlayerFullscreen real concurrente — siempre que
+  // está montado, este timer es la única fuente de progreso.
+  // Demo speed: tick cada 250ms con incremento 1/itemDurSec → ~4x velocidad
+  // real. Como el contenido es mock (sin audio/video real), avanzar más
+  // rápido que el reloj hace que la barra sea perceptiblemente activa
+  // durante una sesión de prueba en lugar de quedarse "congelada" 1px.
+  React.useEffect(() => {
+    if (!isPlaying || !currentItem || !window.__mtxPlayer) return;
+    const interval = setInterval(() => {
+      const cur = window.__mtxPlayer.get().progress || 0;
+      const inc = 1 / itemDurSec;
+      const next = Math.min(1, cur + inc);
+      window.__mtxPlayer.setProgress(next);
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isPlaying, currentItem?.id, itemDurSec]);
 
   // ── ESTADO VACÍO: shortcut tile ──────────────────────────────────────────
   if (!currentItem) {
@@ -643,17 +678,19 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
           fontFamily:'var(--ff-sans)',
           position:'relative', overflow:'hidden',
       }}>
-        {/* Barra de progreso superpuesta arriba — height:3 (vs 1.5 previo)
-            la hace más visible como timeline de YouTube/Spotify. */}
+        {/* Barra de progreso superpuesta arriba — track con contraste
+            (rgba 0.16 vs 0.06 previo, prácticamente invisible) + height:4.
+            Avanza vía useEffect arriba que llama __mtxPlayer.setProgress
+            cada segundo cuando isPlaying y NO hay fullscreen montado. */}
         <div style={{
-          position:'absolute', top:0, left:0, right:0, height:3,
-          background:'rgba(255,255,255,0.06)',
+          position:'absolute', top:0, left:0, right:0, height:4,
+          background:'rgba(255,255,255,0.16)',
           zIndex:2, borderRadius:'20px 20px 0 0', overflow:'hidden',
         }}>
           <div style={{
             width:`${progressPct * 100}%`, height:'100%',
             background: itemAccent,
-            boxShadow:`0 0 10px ${itemAccent}cc, 0 0 16px ${itemAccent}55`,
+            boxShadow:`0 0 12px ${itemAccent}cc, 0 0 18px ${itemAccent}66`,
             transition:'width .3s linear',
           }}/>
         </div>

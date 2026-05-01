@@ -236,7 +236,82 @@ function GlobalPlayerOverlay() {
     : content;
 }
 
+// ── VideoOptionsOverlay ──────────────────────────────────────────────────────
+// Antes: el listener de `mtx:request-options` y el VideoOptionsSheet vivían
+// dentro de ExploreScreen. Cuando el usuario abría el VideoPlayerFullscreen
+// desde un item del ritual del día (estando en el tab Home), ExploreScreen
+// no estaba montado → el evento se ignoraba → los 3 puntos no respondían.
+// Bug fix: este overlay se monta a nivel del MentexApp (siempre presente),
+// captura el evento global y muestra el sheet sin importar el tab activo.
+// Las acciones del sheet (Compartir, Guardar, Agendar) siguen disparando
+// `mtx:request-share` / `save` / `schedule` que ExploreScreen escucha; si
+// user está en otro tab, esos sheets secundarios aún no aparecen, pero el
+// menú primario al menos se abre.
+function VideoOptionsOverlay() {
+  const [ctx, setCtx] = React.useState(null);
+  const toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: () => {} };
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (!e.detail?.item) return;
+      setCtx({ item: e.detail.item, currentTime: e.detail.currentTime, fromPlayer: true });
+    };
+    window.addEventListener('mtx:request-options', handler);
+    return () => window.removeEventListener('mtx:request-options', handler);
+  }, []);
+
+  const VideoOptionsSheet = (typeof window !== 'undefined' && window.VideoOptionsSheet) || null;
+  const _formatTime = (typeof window !== 'undefined' && window._formatTime) || ((s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`);
+
+  if (!ctx || !VideoOptionsSheet) return null;
+
+  const close = () => setCtx(null);
+  const dispatchAction = (kind, payload) => {
+    close();
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(`mtx:request-${kind}`, { detail: payload }));
+    }, 220);
+  };
+
+  const overlayRoot = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
+  const reactDom = typeof window !== 'undefined' ? window.ReactDOM : null;
+
+  const content = (
+    <VideoOptionsSheet
+      item={ctx.item}
+      playlist={ctx.playlist}
+      currentTime={ctx.currentTime}
+      skipSeconds={typeof window !== 'undefined' ? (window.__mtxSkipSec || 15) : 15}
+      onClose={close}
+      onSchedule={(it) => dispatchAction('schedule', { item: it })}
+      onSaveToPlaylist={(it) => dispatchAction('save', { item: it })}
+      onShare={(it) => dispatchAction('share', { item: it })}
+      onShareMoment={(it, t) => {
+        close();
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('mtx:request-share', { detail: { item: { ...it, _shareMomentSec: t } } }));
+          toast.show({ message: `Compartiendo desde ${_formatTime(t)}`, duration: 1700 });
+        }, 220);
+      }}
+      onConfigureSkip={ctx.fromPlayer ? () => {
+        close();
+        setTimeout(() => window.dispatchEvent(new CustomEvent('mtx:open-skip-config')), 220);
+      } : null}
+      onOpenBookmarks={ctx.fromPlayer ? () => {
+        close();
+        setTimeout(() => window.dispatchEvent(new CustomEvent('mtx:open-bookmarks')), 220);
+      } : null}
+      onRemoveFromPlaylist={() => close()}
+    />
+  );
+
+  return (overlayRoot && reactDom && reactDom.createPortal)
+    ? reactDom.createPortal(content, overlayRoot)
+    : content;
+}
+
 Object.assign(window, {
   GlobalPlayerOverlay,
+  VideoOptionsOverlay,
   useGlobalPlayer,
 });
