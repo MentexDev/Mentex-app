@@ -393,10 +393,11 @@ const menuItemStyle = (color) => ({
 // solo se marca como hecha al completar.
 // ─────────────────────────────────────────────────────────────
 const _METRIC_TYPES = [
-  { id: 'duration', label: 'Duración',  unit: 'min',   defaultValue: 15, min: 5,  max: 60, step: 5,  ticks: [5,15,30,45,60] },
-  { id: 'count',    label: 'Cantidad',  unit: 'veces', defaultValue: 3,  min: 1,  max: 20, step: 1,  ticks: [1,5,10,15,20]  },
-  { id: 'pages',    label: 'Páginas',   unit: 'pp',    defaultValue: 10, min: 1,  max: 50, step: 1,  ticks: [5,10,20,30,50] },
-  { id: 'binary',   label: 'Hecho',     unit: '',      defaultValue: 0,  slider: false },
+  { id: 'duration', label: 'Duración',  unit: 'min',   defaultValue: 15,  min: 5,   max: 60, step: 5,   ticks: [5,15,30,45,60] },
+  { id: 'count',    label: 'Cantidad',  unit: 'veces', defaultValue: 3,   min: 1,   max: 20, step: 1,   ticks: [1,5,10,15,20]  },
+  { id: 'pages',    label: 'Páginas',   unit: 'pp',    defaultValue: 10,  min: 1,   max: 50, step: 1,   ticks: [5,10,20,30,50] },
+  { id: 'distance', label: 'Distancia', unit: 'km',    defaultValue: 3,   min: 0.5, max: 20, step: 0.5, ticks: [1,5,10,15,20]  },
+  { id: 'binary',   label: 'Hecho',     unit: '',      defaultValue: 0,   slider: false },
 ];
 const _getMetricType = (id) => _METRIC_TYPES.find(t => t.id === id) || _METRIC_TYPES[0];
 
@@ -415,8 +416,10 @@ const _composeDur = (metricType, value, unit) => {
 // El tipo default es 'duration' para evitar romper rutinas existentes.
 const _inferMetricFromLegacy = (legacyDur) => {
   if (!legacyDur || typeof legacyDur !== 'string') return { metricType: 'duration', metricValue: 15 };
-  const numMatch = legacyDur.match(/(\d+)/);
-  const value = numMatch ? parseInt(numMatch[1], 10) : 15;
+  // parseFloat para soportar distancia con decimales ("5.5 km").
+  const numMatch = legacyDur.match(/(\d+(?:\.\d+)?)/);
+  const value = numMatch ? parseFloat(numMatch[1]) : 15;
+  if (/km/i.test(legacyDur))    return { metricType: 'distance', metricValue: value };
   if (/min/i.test(legacyDur))   return { metricType: 'duration', metricValue: value };
   if (/veces/i.test(legacyDur)) return { metricType: 'count',    metricValue: value };
   if (/pp/i.test(legacyDur))    return { metricType: 'pages',    metricValue: value };
@@ -864,7 +867,7 @@ function MetricSlider({ value, onChange, accent, min = 5, max = 60, step = 5, ti
           type="range"
           min={min} max={max} step={step}
           value={value}
-          onChange={(e) => onChange(parseInt(e.target.value, 10))}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
           style={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',

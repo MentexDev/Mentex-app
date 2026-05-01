@@ -9,16 +9,20 @@
 //
 // runnerKind ('breath' | 'silence' | 'movement' | 'focus') escoge el set de
 // mensajes alternantes y meta visual que muestra el ActivityRunner.
+// Activities base del Home activo. Cada una mapea a una rutina del catálogo
+// vía `routineId` — esto permite que HomeActive filtre por selección del
+// usuario en HomeInactive (state.routines). Sin el routineId aparecerían
+// todas siempre, ignorando lo que el usuario marcó.
 const ACTIVITIES = [
-  { id:'a1', kind:'Meditación',      title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,    accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
-  { id:'a2', kind:'Resumen',          title:'Hábitos Atómicos',        dur:'18 min', totalSec:1080, Ic:IcBook,    accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
-  { id:'a3', kind:'Respiración',     title:'Respira profundo',         dur:'5 min',  totalSec:300,  Ic:IcWind,    accent:'#5dd3ff', done:false,
+  { id:'a1', routineId:'meditate',  kind:'Meditación',     title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,    accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
+  { id:'a2', routineId:'read',      kind:'Resumen',         title:'Hábitos Atómicos',       dur:'18 min', totalSec:1080, Ic:IcBook,    accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
+  { id:'a3', routineId:'breathe',   kind:'Respiración',    title:'Respira profundo',        dur:'5 min',  totalSec:300,  Ic:IcWind,    accent:'#5dd3ff', done:false,
     runnerType:'timer', runnerKind:'breath',  runnerDurationSec:300,  runnerLabel:'Vuelve a tu cuerpo en cinco minutos.' },
-  { id:'a4', kind:'Journaling',       title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,    accent:'#3dffd1', done:false                                                        },
-  { id:'a5', kind:'Lección',          title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,   accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
-  { id:'a6', kind:'Visualización',   title:'Visualiza tu día',         dur:'8 min',  totalSec:480,  Ic:IcEye,     accent:'#9b8aff', done:false,
+  { id:'a4', routineId:'gratitude', kind:'Journaling',      title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,    accent:'#3dffd1', done:false                                                        },
+  { id:'a5', routineId:'study',     kind:'Lección',         title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,   accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
+  { id:'a6', routineId:'visualize', kind:'Visualización',  title:'Visualiza tu día',        dur:'8 min',  totalSec:480,  Ic:IcEye,     accent:'#9b8aff', done:false,
     runnerType:'timer', runnerKind:'silence', runnerDurationSec:480,  runnerLabel:'Imagina, sostén, suelta.' },
-  { id:'a7', kind:'Entrenar',         title:'Movimiento consciente',   dur:'30 min', totalSec:1800, Ic:IcDumbbell, accent:'#FFD66B', done:false,
+  { id:'a7', routineId:'train',     kind:'Entrenar',        title:'Movimiento consciente',  dur:'30 min', totalSec:1800, Ic:IcDumbbell, accent:'#FFD66B', done:false,
     runnerType:'timer', runnerKind:'movement', runnerDurationSec:1800, runnerLabel:'Treinta minutos de presencia.' },
 ];
 
@@ -947,10 +951,21 @@ function HomeActive({
   notifCount = 0,
   blockedApps = [],
   plannedMinutes = 45,
+  selectedRoutineIds = [],
   onOpenPlayer = () => {},
   onFinishSession = () => {},
   onEditRoutines = () => {},
 }) {
+  // Filtrar ACTIVITIES por las rutinas que el usuario activó en HomeInactive
+  // (state.routines). Antes se mostraban todas las defaults siempre, ignorando
+  // la selección — bug reportado: "se cargan elementos por defecto que no
+  // seleccioné". Ahora solo aparecen las activities cuyo routineId está en
+  // selectedRoutineIds. ritualExtras (agregadas desde Explorar) siguen
+  // mostrándose siempre.
+  const visibleActivities = React.useMemo(
+    () => ACTIVITIES.filter(a => selectedRoutineIds.includes(a.routineId)),
+    [selectedRoutineIds]
+  );
   // El total se basa en lo que el usuario eligió en el Home inactivo (state.time).
   // Fallback a 45 min si no llega prop (ej. en dev/preview).
   const totalMin = plannedMinutes && plannedMinutes > 0 ? plannedMinutes : 45;
@@ -1142,8 +1157,8 @@ function HomeActive({
         <MtxSectionHead
           title="Tu ritual de hoy"
           eyebrow={(() => {
-            const total = ACTIVITIES.length + ritualExtras.length;
-            const done = ACTIVITIES.filter(a => a.done).length;
+            const total = visibleActivities.length + ritualExtras.length;
+            const done = visibleActivities.filter(a => a.done).length;
             return `${done} de ${total} completadas`;
           })()}
           actionIcon={<IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>}
@@ -1151,7 +1166,7 @@ function HomeActive({
           onAction={onEditRoutines}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
-          {ACTIVITIES.map(a => (
+          {visibleActivities.map(a => (
             <ActivityRow key={a.id} a={a} onOpenPlayer={onOpenPlayer}/>
           ))}
           {ritualExtras.map(extra => (
@@ -1189,7 +1204,7 @@ function HomeActive({
           animation:'mtx-fade-up .35s ease',
         }}>
           <window.AddContentScreen
-            playlist={_buildRitualSyntheticPlaylist(ritualExtras)}
+            playlist={_buildRitualSyntheticPlaylist(ritualExtras, visibleActivities)}
             onBack={() => setAddToRitualOpen(false)}
             footerBottomOffset={24}
           />
@@ -1201,11 +1216,14 @@ function HomeActive({
 
 // Playlist sintética del ritual del día — wraps window.__mtxRitual para que
 // el AddContentScreen del Explorar funcione tal cual sin saber del store.
-//   items:        IDs ya presentes (ACTIVITIES base resueltas vía exploreId
+//   items:        IDs ya presentes (activities visibles resueltas vía exploreId
 //                 + ritualExtras) → AddContentScreen los excluye del grid.
 //   _customAdd:   hook que persiste cada selección en __mtxRitual.add().
-function _buildRitualSyntheticPlaylist(ritualExtras) {
-  const baseExploreIds = ACTIVITIES
+// Recibe visibleActivities (no ACTIVITIES global) para que tras filtrar por
+// selectedRoutineIds del HomeInactive solo se excluyan las activities
+// efectivamente presentes en la sesión.
+function _buildRitualSyntheticPlaylist(ritualExtras, visibleActivities) {
+  const baseExploreIds = (visibleActivities || [])
     .map(a => a.exploreId)
     .filter(Boolean);
   const extraIds = (ritualExtras || []).map(x => x.id);
