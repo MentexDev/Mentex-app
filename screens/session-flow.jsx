@@ -290,7 +290,10 @@ function ReflectionDelayScreen({
   }, []);
 
   const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
-  const ringR = 11, ringC = 2 * Math.PI * ringR;
+  // Ring grande arriba — protagonista visual del modal. R=64 (140x140), grueso
+  // 4px, glow neon para reforzar que el destino del countdown es "volver al
+  // enfoque" (el primary). El número adentro es grande y tabular-nums.
+  const ringR = 64, ringC = 2 * Math.PI * ringR;
 
   return (
     <div style={{
@@ -302,12 +305,50 @@ function ReflectionDelayScreen({
       padding:'40px 28px',
       animation:'mtx-fade-up .28s ease',
     }}>
+      {/* Halo neon detrás del ring para darle presencia */}
       <div style={{
         position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
-        width:260, height:140, borderRadius:'50%',
-        background:'radial-gradient(50% 100% at 50% 50%, rgba(255,107,107,0.18), transparent 70%)',
-        filter:'blur(28px)', pointerEvents:'none',
+        width:280, height:160, borderRadius:'50%',
+        background:'radial-gradient(50% 100% at 50% 50%, rgba(61,255,209,0.18), transparent 70%)',
+        filter:'blur(32px)', pointerEvents:'none',
       }}/>
+
+      {/* Ring countdown grande — arriba como protagonista. Se va completando
+          en 10s; al llegar a 0, el modal se auto-cancela y vuelve al enfoque. */}
+      <div style={{ position:'relative', width:140, height:140, marginBottom:22, zIndex:1 }}>
+        <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform:'rotate(-90deg)' }}>
+          <defs>
+            <linearGradient id="reflect-grad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stopColor="#6affd9"/>
+              <stop offset="1" stopColor="#1ad9ad"/>
+            </linearGradient>
+            <filter id="reflect-glow">
+              <feGaussianBlur stdDeviation="2.5"/>
+              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx="70" cy="70" r={ringR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3.5"/>
+          <circle cx="70" cy="70" r={ringR} fill="none"
+            stroke="url(#reflect-grad)" strokeWidth="4" strokeLinecap="round"
+            strokeDasharray={ringC}
+            strokeDashoffset={ringC * (1 - ringPct)}
+            filter="url(#reflect-glow)"
+            style={{ transition:'stroke-dashoffset 1s linear' }}/>
+        </svg>
+        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+          <div style={{
+            fontSize:46, fontWeight:600, color:'var(--neon)',
+            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+            fontFamily:'var(--ff-display)',
+          }}>{seconds}</div>
+          <div style={{
+            fontSize:9, fontWeight:700, color:'var(--ink-3)', marginTop:6,
+            letterSpacing:'0.14em', textTransform:'uppercase',
+          }}>
+            volviendo al foco
+          </div>
+        </div>
+      </div>
 
       <div style={{
         display:'inline-flex', alignItems:'center', gap:6,
@@ -316,7 +357,7 @@ function ReflectionDelayScreen({
         border:'0.5px solid rgba(255,107,107,0.3)',
         color:'rgba(255,140,140,0.95)',
         fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
-        marginBottom:18, position:'relative', zIndex:1,
+        marginBottom:14, position:'relative', zIndex:1,
       }}>
         <span style={{
           width:6, height:6, borderRadius:999, background:'rgba(255,107,107,0.95)',
@@ -326,29 +367,28 @@ function ReflectionDelayScreen({
       </div>
 
       <h1 style={{
-        margin:'0 0 10px', fontSize:26, fontWeight:800,
-        color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.15,
+        margin:'0 0 8px', fontSize:24, fontWeight:800,
+        color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.18,
         fontFamily:'var(--ff-display)', textAlign:'center', position:'relative', zIndex:1,
       }}>
         Tu mente se está afilando.
         <br/>¿Detener ahora?
       </h1>
       <p style={{
-        margin:'0 0 24px', fontSize:13.5, color:'var(--ink-3)',
+        margin:'0 0 18px', fontSize:13, color:'var(--ink-3)',
         textAlign:'center', lineHeight:1.5, maxWidth:300, position:'relative', zIndex:1,
       }}>
         Llevas <span style={{ color:'var(--neon)', fontWeight:700 }}>{elapsedMin} min</span> sosteniendo el foco. Estás a un paso de cerrar el ritual.
       </p>
 
-      {/* Stats grid — cards en UN solo renglón cada una. La de rituales usa
-          eyebrow corto "EN CURSO" + valor "X pendientes" para que entre. */}
+      {/* Stats grid — 1 renglón cada card. */}
       <div style={{
         display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
-        width:'100%', maxWidth:320, marginBottom:24,
+        width:'100%', maxWidth:320, marginBottom:18,
         position:'relative', zIndex:1,
       }}>
         <div style={{
-          padding:'12px 14px', borderRadius:14,
+          padding:'10px 12px', borderRadius:14,
           background:'rgba(255,255,255,0.03)',
           border:'0.5px solid rgba(255,255,255,0.06)',
         }}>
@@ -357,7 +397,7 @@ function ReflectionDelayScreen({
           </div>
           <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
             <span style={{
-              fontSize:22, fontWeight:700, color:'var(--ink-1)',
+              fontSize:20, fontWeight:700, color:'var(--ink-1)',
               fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
               fontFamily:'var(--ff-display)',
             }}>{remainingMin}</span>
@@ -365,7 +405,7 @@ function ReflectionDelayScreen({
           </div>
         </div>
         <div style={{
-          padding:'12px 14px', borderRadius:14,
+          padding:'10px 12px', borderRadius:14,
           background:'rgba(255,255,255,0.03)',
           border:'0.5px solid rgba(255,255,255,0.06)',
         }}>
@@ -374,7 +414,7 @@ function ReflectionDelayScreen({
           </div>
           <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
             <span style={{
-              fontSize:22, fontWeight:700, color:'var(--ink-1)',
+              fontSize:20, fontWeight:700, color:'var(--ink-1)',
               fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
               fontFamily:'var(--ff-display)',
             }}>{pendingRituals}</span>
@@ -383,32 +423,14 @@ function ReflectionDelayScreen({
         </div>
       </div>
 
-      {/* Primary: seguir enfocado · con mini-ring countdown a la izquierda */}
       <button onClick={onCancel} className="mtx-tap" style={{
-        width:'100%', maxWidth:320, height:54, borderRadius:18, border:0, cursor:'pointer',
+        width:'100%', maxWidth:320, height:52, borderRadius:18, border:0, cursor:'pointer',
         background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
         color:'#0a1410', fontSize:15, fontWeight:700,
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
         boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
-        marginBottom:12, position:'relative', zIndex:1,
-        display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10,
+        marginBottom:10, position:'relative', zIndex:1,
       }}>
-        {/* Mini ring countdown — indica que en X seg vuelve solo al enfoque */}
-        <span style={{ position:'relative', width:26, height:26, flexShrink:0 }}>
-          <svg width="26" height="26" viewBox="0 0 26 26" style={{ transform:'rotate(-90deg)' }}>
-            <circle cx="13" cy="13" r={ringR} fill="none" stroke="rgba(10,20,16,0.18)" strokeWidth="2"/>
-            <circle cx="13" cy="13" r={ringR} fill="none"
-              stroke="#0a1410" strokeWidth="2" strokeLinecap="round"
-              strokeDasharray={ringC}
-              strokeDashoffset={ringC * (1 - ringPct)}
-              style={{ transition:'stroke-dashoffset 1s linear' }}/>
-          </svg>
-          <span style={{
-            position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:11, fontWeight:800, color:'#0a1410',
-            fontVariantNumeric:'tabular-nums', fontFamily:'var(--ff-display)',
-          }}>{seconds}</span>
-        </span>
         Volver al enfoque
       </button>
 
