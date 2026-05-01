@@ -268,17 +268,24 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
 
   // Progreso parcial del runner — la bola del play en el botón derecho
   // se va llenando con accent según completionPct. Si el user salió del
-  // runner sin completar, queda visualmente reflejado aquí. Al completar
-  // 100%, __mtxRunnerProgress.clear() borra el state y el ring queda en 0
-  // (la activity pasa a "done" via otro flow).
+  // runner sin completar, queda visualmente reflejado aquí.
   const _useRunnerProgress = (typeof window !== 'undefined' && window.useRunnerProgress) || (() => null);
   const runnerProgress = _useRunnerProgress(a.id);
   const partialPct = (runnerProgress && typeof runnerProgress.completionPct === 'number')
     ? Math.max(0, Math.min(1, runnerProgress.completionPct)) : 0;
 
-  const isClickable = !a.done;
+  // Completed today — cuando el runner alcanza 100% (auto-complete o
+  // markComplete), __mtxRunnerCompleted.mark(a.id) hace que esta hook
+  // retorne true. La activity entera pasa a "done" visualmente:
+  // chulito ✓ en lugar del botón play, opacidad 0.5, line-through
+  // del título.
+  const _useRunnerCompleted = (typeof window !== 'undefined' && window.useRunnerCompleted) || (() => false);
+  const completedToday = _useRunnerCompleted(a.id);
+  const effectiveDone = a.done || completedToday;
+
+  const isClickable = !effectiveDone;
   const handleActivate = () => {
-    if (a.done) return;
+    if (effectiveDone) return;
     if (a.playing && typeof window !== 'undefined') {
       // Atajo: si está en reproducción, salta directo al fullscreen.
       const item = window._resolveActivityToExploreItem
@@ -299,7 +306,7 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
     <div className="mtx-glass mtx-tap" style={{
       display:'flex', alignItems:'center', gap:12, padding:14,
       borderRadius:18, position:'relative', overflow:'hidden',
-      opacity: a.done ? 0.5 : 1,
+      opacity: effectiveDone ? 0.5 : 1,
       transition:'transform .25s ease, box-shadow .3s ease',
       cursor: isClickable ? 'pointer' : 'default',
       ...(a.playing ? {
@@ -334,16 +341,16 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
         width:40, height:40, borderRadius:12, flexShrink:0,
         background: a.fromExplore && a.cover
           ? `url(${a.cover}) center/cover`
-          : (a.done ? 'rgba(61,255,209,0.15)' : 'rgba(255,255,255,0.04)'),
+          : (effectiveDone ? 'rgba(61,255,209,0.15)' : 'rgba(255,255,255,0.04)'),
         border: a.fromExplore ? `0.5px solid ${a.accent}55` : '0',
         display:'flex', alignItems:'center', justifyContent:'center',
-        color: a.done ? 'var(--neon)' : 'var(--ink-1)',
+        color: effectiveDone ? 'var(--neon)' : 'var(--ink-1)',
         position:'relative', overflow:'hidden',
       }}>
         {a.fromExplore && a.cover ? (
           <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.18)' }}/>
         ) : null}
-        {a.done
+        {effectiveDone
           ? <IcCheck size={20} stroke="currentColor" strokeWidth={2.5}/>
           : (a.fromExplore && a.cover ? null : <a.Ic size={18} stroke="currentColor"/>)
         }
@@ -354,7 +361,7 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
                       color: a.playing ? 'var(--neon)' : (a.fromExplore ? a.accent : 'var(--ink-3)') }}>
           {a.kind}{a.playing && ' · ahora'}{a.fromExplore && !a.playing && ' · agendado'}
         </div>
-        <div style={{ fontSize:14, fontWeight:600, color:'var(--ink-1)', textDecoration: a.done ? 'line-through' : 'none',
+        <div style={{ fontSize:14, fontWeight:600, color:'var(--ink-1)', textDecoration: effectiveDone ? 'line-through' : 'none',
                       whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
           {a.title}
         </div>
@@ -373,12 +380,13 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
         }}>
           <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
         </button>
-      ) : !a.done ? (
+      ) : !effectiveDone ? (
         // Botón play con anillo de progreso parcial superpuesto.
         // Cuando el user salió del runner sin completar, el anillo
         // muestra el % cumplido (accent neon, animado). Al completar
-        // 100% el progreso se borra y el anillo desaparece (la activity
-        // pasaría a a.done=true en un flow posterior).
+        // 100% se marca como done en __mtxRunnerCompleted y este branch
+        // ya no se renderiza — el chulito ✓ se muestra en el ícono
+        // izquierdo del row (effectiveDone=true).
         (() => {
           const SIZE = 40;
           const STROKE = 1.6;
@@ -1227,7 +1235,11 @@ function HomeActive({
           title="Tu ritual de hoy"
           eyebrow={(() => {
             const total = visibleActivities.length + ritualExtras.length;
-            const done = visibleActivities.filter(a => a.done).length;
+            // Cuenta tanto las hardcoded como done como las completadas
+            // hoy en __mtxRunnerCompleted (al alcanzar 100% en el runner).
+            const completedSet = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+              ? new Set(window.__mtxRunnerCompleted.list()) : new Set();
+            const done = visibleActivities.filter(a => a.done || completedSet.has(a.id)).length;
             return `${done} de ${total} completadas`;
           })()}
           actionIcon={<IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>}

@@ -96,6 +96,37 @@ function useRunnerProgress(activityId) {
     : null;
 }
 
+// ── __mtxRunnerCompleted ─────────────────────────────────────────────────────
+// Set de activities completadas en la sesión actual. Cuando el runner llega
+// al 100% (auto-complete o markComplete del menú), la activity se marca aquí
+// y ActivityRow renderiza el chulito ✓ en lugar del botón play. Es un Set
+// in-memory — no persiste entre reloads (eso vendría con un store de hábitos
+// diarios real). Para el alcance actual basta con el state de la sesión.
+(function() {
+  if (typeof window === 'undefined' || window.__mtxRunnerCompleted) return;
+  let _ids = new Set();
+  const _emit = () => window.dispatchEvent(new CustomEvent('mtx:runner-completed-changed', { detail: { ids: [..._ids] } }));
+  window.__mtxRunnerCompleted = {
+    isDone: (id) => !!id && _ids.has(id),
+    mark:   (id) => { if (!id || _ids.has(id)) return; _ids.add(id); _emit(); },
+    unmark: (id) => { if (!id || !_ids.has(id)) return; _ids.delete(id); _emit(); },
+    list:   () => [..._ids],
+    clearAll: () => { if (_ids.size === 0) return; _ids = new Set(); _emit(); },
+  };
+})();
+
+function useRunnerCompleted(activityId) {
+  const [, force] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const h = () => force();
+    window.addEventListener('mtx:runner-completed-changed', h);
+    return () => window.removeEventListener('mtx:runner-completed-changed', h);
+  }, []);
+  return (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+    ? window.__mtxRunnerCompleted.isDone(activityId)
+    : false;
+}
+
 // ── Set de mensajes alternantes según runnerKind ─────────────────────────────
 const _RUNNER_COPY = {
   breath:   { phases:['Inhala', 'Exhala'],   phaseEvery:4, eyebrow:'Respira con calma',  motto:'Vuelve al ritmo natural' },
@@ -156,6 +187,10 @@ function RunnerOptionsSheet({
   // Fase 3: binary no tiene reset semántico (no hay state acumulado que
   // resetear). El sheet entonces solo muestra "Marcar como completada".
   hideReset = false,
+  // Slot opcional para controles específicos de la métrica activa
+  // (ej. selector de step size en distance). Se renderiza ANTES de la
+  // lista de opciones, dentro del mismo sheet, sin nesting.
+  topExtras = null,
 }) {
   if (!activity) return null;
   const accent = activity?.accent || '#3dffd1';
@@ -217,6 +252,16 @@ function RunnerOptionsSheet({
             </div>
           </div>
         </div>
+
+        {/* Top extras — slot opcional para controles del body activo
+            (ej. DistanceStepSelector). Se renderiza ANTES de las opciones
+            estándar (Marcar como completada / Reiniciar) para que el
+            usuario los encuentre primero. */}
+        {topExtras && (
+          <div style={{ padding:'0 18px 14px' }}>
+            {topExtras}
+          </div>
+        )}
 
         {/* Options list */}
         <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
@@ -291,6 +336,9 @@ function RunnerShell({
   // Fase 3: binary oculta la opción reset del menú (no aplica a hábitos
   // sin estado acumulable).
   hideReset = false,
+  // Slot opcional pasado al RunnerOptionsSheet (ej. selector de step
+  // size para distance).
+  optionsTopExtras = null,
   children,
 }) {
   const accent = activity?.accent || '#3dffd1';
@@ -410,6 +458,7 @@ function RunnerShell({
           resetLabel={resetLabel}
           resetDesc={resetDesc}
           hideReset={hideReset}
+          topExtras={optionsTopExtras}
         />
       )}
     </div>
@@ -677,6 +726,67 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
   return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
 }
 
+// ── DistanceStepSelector ─────────────────────────────────────────────────────
+// Mini control de pills para elegir el incremento por tap del runner de
+// distance: 0.1 / 0.25 / 0.5 / 1 km. Se renderiza dentro del
+// RunnerOptionsSheet (slot topExtras) — el usuario abre "···" del header
+// y elige el tamaño del paso sin salir del runner.
+//
+// Diseño consistente con las pills de "Tipo de medición" del
+// RoutineCreateSheet: scroll-x si fuera necesario (4 pills caben en
+// pantalla), pill activa con accent + glow, transición suave.
+const _DISTANCE_STEPS = [
+  { value: 0.1,  label: '0.1 km' },
+  { value: 0.25, label: '0.25 km' },
+  { value: 0.5,  label: '0.5 km' },
+  { value: 1,    label: '1 km' },
+];
+
+function DistanceStepSelector({ value, onChange, accent = '#3dffd1' }) {
+  return (
+    <div>
+      <div style={{
+        fontSize: 9.5, fontWeight: 700, color: 'var(--ink-3)',
+        letterSpacing: '0.16em', textTransform: 'uppercase',
+        marginBottom: 8, padding: '0 2px',
+      }}>
+        Tamaño del paso
+      </div>
+      <div className="mtx-scroll-x" style={{
+        display: 'flex', gap: 8, padding: '0 0 4px',
+      }}>
+        {_DISTANCE_STEPS.map(s => {
+          const active = Math.abs(s.value - value) < 0.001;
+          return (
+            <button key={s.value}
+              onClick={() => onChange(s.value)}
+              className="mtx-tap"
+              style={{
+                flexShrink: 0,
+                appearance: 'none', cursor: 'pointer',
+                padding: '8px 14px',
+                borderRadius: 999,
+                border: active ? `0.5px solid ${accent}66` : '0.5px solid rgba(255,255,255,0.08)',
+                background: active
+                  ? `linear-gradient(180deg, ${accent}1f, ${accent}05)`
+                  : 'rgba(255,255,255,0.03)',
+                color: active ? accent : 'var(--ink-2)',
+                fontFamily: 'var(--ff-sans)', fontSize: 12.5,
+                fontWeight: active ? 700 : 500,
+                letterSpacing: '-0.005em',
+                fontVariantNumeric: 'tabular-nums',
+                boxShadow: active ? `0 0 12px ${accent}33, inset 0 0 10px ${accent}10` : 'none',
+                transition: 'all .22s cubic-bezier(.34,1.56,.64,1)',
+              }}>
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── CounterRunnerBody ─────────────────────────────────────────────────────────
 // Body para métricas que se cuentan en incrementos discretos:
 //   • metricType='count'    → "veces" (visualizaciones, gratitudes, push-ups)
@@ -722,6 +832,13 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
     ? Math.max(0, Math.min(target, _saved.current)) : 0;
 
   const [current, setCurrent] = React.useState(_restoredCurrent);
+  // Step size — cuánto suma cada tap del botón "+1".
+  //   • count, pages → 1 (siempre entero).
+  //   • distance     → user puede elegir 0.1 / 0.25 / 0.5 / 1 km desde
+  //     el menú "···" (RunnerOptionsSheet con DistanceStepSelector).
+  //     Default 1 km. Persiste durante la sesión del runner; al cerrar
+  //     vuelve al default.
+  const [stepSize, setStepSize] = React.useState(1);
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
@@ -779,15 +896,30 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   const C = 2 * Math.PI * R;
   const dashOffset = C * (1 - pct);
 
-  const handleIncrement = () => setCurrent(c => Math.min(target, c + 1));
-  const handleDecrement = () => setCurrent(c => Math.max(0, c - 1));
-  const handleQuickAdd  = () => setCurrent(c => Math.min(target, c + 5));
+  // Helpers — usan stepSize para count/pages (=1 fijo) y distance
+  // (configurable). _round corrige el float drift cuando step es 0.1
+  // (ej. 0.1+0.1+0.1 = 0.30000000000000004 sin round).
+  const _round = (n) => Math.round(n * 1000) / 1000;
+  const handleIncrement = () => setCurrent(c => _round(Math.min(target, c + stepSize)));
+  const handleDecrement = () => setCurrent(c => _round(Math.max(0, c - stepSize)));
+  const handleQuickAdd  = () => setCurrent(c => _round(Math.min(target, c + stepSize * 5)));
   const handleReset = () => setCurrent(0);
   const handleMarkComplete = () => onCompleteRef.current?.();
 
-  // El skip rápido +5 solo aparece para targets grandes (>5) — para
-  // targets chicos sería overshoot inmediato y confunde la UX.
-  const showQuickAdd = target > 5;
+  // El skip rápido +5 solo aparece para targets grandes (>5 step units) —
+  // para targets chicos sería overshoot inmediato y confunde la UX.
+  const showQuickAdd = target > stepSize * 5;
+
+  // Labels de los botones reflejan el stepSize actual:
+  //   distance step 0.5 → "−0.5", "+0.5", "+2.5"
+  //   count   step 1   → "−1",   "+1",   "+5"
+  const _fmtStep = (n) => {
+    const x = _round(n);
+    return Number.isInteger(x) ? String(x) : String(x);
+  };
+  const labelDecrement = `−${_fmtStep(stepSize)}`;
+  const labelIncrement = `+${_fmtStep(stepSize)}`;
+  const labelQuickAdd  = `+${_fmtStep(stepSize * 5)}`;
 
   // Companion ON para count, pages y distance:
   //   count    → música motivacional (gratitudes, reps, visualizaciones)
@@ -810,6 +942,13 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
       hasCompanion={hasCompanion}
       resetLabel={resetLabel}
       resetDesc="Vuelve a cero y empieza de nuevo"
+      optionsTopExtras={metricType === 'distance' ? (
+        <DistanceStepSelector
+          value={stepSize}
+          accent={accent}
+          onChange={(s) => setStepSize(s)}
+        />
+      ) : null}
     >
       <div style={{ textAlign:'center', marginBottom:28 }}>
         <h1 style={{
@@ -872,14 +1011,16 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
           gap:2,
         }}>
-          {/* Número grande del contador con micro-animation al cambiar */}
+          {/* Número grande del contador con micro-animation al cambiar.
+              _fmtStep formatea decimales para evitar float drift visual
+              (0.1+0.1+0.1 → 0.3 en lugar de 0.30000000000000004). */}
           <div key={current} style={{
             fontSize:72, fontWeight:600, color:'var(--ink-1)',
             fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
             fontFamily:'var(--ff-display)',
             textShadow:`0 0 20px ${accent}55`,
             animation:'mtxCounterPulse .35s cubic-bezier(.34,1.56,.64,1)',
-          }}>{current}</div>
+          }}>{_fmtStep(current)}</div>
           <div style={{
             fontSize:13, fontWeight:500, color:'rgba(255,255,255,0.55)',
             letterSpacing:'-0.01em', marginTop:4,
@@ -904,7 +1045,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
         display:'flex', alignItems:'center', justifyContent:'center', gap:32,
       }}>
         <button onClick={handleDecrement} disabled={current === 0}
-          aria-label="Restar uno"
+          aria-label={`Restar ${_fmtStep(stepSize)}`}
           className="mtx-tap" style={{
             appearance:'none', cursor: current === 0 ? 'not-allowed' : 'pointer',
             background:'rgba(255,255,255,0.06)',
@@ -917,10 +1058,10 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
             transition:'opacity .2s',
           }}>
           <IcChevL size={17} stroke="currentColor" strokeWidth={1.8}/>
-          <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>−1</span>
+          <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>{labelDecrement}</span>
         </button>
         <button onClick={handleIncrement} disabled={current >= target}
-          aria-label={`Sumar uno · ${current + 1} de ${target}`}
+          aria-label={`Sumar ${_fmtStep(stepSize)} · ${_round(current + stepSize)} de ${target}`}
           className="mtx-tap" style={{
             appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
             width:74, height:74, borderRadius:'50%', border:0,
@@ -936,7 +1077,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
         </button>
         {showQuickAdd ? (
           <button onClick={handleQuickAdd} disabled={current >= target}
-            aria-label="Sumar cinco"
+            aria-label={`Sumar ${_fmtStep(stepSize * 5)}`}
             className="mtx-tap" style={{
               appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
               background:'rgba(255,255,255,0.06)',
@@ -949,7 +1090,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
               transition:'opacity .2s',
             }}>
             <IcChevR size={17} stroke="currentColor" strokeWidth={1.8}/>
-            <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>+5</span>
+            <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>{labelQuickAdd}</span>
           </button>
         ) : (
           // Spacer simétrico cuando no hay quick add — preserva el balance
@@ -1833,6 +1974,15 @@ function ActivityRunnerOverlay() {
 
   const handleRequestClose = () => window.__mtxActivityRunner?.requestExit();
   const handleComplete = () => {
+    // Marcar la activity como completada en el set global — ActivityRow
+    // del HomeActive renderiza el chulito ✓ en lugar del botón play.
+    // También limpia el progreso parcial (redundante con el body al
+    // alcanzar pct=1, pero garantiza el clear si el complete vino del
+    // menú "Marcar como completada" antes de llegar al target).
+    if (activity?.id) {
+      window.__mtxRunnerCompleted?.mark(activity.id);
+      window.__mtxRunnerProgress?.clear(activity.id);
+    }
     // Mostrar modal de celebración antes de cerrar
     window.__mtxActivityRunner?.showCompletion();
   };
@@ -1958,7 +2108,9 @@ Object.assign(window, {
   // RunnerCompletionScreen leen sin acoplarse a una métrica específica.
   RunnerShell,
   DurationRunnerBody,    // Fase 1 — timer countdown circular
-  CounterRunnerBody,     // Fase 2 — contador +1/-1/+5 (count + pages)
-  BinaryRunnerBody,      // Fase 3 — minimalista CTA "Marcar como hecho"
+  CounterRunnerBody,     // Fase 2 — contador +1/-1/+5 (count + pages + distance)
+  BinaryRunnerBody,      // Fase 3 — ring + botón check central
+  useRunnerProgress,
+  useRunnerCompleted,
   useActivityRunner,
 });
