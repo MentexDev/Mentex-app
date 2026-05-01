@@ -22,15 +22,27 @@ const RoutineIc = ({ r, ...rest }) => {
   return <Ic {...rest}/>;
 };
 
+// 10 rutinas default cubriendo las 5 métricas del runner:
+//   • duration → meditate, study, breathe, train, journal, visualize
+//   • count    → gratitude
+//   • pages    → read
+//   • distance → walk        (cardio)
+//   • binary   → supplements (hábito sí/no)
+// Cada rutina lleva metricType + metricValue + metricUnit explícitos para
+// que el runner enrute al body correcto sin depender de _inferMetricFromLegacy.
+// El campo `dur` se mantiene como display string (preview en RoutineRow,
+// SectionHead del HomeInactive, etc.).
 const DEFAULT_ROUTINES = [
-{ id:'meditate',  label:'Meditar',    Ic:IcLeaf,     iconId:'leaf',     colorId:'neon',   accent:'#3DFFD1', dur:'10 min', kind:'Mente',       isDefault:true },
-{ id:'read',      label:'Leer',       Ic:IcBook,     iconId:'book',     colorId:'neon',   accent:'#3DFFD1', dur:'20 min', kind:'Aprendizaje', isDefault:true },
-{ id:'study',     label:'Estudiar',   Ic:IcBrain,    iconId:'brain',    colorId:'purple', accent:'#9B8AFF', dur:'45 min', kind:'Aprendizaje', isDefault:true },
-{ id:'breathe',   label:'Respirar',   Ic:IcWind,     iconId:'wind',     colorId:'blue',   accent:'#5EC3FF', dur:'5 min',  kind:'Mente',       isDefault:true },
-{ id:'gratitude', label:'Gratitud',   Ic:IcHeart,    iconId:'heart',    colorId:'neon',   accent:'#3DFFD1', dur:'5 min',  kind:'Mente',       isDefault:true },
-{ id:'train',     label:'Entrenar',   Ic:IcDumbbell, iconId:'dumbbell', colorId:'purple', accent:'#9B8AFF', dur:'30 min', kind:'Cuerpo',      isDefault:true },
-{ id:'journal',   label:'Journaling', Ic:IcEdit,     iconId:'leaf',     colorId:'blue',   accent:'#5EC3FF', dur:'15 min', kind:'Mente',       isDefault:true },
-{ id:'visualize', label:'Visualizar', Ic:IcEye,      iconId:'eye',      colorId:'purple', accent:'#9B8AFF', dur:'8 min',  kind:'Mente',       isDefault:true }];
+{ id:'meditate',    label:'Meditar',     Ic:IcLeaf,     iconId:'leaf',     colorId:'neon',   accent:'#3DFFD1', dur:'10 min',  metricType:'duration', metricValue:10, metricUnit:'min',   kind:'Mente',       isDefault:true },
+{ id:'read',        label:'Leer',        Ic:IcBook,     iconId:'book',     colorId:'neon',   accent:'#3DFFD1', dur:'20 pp',   metricType:'pages',    metricValue:20, metricUnit:'pp',    kind:'Aprendizaje', isDefault:true },
+{ id:'study',       label:'Estudiar',    Ic:IcBrain,    iconId:'brain',    colorId:'purple', accent:'#9B8AFF', dur:'45 min',  metricType:'duration', metricValue:45, metricUnit:'min',   kind:'Aprendizaje', isDefault:true },
+{ id:'breathe',     label:'Respirar',    Ic:IcWind,     iconId:'wind',     colorId:'blue',   accent:'#5EC3FF', dur:'5 min',   metricType:'duration', metricValue:5,  metricUnit:'min',   kind:'Mente',       isDefault:true },
+{ id:'gratitude',   label:'Gratitud',    Ic:IcHeart,    iconId:'heart',    colorId:'neon',   accent:'#3DFFD1', dur:'3 veces', metricType:'count',    metricValue:3,  metricUnit:'veces', kind:'Mente',       isDefault:true },
+{ id:'train',       label:'Entrenar',    Ic:IcDumbbell, iconId:'dumbbell', colorId:'purple', accent:'#9B8AFF', dur:'30 min',  metricType:'duration', metricValue:30, metricUnit:'min',   kind:'Cuerpo',      isDefault:true },
+{ id:'journal',     label:'Journaling',  Ic:IcEdit,     iconId:'leaf',     colorId:'blue',   accent:'#5EC3FF', dur:'15 min',  metricType:'duration', metricValue:15, metricUnit:'min',   kind:'Mente',       isDefault:true },
+{ id:'visualize',   label:'Visualizar',  Ic:IcEye,      iconId:'eye',      colorId:'purple', accent:'#9B8AFF', dur:'8 min',   metricType:'duration', metricValue:8,  metricUnit:'min',   kind:'Mente',       isDefault:true },
+{ id:'walk',        label:'Caminar',     Ic:IcTarget,   iconId:'target',   colorId:'blue',   accent:'#5EC3FF', dur:'3 km',    metricType:'distance', metricValue:3,  metricUnit:'km',    kind:'Cuerpo',      isDefault:true },
+{ id:'supplements', label:'Suplementos', Ic:IcSpark,    iconId:'spark',    colorId:'purple', accent:'#9B8AFF', dur:'Hecho',   metricType:'binary',   metricValue:0,  metricUnit:'',      kind:'Cuerpo',      isDefault:true }];
 
 const ROUTINES = DEFAULT_ROUTINES;
 
@@ -761,24 +773,9 @@ function HomeInactive({
         </div>
       </div>
 
-      {/* ── Hint cuando aún no hay tiempo elegido ───────────────────────── */}
-      {/* Apps y rutinas son OPCIONALES: basta con escoger un tiempo para que
-          aparezca el CTA "Comenzar jornada". */}
-      {!canStart && (
-        <div style={{
-          padding:'4px 20px 0',
-          display:'flex', flexDirection:'column', alignItems:'center', gap:10,
-          opacity: 0.7,
-        }}>
-          <div style={{
-            fontSize:11.5, color:'var(--ink-3)',
-            textAlign:'center', lineHeight:1.5, maxWidth:260,
-            letterSpacing:'-0.005em',
-          }}>
-            Elige cuánto tiempo te vas a enfocar para empezar.
-          </div>
-        </div>
-      )}
+      {/* Hint "Elige cuánto tiempo te vas a enfocar para empezar" eliminado:
+          el grid de tiempos al inicio del Home Inactive es lo suficientemente
+          claro y el texto duplicaba la guía visual. */}
     </div>
   );
 }

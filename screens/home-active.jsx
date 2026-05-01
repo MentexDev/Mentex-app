@@ -9,34 +9,46 @@
 //
 // runnerKind ('breath' | 'silence' | 'movement' | 'focus') escoge el set de
 // mensajes alternantes y meta visual que muestra el ActivityRunner.
-// Activities base del Home activo. Cada una mapea a una rutina del catálogo
-// vía `routineId` — esto permite que HomeActive filtre por selección del
-// usuario en HomeInactive (state.routines). Sin el routineId aparecerían
-// todas siempre, ignorando lo que el usuario marcó.
+// Activities base del Home activo. Mapeo 1:1 con DEFAULT_ROUTINES vía
+// `routineId` — HomeActive filtra por state.routines (selección del
+// HomeInactive) y muestra solo las activities seleccionadas.
+//
+// Cada activity lleva metricType + metricValue + metricUnit alineados
+// con su rutina default. El runner enruta al body correcto según
+// metricType (Duration/Counter/Binary/Distance).
+//
+// Activities con runnerType:'timer' van al ActivityRunner. Activities
+// con sólo exploreId (sin runnerType) van al player de Explorar — útil
+// cuando user agrega contenido de Explorar al ritual via __mtxRitual.add.
 const ACTIVITIES = [
-  { id:'a1', routineId:'meditate',  kind:'Meditación',     title:'Respira y vuelve a ti',  dur:'10 min', totalSec:600,  Ic:IcLeaf,    accent:'#3dffd1', done:true,  playPct:1.0,  exploreId:'c-respira'   },
-  { id:'a2', routineId:'read',      kind:'Resumen',         title:'Hábitos Atómicos',       dur:'18 min', totalSec:1080, Ic:IcBook,    accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
-  { id:'a3', routineId:'breathe',   kind:'Respiración',    title:'Respira profundo',        dur:'5 min',  totalSec:300,  Ic:IcWind,    accent:'#5dd3ff', done:false,
-    runnerType:'timer', runnerKind:'breath',  runnerDurationSec:300,  runnerLabel:'Vuelve a tu cuerpo en cinco minutos.' },
-  // Counter (cantidad): 5 gratitudes — escribe una por una, +1 al terminar cada una.
-  { id:'a4', routineId:'gratitude', kind:'Journaling',      title:'Escribe tu gratitud',    dur:'5 veces', Ic:IcEdit,    accent:'#3dffd1', done:false,
-    runnerType:'timer', metricType:'count', metricValue:5, metricUnit:'veces',
-    runnerLabel:'Cinco motivos para agradecer hoy.' },
-  // Pages: 10 páginas de lectura — sin companion (silencio). Mantiene exploreId
-  // para que tap normal abra el resumen audio; el runner se invoca solo cuando
-  // metricType lo discrimina.
-  { id:'a5', routineId:'study',     kind:'Lección',         title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,   accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
-  { id:'a6', routineId:'visualize', kind:'Visualización',  title:'Visualiza tu día',        dur:'8 min',  totalSec:480,  Ic:IcEye,     accent:'#9b8aff', done:false,
-    runnerType:'timer', runnerKind:'silence', runnerDurationSec:480,  runnerLabel:'Imagina, sostén, suelta.' },
-  { id:'a7', routineId:'train',     kind:'Entrenar',        title:'Movimiento consciente',  dur:'30 min', totalSec:1800, Ic:IcDumbbell, accent:'#FFD66B', done:false,
-    runnerType:'timer', runnerKind:'movement', runnerDurationSec:1800, runnerLabel:'Treinta minutos de presencia.' },
-  // Pages: lectura medida por páginas, sin companion audio (silencio).
-  { id:'a8', routineId:'read',      kind:'Lectura',         title:'Lectura del libro actual', dur:'10 pp', Ic:IcBook,    accent:'#9b8aff', done:false,
-    runnerType:'timer', metricType:'pages', metricValue:10, metricUnit:'pp',
+  { id:'a-meditate',    routineId:'meditate',    kind:'Meditación',    title:'Respira y vuelve a ti',     dur:'10 min',   Ic:IcLeaf,     accent:'#3DFFD1', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:10, metricUnit:'min',
+    runnerKind:'silence', runnerDurationSec:600, runnerLabel:'Diez minutos para volver a ti.' },
+  { id:'a-read',        routineId:'read',        kind:'Lectura',        title:'Lectura del día',           dur:'20 pp',    Ic:IcBook,     accent:'#3DFFD1', done:false,
+    runnerType:'timer', metricType:'pages', metricValue:20, metricUnit:'pp',
     runnerLabel:'Una página a la vez.' },
-  // Binary (hecho): hábito sin medición acumulable — sólo confirmar.
-  // Sin companion (acción instantánea), sin reset (no hay state).
-  { id:'a9', routineId:'supplements', kind:'Hábito',         title:'Tomé mis suplementos',     dur:'Hecho', Ic:IcCheck,   accent:'#3dffd1', done:false,
+  { id:'a-study',       routineId:'study',       kind:'Estudio',        title:'Sesión de estudio',         dur:'45 min',   Ic:IcBrain,    accent:'#9B8AFF', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:45, metricUnit:'min',
+    runnerKind:'focus', runnerDurationSec:2700, runnerLabel:'Atención profunda durante cuarenta y cinco minutos.' },
+  { id:'a-breathe',     routineId:'breathe',     kind:'Respiración',   title:'Respira profundo',           dur:'5 min',    Ic:IcWind,     accent:'#5EC3FF', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:5,  metricUnit:'min',
+    runnerKind:'breath',  runnerDurationSec:300,  runnerLabel:'Vuelve a tu cuerpo en cinco minutos.' },
+  { id:'a-gratitude',   routineId:'gratitude',   kind:'Gratitud',       title:'Escribe tu gratitud',       dur:'3 veces',  Ic:IcHeart,    accent:'#3DFFD1', done:false,
+    runnerType:'timer', metricType:'count', metricValue:3, metricUnit:'veces',
+    runnerLabel:'Tres motivos para agradecer hoy.' },
+  { id:'a-train',       routineId:'train',       kind:'Entrenar',       title:'Movimiento consciente',     dur:'30 min',   Ic:IcDumbbell, accent:'#9B8AFF', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:30, metricUnit:'min',
+    runnerKind:'movement', runnerDurationSec:1800, runnerLabel:'Treinta minutos de presencia.' },
+  { id:'a-journal',     routineId:'journal',     kind:'Journaling',     title:'Escribe tu día',            dur:'15 min',   Ic:IcEdit,     accent:'#5EC3FF', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:15, metricUnit:'min',
+    runnerKind:'silence', runnerDurationSec:900,  runnerLabel:'Quince minutos para poner ideas en palabras.' },
+  { id:'a-visualize',   routineId:'visualize',   kind:'Visualización', title:'Visualiza tu día',           dur:'8 min',    Ic:IcEye,      accent:'#9B8AFF', done:false,
+    runnerType:'timer', metricType:'duration', metricValue:8,  metricUnit:'min',
+    runnerKind:'silence', runnerDurationSec:480,  runnerLabel:'Imagina, sostén, suelta.' },
+  { id:'a-walk',        routineId:'walk',        kind:'Cardio',         title:'Caminata del día',          dur:'3 km',     Ic:IcTarget,   accent:'#5EC3FF', done:false,
+    runnerType:'timer', metricType:'distance', metricValue:3, metricUnit:'km',
+    runnerLabel:'Tres kilómetros a tu ritmo.' },
+  { id:'a-supplements', routineId:'supplements', kind:'Hábito',         title:'Tomé mis suplementos',      dur:'Hecho',    Ic:IcSpark,    accent:'#9B8AFF', done:false,
     runnerType:'timer', metricType:'binary', metricValue:0, metricUnit:'',
     runnerLabel:'Confirma cuando los hayas tomado hoy.' },
 ];

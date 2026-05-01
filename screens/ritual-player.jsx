@@ -129,16 +129,23 @@ function _resolveActivityToExploreItem(activity) {
 function openRitualActivity(activity) {
   if (!activity) return false;
 
-  // 1. Contenido de Explorar → player global
-  const item = _resolveActivityToExploreItem(activity);
-  if (item) {
-    window.__mtxGlobalPlayer?.openSheet(item);
+  // 1. runnerType:'timer' → ActivityRunner (PRIORIDAD máxima).
+  // Las activities con metricType propio (count/pages/binary/distance) y
+  // las defaults de Mente/Cuerpo necesitan el runner full-screen aunque
+  // tengan exploreId (que apunta a contenido recomendado del Explorar).
+  // El companion del runner ya muestra la playlist de sugerencias del
+  // Explorar — duplicar abriendo el player rompería el flow.
+  if (activity.runnerType === 'timer' && window.__mtxActivityRunner) {
+    window.__mtxActivityRunner.open(activity);
     return true;
   }
 
-  // 2. Timer-only → ActivityRunner
-  if (activity.runnerType === 'timer' && window.__mtxActivityRunner) {
-    window.__mtxActivityRunner.open(activity);
+  // 2. Sin runnerType pero con contenido de Explorar → player global.
+  // Aplica a items agendados via __mtxRitual.add() (audiolibros, charlas,
+  // meditaciones guiadas) que viven solo en Explorar.
+  const item = _resolveActivityToExploreItem(activity);
+  if (item) {
+    window.__mtxGlobalPlayer?.openSheet(item);
     return true;
   }
 
