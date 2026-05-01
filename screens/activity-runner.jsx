@@ -99,6 +99,121 @@ function _buildRunnerPlaylist(activity) {
   };
 }
 
+// ── RunnerOptionsSheet — bottom sheet "···" del runner ───────────────────────
+// Reusa el mismo lenguaje visual del PlaylistOptionsSheet (explore-flow.jsx)
+// para mantener consistencia: drag handle, header con ícono + label, lista de
+// opciones, botón Cancelar al fondo. Abre desde abajo en lugar del dropdown
+// inline previo (que rompía la jerarquía visual del fullscreen runner).
+function RunnerOptionsSheet({ activity, onClose, onMarkComplete, onReset }) {
+  if (!activity) return null;
+  const accent = activity?.accent || '#3dffd1';
+
+  const options = [
+    { id: 'mark-complete', label: 'Marcar como completada', desc: 'Termina la actividad y celebra',           Ic: IcCheck,    accent: accent,    handler: onMarkComplete },
+    { id: 'reset',         label: 'Empezar desde cero',     desc: 'Reinicia el cronómetro al inicio',         Ic: IcRefresh,  accent: '#ffd47a', handler: onReset         },
+  ];
+
+  const handleSelect = (opt) => {
+    onClose();
+    setTimeout(() => { opt.handler?.(); }, 220);
+  };
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:5,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.6)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+      animation:'mtx-fade-up .25s ease',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="mtx-no-scrollbar" style={{
+        background:'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
+        backdropFilter:'blur(28px)',
+        border:'0.5px solid rgba(255,255,255,0.08)',
+        borderBottom:0,
+        borderTopLeftRadius:28, borderTopRightRadius:28,
+        width:'100%', maxHeight:'85%', overflowY:'auto', paddingBottom:24,
+        animation:'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+      }}>
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6 }}>
+          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
+        </div>
+
+        {/* Header — eyebrow + título de la actividad */}
+        <div style={{ padding:'10px 22px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{
+            width:48, height:48, borderRadius:13, flexShrink:0,
+            background: `linear-gradient(135deg, ${accent}33, ${accent}10)`,
+            border:`0.5px solid ${accent}40`,
+            boxShadow:`0 6px 16px -6px ${accent}55`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color: accent,
+          }}>
+            <span style={{ width:8, height:8, borderRadius:999, background: accent, boxShadow:`0 0 10px ${accent}` }}/>
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div className="mtx-eyebrow" style={{ fontSize:9, color:accent, letterSpacing:'0.16em', fontWeight:700, marginBottom:3 }}>
+              {activity?.kind || 'Actividad'}
+            </div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em', lineHeight:1.2,
+                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+              {activity?.title || 'En curso'}
+            </div>
+            <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>
+              Opciones del cronómetro
+            </div>
+          </div>
+        </div>
+
+        {/* Options list */}
+        <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
+          {options.map(opt => (
+            <button key={opt.id} onClick={() => handleSelect(opt)} className="mtx-tap" style={{
+              appearance:'none', cursor:'pointer', textAlign:'left',
+              padding:'12px 14px', borderRadius:14,
+              border:'0.5px solid rgba(255,255,255,0.06)',
+              background:'rgba(255,255,255,0.025)',
+              display:'flex', alignItems:'center', gap:12,
+              fontFamily:'var(--ff-sans)',
+              transition:'background .15s, border-color .15s',
+            }}>
+              <div style={{
+                width:38, height:38, borderRadius:11, flexShrink:0,
+                background: `linear-gradient(135deg, ${opt.accent}26, ${opt.accent}06)`,
+                border: `0.5px solid ${opt.accent}40`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color: opt.accent,
+              }}>
+                <opt.Ic size={15} stroke="currentColor" strokeWidth={1.7}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13.5, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.005em' }}>
+                  {opt.label}
+                </div>
+                <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:1, letterSpacing:'-0.005em' }}>
+                  {opt.desc}
+                </div>
+              </div>
+              <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.6}/>
+            </button>
+          ))}
+        </div>
+
+        {/* Cancel */}
+        <div style={{ padding:'14px 18px 0' }}>
+          <button onClick={onClose} className="mtx-tap" style={{
+            width:'100%', height:48, borderRadius:14, cursor:'pointer',
+            border:'0.5px solid var(--glass-stroke)',
+            background:'var(--glass-2)', color:'var(--ink-2)',
+            fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+          }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ActivityRunner ───────────────────────────────────────────────────────────
 function ActivityRunner({ activity, onRequestClose, onComplete }) {
   const totalSec = Math.max(60, Number(activity?.runnerDurationSec) || (activity?.totalSec) || 5 * 60);
@@ -232,79 +347,17 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
           }}/>
           {activity?.kind || copy.eyebrow}
         </div>
-        {/* Botón 3-puntos con menú: Marcar como completada · Reiniciar */}
-        <div style={{ position:'relative' }}>
-          <button onClick={() => setOptionsOpen(o => !o)} aria-label="Más opciones" className="mtx-tap" style={{
-            width:38, height:38, borderRadius:999, border:0, cursor:'pointer',
-            background: optionsOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
-            backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-            color:'var(--ink-1)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            transition:'background .2s',
-          }}>
-            <IcMoreV size={18} stroke="currentColor"/>
-          </button>
-          {optionsOpen && (
-            <>
-              {/* Backdrop para cerrar al tap fuera */}
-              <div onClick={() => setOptionsOpen(false)} style={{
-                position:'fixed', inset:0, zIndex:1,
-              }}/>
-              {/* Menú dropdown */}
-              <div style={{
-                position:'absolute', top:'calc(100% + 8px)', right:0,
-                minWidth:200, zIndex:5,
-                background:'linear-gradient(180deg, rgba(28,32,30,0.96), rgba(20,24,22,0.98))',
-                backdropFilter:'blur(28px) saturate(160%)', WebkitBackdropFilter:'blur(28px) saturate(160%)',
-                border:'0.5px solid rgba(255,255,255,0.1)',
-                borderRadius:14,
-                boxShadow:'0 20px 50px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)',
-                padding:6,
-                animation:'mtxMenuIn .18s ease both',
-                fontFamily:'var(--ff-sans)',
-              }}>
-                <style>{`@keyframes mtxMenuIn { from { opacity:0; transform:translateY(-4px) scale(0.97); } to { opacity:1; transform:none; } }`}</style>
-                <button onClick={handleMarkComplete} className="mtx-tap" style={{
-                  appearance:'none', cursor:'pointer', textAlign:'left',
-                  width:'100%', padding:'10px 12px', borderRadius:10,
-                  border:0, background:'transparent',
-                  display:'flex', alignItems:'center', gap:10,
-                  color:'var(--ink-1)', fontSize:13, fontWeight:600,
-                  fontFamily:'var(--ff-sans)',
-                }}>
-                  <div style={{
-                    width:28, height:28, borderRadius:8, flexShrink:0,
-                    background:`${accent}1a`, border:`0.5px solid ${accent}40`,
-                    color: accent,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                  }}>
-                    <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/>
-                  </div>
-                  <span>Marcar como completada</span>
-                </button>
-                <button onClick={handleReset} className="mtx-tap" style={{
-                  appearance:'none', cursor:'pointer', textAlign:'left',
-                  width:'100%', padding:'10px 12px', borderRadius:10,
-                  border:0, background:'transparent',
-                  display:'flex', alignItems:'center', gap:10,
-                  color:'var(--ink-1)', fontSize:13, fontWeight:600,
-                  fontFamily:'var(--ff-sans)',
-                }}>
-                  <div style={{
-                    width:28, height:28, borderRadius:8, flexShrink:0,
-                    background:'rgba(255,255,255,0.05)',
-                    border:'0.5px solid rgba(255,255,255,0.08)',
-                    color:'var(--ink-2)',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                  }}>
-                    <IcRefresh size={13} stroke="currentColor" strokeWidth={1.8}/>
-                  </div>
-                  <span>Empezar desde cero</span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Botón 3-puntos horizontales — abre RunnerOptionsSheet (bottom sheet) */}
+        <button onClick={() => setOptionsOpen(true)} aria-label="Más opciones" className="mtx-tap" style={{
+          width:38, height:38, borderRadius:999, border:0, cursor:'pointer',
+          background: optionsOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+          color:'var(--ink-1)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          transition:'background .2s',
+        }}>
+          <IcMoreH size={18} stroke="currentColor"/>
+        </button>
       </div>
 
       {/* Body — cuerpo principal centrado */}
@@ -454,6 +507,16 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
 
       {/* Safe space inferior */}
       <div style={{ height:28, flexShrink:0 }}/>
+
+      {/* Bottom sheet de opciones (3 puntos del header) */}
+      {optionsOpen && (
+        <RunnerOptionsSheet
+          activity={activity}
+          onClose={() => setOptionsOpen(false)}
+          onMarkComplete={handleMarkComplete}
+          onReset={handleReset}
+        />
+      )}
     </div>
   );
 }
@@ -554,9 +617,13 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
 
   // ── ESTADO ACTIVO: mini-bar con barra progreso ──────────────────────────
   const itemAccent = currentItem.accent || '#3dffd1';
+  // currentItem.dur es la duración total formateada del item ("5h 18m",
+  // "30 min", etc.). Se muestra al final del subtitle para que el usuario
+  // sepa cuánto dura sin tener que abrir el item.
   const subParts = [
     currentItem.author,
     (window.CONTENT_TYPES || []).find(t => t.id === currentItem.type)?.label,
+    currentItem.dur,
   ].filter(Boolean);
   const subtitle = subParts.join(' · ');
   const progressPct = Math.max(0, Math.min(1, Number(progress) || 0));
@@ -576,16 +643,17 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
           fontFamily:'var(--ff-sans)',
           position:'relative', overflow:'hidden',
       }}>
-        {/* Barra de progreso superpuesta arriba */}
+        {/* Barra de progreso superpuesta arriba — height:3 (vs 1.5 previo)
+            la hace más visible como timeline de YouTube/Spotify. */}
         <div style={{
-          position:'absolute', top:0, left:0, right:0, height:1.5,
-          background:'rgba(255,255,255,0.05)',
-          zIndex:2, borderRadius:'20px 20px 0 0',
+          position:'absolute', top:0, left:0, right:0, height:3,
+          background:'rgba(255,255,255,0.06)',
+          zIndex:2, borderRadius:'20px 20px 0 0', overflow:'hidden',
         }}>
           <div style={{
             width:`${progressPct * 100}%`, height:'100%',
             background: itemAccent,
-            boxShadow:`0 0 8px ${itemAccent}cc, 0 0 14px ${itemAccent}55`,
+            boxShadow:`0 0 10px ${itemAccent}cc, 0 0 16px ${itemAccent}55`,
             transition:'width .3s linear',
           }}/>
         </div>

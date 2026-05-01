@@ -1782,63 +1782,43 @@ function VideoSheet({ item, onClose, onPlay, onShare, onSaveToPlaylist, onSchedu
             Reproducir
           </button>
 
-          {scheduled ? (
-            // Ya está en el ritual del día → "Agendar" no tiene sentido.
-            // El secundario único es "Guardar" en ancho completo, con un
-            // hint visual de que ya está agendado arriba.
-            <>
-              <div style={{
-                display:'inline-flex', alignItems:'center', gap:7,
-                padding:'7px 12px', borderRadius:999,
-                background:'rgba(61,255,209,0.12)',
-                border:'0.5px solid rgba(61,255,209,0.35)',
-                color:'var(--neon)',
-                fontSize:11, fontWeight:700, letterSpacing:'0.04em',
-                fontFamily:'var(--ff-sans)',
-                alignSelf:'flex-start',
-              }}>
-                <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>
-                Ya está en tu ritual de hoy
-              </div>
-              <button onClick={handleSave} className="mtx-tap" style={{
-                width:'100%', height:50, borderRadius:14, cursor:'pointer',
-                border:'0.5px solid var(--glass-stroke)',
-                background:'var(--glass-2)', color:'var(--ink-1)',
-                fontSize:14, fontWeight:600, fontFamily:'var(--ff-sans)',
-                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8,
-                transition:'background .2s, color .2s, border-color .2s',
-              }}>
-                <IcBookmark size={15} stroke="currentColor"/>
-                Guardar en una playlist
-              </button>
-            </>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-              <button onClick={handleSchedule} className="mtx-tap" style={{
-                height:50, borderRadius:14, cursor:'pointer',
-                border:'0.5px solid var(--glass-stroke)',
-                background:'var(--glass-2)',
-                color:'var(--ink-1)',
-                fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+          {/* Grid 2-cols siempre presente. El primer botón muta de copy/color
+              según `scheduled`: "Agendar para hoy" (gris) → "Agendado"
+              (neon, no-op) cuando ya está en el ritual. Mantener la misma
+              posición y forma evita el shift de layout que confundía al usuario
+              con el chip flotante anterior. */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <button
+              onClick={scheduled ? undefined : handleSchedule}
+              disabled={scheduled}
+              aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
+              className="mtx-tap" style={{
+                height:50, borderRadius:14, cursor: scheduled ? 'default' : 'pointer',
+                border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
+                background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
+                color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
+                fontSize:13, fontWeight: scheduled ? 700 : 600, fontFamily:'var(--ff-sans)',
                 display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-                transition:'background .2s, color .2s, box-shadow .25s, border-color .2s',
+                transition:'background .25s, color .25s, box-shadow .25s, border-color .25s',
+                boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
               }}>
-                <IcCalendar size={14} stroke="currentColor"/>
-                Agendar para hoy
-              </button>
-              <button onClick={handleSave} className="mtx-tap" style={{
-                height:50, borderRadius:14, cursor:'pointer',
-                border:'0.5px solid var(--glass-stroke)',
-                background:'var(--glass-2)', color:'var(--ink-1)',
-                fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-                transition:'background .2s, color .2s, border-color .2s',
-              }}>
-                <IcBookmark size={14} stroke="currentColor"/>
-                Guardar
-              </button>
-            </div>
-          )}
+              {scheduled
+                ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/>
+                : <IcCalendar size={14} stroke="currentColor"/>}
+              {scheduled ? 'Agendado' : 'Agendar para hoy'}
+            </button>
+            <button onClick={handleSave} className="mtx-tap" style={{
+              height:50, borderRadius:14, cursor:'pointer',
+              border:'0.5px solid var(--glass-stroke)',
+              background:'var(--glass-2)', color:'var(--ink-1)',
+              fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+              display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+              transition:'background .2s, color .2s, border-color .2s',
+            }}>
+              <IcBookmark size={14} stroke="currentColor"/>
+              Guardar
+            </button>
+          </div>
         </div>
       </div>
     </div>

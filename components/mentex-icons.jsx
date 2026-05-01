@@ -24,6 +24,7 @@ const IcClose = (p) => <Icon {...p}><path d="M6 6l12 12M18 6L6 18"/></Icon>;
 const IcLock = (p) => <Icon {...p}><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></Icon>;
 const IcUnlock = (p) => <Icon {...p}><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-1.5"/></Icon>;
 const IcMoreV = (p) => <Icon {...p} fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></Icon>;
+const IcMoreH = (p) => <Icon {...p} fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></Icon>;
 const IcRefresh = (p) => <Icon {...p}><path d="M3 12a9 9 0 0115.5-6.3L21 8"/><path d="M21 4v4h-4"/><path d="M21 12a9 9 0 01-15.5 6.3L3 16"/><path d="M3 20v-4h4"/></Icon>;
 const IcShield = (p) => <Icon {...p}><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6l8-3z"/></Icon>;
 const IcClock = (p) => <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></Icon>;
@@ -177,7 +178,7 @@ const IcXBrand = ({ size = 20, stroke = 'currentColor' }) => (
 Object.assign(window, {
   Icon, IcHome, IcCompass, IcSpark, IcUsers, IcUser, IcBell, IcPlay, IcPause,
   IcCheck, IcPlus, IcChevR, IcChevL, IcChevD, IcClose, IcLock, IcUnlock, IcShield, IcClock,
-  IcMoreV, IcRefresh,
+  IcMoreV, IcMoreH, IcRefresh,
   IcFlame, IcTarget, IcBook, IcBrain, IcLeaf, IcDumbbell, IcEdit, IcEye, IcWind,
   IcHeart, IcZap, IcMic, IcSearch, IcTrend,
   IcBookmark, IcBookmarkFill, IcCalendar,
