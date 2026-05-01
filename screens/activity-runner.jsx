@@ -1245,22 +1245,30 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
   const _wasCompleted = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
     ? window.__mtxRunnerCompleted.isDone(activity?.id) : false;
   const [marked, setMarked] = React.useState(_wasCompleted);
+  // doneCount — para hábitos repetibles (vitamina, suplementos, agua)
+  // que se completan varias veces al día. Cada tap del CTA marca,
+  // cada "Añadir una más" del menú "···" incrementa el contador.
+  // Reset vuelve doneCount=0 y marked=false.
+  const [doneCount, setDoneCount] = React.useState(_wasCompleted ? 1 : 0);
   const pct = marked ? 1 : 0;
 
-  // Snapshot — emite tanto al mount como al cambiar `marked`.
+  // Snapshot — emite tanto al mount como al cambiar `marked` o `doneCount`.
+  // Si doneCount > 1, el primaryValue pasa a number+unit ("3 veces") en
+  // lugar de la palabra "Hecho" — útil para hábitos repetibles donde el
+  // completion screen muestra el conteo total del día.
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
         detail: {
           metricType: 'binary',
           completionPct: pct,
-          primaryValue: marked ? 'Hecho' : '—',
-          primaryUnit: '',
-          statLabel: 'Estado',
+          primaryValue: marked ? (doneCount > 1 ? String(doneCount) : 'Hecho') : '—',
+          primaryUnit:  marked && doneCount > 1 ? (doneCount === 1 ? 'vez' : 'veces') : '',
+          statLabel:    marked && doneCount > 1 ? 'Veces hoy' : 'Estado',
         },
       }));
     }
-  }, [marked, pct]);
+  }, [marked, pct, doneCount]);
 
   // Auto-complete con delay tras marcar — coherente con CounterRunnerBody
   // (380 ms): el usuario ve el ring llenarse antes del completion screen.
@@ -1280,15 +1288,37 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
   const handleToggleMark = () => {
     if (marked) {
       setMarked(false);
+      setDoneCount(0);
       if (typeof window !== 'undefined' && window.__mtxRunnerCompleted && activity?.id) {
         window.__mtxRunnerCompleted.unmark(activity.id);
       }
     } else {
       setMarked(true);
+      setDoneCount(1);
       setJustMarked(true);
     }
   };
   const handleMarkComplete = () => onCompleteRef.current?.();
+  // "Añadir una más" — para hábitos repetibles (suplementos 3 veces al día).
+  // Incrementa doneCount sin re-disparar celebración. Solo aplica cuando
+  // ya está marked (la primera vez se marca con el tap del CTA).
+  const handleAddMore = () => {
+    if (!marked) {
+      setMarked(true);
+      setDoneCount(1);
+      setJustMarked(true);
+    } else {
+      setDoneCount(c => c + 1);
+    }
+  };
+  // Reset — vuelve binary a pendiente (marked=false, doneCount=0, unmark).
+  const handleReset = () => {
+    setMarked(false);
+    setDoneCount(0);
+    if (typeof window !== 'undefined' && window.__mtxRunnerCompleted && activity?.id) {
+      window.__mtxRunnerCompleted.unmark(activity.id);
+    }
+  };
 
   const RING_SIZE = 232;
   const R = 104;
@@ -1300,8 +1330,16 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
       activity={activity}
       onRequestClose={onRequestClose}
       onMarkComplete={handleMarkComplete}
+      onReset={handleReset}
       hasCompanion={false}
-      hideReset={true}
+      hideReset={false}
+      resetLabel="Reiniciar"
+      resetDesc="Vuelve el hábito a pendiente"
+      onAddMore={handleAddMore}
+      addMoreLabel={marked ? 'Añadir una más' : 'Marcar otra vez'}
+      addMoreDesc={marked
+        ? `Incrementa el contador (van ${doneCount}${doneCount === 1 ? '' : ''})`
+        : 'Marca el hábito como hecho hoy'}
     >
       <div style={{ textAlign:'center', marginBottom:28 }}>
         <h1 style={{
@@ -1367,8 +1405,9 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
             letterSpacing:'0.22em', textTransform:'uppercase', marginTop:2,
             opacity: marked ? 1 : 0.6,
             transition:'opacity .35s ease',
+            fontVariantNumeric:'tabular-nums',
           }}>
-            {marked ? 'Hecho' : 'Pendiente'}
+            {marked ? (doneCount > 1 ? `Hecho · ${doneCount}×` : 'Hecho') : 'Pendiente'}
           </div>
         </div>
       </div>
