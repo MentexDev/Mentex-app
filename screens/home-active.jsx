@@ -18,12 +18,22 @@ const ACTIVITIES = [
   { id:'a2', routineId:'read',      kind:'Resumen',         title:'Hábitos Atómicos',       dur:'18 min', totalSec:1080, Ic:IcBook,    accent:'#7dffe0', done:false, playing:true, playPct:0.38, exploreId:'c-habitos' },
   { id:'a3', routineId:'breathe',   kind:'Respiración',    title:'Respira profundo',        dur:'5 min',  totalSec:300,  Ic:IcWind,    accent:'#5dd3ff', done:false,
     runnerType:'timer', runnerKind:'breath',  runnerDurationSec:300,  runnerLabel:'Vuelve a tu cuerpo en cinco minutos.' },
-  { id:'a4', routineId:'gratitude', kind:'Journaling',      title:'Escribe tu gratitud',    dur:'5 min',  totalSec:300,  Ic:IcEdit,    accent:'#3dffd1', done:false                                                        },
+  // Counter (cantidad): 5 gratitudes — escribe una por una, +1 al terminar cada una.
+  { id:'a4', routineId:'gratitude', kind:'Journaling',      title:'Escribe tu gratitud',    dur:'5 veces', Ic:IcEdit,    accent:'#3dffd1', done:false,
+    runnerType:'timer', metricType:'count', metricValue:5, metricUnit:'veces',
+    runnerLabel:'Cinco motivos para agradecer hoy.' },
+  // Pages: 10 páginas de lectura — sin companion (silencio). Mantiene exploreId
+  // para que tap normal abra el resumen audio; el runner se invoca solo cuando
+  // metricType lo discrimina.
   { id:'a5', routineId:'study',     kind:'Lección',         title:'La mente del enfoque',   dur:'8 min',  totalSec:480,  Ic:IcBrain,   accent:'#7dffe0', done:false,                              exploreId:'c-foco'      },
   { id:'a6', routineId:'visualize', kind:'Visualización',  title:'Visualiza tu día',        dur:'8 min',  totalSec:480,  Ic:IcEye,     accent:'#9b8aff', done:false,
     runnerType:'timer', runnerKind:'silence', runnerDurationSec:480,  runnerLabel:'Imagina, sostén, suelta.' },
   { id:'a7', routineId:'train',     kind:'Entrenar',        title:'Movimiento consciente',  dur:'30 min', totalSec:1800, Ic:IcDumbbell, accent:'#FFD66B', done:false,
     runnerType:'timer', runnerKind:'movement', runnerDurationSec:1800, runnerLabel:'Treinta minutos de presencia.' },
+  // Pages: lectura medida por páginas, sin companion audio (silencio).
+  { id:'a8', routineId:'read',      kind:'Lectura',         title:'Lectura del libro actual', dur:'10 pp', Ic:IcBook,    accent:'#9b8aff', done:false,
+    runnerType:'timer', metricType:'pages', metricValue:10, metricUnit:'pp',
+    runnerLabel:'Una página a la vez.' },
 ];
 
 // ── Waveform ──────────────────────────────────────────────────────────────────

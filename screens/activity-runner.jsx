@@ -395,17 +395,32 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
     return () => clearInterval(id);
   }, [isPlaying]);
 
-  // Snapshot al window para que ConfirmExitRunnerModal lea sin duplicar state
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
-        detail: { secondsLeft, totalSec },
-      }));
-    }
-  }, [secondsLeft, totalSec]);
-
   const elapsed = totalSec - secondsLeft;
   const pct = elapsed / totalSec;
+
+  // Snapshot genérico — el shape soporta cualquier métrica (Duration/
+  // Counter/Distance/Binary). ConfirmExitRunnerModal y RunnerCompletionScreen
+  // leen via los campos derivados (completionPct, primaryValue, primaryUnit,
+  // statLabel) sin tener que conocer la implementación de cada body.
+  // Backward compat: secondsLeft/totalSec se mantienen para consumidores
+  // antiguos (ej. analytics que ya escucha el evento).
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const elapsedMin = Math.max(0, Math.floor(elapsed / 60));
+      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+        detail: {
+          metricType: 'duration',
+          completionPct: pct,
+          // Stat tile principal: tiempo invertido en formato "Xmin"
+          primaryValue: String(elapsedMin),
+          primaryUnit: 'min',
+          statLabel: 'Tiempo',
+          // Backward compat
+          secondsLeft, totalSec,
+        },
+      }));
+    }
+  }, [secondsLeft, totalSec, elapsed, pct]);
   const phaseIdx = Math.floor(elapsed / copy.phaseEvery) % copy.phases.length;
   const phaseText = copy.phases[phaseIdx];
   const phaseSec = elapsed % copy.phaseEvery;
@@ -577,11 +592,256 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
 //   • DistanceRunnerBody (distancia, métrica nueva)
 //   • BinaryRunnerBody   (hecho)
 function ActivityRunner({ activity, onRequestClose, onComplete }) {
-  // Por ahora solo tenemos DurationRunnerBody. Cuando se activen las demás
-  // métricas en Fases 2-4, este switch enrutará al body correcto.
-  // const metric = activity?.metricType || 'duration';
-  // switch (metric) { case 'count': return <CounterRunnerBody.../>; ... }
+  // Router por metricType. Backward compat: si activity no tiene metricType
+  // explícito, asumimos 'duration' (el único body que existía antes de Fase 2).
+  const metric = activity?.metricType || 'duration';
+  if (metric === 'count' || metric === 'pages') {
+    return <CounterRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
+  }
+  // Fase 4: distance → DistanceRunnerBody. Por ahora cae a Duration.
+  // Fase 3: binary → BinaryRunnerBody.
   return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
+}
+
+// ── CounterRunnerBody ─────────────────────────────────────────────────────────
+// Body para métricas que cuentan repeticiones discretas:
+//   • metricType='count' → "veces" (visualizaciones, gratitudes, push-ups)
+//     Companion ON — música motivacional encaja con contar reps.
+//   • metricType='pages' → "pp" (lectura)
+//     Companion OFF — leer requiere silencio.
+//
+// Reusa <RunnerShell> 100% (header + safe + options sheet + player effect).
+// Diseño espejo del DurationRunnerBody:
+//   • Mismo ring SVG (RING_SIZE 232, R 104, tick marks)
+//   • Centro: número grande `current` + sub-label `/ target unit`
+//   • Status line: "X / Y completadas · Y unit total"
+//   • Controles: −1 (corregir) · +1 BIG (primary action) · +5 (skip si target>5)
+// Auto-complete cuando current >= target tras un setTimeout breve para que el
+// usuario vea el último +1 antes del completion screen.
+function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
+  const accent = activity?.accent || '#3dffd1';
+  const metricType = activity?.metricType === 'pages' ? 'pages' : 'count';
+  const unit = activity?.metricUnit || (metricType === 'pages' ? 'pp' : 'veces');
+  // Target: clamp [1, ∞), default 10. Aceptamos floats por si llega de
+  // distance erróneamente, pero count/pages siempre son enteros.
+  const target = Math.max(1, Math.round(Number(activity?.metricValue) || 10));
+  const motto = activity?.runnerLabel || (metricType === 'pages'
+    ? 'Una página a la vez.'
+    : 'Cada repetición cuenta.');
+
+  const [current, setCurrent] = React.useState(0);
+  const onCompleteRef = React.useRef(onComplete);
+  React.useEffect(() => { onCompleteRef.current = onComplete; });
+
+  // Auto-complete cuando se alcanza el target. Pequeño delay para que el
+  // último +1 se vea antes del completion screen (mejor feedback).
+  React.useEffect(() => {
+    if (current >= target) {
+      const t = setTimeout(() => onCompleteRef.current?.(), 380);
+      return () => clearTimeout(t);
+    }
+  }, [current, target]);
+
+  const pct = Math.max(0, Math.min(1, current / target));
+  // Stat tile primario en exit/completion: para count usamos
+  // "Repeticiones", para pages "Páginas". Pluralización de unit:
+  //   count + 1 → "vez", count != 1 → "veces"
+  //   pages → "pp" siempre
+  const displayUnit = metricType === 'count' && current === 1 ? 'vez' : unit;
+  const statLabel = metricType === 'pages' ? 'Páginas' : 'Repeticiones';
+
+  // Snapshot polimórfico — ConfirmExitRunnerModal y RunnerCompletionScreen
+  // leen completionPct + primaryValue + primaryUnit + statLabel sin
+  // conocer la implementación de Counter. current/target adicionales por
+  // si algún consumidor futuro los necesita.
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+        detail: {
+          metricType,
+          completionPct: pct,
+          primaryValue: String(current),
+          primaryUnit: displayUnit,
+          statLabel,
+          current, target, unit,
+        },
+      }));
+    }
+  }, [current, target, pct, metricType, displayUnit, statLabel, unit]);
+
+  const RING_SIZE = 232;
+  const R = 104;
+  const C = 2 * Math.PI * R;
+  const dashOffset = C * (1 - pct);
+
+  const handleIncrement = () => setCurrent(c => Math.min(target, c + 1));
+  const handleDecrement = () => setCurrent(c => Math.max(0, c - 1));
+  const handleQuickAdd  = () => setCurrent(c => Math.min(target, c + 5));
+  const handleReset = () => setCurrent(0);
+  const handleMarkComplete = () => onCompleteRef.current?.();
+
+  // El skip rápido +5 solo aparece para targets grandes (>5) — para
+  // targets chicos sería overshoot inmediato y confunde la UX.
+  const showQuickAdd = target > 5;
+
+  // Companion ON solo para 'count' (música motivacional encaja). Pages
+  // siempre OFF (leer en silencio).
+  const hasCompanion = metricType === 'count';
+
+  return (
+    <RunnerShell
+      activity={activity}
+      onRequestClose={onRequestClose}
+      onMarkComplete={handleMarkComplete}
+      onReset={handleReset}
+      hasCompanion={hasCompanion}
+      resetLabel={metricType === 'pages' ? 'Reiniciar contador' : 'Reiniciar contador'}
+      resetDesc="Vuelve a cero y empieza de nuevo"
+    >
+      <div style={{ textAlign:'center', marginBottom:28 }}>
+        <h1 style={{
+          margin:0, fontSize:23, fontWeight:800,
+          color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
+          fontFamily:'var(--ff-display)',
+        }}>
+          {activity?.title || (metricType === 'pages' ? 'Lectura' : 'Cuenta tus repeticiones')}
+        </h1>
+        <p style={{
+          margin:'8px 0 0', fontSize:12.5, color:'rgba(255,255,255,0.6)',
+          letterSpacing:'-0.005em', lineHeight:1.5, maxWidth:280, marginInline:'auto',
+        }}>
+          {motto}
+        </p>
+      </div>
+
+      <div style={{ position:'relative', width:RING_SIZE, height:RING_SIZE }}>
+        <div style={{
+          position:'absolute', inset:-30, borderRadius:'50%',
+          background:`radial-gradient(50% 50% at 50% 50%, ${accent}40 0%, transparent 70%)`,
+          filter:'blur(24px)', pointerEvents:'none',
+        }}/>
+        <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} style={{ transform:'rotate(-90deg)', position:'relative' }}>
+          <defs>
+            <linearGradient id="counter-runner-grad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stopColor="#6affd9"/>
+              <stop offset="1" stopColor="#1ad9ad"/>
+            </linearGradient>
+            <filter id="counter-runner-glow">
+              <feGaussianBlur stdDeviation="3.5"/>
+              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3.5"/>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none"
+            stroke="url(#counter-runner-grad)" strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={C}
+            strokeDashoffset={dashOffset}
+            filter="url(#counter-runner-glow)"
+            style={{ transition:'stroke-dashoffset .35s cubic-bezier(.34,1.56,.64,1)' }}/>
+          {Array.from({ length: 60 }).map((_, i) => {
+            const a = (i / 60) * Math.PI * 2;
+            const r1 = R + 12, r2 = i % 5 === 0 ? R + 18 : R + 14;
+            return (
+              <line key={i}
+                x1={RING_SIZE/2 + Math.cos(a) * r1} y1={RING_SIZE/2 + Math.sin(a) * r1}
+                x2={RING_SIZE/2 + Math.cos(a) * r2} y2={RING_SIZE/2 + Math.sin(a) * r2}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth={i % 5 === 0 ? 1 : 0.5}/>
+            );
+          })}
+        </svg>
+        <div style={{
+          position:'absolute', inset:0,
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          gap:2,
+        }}>
+          {/* Número grande del contador con micro-animation al cambiar */}
+          <div key={current} style={{
+            fontSize:72, fontWeight:600, color:'var(--ink-1)',
+            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+            fontFamily:'var(--ff-display)',
+            textShadow:`0 0 20px ${accent}55`,
+            animation:'mtxCounterPulse .35s cubic-bezier(.34,1.56,.64,1)',
+          }}>{current}</div>
+          <div style={{
+            fontSize:13, fontWeight:500, color:'rgba(255,255,255,0.55)',
+            letterSpacing:'-0.01em', marginTop:4,
+            fontVariantNumeric:'tabular-nums',
+          }}>
+            de {target} {unit}
+          </div>
+          <style>{`@keyframes mtxCounterPulse { 0% { transform:scale(0.92); opacity:0.65; } 60% { transform:scale(1.04); opacity:1; } 100% { transform:scale(1); opacity:1; } }`}</style>
+        </div>
+      </div>
+
+      <div style={{
+        marginTop:18, fontSize:11, fontWeight:600,
+        color:'rgba(255,255,255,0.5)', letterSpacing:'-0.005em',
+        fontVariantNumeric:'tabular-nums',
+      }}>
+        {Math.round(pct * 100)}% completado · {target} {unit} totales
+      </div>
+
+      <div style={{
+        marginTop:22,
+        display:'flex', alignItems:'center', justifyContent:'center', gap:32,
+      }}>
+        <button onClick={handleDecrement} disabled={current === 0}
+          aria-label="Restar uno"
+          className="mtx-tap" style={{
+            appearance:'none', cursor: current === 0 ? 'not-allowed' : 'pointer',
+            background:'rgba(255,255,255,0.06)',
+            border:'0.5px solid rgba(255,255,255,0.1)',
+            backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+            width:48, height:48, borderRadius:'50%',
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            color:'var(--ink-1)', gap:1,
+            opacity: current === 0 ? 0.4 : 1,
+            transition:'opacity .2s',
+          }}>
+          <IcChevL size={17} stroke="currentColor" strokeWidth={1.8}/>
+          <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>−1</span>
+        </button>
+        <button onClick={handleIncrement} disabled={current >= target}
+          aria-label={`Sumar uno · ${current + 1} de ${target}`}
+          className="mtx-tap" style={{
+            appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
+            width:74, height:74, borderRadius:'50%', border:0,
+            background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
+            color:'#0a1410',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:`0 0 0 1px ${accent}88, 0 0 44px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
+            flexShrink:0,
+            opacity: current >= target ? 0.5 : 1,
+            transition:'opacity .25s, transform .12s',
+          }}>
+            <IcPlus size={28} stroke="currentColor" strokeWidth={2.4}/>
+        </button>
+        {showQuickAdd ? (
+          <button onClick={handleQuickAdd} disabled={current >= target}
+            aria-label="Sumar cinco"
+            className="mtx-tap" style={{
+              appearance:'none', cursor: current >= target ? 'not-allowed' : 'pointer',
+              background:'rgba(255,255,255,0.06)',
+              border:'0.5px solid rgba(255,255,255,0.1)',
+              backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+              width:48, height:48, borderRadius:'50%',
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+              color:'var(--ink-1)', gap:1,
+              opacity: current >= target ? 0.4 : 1,
+              transition:'opacity .2s',
+            }}>
+            <IcChevR size={17} stroke="currentColor" strokeWidth={1.8}/>
+            <span style={{ fontSize:8, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.04em' }}>+5</span>
+          </button>
+        ) : (
+          // Spacer simétrico cuando no hay quick add — preserva el balance
+          // visual del row (botón central queda perfectamente centrado).
+          <div style={{ width:48, height:48, flexShrink:0 }} aria-hidden/>
+        )}
+      </div>
+    </RunnerShell>
+  );
 }
 
 // ── RunnerCompanionBar ────────────────────────────────────────────────────────
@@ -827,7 +1087,14 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
 }
 
 // ── ConfirmExitRunnerModal ────────────────────────────────────────────────────
-function ConfirmExitRunnerModal({ activity, secondsLeft, totalSec, onCancel, onComplete, onAbandon }) {
+// Recibe el snapshot polimórfico del runner activo. Lee:
+//   • completionPct (0-1) → para el stat "Progreso N%"
+//   • primaryValue / primaryUnit → para el stat "Has hecho X unit"
+//   • statLabel → label del primer stat tile ("Tiempo", "Repeticiones", etc.)
+//   • secondsLeft / totalSec → backward compat con consumidores legacy
+//     (Duration aún los emite). Si el body no los emite, computamos
+//     elapsedStr desde primaryValue para Duration en formato "mm:ss".
+function ConfirmExitRunnerModal({ activity, snapshot, onCancel, onComplete, onAbandon }) {
   const COUNTDOWN_TOTAL = 5;
   const [seconds, setSeconds] = React.useState(COUNTDOWN_TOTAL);
   const onCancelRef = React.useRef(onCancel);
@@ -849,11 +1116,25 @@ function ConfirmExitRunnerModal({ activity, secondsLeft, totalSec, onCancel, onC
   const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
   const ringR = 64, ringC = 2 * Math.PI * ringR;
 
-  const elapsed = Math.max(0, totalSec - secondsLeft);
-  const elapsedMin = Math.floor(elapsed / 60);
-  const elapsedSs = elapsed % 60;
-  const elapsedStr = `${elapsedMin}:${String(elapsedSs).padStart(2,'0')}`;
-  const completionPct = totalSec > 0 ? Math.round((elapsed / totalSec) * 100) : 0;
+  // Para Duration: mostrar "12:34" como "Has hecho". Para count/pages
+  // mostrar el primaryValue ("5"). El snapshot trae:
+  //   - Duration: secondsLeft, totalSec, primaryValue (min), primaryUnit
+  //   - Counter:  current, target, primaryValue (current), primaryUnit
+  const metricType = snapshot?.metricType || 'duration';
+  const completionPct = Math.round(((snapshot?.completionPct) || 0) * 100);
+  let elapsedStr = '0';
+  let elapsedUnit = '';
+  if (metricType === 'duration' && snapshot?.totalSec != null) {
+    const elapsed = Math.max(0, snapshot.totalSec - (snapshot.secondsLeft ?? 0));
+    const mm = Math.floor(elapsed / 60);
+    const ss = elapsed % 60;
+    elapsedStr = `${mm}:${String(ss).padStart(2,'0')}`;
+    elapsedUnit = '';
+  } else {
+    // count / pages / distance: usar primaryValue + primaryUnit del snapshot
+    elapsedStr = String(snapshot?.primaryValue ?? '0');
+    elapsedUnit = snapshot?.primaryUnit || '';
+  }
 
   const theme = React.useMemo(() => {
     if (typeof window !== 'undefined' && window._pickAndAdvanceModalTheme) {
@@ -960,11 +1241,16 @@ function ConfirmExitRunnerModal({ activity, secondsLeft, totalSec, onCancel, onC
           <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(255,255,255,0.55)', marginBottom:4 }}>
             Has hecho
           </div>
-          <div style={{
-            fontSize:18, fontWeight:700, color:'var(--ink-1)',
-            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
-            fontFamily:'var(--ff-display)',
-          }}>{elapsedStr}</div>
+          <div style={{ display:'flex', alignItems:'baseline', gap:5 }}>
+            <span style={{
+              fontSize:18, fontWeight:700, color:'var(--ink-1)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
+              fontFamily:'var(--ff-display)',
+            }}>{elapsedStr}</span>
+            {elapsedUnit && (
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.55)' }}>{elapsedUnit}</span>
+            )}
+          </div>
         </div>
         <div style={{
           padding:'10px 12px', borderRadius:14,
@@ -1033,10 +1319,29 @@ function ConfirmExitRunnerModal({ activity, secondsLeft, totalSec, onCancel, onC
 // adaptado: sin score gigante (no estamos cerrando una sesión completa,
 // solo una activity), confetti suaves del accent, stats compactas, CTAs
 // claros. Tono celebratorio pero no over-the-top.
-function RunnerCompletionScreen({ activity, totalSec, onClose }) {
+// Recibe el snapshot polimórfico del último estado del runner. Computa
+// el primer stat tile según metricType:
+//   • duration → "X min" usando totalSec
+//   • count    → "N veces" usando primaryValue
+//   • pages    → "N pp" usando primaryValue
+//   • distance → "X km" usando primaryValue
+function RunnerCompletionScreen({ activity, snapshot, onClose }) {
   const accent = activity?.accent || '#3dffd1';
-  const totalMin = Math.max(1, Math.floor((totalSec || 0) / 60));
   const copy = _resolveCopy(activity?.runnerKind);
+  const metricType = snapshot?.metricType || 'duration';
+
+  // Stat principal: el body del runner ya emitió primaryValue + primaryUnit
+  // ajustados a su métrica (ej. para Duration: "X" min con elapsed). Si no
+  // hay snapshot (edge case), fallback a totalSec del activity.
+  let statValue, statUnit, statLabel = snapshot?.statLabel || 'Tiempo';
+  if (snapshot?.primaryValue != null) {
+    statValue = snapshot.primaryValue;
+    statUnit = snapshot.primaryUnit || '';
+  } else {
+    // Fallback Duration legacy
+    statValue = String(Math.max(1, Math.floor((activity?.runnerDurationSec || activity?.totalSec || 0) / 60)));
+    statUnit = 'min';
+  }
 
   return (
     <div style={{
@@ -1135,9 +1440,11 @@ function RunnerCompletionScreen({ activity, totalSec, onClose }) {
           {copy.motto}.
         </div>
 
-        {/* Stats compactos */}
+        {/* Stats compactos — primer tile parametrizado por métrica
+            (Tiempo / Repeticiones / Páginas / Distancia). El segundo
+            siempre muestra "Actividad: 1 hecha". */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:10, width:'100%', maxWidth:320 }}>
-          <CompletionStatTile label="Tiempo" value={`${totalMin}`} unit="min" Ic={IcClock} accent={accent}/>
+          <CompletionStatTile label={statLabel} value={statValue} unit={statUnit} Ic={IcClock} accent={accent}/>
           <CompletionStatTile label="Actividad" value="1" unit="hecha" Ic={IcCheck} accent={accent}/>
         </div>
       </div>
@@ -1187,10 +1494,17 @@ function CompletionStatTile({ label, value, unit, Ic, accent }) {
 function ActivityRunnerOverlay() {
   const { activity, exitConfirmOpen, queueOpen, completionOpen } = useActivityRunner();
   const toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: () => {} };
-  const [snapshot, setSnapshot] = React.useState({ secondsLeft: 0, totalSec: 0 });
+  // Snapshot polimórfico — Duration emite { secondsLeft, totalSec, ... },
+  // Counter emite { current, target, ... }, etc. Los modales abajo leen
+  // los campos derivados (completionPct, primaryValue, primaryUnit,
+  // statLabel) que cada body computa según su métrica.
+  const [snapshot, setSnapshot] = React.useState({
+    metricType: 'duration', completionPct: 0,
+    primaryValue: '0', primaryUnit: '', statLabel: 'Tiempo',
+  });
 
   React.useEffect(() => {
-    const handler = (e) => setSnapshot(e.detail || { secondsLeft: 0, totalSec: 0 });
+    const handler = (e) => setSnapshot(e.detail || {});
     window.addEventListener('mtx:runner-snapshot', handler);
     return () => window.removeEventListener('mtx:runner-snapshot', handler);
   }, []);
@@ -1291,8 +1605,7 @@ function ActivityRunnerOverlay() {
       {exitConfirmOpen && (
         <ConfirmExitRunnerModal
           activity={activity}
-          secondsLeft={snapshot.secondsLeft}
-          totalSec={snapshot.totalSec}
+          snapshot={snapshot}
           onCancel={() => window.__mtxActivityRunner?.cancelExit()}
           onComplete={handleComplete}
           onAbandon={handleAbandon}
@@ -1301,7 +1614,7 @@ function ActivityRunnerOverlay() {
       {completionOpen && (
         <RunnerCompletionScreen
           activity={activity}
-          totalSec={snapshot.totalSec}
+          snapshot={snapshot}
           onClose={handleCompletionClose}
         />
       )}
@@ -1357,9 +1670,11 @@ function ActivityRunnerOverlay() {
 Object.assign(window, {
   ActivityRunner, ActivityRunnerOverlay, ConfirmExitRunnerModal,
   RunnerCompanionBar, RunnerCompletionScreen,
-  // Componentes extraídos en Fase 1 del plan de métricas alternativas.
-  // Exportados para que Fases 2-4 puedan crear nuevos bodies que reusen
-  // el shell sin importar la implementación interna.
-  RunnerShell, DurationRunnerBody,
+  // Bodies por métrica — extraídos en Fases 1-2 del plan. Cada body usa
+  // <RunnerShell> y dispara snapshots polimórficos que ConfirmExit y
+  // RunnerCompletionScreen leen sin acoplarse a una métrica específica.
+  RunnerShell,
+  DurationRunnerBody,    // Fase 1 — timer countdown circular
+  CounterRunnerBody,     // Fase 2 — contador +1/-1/+5 (count + pages)
   useActivityRunner,
 });
