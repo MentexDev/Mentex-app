@@ -118,11 +118,19 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
   }, []);
   const Aurora = (typeof window !== 'undefined' && window.ConfirmAuroraBackground) || (() => null);
 
-  // Mientras el runner está activo, ocultamos el mini-bar global del player
+  // Estado inicial del runner: SIN contenido seleccionado. Si el usuario
+  // venía escuchando algo en Explorar/mini-bar, se limpia al entrar al
+  // runner — la idea es que el companion empiece en su estado vacío
+  // ("Recomendados para ti") y el usuario elija qué quiere escuchar mientras
+  // hace su actividad. Tras el stop() reactivamos fullscreenOpen para que
+  // la mini-bar global no aparezca encima del runner.
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.__mtxPlayer && window.__mtxPlayer.setFullscreenOpen) {
-      window.__mtxPlayer.setFullscreenOpen(true);
-      return () => window.__mtxPlayer.setFullscreenOpen(false);
+    if (typeof window !== 'undefined' && window.__mtxPlayer) {
+      window.__mtxPlayer.stop();
+      if (window.__mtxPlayer.setFullscreenOpen) window.__mtxPlayer.setFullscreenOpen(true);
+      return () => {
+        if (window.__mtxPlayer.setFullscreenOpen) window.__mtxPlayer.setFullscreenOpen(false);
+      };
     }
   }, []);
 
@@ -624,10 +632,16 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
             : <IcPlay size={14} stroke="currentColor"/>
           }
         </button>
-        {/* Icono lista — abre el queue (reemplaza la X de cerrar del mini-bar) */}
+        {/* Icono cerrar — quita el contenido seleccionado, el companion vuelve
+            al estado vacío "Recomendados para ti" (donde el tap abre la cola).
+            No lo confundas con cerrar el RUNNER: solo limpia el __mtxPlayer
+            store. El user puede elegir otro audio sin salir de la actividad. */}
         <button
-          onClick={(e) => { e.stopPropagation(); handleOpenQueue(); }}
-          aria-label="Abrir cola y sugerencias" className="mtx-tap" style={{
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.__mtxPlayer) window.__mtxPlayer.stop();
+          }}
+          aria-label="Quitar contenido en reproducción" className="mtx-tap" style={{
             appearance:'none', cursor:'pointer', flexShrink:0,
             width:32, height:32, borderRadius:'50%',
             border:'0.5px solid rgba(255,255,255,0.08)',
@@ -635,7 +649,7 @@ function RunnerCompanionBar({ activity, suggestionCount }) {
             color:'var(--ink-3)',
             display:'flex', alignItems:'center', justifyContent:'center',
         }}>
-          <IcList size={13} stroke="currentColor" strokeWidth={1.8}/>
+          <IcClose size={12} stroke="currentColor" strokeWidth={2}/>
         </button>
       </div>
     </div>
@@ -1032,6 +1046,13 @@ function ActivityRunnerOverlay() {
     ? runnerItems.findIndex(i => i && i.id === currentItem.id)
     : -1;
 
+  // AddContentScreen montado localmente desde el runner. Como ExploreScreen
+  // sólo está montado en el tab Explorar, cuando el runner se abre desde
+  // Home no podríamos delegar el evento — montamos el screen aquí mismo,
+  // reusando el componente exportado a window.
+  // IMPORTANTE: useState ANTES del early return — Hook Rules.
+  const [addContentOpen, setAddContentOpen] = React.useState(false);
+
   const overlayRoot = typeof document !== 'undefined'
     ? document.getElementById('mtx-overlay-root')
     : null;
@@ -1053,6 +1074,7 @@ function ActivityRunnerOverlay() {
   };
 
   const PlaylistQueueSheet = (typeof window !== 'undefined' && window.PlaylistQueueSheet) || null;
+  const AddContentScreen = (typeof window !== 'undefined' && window.AddContentScreen) || null;
 
   // Handlers del queue sheet
   const handleQueueClose = () => window.__mtxActivityRunner?.closeQueue();
@@ -1066,11 +1088,10 @@ function ActivityRunnerOverlay() {
     window.__mtxActivityRunner?.closeQueue();
   };
   const handleQueueAddMore = () => {
-    // En un mundo real, esto abriría AddContentScreen — por ahora dispatch
-    // del evento que ExploreScreen escucha si está montado.
-    window.dispatchEvent(new CustomEvent('mtx:request-add-to-playlist', {
-      detail: { playlist: runnerPlaylist },
-    }));
+    setAddContentOpen(true);
+  };
+  const handleAddContentBack = () => {
+    setAddContentOpen(false);
   };
 
   const content = (
@@ -1113,6 +1134,22 @@ function ActivityRunnerOverlay() {
           totalSec={snapshot.totalSec}
           onClose={handleCompletionClose}
         />
+      )}
+      {addContentOpen && AddContentScreen && runnerPlaylist && (
+        // Reusa el AddContentScreen de explore-flow.jsx. Mutará
+        // runnerPlaylist._extraItemIds para añadir items seleccionados.
+        // Como runnerPlaylist es estable via useMemo([activity?.id]), los
+        // ids agregados persisten mientras el runner está abierto.
+        <div style={{
+          position:'absolute', inset:0, zIndex:235,
+          background:'#050706',
+          animation:'mtx-fade-up .35s ease',
+        }}>
+          <AddContentScreen
+            playlist={runnerPlaylist}
+            onBack={handleAddContentBack}
+          />
+        </div>
       )}
     </>
   );

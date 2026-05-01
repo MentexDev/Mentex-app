@@ -6267,7 +6267,9 @@ function PlaylistSwitcherSheet({ onClose }) {
 
   return (
     <div style={{
-      position:'absolute', inset:0, zIndex:170,
+      // zIndex 240 para asegurar que el switcher se monta encima del queue
+      // del runner (zIndex 230) y del queue normal (zIndex 160).
+      position:'absolute', inset:0, zIndex:240,
       display:'flex', alignItems:'flex-end',
       background:'rgba(0,0,0,0.55)',
       backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
