@@ -1336,145 +1336,20 @@ function HomeActive({
         </div>
       )}
 
-      {/* Sheet de edición del tiempo planeado — tap del lápiz top-right
-          de la card del cronómetro lo monta. Aplicar elige uno de los
-          chips y cierra. */}
-      {editTimeOpen && (
-        <EditSessionTimeSheet
-          currentMinutes={totalMin}
-          elapsedSec={elapsedSec}
-          onChange={(m) => { onChangeTime?.(m); setEditTimeOpen(false); }}
+      {/* Modal de edición del tiempo — reusa CustomTimeModal (ya existente
+          en HomeInactive). Tap del lápiz top-right del cronómetro lo
+          abre; al aplicar pasa minutos a onChangeTime. minViableMin
+          previene seleccionar tiempo menor al ya transcurrido. */}
+      {window.CustomTimeModal && (
+        <window.CustomTimeModal
+          open={editTimeOpen}
           onClose={() => setEditTimeOpen(false)}
+          onApply={(m) => onChangeTime?.(m)}
+          initialMinutes={totalMin}
+          minMinutes={Math.max(1, Math.ceil(elapsedSec / 60))}
+          elapsedMinutes={Math.floor(elapsedSec / 60)}
         />
       )}
-    </div>
-  );
-}
-
-// ── EditSessionTimeSheet ─────────────────────────────────────────────────────
-// Bottom sheet para editar la duración de la sesión activa. Reusa el set
-// TIME_OPTIONS del HomeInactive (15/30/45 min, 1/2/3 h) — coherencia visual
-// y mismo modelo mental para el usuario.
-//   • Pill activa: el totalMin actual (resaltado neon, igual que el grid
-//     del HomeInactive cuando se elige tiempo desde cero).
-//   • Si elapsedSec > pillValue * 60, la pill se deshabilita visualmente
-//     porque reducir el tiempo a algo menor de lo ya transcurrido haría
-//     que la sesión saltara directamente al estado completed (UX confusa).
-// Diseño espejo del RoutinesEditorSheet: backdrop dark blur, sheet 88%
-// height anclado al bottom, drag handle, header eyebrow + título, grid
-// de opciones, footer con CTA "Listo".
-const _TIME_PILL_OPTIONS = [
-  { v: 15,  label: '15 min' },
-  { v: 30,  label: '30 min' },
-  { v: 45,  label: '45 min' },
-  { v: 60,  label: '1 h'    },
-  { v: 120, label: '2 h'    },
-  { v: 180, label: '3 h'    },
-];
-
-function EditSessionTimeSheet({ currentMinutes, elapsedSec, onChange, onClose }) {
-  const [exiting, setExiting] = React.useState(false);
-  const handleClose = () => { setExiting(true); setTimeout(onClose, 280); };
-
-  React.useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') handleClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  // Tiempo mínimo aceptable: el ya transcurrido + 1 min margen para no
-  // forzar el completed inmediato al editar (a menos que el user
-  // explícitamente quiera terminar la sesión, para eso ya está
-  // "Finalizar sesión").
-  const minViableMin = Math.max(1, Math.ceil(elapsedSec / 60));
-  const elapsedStr = (() => {
-    const m = Math.floor(elapsedSec / 60);
-    return m === 0 ? 'menos de 1 min' : `${m} min`;
-  })();
-
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 100,
-      display: 'flex', flexDirection: 'column',
-      animation: exiting ? 'sheetFadeOut .26s ease forwards' : 'sheetFadeIn .3s ease forwards',
-    }}>
-      <div onClick={handleClose} style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-      }}/>
-
-      <div className="mtx-glass" style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0,
-        borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        background: 'rgba(14,17,20,0.97)',
-        backdropFilter: 'blur(40px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        border: '0.5px solid rgba(255,255,255,0.08)', borderBottom: 0,
-        boxShadow: '0 -30px 80px rgba(0,0,0,0.6)',
-        paddingBottom: 24,
-        animation: exiting ? 'sheetSlideOut .26s cubic-bezier(.4,0,1,1) forwards'
-                           : 'sheetSlideIn .4s cubic-bezier(.34,1.4,.64,1) forwards',
-      }}>
-        <div style={{ display:'flex', justifyContent:'center', paddingTop:8, paddingBottom:4 }}>
-          <div style={{ width:36, height:4, borderRadius:99, background:'rgba(255,255,255,0.18)' }}/>
-        </div>
-
-        <div style={{ padding:'8px 22px 18px', display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div className="mtx-eyebrow" style={{ fontSize:9.5, color:'var(--neon)', letterSpacing:'0.16em', fontWeight:700, marginBottom:4 }}>
-              Tiempo de enfoque
-            </div>
-            <div style={{ fontSize:18, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em' }}>
-              Ajusta tu sesión
-            </div>
-            <div style={{ fontSize:12, color:'var(--ink-3)', marginTop:3, lineHeight:1.45 }}>
-              Llevas {elapsedStr} de enfoque. Elige el nuevo total.
-            </div>
-          </div>
-          <button onClick={handleClose} className="mtx-tap" style={{
-            width:32, height:32, borderRadius:999, border:0,
-            background:'rgba(255,255,255,0.06)', color:'var(--ink-2)',
-            cursor:'pointer',
-            display:'inline-flex', alignItems:'center', justifyContent:'center',
-            flexShrink:0,
-          }}>
-            <IcClose size={16} stroke="currentColor"/>
-          </button>
-        </div>
-
-        {/* Grid de pills — mismo lenguaje visual del HomeInactive.
-            Pills deshabilitadas (opacity 0.35) cuando v < minViableMin
-            para evitar saltar a "completed" instantáneo. */}
-        <div style={{ padding:'0 20px 18px', display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:10 }}>
-          {_TIME_PILL_OPTIONS.map(t => {
-            const active = t.v === currentMinutes;
-            const disabled = t.v < minViableMin;
-            return (
-              <button key={t.v}
-                onClick={disabled ? undefined : () => onChange(t.v)}
-                disabled={disabled}
-                className="mtx-tap"
-                style={{
-                  height:50, borderRadius:14,
-                  border: active ? '0.5px solid rgba(61,255,209,0.55)' : '0.5px solid var(--glass-stroke)',
-                  background: active
-                    ? 'linear-gradient(180deg,rgba(61,255,209,0.16),rgba(61,255,209,0.06))'
-                    : 'var(--glass-2)',
-                  color: active ? 'var(--neon)' : 'var(--ink-1)',
-                  fontSize:14, fontWeight:600,
-                  fontFamily:'var(--ff-sans)',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  opacity: disabled ? 0.35 : 1,
-                  boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18),0 8px 22px -8px rgba(61,255,209,0.55),inset 0 0 22px rgba(61,255,209,0.14)' : 'none',
-                  transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s,background .25s',
-                }}>
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
