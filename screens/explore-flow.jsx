@@ -6155,10 +6155,10 @@ function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, 
                 fontSize:13, fontWeight:600, color:'var(--ink-1)',
                 letterSpacing:'-0.01em', marginBottom:2,
               }}>
-                Cambiar playlist
+                Elegir una playlist
               </div>
               <div style={{ fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em' }}>
-                Elige otra cola desde tus playlists disponibles
+                Otra cola desde tus playlists disponibles
               </div>
             </div>
             <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
