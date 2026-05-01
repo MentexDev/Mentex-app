@@ -33,7 +33,7 @@
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=26"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=11"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=12"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
@@ -42,7 +42,7 @@
   <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
-  <script type="text/babel" src="screens/session-flow.jsx?v=3"></script>
+  <script type="text/babel" src="screens/session-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=40"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
@@ -280,7 +280,15 @@
                                 onNotif={() => setNotifsOpen(true)}
                                 notifCount={notifCount}/>
                 ) : (
-                  <HomeActive tweaks={tweaks} onNotif={() => setNotifsOpen(true)} notifCount={notifCount} blockedApps={state.blockedApps} onOpenPlayer={() => setNowPlayingOpen(true)}/>
+                  <HomeActive
+                    tweaks={tweaks}
+                    onNotif={() => setNotifsOpen(true)}
+                    notifCount={notifCount}
+                    blockedApps={state.blockedApps}
+                    plannedMinutes={state.time}
+                    onOpenPlayer={() => setNowPlayingOpen(true)}
+                    onFinishSession={() => setReflectionOpen(true)}
+                  />
                 )}
               </div>
 
@@ -350,15 +358,27 @@
                 AppsProtectionCard, y su picker se monta aquí para que su
                 position:absolute cubra el device viewport correctamente. */}
             {typeof AppsBreakPickerSheet !== 'undefined' && <AppsBreakPickerSheet/>}
-            {reflectionOpen && typeof ReflectionDelayScreen !== 'undefined' && (
-              <ReflectionDelayScreen
-                elapsedMin={32}
-                onCancel={() => setReflectionOpen(false)}
-                onConfirm={() => {
-                  setReflectionOpen(false);
-                  setCompletionOpen(true);
-                }}/>
-            )}
+            {typeof DisableProtectionConfirmModal !== 'undefined' && <DisableProtectionConfirmModal/>}
+            {reflectionOpen && typeof ReflectionDelayScreen !== 'undefined' && (() => {
+              // Stats persuasivos: tiempo invertido + restante + rituales sin completar.
+              // Por ahora son aproximaciones (mock); cuando conectemos sesión real se
+              // alimentan del store. plannedMinutes viene del Home inactivo (state.time).
+              const elapsed = 13; // sync con HomeActive (45 - 13 = 32 restantes inicial)
+              const remaining = Math.max(0, (state.time || 45) - elapsed);
+              // ACTIVITIES tiene 5 items, 1 done → 4 pendientes
+              const pending = (typeof ACTIVITIES !== 'undefined' ? ACTIVITIES.filter(a => !a.done).length : 4);
+              return (
+                <ReflectionDelayScreen
+                  elapsedMin={elapsed}
+                  remainingMin={remaining}
+                  pendingRituals={pending}
+                  onCancel={() => setReflectionOpen(false)}
+                  onConfirm={() => {
+                    setReflectionOpen(false);
+                    setCompletionOpen(true);
+                  }}/>
+              );
+            })()}
             {completionOpen && typeof CompletionScreen !== 'undefined' && (
               <CompletionScreen
                 elapsedMin={32}
@@ -368,13 +388,13 @@
                 score={84}
                 onShare={() => {
                   setCompletionOpen(false);
-                  setBreakCount(0);
+                  window.__mtxAppsBreak?.stop();
                   setTweak('homeState', 'inactive');
                   setTab('home');
                 }}
                 onClose={() => {
                   setCompletionOpen(false);
-                  setBreakCount(0);
+                  window.__mtxAppsBreak?.stop();
                   setTweak('homeState', 'inactive');
                 }}/>
             )}
@@ -410,39 +430,10 @@
               100% { transform: translateY(0) scale(1); opacity: 1; }
             }
           `}</style>
-          {/* Overlay flotante en sesión activa — ahora un solo botón "Detener
-              sesión". El "Tomar un descanso" se eliminó porque vive
-              contextualmente dentro de la AppsProtectionCard. */}
-          {tab === 'home' && isActive && view === 'home' && !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen && !reflectionOpen && !completionOpen && (
-            <div style={{
-              position:'absolute', left:'50%', transform:'translateX(-50%)',
-              bottom:104, display:'flex', flexDirection:'column', alignItems:'center', gap:10,
-              width:'calc(100% - 56px)', maxWidth:360,
-              zIndex:8,
-            }}>
-              <button className="mtx-tap"
-                onClick={() => setReflectionOpen(true)}
-                style={{
-                  width:'100%', height:54, borderRadius:999, cursor:'pointer',
-                  background:'rgba(255,107,107,0.12)',
-                  border:'0.5px solid rgba(255,107,107,0.35)',
-                  color:'rgba(255,140,140,0.95)',
-                  fontSize:14.5, fontWeight:700,
-                  fontFamily:'var(--ff-sans)', letterSpacing:'-0.005em',
-                  backdropFilter:'blur(20px) saturate(160%)',
-                  WebkitBackdropFilter:'blur(20px) saturate(160%)',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-                  boxShadow:'0 12px 36px -10px rgba(255,107,107,0.3), inset 0 1px 0 rgba(255,255,255,0.06)',
-                }}>
-                <span style={{
-                  width:9, height:9, borderRadius:2,
-                  background:'rgba(255,107,107,0.95)',
-                  boxShadow:'0 0 10px rgba(255,107,107,0.7)',
-                }}/>
-                Detener sesión
-              </button>
-            </div>
-          )}
+          {/* En sesión activa NO hay overlay flotante — el "Finalizar sesión"
+              vive ahora dentro de la card del cronómetro (HomeActive) como
+              acción secundaria, para que no esté invitando al usuario a
+              terminar todo el tiempo. */}
 
           {/* Clean transparent tabbar at the very bottom */}
           <div className="mtx-tabbar-clean">

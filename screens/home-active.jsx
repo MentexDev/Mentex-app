@@ -323,8 +323,10 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
   if (typeof window === 'undefined' || window.__mtxAppsBreak) return;
 
   let state = {
-    breakState: null,    // null = protegidas; { totalSec, secondsLeft } = pausa
-    pickerOpen: false,
+    breakState: null,           // null = protegidas; { totalSec, secondsLeft } = pausa temporal
+    pickerOpen: false,          // sheet abierto
+    protectionDisabled: false,  // true cuando el usuario "finalizó la protección" — apps quedan libres hasta que retome
+    confirmDisableOpen: false,  // modal de confirmación "¿soltar la mente al ruido?"
   };
   let intervalId = null;
 
@@ -355,7 +357,7 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
     closePicker: () => { state = { ...state, pickerOpen: false }; emit(); },
     pick: (minutes) => {
       const totalSec = Math.max(1, Math.floor(minutes * 60));
-      state = { breakState: { totalSec, secondsLeft: totalSec }, pickerOpen: false };
+      state = { ...state, breakState: { totalSec, secondsLeft: totalSec }, pickerOpen: false, protectionDisabled: false };
       emit();
       startInterval();
     },
@@ -364,6 +366,17 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
       state = { ...state, breakState: null };
       emit();
     },
+    // Apaga la protección por completo (no es una pausa temporal, es desactivar).
+    // Se cancelan los descansos activos y se cierra cualquier sheet/modal abierto.
+    requestDisable: () => { state = { ...state, confirmDisableOpen: true, pickerOpen: false }; emit(); },
+    cancelDisable:  () => { state = { ...state, confirmDisableOpen: false }; emit(); },
+    confirmDisable: () => {
+      stopInterval();
+      state = { ...state, breakState: null, pickerOpen: false, confirmDisableOpen: false, protectionDisabled: true };
+      emit();
+    },
+    // Retomar protección — vuelve al estado normal de apps bloqueadas.
+    resume: () => { state = { ...state, protectionDisabled: false, breakState: null }; emit(); },
   };
 })();
 
@@ -376,7 +389,7 @@ function useAppsBreak() {
   }, []);
   return window.__mtxAppsBreak
     ? window.__mtxAppsBreak.get()
-    : { breakState: null, pickerOpen: false };
+    : { breakState: null, pickerOpen: false, protectionDisabled: false, confirmDisableOpen: false };
 }
 
 // ── AppsProtectionCard ────────────────────────────────────────────────────────
@@ -385,9 +398,67 @@ function useAppsBreak() {
 // El countdown corre DENTRO de esta card — no en una pantalla fullscreen
 // porque "descansar del aprendizaje" no tiene sentido en una app de aprendizaje.
 function AppsProtectionCard({ blockedApps = [] }) {
-  const { breakState } = useAppsBreak();
+  const { breakState, protectionDisabled } = useAppsBreak();
   const startBreakPicker = () => window.__mtxAppsBreak?.openPicker();
   const stopBreak = () => window.__mtxAppsBreak?.stop();
+  const resumeProtection = () => window.__mtxAppsBreak?.resume();
+
+  // Estado especial: el usuario apagó la protección por completo. La card se
+  // muestra en gris-rojizo invitando a retomar — no hay apps "bloqueadas"
+  // mientras esto esté activo.
+  if (protectionDisabled) {
+    return (
+      <div style={{ padding:'0 20px 16px' }}>
+        <div className="mtx-glass" style={{
+          borderRadius:22, padding:'18px 18px 16px',
+          background:'radial-gradient(70% 100% at 50% 0%, rgba(255,107,107,0.05), transparent 60%), var(--glass-2)',
+          border:'0.5px solid rgba(255,107,107,0.18)',
+          position:'relative', overflow:'hidden',
+        }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+              <div style={{
+                width:32, height:32, borderRadius:'50%',
+                background:'rgba(255,107,107,0.12)',
+                border:'0.5px solid rgba(255,107,107,0.28)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color:'rgba(255,140,140,0.95)', flexShrink:0,
+              }}>
+                <IcUnlock size={14} stroke="currentColor" strokeWidth={1.8}/>
+              </div>
+              <div style={{ minWidth:0 }}>
+                <div className="mtx-eyebrow" style={{ fontSize:9, color:'rgba(255,140,140,0.95)', marginBottom:2, letterSpacing:'0.14em' }}>
+                  Protección detenida
+                </div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>
+                  Las apps están libres en tu sesión
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={resumeProtection}
+              className="mtx-tap"
+              aria-label="Retomar protección"
+              style={{
+                appearance:'none', cursor:'pointer', flexShrink:0,
+                padding:'8px 14px', borderRadius:999,
+                background:'linear-gradient(180deg, rgba(61,255,209,0.18), rgba(61,255,209,0.08))',
+                border:'0.5px solid rgba(61,255,209,0.45)',
+                color:'var(--neon)',
+                fontSize:12, fontWeight:700, letterSpacing:'-0.005em',
+                fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', gap:6,
+                boxShadow:'0 0 0 1px rgba(61,255,209,0.18), 0 6px 18px -8px rgba(61,255,209,0.5)',
+              }}
+            >
+              <IcShield size={12} stroke="currentColor" strokeWidth={2.2}/>
+              Retomar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isOnBreak = !!breakState;
   const breakMin = isOnBreak ? Math.floor(breakState.secondsLeft / 60) : 0;
@@ -623,9 +694,29 @@ function _AppsBreakPickerImpl({ onClose, onPick }) {
             letterSpacing:'-0.01em',
             boxShadow:'0 0 0 1px rgba(255,179,71,0.4), 0 12px 32px -8px rgba(255,159,64,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
             display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            marginBottom:10,
           }}>
             <IcUnlock size={15} stroke="currentColor" strokeWidth={2.4}/>
             Desbloquear por {picked} min
+          </button>
+          {/* Acción secundaria: apagar la protección por completo (no es una
+              pausa temporal). Estilo destructivo discreto — el primary sigue
+              siendo la pausa, esto es la salida total. */}
+          <button
+            onClick={() => window.__mtxAppsBreak?.requestDisable()}
+            className="mtx-tap"
+            style={{
+              width:'100%', height:44, borderRadius:14, cursor:'pointer',
+              background:'transparent',
+              border:'0.5px solid rgba(255,107,107,0.22)',
+              color:'rgba(255,140,140,0.78)',
+              fontSize:12.5, fontWeight:600, fontFamily:'var(--ff-sans)',
+              letterSpacing:'-0.005em',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            }}
+          >
+            <IcUnlock size={12} stroke="currentColor" strokeWidth={1.8}/>
+            Finalizar protección de hoy
           </button>
         </div>
       </div>
@@ -633,9 +724,98 @@ function _AppsBreakPickerImpl({ onClose, onPick }) {
   );
 }
 
+// ── DisableProtectionConfirmModal ────────────────────────────────────────────
+// Modal persuasivo cuando el usuario quiere apagar la protección por completo
+// (no una pausa temporal — desactivarla del todo). Mismo lenguaje que el modal
+// de finalizar sesión: el primary es siempre seguir protegido.
+function DisableProtectionConfirmModal() {
+  const { confirmDisableOpen } = useAppsBreak();
+  if (!confirmDisableOpen) return null;
+  const onCancel  = () => window.__mtxAppsBreak?.cancelDisable();
+  const onConfirm = () => window.__mtxAppsBreak?.confirmDisable();
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:96,
+      background:'rgba(0,0,0,0.82)',
+      backdropFilter:'blur(20px) saturate(140%)',
+      WebkitBackdropFilter:'blur(20px) saturate(140%)',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:'40px 28px',
+      animation:'mtx-fade-up .28s ease',
+    }}>
+      <div style={{
+        position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
+        width:240, height:130, borderRadius:'50%',
+        background:'radial-gradient(50% 100% at 50% 50%, rgba(255,107,107,0.16), transparent 70%)',
+        filter:'blur(28px)', pointerEvents:'none',
+      }}/>
+
+      <div style={{
+        display:'inline-flex', alignItems:'center', gap:6,
+        padding:'5px 11px 5px 9px', borderRadius:999,
+        background:'rgba(255,107,107,0.1)',
+        border:'0.5px solid rgba(255,107,107,0.3)',
+        color:'rgba(255,140,140,0.95)',
+        fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
+        marginBottom:18, position:'relative', zIndex:1,
+      }}>
+        <IcUnlock size={11} stroke="currentColor" strokeWidth={2}/>
+        Soltar el escudo
+      </div>
+
+      <h1 style={{
+        margin:'0 0 10px', fontSize:24, fontWeight:800,
+        color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.18,
+        fontFamily:'var(--ff-display)', textAlign:'center', position:'relative', zIndex:1,
+        maxWidth:300,
+      }}>
+        ¿Soltar la mente al ruido?
+      </h1>
+      <p style={{
+        margin:'0 0 28px', fontSize:13.5, color:'var(--ink-3)',
+        textAlign:'center', lineHeight:1.55, maxWidth:320, position:'relative', zIndex:1,
+      }}>
+        Si apagas la protección, las apps quedan libres durante el resto de la sesión.
+        Tu cronómetro sigue, pero el escudo deja de cuidarte. Siempre podrás retomarlo.
+      </p>
+
+      <button onClick={onCancel} className="mtx-tap" style={{
+        width:'100%', maxWidth:320, height:54, borderRadius:18, border:0, cursor:'pointer',
+        background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+        color:'#0a1410', fontSize:15, fontWeight:700,
+        fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+        boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+        marginBottom:12, position:'relative', zIndex:1,
+      }}>
+        Mantener mi escudo
+      </button>
+
+      <button onClick={onConfirm} className="mtx-tap" style={{
+        background:'transparent', border:0, cursor:'pointer',
+        color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
+        fontFamily:'var(--ff-sans)', padding:'8px 12px',
+        position:'relative', zIndex:1,
+      }}>
+        Sí, finalizar la protección
+      </button>
+    </div>
+  );
+}
+
 // ── HomeActive ────────────────────────────────────────────────────────────────
-function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = [], onOpenPlayer = () => {} }) {
-  const [seconds,  setSeconds]  = React.useState(45 * 60 - 13 * 60);
+function HomeActive({
+  tweaks,
+  onNotif = () => {},
+  notifCount = 0,
+  blockedApps = [],
+  plannedMinutes = 45,
+  onOpenPlayer = () => {},
+  onFinishSession = () => {},
+}) {
+  // El total se basa en lo que el usuario eligió en el Home inactivo (state.time).
+  // Fallback a 45 min si no llega prop (ej. en dev/preview).
+  const totalMin = plannedMinutes && plannedMinutes > 0 ? plannedMinutes : 45;
+  const [seconds, setSeconds] = React.useState(totalMin * 60 - 13 * 60);
   const ritualExtras = (window.useRitualItems ? window.useRitualItems() : []);
 
   React.useEffect(() => {
@@ -643,7 +823,7 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
     return () => clearInterval(id);
   }, []);
 
-  const total   = 45 * 60;
+  const total   = totalMin * 60;
   const elapsed = total - seconds;
   const pct     = elapsed / total;
   const R = 96, C = 2 * Math.PI * R;
@@ -771,6 +951,35 @@ function HomeActive({ tweaks, onNotif = () => {}, notifCount = 0, blockedApps = 
           <div style={{ marginTop:6, fontSize:12, color:'var(--ink-3)', textAlign:'center' }}>
             de {Math.floor(total / 60)} min · {elMin === 0 ? 'Recién empezaste' : `${elMin} min de claridad`}
           </div>
+
+          {/* Divider sutil entre el cronómetro y la acción secundaria */}
+          <div style={{ width:'100%', height:'0.5px', background:'rgba(255,255,255,0.06)', marginTop:18, marginBottom:12 }}/>
+
+          {/* Acción secundaria: Finalizar sesión. Vive DENTRO de la card del
+              cronómetro (no flotando) para no estar invitando al usuario a
+              terminar todo el tiempo. Estilo discreto — el primary es seguir
+              enfocado, no terminar. */}
+          <button
+            onClick={onFinishSession}
+            className="mtx-tap"
+            style={{
+              appearance:'none', cursor:'pointer',
+              background:'transparent', border:0,
+              color:'rgba(255,107,107,0.78)',
+              fontSize:13, fontWeight:600,
+              fontFamily:'var(--ff-sans)', letterSpacing:'-0.005em',
+              padding:'6px 10px',
+              display:'inline-flex', alignItems:'center', gap:7,
+              transition:'color .2s',
+            }}
+          >
+            <span style={{
+              width:8, height:8, borderRadius:2,
+              background:'rgba(255,107,107,0.8)',
+              boxShadow:'0 0 8px rgba(255,107,107,0.5)',
+            }}/>
+            Finalizar sesión
+          </button>
         </div>
       </div>
 
@@ -830,5 +1039,6 @@ function _extraToActivity(extra) {
 
 Object.assign(window, {
   HomeActive, NowPlayingScreen, ACTIVITIES,
-  AppsProtectionCard, AppsBreakPickerSheet, useAppsBreak,
+  AppsProtectionCard, AppsBreakPickerSheet, DisableProtectionConfirmModal,
+  useAppsBreak,
 });

@@ -253,87 +253,129 @@ function BreakActiveScreen({ minutes, breakNumber, onEnd }) {
 
 
 // ── ReflectionDelayScreen ─────────────────────────────────────────────────────
-function ReflectionDelayScreen({ elapsedMin, onCancel, onConfirm }) {
-  const TOTAL = 10;
-  const [seconds, setSeconds] = React.useState(TOTAL);
-  const onCancelRef = React.useRef(onCancel);
-  React.useEffect(() => { onCancelRef.current = onCancel; });
-
-  React.useEffect(() => {
-    let cancelTimer = null;
-    const id = setInterval(() => setSeconds(s => {
-      if (s <= 1) {
-        clearInterval(id);
-        cancelTimer = setTimeout(() => onCancelRef.current?.(), 200);
-        return 0;
-      }
-      return s - 1;
-    }), 1000);
-    return () => {
-      clearInterval(id);
-      if (cancelTimer) clearTimeout(cancelTimer);
-    };
-  }, []);
-
-  const pct = (TOTAL - seconds) / TOTAL;
-  const R = 64, C = 2 * Math.PI * R;
-
+// Modal de confirmación al tap "Finalizar sesión". Muestra el costo real de
+// salir ahora: tiempo restante + rituales sin completar. El primary CTA es
+// SIEMPRE seguir enfocado — terminar es la opción secundaria.
+function ReflectionDelayScreen({
+  elapsedMin = 13,
+  remainingMin = 32,
+  pendingRituals = 4,
+  onCancel,
+  onConfirm,
+}) {
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:95,
-      background:'rgba(0,0,0,0.78)',
-      backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)',
+      background:'rgba(0,0,0,0.82)',
+      backdropFilter:'blur(20px) saturate(140%)',
+      WebkitBackdropFilter:'blur(20px) saturate(140%)',
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       padding:'40px 28px',
-      animation:'mtx-fade-up .25s ease',
+      animation:'mtx-fade-up .28s ease',
     }}>
-      {/* Countdown ring */}
-      <div style={{ position:'relative', width:160, height:160, marginBottom:28 }}>
-        <svg width="160" height="160" viewBox="0 0 160 160" style={{ transform:'rotate(-90deg)' }}>
-          <circle cx="80" cy="80" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3"/>
-          <circle cx="80" cy="80" r={R} fill="none"
-            stroke="var(--neon)" strokeWidth="3.5" strokeLinecap="round"
-            strokeDasharray={C}
-            strokeDashoffset={C * (1 - pct)}
-            style={{ transition:'stroke-dashoffset 1s linear', filter:'drop-shadow(0 0 6px var(--neon-glow))' }}/>
-        </svg>
-        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-          <div style={{
-            fontSize:52, fontWeight:600, color:'var(--neon)',
-            fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
-            fontFamily:'var(--ff-display)',
-          }}>{seconds}</div>
+      {/* Halo morado de "atención" — distinto al neon de la sesión, lee como advertencia */}
+      <div style={{
+        position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
+        width:260, height:140, borderRadius:'50%',
+        background:'radial-gradient(50% 100% at 50% 50%, rgba(255,107,107,0.18), transparent 70%)',
+        filter:'blur(28px)', pointerEvents:'none',
+      }}/>
+
+      {/* Eyebrow chip de advertencia */}
+      <div style={{
+        display:'inline-flex', alignItems:'center', gap:6,
+        padding:'5px 11px 5px 9px', borderRadius:999,
+        background:'rgba(255,107,107,0.1)',
+        border:'0.5px solid rgba(255,107,107,0.3)',
+        color:'rgba(255,140,140,0.95)',
+        fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
+        marginBottom:18, position:'relative', zIndex:1,
+      }}>
+        <span style={{
+          width:6, height:6, borderRadius:999, background:'rgba(255,107,107,0.95)',
+          boxShadow:'0 0 8px rgba(255,107,107,0.6)',
+        }}/>
+        Romper el momentum
+      </div>
+
+      {/* Title persuasivo */}
+      <h1 style={{
+        margin:'0 0 10px', fontSize:26, fontWeight:800,
+        color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.15,
+        fontFamily:'var(--ff-display)', textAlign:'center', position:'relative', zIndex:1,
+      }}>
+        Tu mente se está afilando.
+        <br/>¿Detener ahora?
+      </h1>
+      <p style={{
+        margin:'0 0 24px', fontSize:13.5, color:'var(--ink-3)',
+        textAlign:'center', lineHeight:1.5, maxWidth:300, position:'relative', zIndex:1,
+      }}>
+        Llevas <span style={{ color:'var(--neon)', fontWeight:700 }}>{elapsedMin} min</span> sosteniendo el foco. Estás a un paso de cerrar el ritual.
+      </p>
+
+      {/* Stats grid — el costo real de salir */}
+      <div style={{
+        display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
+        width:'100%', maxWidth:320, marginBottom:28,
+        position:'relative', zIndex:1,
+      }}>
+        <div style={{
+          padding:'12px 14px', borderRadius:14,
+          background:'rgba(255,255,255,0.03)',
+          border:'0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:4 }}>
+            Te faltan
+          </div>
+          <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+            <span style={{
+              fontSize:22, fontWeight:700, color:'var(--ink-1)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
+              fontFamily:'var(--ff-display)',
+            }}>{remainingMin}</span>
+            <span style={{ fontSize:11, color:'var(--ink-3)' }}>min</span>
+          </div>
+        </div>
+        <div style={{
+          padding:'12px 14px', borderRadius:14,
+          background:'rgba(255,255,255,0.03)',
+          border:'0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:4 }}>
+            Rituales pendientes
+          </div>
+          <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+            <span style={{
+              fontSize:22, fontWeight:700, color:'var(--ink-1)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
+              fontFamily:'var(--ff-display)',
+            }}>{pendingRituals}</span>
+            <span style={{ fontSize:11, color:'var(--ink-3)' }}>por hacer</span>
+          </div>
         </div>
       </div>
 
-      {/* Texts */}
-      <h1 style={{ margin:'0 0 8px', fontSize:24, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em', textAlign:'center' }}>
-        ¿Seguro que quieres salir?
-      </h1>
-      <p style={{ margin:'0 0 32px', fontSize:14, color:'var(--ink-2)', textAlign:'center', lineHeight:1.5 }}>
-        Llevas <span style={{ color:'var(--neon)', fontWeight:700 }}>{elapsedMin} min</span> de foco.
-        <br/>Si esperas, vuelvo a la sesión.
-      </p>
-
-      {/* Primary: Cancelar */}
+      {/* Primary: seguir enfocado (neon, ancho completo) */}
       <button onClick={onCancel} className="mtx-tap" style={{
-        width:'100%', maxWidth:300, height:56, borderRadius:18, border:0, cursor:'pointer',
+        width:'100%', maxWidth:320, height:54, borderRadius:18, border:0, cursor:'pointer',
         background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
         color:'#0a1410', fontSize:15, fontWeight:700,
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
         boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
-        marginBottom:14,
+        marginBottom:12, position:'relative', zIndex:1,
       }}>
-        Cancelar · seguir enfocado
+        Volver al enfoque
       </button>
 
-      {/* Secondary: small destructive */}
+      {/* Secondary: terminar (link rojo discreto) */}
       <button onClick={onConfirm} className="mtx-tap" style={{
         background:'transparent', border:0, cursor:'pointer',
-        color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:500,
+        color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
         fontFamily:'var(--ff-sans)', padding:'8px 12px',
+        position:'relative', zIndex:1,
       }}>
-        Sí, terminar la sesión
+        Sí, finalizar la sesión
       </button>
     </div>
   );
