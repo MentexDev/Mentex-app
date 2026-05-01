@@ -266,6 +266,16 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
     onRemove();
   } : null;
 
+  // Progreso parcial del runner — la bola del play en el botón derecho
+  // se va llenando con accent según completionPct. Si el user salió del
+  // runner sin completar, queda visualmente reflejado aquí. Al completar
+  // 100%, __mtxRunnerProgress.clear() borra el state y el ring queda en 0
+  // (la activity pasa a "done" via otro flow).
+  const _useRunnerProgress = (typeof window !== 'undefined' && window.useRunnerProgress) || (() => null);
+  const runnerProgress = _useRunnerProgress(a.id);
+  const partialPct = (runnerProgress && typeof runnerProgress.completionPct === 'number')
+    ? Math.max(0, Math.min(1, runnerProgress.completionPct)) : 0;
+
   const isClickable = !a.done;
   const handleActivate = () => {
     if (a.done) return;
@@ -364,19 +374,51 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
           <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
         </button>
       ) : !a.done ? (
-        <button
-          onClick={(e) => { e.stopPropagation(); handleActivate(); }}
-          aria-label={`Reproducir ${a.title}`}
-          className="mtx-tap"
-          style={{
-            width:40, height:40, borderRadius:999, border:0, flexShrink:0,
-            background:'rgba(255,255,255,0.06)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            cursor:'pointer', color:'var(--ink-1)',
-          }}
-        >
-          <IcPlay size={14} stroke="currentColor"/>
-        </button>
+        // Botón play con anillo de progreso parcial superpuesto.
+        // Cuando el user salió del runner sin completar, el anillo
+        // muestra el % cumplido (accent neon, animado). Al completar
+        // 100% el progreso se borra y el anillo desaparece (la activity
+        // pasaría a a.done=true en un flow posterior).
+        (() => {
+          const SIZE = 40;
+          const STROKE = 1.6;
+          const R = (SIZE - STROKE) / 2;
+          const C = 2 * Math.PI * R;
+          const accent = a.accent || '#3dffd1';
+          return (
+            <div style={{ position:'relative', width:SIZE, height:SIZE, flexShrink:0 }}>
+              {partialPct > 0 && (
+                <svg width={SIZE} height={SIZE} style={{ position:'absolute', inset:0, transform:'rotate(-90deg)', pointerEvents:'none' }}>
+                  <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none"
+                    stroke="rgba(255,255,255,0.08)" strokeWidth={STROKE}/>
+                  <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none"
+                    stroke={accent} strokeWidth={STROKE} strokeLinecap="round"
+                    strokeDasharray={C} strokeDashoffset={C * (1 - partialPct)}
+                    style={{
+                      transition:'stroke-dashoffset .4s cubic-bezier(.34,1.56,.64,1)',
+                      filter:`drop-shadow(0 0 4px ${accent}66)`,
+                    }}/>
+                </svg>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleActivate(); }}
+                aria-label={`Reproducir ${a.title}${partialPct > 0 ? ` · ${Math.round(partialPct * 100)}% completado` : ''}`}
+                className="mtx-tap"
+                style={{
+                  position:'absolute', inset:STROKE + 1,
+                  borderRadius:999, border:0,
+                  background: partialPct > 0 ? `${accent}1a` : 'rgba(255,255,255,0.06)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  cursor:'pointer',
+                  color: partialPct > 0 ? accent : 'var(--ink-1)',
+                  transition:'background .25s, color .25s',
+                }}
+              >
+                <IcPlay size={14} stroke="currentColor"/>
+              </button>
+            </div>
+          );
+        })()
       ) : null}
     </div>
   );

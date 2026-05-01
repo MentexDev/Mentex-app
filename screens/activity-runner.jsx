@@ -19,24 +19,29 @@
 
 (function() {
   if (typeof window === 'undefined' || window.__mtxActivityRunner) return;
-  // completionOpen: true cuando el timer llegó a 0 o el user marcó como completa
-  // → muestra RunnerCompletionScreen ENCIMA del runner antes de cerrar.
-  let state = { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
+  // completionOpen: true cuando el runner llegó al target o el user marcó
+  // como completa → muestra RunnerCompletionScreen ENCIMA del runner.
+  // exitConfirmOpen ya no se usa — el modal de confirmación de salida fue
+  // eliminado para que cerrar el runner sea instantáneo y el progreso
+  // parcial persista en __mtxRunnerProgress.
+  let state = { activity: null, queueOpen: false, completionOpen: false };
   const emit = () => window.dispatchEvent(new CustomEvent('mtx:activity-runner-changed', { detail: { ...state } }));
   window.__mtxActivityRunner = {
     get: () => ({ ...state }),
     open: (activity) => {
       if (!activity) return;
-      state = { activity, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
+      state = { activity, queueOpen: false, completionOpen: false };
       emit();
     },
-    requestExit:    () => { state = { ...state, exitConfirmOpen: true }; emit(); },
-    cancelExit:     () => { state = { ...state, exitConfirmOpen: false }; emit(); },
+    // Cerrar instantáneo (antes abría el ConfirmExitRunnerModal). El
+    // progreso parcial se preserva via __mtxRunnerProgress al desmontar
+    // el body — la bola del play en ActivityRow lo refleja.
+    requestExit:    () => { state = { activity: null, queueOpen: false, completionOpen: false }; emit(); },
     openQueue:      () => { state = { ...state, queueOpen: true }; emit(); },
     closeQueue:     () => { state = { ...state, queueOpen: false }; emit(); },
-    showCompletion: () => { state = { ...state, completionOpen: true, exitConfirmOpen: false }; emit(); },
+    showCompletion: () => { state = { ...state, completionOpen: true }; emit(); },
     close: () => {
-      state = { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
+      state = { activity: null, queueOpen: false, completionOpen: false };
       emit();
     },
   };
@@ -51,7 +56,44 @@ function useActivityRunner() {
   }, []);
   return window.__mtxActivityRunner
     ? window.__mtxActivityRunner.get()
-    : { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
+    : { activity: null, queueOpen: false, completionOpen: false };
+}
+
+// ── __mtxRunnerProgress ──────────────────────────────────────────────────────
+// Store de progreso parcial por activity. Persiste lo que el usuario lleva
+// hecho cuando cierra el runner sin completar — al volver a abrir la misma
+// activity arranca desde donde quedó. La bola del botón play en
+// ActivityRow lee este progreso (0–1) para pintar el % de cumplimiento.
+//   Duration: { current: secondsLeft, target: totalSec, completionPct }
+//   Counter:  { current, target, completionPct }
+//   Binary:   { marked: false, completionPct: 0 }   (binary se completa
+//             en un solo tap → o está al 0% o al 100%, sin parcial)
+// Al completar (completionPct = 1), el progreso se borra automáticamente
+// (clear) — la rutina queda lista para mostrarse "completada" en el ritual
+// del día.
+(function() {
+  if (typeof window === 'undefined' || window.__mtxRunnerProgress) return;
+  let _data = {};
+  const _emit = () => window.dispatchEvent(new CustomEvent('mtx:runner-progress-changed', { detail: { ..._data } }));
+  window.__mtxRunnerProgress = {
+    get:   (id) => (id ? _data[id] : { ..._data }),
+    set:   (id, data) => { if (!id) return; _data = { ..._data, [id]: { ...data } }; _emit(); },
+    clear: (id) => { if (!id || !_data[id]) return; const next = { ..._data }; delete next[id]; _data = next; _emit(); },
+    list:  () => ({ ..._data }),
+  };
+})();
+
+// Hook reactivo: leer el progreso de un activity dado (re-renderiza al cambiar).
+function useRunnerProgress(activityId) {
+  const [, force] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const h = () => force();
+    window.addEventListener('mtx:runner-progress-changed', h);
+    return () => window.removeEventListener('mtx:runner-progress-changed', h);
+  }, []);
+  return (typeof window !== 'undefined' && window.__mtxRunnerProgress)
+    ? window.__mtxRunnerProgress.get(activityId)
+    : null;
 }
 
 // ── Set de mensajes alternantes según runnerKind ─────────────────────────────
@@ -385,7 +427,14 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
   const accent = activity?.accent || '#3dffd1';
   const copy = _resolveCopy(activity?.runnerKind);
 
-  const [secondsLeft, setSecondsLeft] = React.useState(totalSec);
+  // Restaurar progreso parcial si existe (user salió del runner antes de
+  // completar). Si no hay state previo, arranca en totalSec.
+  const _saved = (typeof window !== 'undefined' && window.__mtxRunnerProgress)
+    ? window.__mtxRunnerProgress.get(activity?.id) : null;
+  const _restoredSeconds = (_saved && _saved.metricType === 'duration' && _saved.target === totalSec)
+    ? Math.max(0, _saved.current) : totalSec;
+
+  const [secondsLeft, setSecondsLeft] = React.useState(_restoredSeconds);
   const [isPlaying, setIsPlaying] = React.useState(true);
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
@@ -410,28 +459,39 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
   const pct = elapsed / totalSec;
 
   // Snapshot genérico — el shape soporta cualquier métrica (Duration/
-  // Counter/Distance/Binary). ConfirmExitRunnerModal y RunnerCompletionScreen
-  // leen via los campos derivados (completionPct, primaryValue, primaryUnit,
-  // statLabel) sin tener que conocer la implementación de cada body.
-  // Backward compat: secondsLeft/totalSec se mantienen para consumidores
-  // antiguos (ej. analytics que ya escucha el evento).
+  // Counter/Distance/Binary). RunnerCompletionScreen lee via los campos
+  // derivados (completionPct, primaryValue, primaryUnit, statLabel) sin
+  // tener que conocer la implementación de cada body.
+  // También persiste el progreso parcial en __mtxRunnerProgress para
+  // que la bola del play en ActivityRow muestre el % cumplido y el user
+  // pueda retomar al reabrir.
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const elapsedMin = Math.max(0, Math.floor(elapsed / 60));
-      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
-        detail: {
+    if (typeof window === 'undefined') return;
+    const elapsedMin = Math.max(0, Math.floor(elapsed / 60));
+    window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+      detail: {
+        metricType: 'duration',
+        completionPct: pct,
+        primaryValue: String(elapsedMin),
+        primaryUnit: 'min',
+        statLabel: 'Tiempo',
+        secondsLeft, totalSec,
+      },
+    }));
+    // Persistencia: si pct < 1 guarda parcial, si llega a 1 borra.
+    if (window.__mtxRunnerProgress && activity?.id) {
+      if (pct >= 1) {
+        window.__mtxRunnerProgress.clear(activity.id);
+      } else {
+        window.__mtxRunnerProgress.set(activity.id, {
           metricType: 'duration',
+          current: secondsLeft,
+          target: totalSec,
           completionPct: pct,
-          // Stat tile principal: tiempo invertido en formato "Xmin"
-          primaryValue: String(elapsedMin),
-          primaryUnit: 'min',
-          statLabel: 'Tiempo',
-          // Backward compat
-          secondsLeft, totalSec,
-        },
-      }));
+        });
+      }
     }
-  }, [secondsLeft, totalSec, elapsed, pct]);
+  }, [secondsLeft, totalSec, elapsed, pct, activity?.id]);
   const phaseIdx = Math.floor(elapsed / copy.phaseEvery) % copy.phases.length;
   const phaseText = copy.phases[phaseIdx];
   const phaseSec = elapsed % copy.phaseEvery;
@@ -605,23 +665,26 @@ function DurationRunnerBody({ activity, onRequestClose, onComplete }) {
 function ActivityRunner({ activity, onRequestClose, onComplete }) {
   // Router por metricType. Backward compat: si activity no tiene metricType
   // explícito, asumimos 'duration' (el único body que existía antes de Fase 2).
+  // count, pages y distance comparten CounterRunnerBody — el cuerpo se
+  // parametriza por unit/statLabel/companion sin duplicar JSX.
   const metric = activity?.metricType || 'duration';
-  if (metric === 'count' || metric === 'pages') {
+  if (metric === 'count' || metric === 'pages' || metric === 'distance') {
     return <CounterRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
   }
   if (metric === 'binary') {
     return <BinaryRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
   }
-  // Fase 4: distance → DistanceRunnerBody. Por ahora cae a Duration.
   return <DurationRunnerBody activity={activity} onRequestClose={onRequestClose} onComplete={onComplete}/>;
 }
 
 // ── CounterRunnerBody ─────────────────────────────────────────────────────────
-// Body para métricas que cuentan repeticiones discretas:
-//   • metricType='count' → "veces" (visualizaciones, gratitudes, push-ups)
-//     Companion ON — música motivacional encaja con contar reps.
-//   • metricType='pages' → "pp" (lectura)
-//     Companion OFF — leer requiere silencio.
+// Body para métricas que se cuentan en incrementos discretos:
+//   • metricType='count'    → "veces" (visualizaciones, gratitudes, push-ups)
+//   • metricType='pages'    → "pp" (lectura)
+//   • metricType='distance' → "km" (caminar, correr) — soporta decimales
+//
+// Companion ON para todas estas métricas — leer/contar/caminar va bien con
+// música ambiente o playlists motivacionales (sonidos lo-fi, lluvia, etc.).
 //
 // Reusa <RunnerShell> 100% (header + safe + options sheet + player effect).
 // Diseño espejo del DurationRunnerBody:
@@ -633,16 +696,32 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
 // usuario vea el último +1 antes del completion screen.
 function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   const accent = activity?.accent || '#3dffd1';
-  const metricType = activity?.metricType === 'pages' ? 'pages' : 'count';
-  const unit = activity?.metricUnit || (metricType === 'pages' ? 'pp' : 'veces');
-  // Target: clamp [1, ∞), default 10. Aceptamos floats por si llega de
-  // distance erróneamente, pero count/pages siempre son enteros.
-  const target = Math.max(1, Math.round(Number(activity?.metricValue) || 10));
-  const motto = activity?.runnerLabel || (metricType === 'pages'
-    ? 'Una página a la vez.'
-    : 'Cada repetición cuenta.');
+  const rawMetric = activity?.metricType;
+  const metricType = (rawMetric === 'pages' || rawMetric === 'distance') ? rawMetric : 'count';
+  const unit = activity?.metricUnit || (
+    metricType === 'pages'    ? 'pp'
+    : metricType === 'distance' ? 'km'
+    : 'veces'
+  );
+  // Target: clamp [0.5, ∞), default 10. Distance acepta decimales (3.5 km),
+  // count/pages se redondean a enteros.
+  const rawTarget = Number(activity?.metricValue) || 10;
+  const target = metricType === 'distance'
+    ? Math.max(0.5, rawTarget)
+    : Math.max(1, Math.round(rawTarget));
+  const motto = activity?.runnerLabel || (
+    metricType === 'pages'    ? 'Una página a la vez.'
+    : metricType === 'distance' ? 'A tu propio ritmo.'
+    : 'Cada repetición cuenta.'
+  );
 
-  const [current, setCurrent] = React.useState(0);
+  // Restaurar progreso parcial si existe (mismo target + métrica).
+  const _saved = (typeof window !== 'undefined' && window.__mtxRunnerProgress)
+    ? window.__mtxRunnerProgress.get(activity?.id) : null;
+  const _restoredCurrent = (_saved && _saved.metricType === metricType && _saved.target === target)
+    ? Math.max(0, Math.min(target, _saved.current)) : 0;
+
+  const [current, setCurrent] = React.useState(_restoredCurrent);
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
@@ -656,31 +735,44 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   }, [current, target]);
 
   const pct = Math.max(0, Math.min(1, current / target));
-  // Stat tile primario en exit/completion: para count usamos
-  // "Repeticiones", para pages "Páginas". Pluralización de unit:
-  //   count + 1 → "vez", count != 1 → "veces"
-  //   pages → "pp" siempre
+  // Stat tile primario para exit/completion + pluralización de unit:
+  //   count    → "Repeticiones" / 1 vez · 2 veces · ...
+  //   pages    → "Páginas"      / "pp" siempre
+  //   distance → "Distancia"    / "km" siempre (decimal preservado)
   const displayUnit = metricType === 'count' && current === 1 ? 'vez' : unit;
-  const statLabel = metricType === 'pages' ? 'Páginas' : 'Repeticiones';
+  const statLabel = (
+    metricType === 'pages'    ? 'Páginas'
+    : metricType === 'distance' ? 'Distancia'
+    : 'Repeticiones'
+  );
 
-  // Snapshot polimórfico — ConfirmExitRunnerModal y RunnerCompletionScreen
-  // leen completionPct + primaryValue + primaryUnit + statLabel sin
-  // conocer la implementación de Counter. current/target adicionales por
-  // si algún consumidor futuro los necesita.
+  // Snapshot polimórfico — RunnerCompletionScreen lee completionPct +
+  // primaryValue + primaryUnit + statLabel sin conocer la implementación
+  // de Counter. current/target adicionales por si algún consumidor
+  // futuro los necesita. Persiste el progreso parcial en
+  // __mtxRunnerProgress: si pct<1 guarda parcial, al completar borra.
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
-        detail: {
-          metricType,
-          completionPct: pct,
-          primaryValue: String(current),
-          primaryUnit: displayUnit,
-          statLabel,
-          current, target, unit,
-        },
-      }));
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
+      detail: {
+        metricType,
+        completionPct: pct,
+        primaryValue: String(current),
+        primaryUnit: displayUnit,
+        statLabel,
+        current, target, unit,
+      },
+    }));
+    if (window.__mtxRunnerProgress && activity?.id) {
+      if (pct >= 1) {
+        window.__mtxRunnerProgress.clear(activity.id);
+      } else {
+        window.__mtxRunnerProgress.set(activity.id, {
+          metricType, current, target, completionPct: pct,
+        });
+      }
     }
-  }, [current, target, pct, metricType, displayUnit, statLabel, unit]);
+  }, [current, target, pct, metricType, displayUnit, statLabel, unit, activity?.id]);
 
   const RING_SIZE = 232;
   const R = 104;
@@ -697,9 +789,17 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   // targets chicos sería overshoot inmediato y confunde la UX.
   const showQuickAdd = target > 5;
 
-  // Companion ON solo para 'count' (música motivacional encaja). Pages
-  // siempre OFF (leer en silencio).
-  const hasCompanion = metricType === 'count';
+  // Companion ON para count, pages y distance:
+  //   count    → música motivacional (gratitudes, reps, visualizaciones)
+  //   pages    → sonidos ambiente para leer (lo-fi, lluvia, café)
+  //   distance → running playlist (caminar/correr)
+  const hasCompanion = true;
+
+  // Reset label específico por métrica
+  const resetLabel = (
+    metricType === 'distance' ? 'Reiniciar distancia'
+    : 'Reiniciar contador'
+  );
 
   return (
     <RunnerShell
@@ -708,7 +808,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
       onMarkComplete={handleMarkComplete}
       onReset={handleReset}
       hasCompanion={hasCompanion}
-      resetLabel={metricType === 'pages' ? 'Reiniciar contador' : 'Reiniciar contador'}
+      resetLabel={resetLabel}
       resetDesc="Vuelve a cero y empieza de nuevo"
     >
       <div style={{ textAlign:'center', marginBottom:28 }}>
@@ -717,7 +817,11 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
           color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
           fontFamily:'var(--ff-display)',
         }}>
-          {activity?.title || (metricType === 'pages' ? 'Lectura' : 'Cuenta tus repeticiones')}
+          {activity?.title || (
+            metricType === 'pages'    ? 'Lectura'
+            : metricType === 'distance' ? 'Caminata'
+            : 'Cuenta tus repeticiones'
+          )}
         </h1>
         <p style={{
           margin:'8px 0 0', fontSize:12.5, color:'rgba(255,255,255,0.6)',
@@ -861,15 +965,14 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
 // Body para metricType='binary' — hábitos sin medición acumulable, solo
 // "hecho / no hecho" (suplementos, frío matinal, vitamina, oración matinal).
 //
-// Diseño minimalista a propósito: el usuario solo necesita confirmar.
-// No hay cronómetro, no hay contador, no hay companion (acción instantánea).
-//   • Ícono grande de la rutina (140px) con halo accent
-//   • Title font-display + motto opcional
-//   • CTA gigante "Marcar como hecho" full-width, accent gradient, shadow neon
-//   • Hint pequeño "Toca cuando lo hayas completado"
-//
-// Reusa <RunnerShell hasCompanion={false} hideReset={true}> — el menú "···"
-// del header solo muestra "Marcar como completada" (sin reset, no aplica).
+// Diseño espejo del CounterRunnerBody (consistencia visual):
+//   • Mismo ring SVG (RING_SIZE 232, R 104, tick marks)
+//   • Centro: ícono grande del activity (no número) + sub-label sutil
+//   • Botón central 74×74 con IcCheck (donde Counter tiene +1)
+//   • Sin -1, sin +5, sin status line numérico — un solo tap completa
+//   • Sin companion (hábitos instantáneos, sin sugerencias)
+// Al tap, el ring se llena al 100% (transición suave) y luego se dispara
+// la celebración (RunnerCompletionScreen).
 function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
   const accent = activity?.accent || '#3dffd1';
   const Ic = activity?.Ic || (typeof window !== 'undefined' && window.IcCheck) || (() => null);
@@ -877,118 +980,152 @@ function BinaryRunnerBody({ activity, onRequestClose, onComplete }) {
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
-  // Snapshot inicial — primaryValue '—' indica "aún no marcado". El stat
-  // tile del completion screen mostrará "Estado: Hecho" tras el tap.
+  // Estado: marked toggle. Mientras false, ring vacío; tras tap pasa a
+  // true, ring se anima al 100% y tras 380 ms abre completion screen.
+  const [marked, setMarked] = React.useState(false);
+  const pct = marked ? 1 : 0;
+
+  // Snapshot — emite tanto al mount como al cambiar `marked`.
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
         detail: {
           metricType: 'binary',
-          completionPct: 0,
-          primaryValue: '—',
+          completionPct: pct,
+          primaryValue: marked ? 'Hecho' : '—',
           primaryUnit: '',
           statLabel: 'Estado',
         },
       }));
     }
-  }, []);
+  }, [marked, pct]);
 
-  // Tap del CTA → emite snapshot final (primaryValue='Hecho', pct=1) antes
-  // de invocar onComplete. Pequeño delay para que el último estado se
-  // propague al modal de completion antes de su mount.
-  const handleMarkDone = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('mtx:runner-snapshot', {
-        detail: {
-          metricType: 'binary',
-          completionPct: 1,
-          primaryValue: 'Hecho',
-          primaryUnit: '',
-          statLabel: 'Estado',
-        },
-      }));
-    }
-    setTimeout(() => onCompleteRef.current?.(), 80);
-  };
+  // Auto-complete con delay tras marcar — coherente con CounterRunnerBody
+  // (380 ms): el usuario ve el ring llenarse antes del completion screen.
+  React.useEffect(() => {
+    if (!marked) return;
+    const t = setTimeout(() => onCompleteRef.current?.(), 480);
+    return () => clearTimeout(t);
+  }, [marked]);
+
+  const handleMarkDone = () => setMarked(true);
+  const handleMarkComplete = () => onCompleteRef.current?.();
+
+  const RING_SIZE = 232;
+  const R = 104;
+  const C = 2 * Math.PI * R;
+  const dashOffset = C * (1 - pct);
 
   return (
     <RunnerShell
       activity={activity}
       onRequestClose={onRequestClose}
-      onMarkComplete={handleMarkDone}
+      onMarkComplete={handleMarkComplete}
       hasCompanion={false}
       hideReset={true}
     >
-      {/* Centro: ícono + título + motto. flex:1 + justifyContent:center
-          del shell ya centra todo verticalmente; aquí solo agrupamos. */}
-      <div style={{
-        display:'flex', flexDirection:'column', alignItems:'center',
-        gap:28, marginBottom:36, width:'100%', maxWidth:340,
-      }}>
-        {/* Ícono grande con halo radial accent */}
-        <div style={{ position:'relative', width:140, height:140 }}>
-          <div style={{
-            position:'absolute', inset:-30, borderRadius:'50%',
-            background:`radial-gradient(50% 50% at 50% 50%, ${accent}55 0%, transparent 70%)`,
-            filter:'blur(28px)', pointerEvents:'none',
-          }}/>
-          <div style={{
-            width:140, height:140, borderRadius:32,
-            background:`linear-gradient(180deg, ${accent}30, ${accent}08)`,
-            border:`0.5px solid ${accent}55`,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            color: accent,
-            boxShadow:`0 0 0 1px ${accent}22, 0 24px 48px -16px ${accent}66, inset 0 0 32px ${accent}10`,
-            position:'relative', zIndex:1,
-          }}>
-            <Ic size={56} stroke="currentColor" strokeWidth={1.6}/>
-          </div>
-        </div>
+      <div style={{ textAlign:'center', marginBottom:28 }}>
+        <h1 style={{
+          margin:0, fontSize:23, fontWeight:800,
+          color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.2,
+          fontFamily:'var(--ff-display)',
+        }}>
+          {activity?.title || 'Tu hábito'}
+        </h1>
+        <p style={{
+          margin:'8px 0 0', fontSize:12.5, color:'rgba(255,255,255,0.6)',
+          letterSpacing:'-0.005em', lineHeight:1.5, maxWidth:280, marginInline:'auto',
+        }}>
+          {motto}
+        </p>
+      </div>
 
-        <div style={{ textAlign:'center' }}>
-          <h1 style={{
-            margin:0, fontSize:28, fontWeight:800, color:'var(--ink-1)',
-            letterSpacing:'-0.025em', lineHeight:1.15,
-            fontFamily:'var(--ff-display)',
+      <div style={{ position:'relative', width:RING_SIZE, height:RING_SIZE }}>
+        <div style={{
+          position:'absolute', inset:-30, borderRadius:'50%',
+          background:`radial-gradient(50% 50% at 50% 50%, ${accent}40 0%, transparent 70%)`,
+          filter:'blur(24px)', pointerEvents:'none',
+        }}/>
+        <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} style={{ transform:'rotate(-90deg)', position:'relative' }}>
+          <defs>
+            <linearGradient id="binary-runner-grad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stopColor="#6affd9"/>
+              <stop offset="1" stopColor="#1ad9ad"/>
+            </linearGradient>
+            <filter id="binary-runner-glow">
+              <feGaussianBlur stdDeviation="3.5"/>
+              <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3.5"/>
+          <circle cx={RING_SIZE/2} cy={RING_SIZE/2} r={R} fill="none"
+            stroke="url(#binary-runner-grad)" strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={C}
+            strokeDashoffset={dashOffset}
+            filter="url(#binary-runner-glow)"
+            style={{ transition:'stroke-dashoffset .55s cubic-bezier(.34,1.56,.64,1)' }}/>
+          {Array.from({ length: 60 }).map((_, i) => {
+            const a = (i / 60) * Math.PI * 2;
+            const r1 = R + 12, r2 = i % 5 === 0 ? R + 18 : R + 14;
+            return (
+              <line key={i}
+                x1={RING_SIZE/2 + Math.cos(a) * r1} y1={RING_SIZE/2 + Math.sin(a) * r1}
+                x2={RING_SIZE/2 + Math.cos(a) * r2} y2={RING_SIZE/2 + Math.sin(a) * r2}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth={i % 5 === 0 ? 1 : 0.5}/>
+            );
+          })}
+        </svg>
+        <div style={{
+          position:'absolute', inset:0,
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          gap:6,
+          color: accent,
+        }}>
+          <Ic size={56} stroke="currentColor" strokeWidth={1.6}/>
+          <div style={{
+            fontSize:11, fontWeight:700, color: accent,
+            letterSpacing:'0.22em', textTransform:'uppercase', marginTop:2,
+            opacity: marked ? 1 : 0.6,
+            transition:'opacity .35s ease',
           }}>
-            {activity?.title || 'Tu hábito'}
-          </h1>
-          <p style={{
-            margin:'12px 0 0', fontSize:13.5, color:'rgba(255,255,255,0.6)',
-            letterSpacing:'-0.005em', lineHeight:1.55, maxWidth:300,
-            marginInline:'auto',
-          }}>
-            {motto}
-          </p>
+            {marked ? 'Hecho' : 'Pendiente'}
+          </div>
         </div>
       </div>
 
-      {/* CTA gigante full-width + hint sutil */}
+      {/* Sub-line para mantener consistencia vertical con Counter/Duration */}
       <div style={{
-        display:'flex', flexDirection:'column', alignItems:'center', gap:10,
-        width:'100%', maxWidth:320,
+        marginTop:18, fontSize:11, fontWeight:600,
+        color:'rgba(255,255,255,0.5)', letterSpacing:'-0.005em',
       }}>
-        <button onClick={handleMarkDone} aria-label="Marcar como hecho"
+        Toca cuando lo hayas completado
+      </div>
+
+      {/* Botón central — espejo del +1 BIG del Counter, con check icon.
+          Spacers laterales 48×48 mantienen el balance visual del row. */}
+      <div style={{
+        marginTop:22,
+        display:'flex', alignItems:'center', justifyContent:'center', gap:32,
+      }}>
+        <div style={{ width:48, height:48, flexShrink:0 }} aria-hidden/>
+        <button onClick={handleMarkDone} disabled={marked}
+          aria-label="Marcar como hecho"
           className="mtx-tap" style={{
-            appearance:'none', cursor:'pointer',
-            width:'100%', height:64, borderRadius:22, border:0,
+            appearance:'none', cursor: marked ? 'default' : 'pointer',
+            width:74, height:74, borderRadius:'50%', border:0,
             background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
             color:'#0a1410',
-            fontSize:16, fontWeight:700, fontFamily:'var(--ff-sans)',
-            letterSpacing:'-0.01em',
-            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10,
-            boxShadow:`0 0 0 1px ${accent}88, 0 18px 44px -12px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
-            transition:'transform .12s, box-shadow .25s',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:`0 0 0 1px ${accent}88, 0 0 44px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
+            flexShrink:0,
+            opacity: marked ? 0.55 : 1,
+            transform: marked ? 'scale(0.96)' : 'scale(1)',
+            transition:'opacity .25s, transform .2s',
           }}>
-          <IcCheck size={18} stroke="currentColor" strokeWidth={2.6}/>
-          Marcar como hecho
+          <IcCheck size={28} stroke="currentColor" strokeWidth={2.6}/>
         </button>
-        <span style={{
-          fontSize:11, color:'var(--ink-3)', letterSpacing:'-0.005em',
-          letterSpacing:'0.01em',
-        }}>
-          Toca cuando lo hayas completado
-        </span>
+        <div style={{ width:48, height:48, flexShrink:0 }} aria-hidden/>
       </div>
     </RunnerShell>
   );
@@ -1642,7 +1779,7 @@ function CompletionStatTile({ label, value, unit, Ic, accent }) {
 
 // ── ActivityRunnerOverlay ────────────────────────────────────────────────────
 function ActivityRunnerOverlay() {
-  const { activity, exitConfirmOpen, queueOpen, completionOpen } = useActivityRunner();
+  const { activity, queueOpen, completionOpen } = useActivityRunner();
   const toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: () => {} };
   // Snapshot polimórfico — Duration emite { secondsLeft, totalSec, ... },
   // Counter emite { current, target, ... }, etc. Los modales abajo leen
@@ -1752,15 +1889,11 @@ function ActivityRunnerOverlay() {
           />
         </div>
       )}
-      {exitConfirmOpen && (
-        <ConfirmExitRunnerModal
-          activity={activity}
-          snapshot={snapshot}
-          onCancel={() => window.__mtxActivityRunner?.cancelExit()}
-          onComplete={handleComplete}
-          onAbandon={handleAbandon}
-        />
-      )}
+      {/* ConfirmExitRunnerModal eliminado — cerrar el runner es instantáneo.
+          El progreso parcial se persiste en __mtxRunnerProgress y se
+          refleja en la bola del play de cada ActivityRow. Esto soporta
+          el modelo de hábito acumulable: el usuario puede salir, hacer
+          algo más, y al volver retomar desde donde quedó. */}
       {completionOpen && (
         <RunnerCompletionScreen
           activity={activity}
