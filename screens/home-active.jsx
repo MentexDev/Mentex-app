@@ -727,12 +727,41 @@ function _AppsBreakPickerImpl({ onClose, onPick }) {
 // ── DisableProtectionConfirmModal ────────────────────────────────────────────
 // Modal persuasivo cuando el usuario quiere apagar la protección por completo
 // (no una pausa temporal — desactivarla del todo). Mismo lenguaje que el modal
-// de finalizar sesión: el primary es siempre seguir protegido.
+// de finalizar sesión + countdown 10s para consistencia: si el usuario no
+// decide, asumimos que no quería soltar el escudo.
 function DisableProtectionConfirmModal() {
   const { confirmDisableOpen } = useAppsBreak();
-  if (!confirmDisableOpen) return null;
   const onCancel  = () => window.__mtxAppsBreak?.cancelDisable();
   const onConfirm = () => window.__mtxAppsBreak?.confirmDisable();
+  const COUNTDOWN_TOTAL = 10;
+  const [seconds, setSeconds] = React.useState(COUNTDOWN_TOTAL);
+  const onCancelRef = React.useRef(onCancel);
+  React.useEffect(() => { onCancelRef.current = onCancel; });
+
+  // Reset countdown cada vez que se abre el modal
+  React.useEffect(() => {
+    if (!confirmDisableOpen) return;
+    setSeconds(COUNTDOWN_TOTAL);
+    let autoCancelTimer = null;
+    const id = setInterval(() => setSeconds(s => {
+      if (s <= 1) {
+        clearInterval(id);
+        autoCancelTimer = setTimeout(() => onCancelRef.current?.(), 200);
+        return 0;
+      }
+      return s - 1;
+    }), 1000);
+    return () => {
+      clearInterval(id);
+      if (autoCancelTimer) clearTimeout(autoCancelTimer);
+    };
+  }, [confirmDisableOpen]);
+
+  if (!confirmDisableOpen) return null;
+
+  const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
+  const ringR = 11, ringC = 2 * Math.PI * ringR;
+
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:96,
@@ -779,6 +808,7 @@ function DisableProtectionConfirmModal() {
         Tu cronómetro sigue, pero el escudo deja de cuidarte. Siempre podrás retomarlo.
       </p>
 
+      {/* Primary con mini-ring countdown · misma estética que ReflectionDelayScreen */}
       <button onClick={onCancel} className="mtx-tap" style={{
         width:'100%', maxWidth:320, height:54, borderRadius:18, border:0, cursor:'pointer',
         background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
@@ -786,7 +816,23 @@ function DisableProtectionConfirmModal() {
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
         boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
         marginBottom:12, position:'relative', zIndex:1,
+        display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10,
       }}>
+        <span style={{ position:'relative', width:26, height:26, flexShrink:0 }}>
+          <svg width="26" height="26" viewBox="0 0 26 26" style={{ transform:'rotate(-90deg)' }}>
+            <circle cx="13" cy="13" r={ringR} fill="none" stroke="rgba(10,20,16,0.18)" strokeWidth="2"/>
+            <circle cx="13" cy="13" r={ringR} fill="none"
+              stroke="#0a1410" strokeWidth="2" strokeLinecap="round"
+              strokeDasharray={ringC}
+              strokeDashoffset={ringC * (1 - ringPct)}
+              style={{ transition:'stroke-dashoffset 1s linear' }}/>
+          </svg>
+          <span style={{
+            position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:11, fontWeight:800, color:'#0a1410',
+            fontVariantNumeric:'tabular-nums', fontFamily:'var(--ff-display)',
+          }}>{seconds}</span>
+        </span>
         Mantener mi escudo
       </button>
 

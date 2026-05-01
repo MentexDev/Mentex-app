@@ -33,7 +33,7 @@
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=26"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=12"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=13"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=3"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
@@ -42,7 +42,7 @@
   <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
-  <script type="text/babel" src="screens/session-flow.jsx?v=4"></script>
+  <script type="text/babel" src="screens/session-flow.jsx?v=5"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=40"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
@@ -78,6 +78,11 @@
       // ya no es un fullscreen; vive dentro de AppsProtectionCard del Home activo.
       const [reflectionOpen, setReflectionOpen] = React.useState(false);
       const [completionOpen, setCompletionOpen] = React.useState(false);
+      // Sesión interrumpida abruptamente (vs completada por tiempo). Distinción
+      // importante: completionOpen es celebración + compartir; interruptedOpen
+      // es reflexión + invitación a re-comprometerse.
+      const [interruptedOpen, setInterruptedOpen] = React.useState(false);
+      const [interruptedStats, setInterruptedStats] = React.useState({ elapsedMin: 0 });
       const [userProfileId, setUserProfileId] = React.useState(null); // userId del perfil de otro usuario abierto
       const [state, setState] = React.useState({
         // Sin preselecciones: el usuario decide qué activar.
@@ -374,23 +379,54 @@
                   pendingRituals={pending}
                   onCancel={() => setReflectionOpen(false)}
                   onConfirm={() => {
+                    // Finalizar abruptamente → SessionInterruptedScreen (no Completion)
                     setReflectionOpen(false);
-                    setCompletionOpen(true);
+                    setInterruptedStats({ elapsedMin: elapsed });
+                    setInterruptedOpen(true);
                   }}/>
               );
             })()}
+            {interruptedOpen && typeof SessionInterruptedScreen !== 'undefined' && (
+              <SessionInterruptedScreen
+                elapsedMin={interruptedStats.elapsedMin}
+                plannedMin={state.time || 45}
+                activitiesCompleted={typeof ACTIVITIES !== 'undefined' ? ACTIVITIES.filter(a => a.done).length : 1}
+                distractionsBlocked={18}
+                onClose={() => {
+                  setInterruptedOpen(false);
+                  window.__mtxAppsBreak?.stop();
+                  setTweak('homeState', 'inactive');
+                }}
+                onStartAgain={() => {
+                  setInterruptedOpen(false);
+                  window.__mtxAppsBreak?.stop();
+                  setTweak('homeState', 'inactive');
+                  setTab('home');
+                }}/>
+            )}
             {completionOpen && typeof CompletionScreen !== 'undefined' && (
               <CompletionScreen
-                elapsedMin={32}
+                elapsedMin={state.time || 45}
                 activitiesCompleted={3}
                 contentMin={18}
                 distractionsBlocked={47}
                 score={84}
                 onShare={() => {
+                  // Compartir en comunidad → cierra completion, vuelve al home
+                  // inactivo y NAVEGA al tab community para que el usuario
+                  // publique su logro ahí.
                   setCompletionOpen(false);
                   window.__mtxAppsBreak?.stop();
                   setTweak('homeState', 'inactive');
-                  setTab('home');
+                  setTab('community');
+                }}
+                onShareExternal={() => {
+                  // Por ahora un toast/log; en producción → Web Share API o screenshot.
+                  if (typeof window !== 'undefined' && window.dispatchEvent) {
+                    window.dispatchEvent(new CustomEvent('mtx:toast', {
+                      detail: { message: 'Compartir externo · próximamente', duration: 1600 }
+                    }));
+                  }
                 }}
                 onClose={() => {
                   setCompletionOpen(false);

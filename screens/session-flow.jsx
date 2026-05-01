@@ -256,6 +256,11 @@ function BreakActiveScreen({ minutes, breakNumber, onEnd }) {
 // Modal de confirmación al tap "Finalizar sesión". Muestra el costo real de
 // salir ahora: tiempo restante + rituales sin completar. El primary CTA es
 // SIEMPRE seguir enfocado — terminar es la opción secundaria.
+//
+// Countdown integrado: si el usuario no decide en 10s, asumimos que no quería
+// salir (tap accidental) y volvemos al enfoque automáticamente. El mini-ring
+// vive a la izquierda del CTA primary "Volver al enfoque" para que se entienda
+// que ESE es el destino al que vamos.
 function ReflectionDelayScreen({
   elapsedMin = 13,
   remainingMin = 32,
@@ -263,6 +268,30 @@ function ReflectionDelayScreen({
   onCancel,
   onConfirm,
 }) {
+  const COUNTDOWN_TOTAL = 10;
+  const [seconds, setSeconds] = React.useState(COUNTDOWN_TOTAL);
+  const onCancelRef = React.useRef(onCancel);
+  React.useEffect(() => { onCancelRef.current = onCancel; });
+
+  React.useEffect(() => {
+    let autoCancelTimer = null;
+    const id = setInterval(() => setSeconds(s => {
+      if (s <= 1) {
+        clearInterval(id);
+        autoCancelTimer = setTimeout(() => onCancelRef.current?.(), 200);
+        return 0;
+      }
+      return s - 1;
+    }), 1000);
+    return () => {
+      clearInterval(id);
+      if (autoCancelTimer) clearTimeout(autoCancelTimer);
+    };
+  }, []);
+
+  const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
+  const ringR = 11, ringC = 2 * Math.PI * ringR;
+
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:95,
@@ -273,7 +302,6 @@ function ReflectionDelayScreen({
       padding:'40px 28px',
       animation:'mtx-fade-up .28s ease',
     }}>
-      {/* Halo morado de "atención" — distinto al neon de la sesión, lee como advertencia */}
       <div style={{
         position:'absolute', top:'18%', left:'50%', transform:'translateX(-50%)',
         width:260, height:140, borderRadius:'50%',
@@ -281,7 +309,6 @@ function ReflectionDelayScreen({
         filter:'blur(28px)', pointerEvents:'none',
       }}/>
 
-      {/* Eyebrow chip de advertencia */}
       <div style={{
         display:'inline-flex', alignItems:'center', gap:6,
         padding:'5px 11px 5px 9px', borderRadius:999,
@@ -298,7 +325,6 @@ function ReflectionDelayScreen({
         Romper el momentum
       </div>
 
-      {/* Title persuasivo */}
       <h1 style={{
         margin:'0 0 10px', fontSize:26, fontWeight:800,
         color:'var(--ink-1)', letterSpacing:'-0.028em', lineHeight:1.15,
@@ -314,10 +340,11 @@ function ReflectionDelayScreen({
         Llevas <span style={{ color:'var(--neon)', fontWeight:700 }}>{elapsedMin} min</span> sosteniendo el foco. Estás a un paso de cerrar el ritual.
       </p>
 
-      {/* Stats grid — el costo real de salir */}
+      {/* Stats grid — cards en UN solo renglón cada una. La de rituales usa
+          eyebrow corto "EN CURSO" + valor "X pendientes" para que entre. */}
       <div style={{
         display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
-        width:'100%', maxWidth:320, marginBottom:28,
+        width:'100%', maxWidth:320, marginBottom:24,
         position:'relative', zIndex:1,
       }}>
         <div style={{
@@ -343,7 +370,7 @@ function ReflectionDelayScreen({
           border:'0.5px solid rgba(255,255,255,0.06)',
         }}>
           <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:4 }}>
-            Rituales pendientes
+            En curso
           </div>
           <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
             <span style={{
@@ -351,12 +378,12 @@ function ReflectionDelayScreen({
               fontVariantNumeric:'tabular-nums', letterSpacing:'-0.025em', lineHeight:1,
               fontFamily:'var(--ff-display)',
             }}>{pendingRituals}</span>
-            <span style={{ fontSize:11, color:'var(--ink-3)' }}>por hacer</span>
+            <span style={{ fontSize:11, color:'var(--ink-3)' }}>pendientes</span>
           </div>
         </div>
       </div>
 
-      {/* Primary: seguir enfocado (neon, ancho completo) */}
+      {/* Primary: seguir enfocado · con mini-ring countdown a la izquierda */}
       <button onClick={onCancel} className="mtx-tap" style={{
         width:'100%', maxWidth:320, height:54, borderRadius:18, border:0, cursor:'pointer',
         background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
@@ -364,11 +391,27 @@ function ReflectionDelayScreen({
         fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
         boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
         marginBottom:12, position:'relative', zIndex:1,
+        display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10,
       }}>
+        {/* Mini ring countdown — indica que en X seg vuelve solo al enfoque */}
+        <span style={{ position:'relative', width:26, height:26, flexShrink:0 }}>
+          <svg width="26" height="26" viewBox="0 0 26 26" style={{ transform:'rotate(-90deg)' }}>
+            <circle cx="13" cy="13" r={ringR} fill="none" stroke="rgba(10,20,16,0.18)" strokeWidth="2"/>
+            <circle cx="13" cy="13" r={ringR} fill="none"
+              stroke="#0a1410" strokeWidth="2" strokeLinecap="round"
+              strokeDasharray={ringC}
+              strokeDashoffset={ringC * (1 - ringPct)}
+              style={{ transition:'stroke-dashoffset 1s linear' }}/>
+          </svg>
+          <span style={{
+            position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:11, fontWeight:800, color:'#0a1410',
+            fontVariantNumeric:'tabular-nums', fontFamily:'var(--ff-display)',
+          }}>{seconds}</span>
+        </span>
         Volver al enfoque
       </button>
 
-      {/* Secondary: terminar (link rojo discreto) */}
       <button onClick={onConfirm} className="mtx-tap" style={{
         background:'transparent', border:0, cursor:'pointer',
         color:'rgba(255,107,107,0.85)', fontSize:13, fontWeight:600,
@@ -383,7 +426,11 @@ function ReflectionDelayScreen({
 
 
 // ── CompletionScreen ──────────────────────────────────────────────────────────
-function CompletionScreen({ elapsedMin = 32, activitiesCompleted = 3, contentMin = 18, distractionsBlocked = 47, score = 84, scoreBreakdown, onShare, onClose }) {
+// Aparece SOLO cuando el cronómetro llega a 0 — es decir, el usuario completó
+// el tiempo planeado. Tono celebratorio, score grande, confetti, comparte
+// como CTA principal. Si el usuario interrumpe la sesión antes, va a
+// SessionInterruptedScreen (otra historia visual).
+function CompletionScreen({ elapsedMin = 32, activitiesCompleted = 3, contentMin = 18, distractionsBlocked = 47, score = 84, scoreBreakdown, onShare, onShareExternal, onClose }) {
   const bd = scoreBreakdown || { foco: 34, contenido: 22, rutinas: 18, racha: 10 };
   return (
     <div style={{
@@ -421,16 +468,29 @@ function CompletionScreen({ elapsedMin = 32, activitiesCompleted = 3, contentMin
         );
       })}
 
+      {/* Top-right share icon (compartir externo: Twitter/X, screenshot, etc.) */}
+      <button onClick={onShareExternal} aria-label="Compartir" className="mtx-tap" style={{
+        position:'absolute', top:24, right:24, zIndex:3,
+        width:40, height:40, borderRadius:999,
+        background:'rgba(255,255,255,0.06)',
+        border:'0.5px solid rgba(255,255,255,0.12)',
+        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        color:'var(--ink-1)', cursor:'pointer',
+      }}>
+        <IcShare size={16} stroke="currentColor" strokeWidth={1.8}/>
+      </button>
+
       {/* Top: title */}
       <div style={{ padding:'80px 28px 0', textAlign:'center', position:'relative', zIndex:2 }}>
         <div className="mtx-eyebrow" style={{ fontSize:10, color:'var(--neon)', marginBottom:8, letterSpacing:'0.14em' }}>
           Sesión completada
         </div>
         <h1 style={{ margin:0, fontSize:30, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.03em', lineHeight:1.1 }}>
-          Volviste a ti.
+          ¡Lo lograste!
         </h1>
         <p style={{ margin:'10px 0 0', fontSize:14, color:'var(--ink-3)' }}>
-          Cada sesión es un paso hacia una mente más afilada.
+          Cerraste el ritual completo. Tu mente acaba de afilarse.
         </p>
       </div>
 
@@ -482,6 +542,7 @@ function CompletionScreen({ elapsedMin = 32, activitiesCompleted = 3, contentMin
 
       {/* Bottom: CTAs */}
       <div style={{ padding:'0 24px 36px', display:'flex', flexDirection:'column', gap:10, position:'relative', zIndex:2 }}>
+        {/* Primary: ir a Comunidad y publicar el logro. Cablea al tab community. */}
         <button onClick={onShare} className="mtx-tap" style={{
           width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
           background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
@@ -491,7 +552,131 @@ function CompletionScreen({ elapsedMin = 32, activitiesCompleted = 3, contentMin
           display:'flex', alignItems:'center', justifyContent:'center', gap:8,
         }}>
           <IcUsers size={16} stroke="currentColor" strokeWidth={2.2}/>
-          Compartir en comunidad
+          Compartir con la comunidad
+        </button>
+
+        <button onClick={onClose} className="mtx-tap" style={{
+          width:'100%', height:50, borderRadius:16, cursor:'pointer',
+          background:'rgba(255,255,255,0.04)',
+          border:'0.5px solid rgba(255,255,255,0.08)',
+          color:'var(--ink-1)', fontSize:14, fontWeight:600,
+          fontFamily:'var(--ff-sans)',
+        }}>
+          Volver al inicio
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── SessionInterruptedScreen ──────────────────────────────────────────────────
+// Aparece cuando el usuario decide detener la sesión antes de tiempo. Mismo
+// chasis visual que CompletionScreen para que se sienta familiar, pero el
+// tono es REFLEXIVO, no celebratorio:
+// - Sin confetti, sin score gigante glow.
+// - Eyebrow ámbar (no neon), título neutral.
+// - Stats muestran lo que SÍ se logró (no lo que faltó) — Mentex apoya.
+// - CTA primary es "Volver al inicio" (cerrar sin más); secondary "Empezar
+//   otra sesión" para que el usuario pueda re-comprometerse.
+function SessionInterruptedScreen({
+  elapsedMin = 13,
+  plannedMin = 45,
+  activitiesCompleted = 1,
+  distractionsBlocked = 18,
+  onClose,
+  onStartAgain,
+}) {
+  const completionPct = Math.min(1, Math.max(0, plannedMin > 0 ? elapsedMin / plannedMin : 0));
+  const completionPctText = Math.round(completionPct * 100);
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:100,
+      background:'radial-gradient(80% 50% at 50% 0%, rgba(255,179,71,0.07), transparent 60%), #050706',
+      display:'flex', flexDirection:'column',
+      animation:'mtxCompletionIn .45s cubic-bezier(.25,.8,.25,1) both',
+      overflow:'hidden',
+    }}>
+      {/* Top: title */}
+      <div style={{ padding:'80px 28px 0', textAlign:'center', position:'relative', zIndex:2 }}>
+        <div className="mtx-eyebrow" style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          fontSize:10, color:'#FFB347', letterSpacing:'0.14em',
+          marginBottom:10,
+        }}>
+          <span style={{
+            width:5, height:5, borderRadius:999, background:'#FFB347',
+            boxShadow:'0 0 6px rgba(255,179,71,0.5)',
+          }}/>
+          Sesión interrumpida
+        </div>
+        <h1 style={{ margin:0, fontSize:28, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.03em', lineHeight:1.15 }}>
+          Decidiste pausar.
+        </h1>
+        <p style={{ margin:'10px 0 0', fontSize:13.5, color:'var(--ink-3)', lineHeight:1.5, maxWidth:300, marginInline:'auto' }}>
+          Lo que invertiste cuenta. Tu mente vuelve cuando esté lista.
+        </p>
+      </div>
+
+      {/* Center: progreso real (no score) */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'24px 28px', position:'relative', zIndex:2 }}>
+        {/* Progress ring sutil que muestra el % de la sesión que sí completaste */}
+        <div style={{ position:'relative', width:172, height:172, marginBottom:24 }}>
+          <svg width="172" height="172" viewBox="0 0 172 172" style={{ transform:'rotate(-90deg)' }}>
+            <defs>
+              <linearGradient id="interrupted-grad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#FFD66B"/>
+                <stop offset="1" stopColor="#FF9F40"/>
+              </linearGradient>
+            </defs>
+            <circle cx="86" cy="86" r="74" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3"/>
+            <circle cx="86" cy="86" r="74" fill="none"
+              stroke="url(#interrupted-grad)" strokeWidth="3.5" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 74}
+              strokeDashoffset={2 * Math.PI * 74 * (1 - completionPct)}
+              style={{ filter:'drop-shadow(0 0 6px rgba(255,179,71,0.5))' }}/>
+          </svg>
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'#FFB347', marginBottom:4 }}>
+              Completaste
+            </div>
+            <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
+              <span style={{
+                fontSize:48, fontWeight:700, color:'var(--ink-1)',
+                fontVariantNumeric:'tabular-nums', letterSpacing:'-0.04em', lineHeight:1,
+                fontFamily:'var(--ff-display)',
+              }}>{completionPctText}</span>
+              <span style={{ fontSize:16, fontWeight:600, color:'var(--ink-3)' }}>%</span>
+            </div>
+            <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:6, fontVariantNumeric:'tabular-nums' }}>
+              {elapsedMin} de {plannedMin} min
+            </div>
+          </div>
+        </div>
+
+        {/* Stats — solo lo que sí se logró */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:10, width:'100%' }}>
+          <CompletionStat label="Tiempo enfocado" value={`${elapsedMin}`} unit="min" Ic={IcClock}/>
+          <CompletionStat label="Actividades" value={`${activitiesCompleted}`} unit="hechas" Ic={IcCheck}/>
+        </div>
+        <div style={{
+          marginTop:14, fontSize:12, color:'var(--ink-3)', textAlign:'center', maxWidth:280, lineHeight:1.5,
+        }}>
+          Bloqueaste <span style={{ color:'var(--ink-2)', fontWeight:700 }}>{distractionsBlocked} distracciones</span> mientras estuviste presente.
+        </div>
+      </div>
+
+      {/* Bottom: CTAs */}
+      <div style={{ padding:'0 24px 36px', display:'flex', flexDirection:'column', gap:10, position:'relative', zIndex:2 }}>
+        <button onClick={onStartAgain} className="mtx-tap" style={{
+          width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
+          background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+          color:'#0a1410', fontSize:15, fontWeight:700,
+          fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+          boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 14px 36px -10px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        }}>
+          <IcShield size={15} stroke="currentColor" strokeWidth={2.2}/>
+          Empezar otra sesión
         </button>
 
         <button onClick={onClose} className="mtx-tap" style={{
@@ -532,4 +717,10 @@ function CompletionStat({ label, value, unit, Ic }) {
   );
 }
 
-Object.assign(window, { BreakPickerSheet, BreakActiveScreen, ReflectionDelayScreen, CompletionScreen });
+Object.assign(window, {
+  // BreakPickerSheet y BreakActiveScreen siguen exportados por compat con
+  // imports antiguos, pero el flow del Home activo ya no los usa: el descanso
+  // es ahora contextual dentro de la card de apps protegidas (Fase A).
+  BreakPickerSheet, BreakActiveScreen,
+  ReflectionDelayScreen, CompletionScreen, SessionInterruptedScreen,
+});
