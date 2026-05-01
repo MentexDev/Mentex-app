@@ -34,12 +34,30 @@ function useRitualItems() {
   }, []);
   return (typeof window !== 'undefined' && window.__mtxRitual) ? window.__mtxRitual.list() : [];
 }
+// Verifica si un item está agendado en el ritual del día. Considera:
+//   1. window.__mtxRitual (ritualExtras agregados desde Explorar)
+//   2. ACTIVITIES base del Home cuyas activities resuelven a este item via
+//      exploreId (vía window._resolveActivityToExploreItem) — si la activity
+//      base ya tiene match, NO tiene sentido "agendar" otra vez.
+function _isInRitualBase(itemId) {
+  if (typeof window === 'undefined') return false;
+  const ACTIVITIES = window.ACTIVITIES || [];
+  const resolver = window._resolveActivityToExploreItem;
+  if (!ACTIVITIES.length || typeof resolver !== 'function') return false;
+  return ACTIVITIES.some(a => {
+    const resolved = resolver(a);
+    return resolved && resolved.id === itemId;
+  });
+}
+
 function useIsScheduled(id) {
-  const [scheduled, setScheduled] = React.useState(() =>
-    !!(typeof window !== 'undefined' && window.__mtxRitual?.has(id))
+  const computeNow = () => !!(
+    (typeof window !== 'undefined' && window.__mtxRitual?.has(id)) ||
+    _isInRitualBase(id)
   );
+  const [scheduled, setScheduled] = React.useState(computeNow);
   React.useEffect(() => {
-    const handler = () => setScheduled(!!window.__mtxRitual?.has(id));
+    const handler = () => setScheduled(computeNow());
     handler();
     window.addEventListener(_RITUAL_EVENT, handler);
     return () => window.removeEventListener(_RITUAL_EVENT, handler);
@@ -1764,32 +1782,63 @@ function VideoSheet({ item, onClose, onPlay, onShare, onSaveToPlaylist, onSchedu
             Reproducir
           </button>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <button onClick={handleSchedule} className="mtx-tap" style={{
-              height:50, borderRadius:14, cursor:'pointer',
-              border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
-              background: scheduled ? 'linear-gradient(180deg, rgba(61,255,209,0.12), rgba(61,255,209,0.04))' : 'var(--glass-2)',
-              color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
-              fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-              display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-              boxShadow: scheduled ? '0 0 12px rgba(61,255,209,0.18)' : 'none',
-              transition:'background .2s, color .2s, box-shadow .25s, border-color .2s',
-            }}>
-              {scheduled ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={14} stroke="currentColor"/>}
-              {scheduled ? 'En tu ritual' : 'Agendar para hoy'}
-            </button>
-            <button onClick={handleSave} className="mtx-tap" style={{
-              height:50, borderRadius:14, cursor:'pointer',
-              border:'0.5px solid var(--glass-stroke)',
-              background:'var(--glass-2)', color:'var(--ink-1)',
-              fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-              display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-              transition:'background .2s, color .2s, border-color .2s',
-            }}>
-              <IcBookmark size={14} stroke="currentColor"/>
-              Guardar
-            </button>
-          </div>
+          {scheduled ? (
+            // Ya está en el ritual del día → "Agendar" no tiene sentido.
+            // El secundario único es "Guardar" en ancho completo, con un
+            // hint visual de que ya está agendado arriba.
+            <>
+              <div style={{
+                display:'inline-flex', alignItems:'center', gap:7,
+                padding:'7px 12px', borderRadius:999,
+                background:'rgba(61,255,209,0.12)',
+                border:'0.5px solid rgba(61,255,209,0.35)',
+                color:'var(--neon)',
+                fontSize:11, fontWeight:700, letterSpacing:'0.04em',
+                fontFamily:'var(--ff-sans)',
+                alignSelf:'flex-start',
+              }}>
+                <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>
+                Ya está en tu ritual de hoy
+              </div>
+              <button onClick={handleSave} className="mtx-tap" style={{
+                width:'100%', height:50, borderRadius:14, cursor:'pointer',
+                border:'0.5px solid var(--glass-stroke)',
+                background:'var(--glass-2)', color:'var(--ink-1)',
+                fontSize:14, fontWeight:600, fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8,
+                transition:'background .2s, color .2s, border-color .2s',
+              }}>
+                <IcBookmark size={15} stroke="currentColor"/>
+                Guardar en una playlist
+              </button>
+            </>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <button onClick={handleSchedule} className="mtx-tap" style={{
+                height:50, borderRadius:14, cursor:'pointer',
+                border:'0.5px solid var(--glass-stroke)',
+                background:'var(--glass-2)',
+                color:'var(--ink-1)',
+                fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+                transition:'background .2s, color .2s, box-shadow .25s, border-color .2s',
+              }}>
+                <IcCalendar size={14} stroke="currentColor"/>
+                Agendar para hoy
+              </button>
+              <button onClick={handleSave} className="mtx-tap" style={{
+                height:50, borderRadius:14, cursor:'pointer',
+                border:'0.5px solid var(--glass-stroke)',
+                background:'var(--glass-2)', color:'var(--ink-1)',
+                fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+                transition:'background .2s, color .2s, border-color .2s',
+              }}>
+                <IcBookmark size={14} stroke="currentColor"/>
+                Guardar
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -5985,7 +6034,8 @@ function PlaylistQueueSheet({ playlist, items, currentIndex, onSelect, onClose, 
         <div style={{ padding:'4px 22px 8px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
           <div style={{ flex:1, minWidth:0 }}>
             <div className="mtx-eyebrow" style={{ fontSize:9, color:accent, marginBottom:4, letterSpacing:'0.14em' }}>
-              {playlist.isWatchLater ? 'Tu cola personal' : 'Cola de reproducción'}
+              {playlist._eyebrowOverride
+                || (playlist.isWatchLater ? 'Tu cola personal' : 'Cola de reproducción')}
             </div>
             <h2 style={{
               margin:0, fontSize:18, fontWeight:700, color:'var(--ink-1)',

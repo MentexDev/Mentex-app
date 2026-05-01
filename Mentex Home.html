@@ -28,7 +28,7 @@
 
   <script type="text/babel" src="frames/ios-frame.jsx?v=2"></script>
   <script type="text/babel" src="frames/tweaks-panel.jsx?v=2"></script>
-  <script type="text/babel" src="components/mentex-icons.jsx?v=13"></script>
+  <script type="text/babel" src="components/mentex-icons.jsx?v=14"></script>
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=5"></script>
@@ -43,7 +43,7 @@
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=44"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=45"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -52,7 +52,7 @@
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
   <script type="text/babel" src="screens/global-player.jsx?v=1"></script>
   <script type="text/babel" src="screens/ritual-player.jsx?v=5"></script>
-  <script type="text/babel" src="screens/activity-runner.jsx?v=5"></script>
+  <script type="text/babel" src="screens/activity-runner.jsx?v=6"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -187,28 +187,13 @@
         return () => window.removeEventListener('mtx:open-user-profile', handler);
       }, []);
 
-      // Listener: tap en el mini player → switch a tab Explorar y dispatch para
-      // que ExploreScreen abra el VideoPlayerFullscreen con el item del store.
-      React.useEffect(() => {
-        const handler = (e) => {
-          const item = e.detail && e.detail.item;
-          if (!item) return;
-          if (tab !== 'explore') setTab('explore');
-          // Re-dispatch en un microtick para que ExploreScreen ya esté montado
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('mtx:expand-player', { detail: { item } }));
-          }, 60);
-        };
-        // Capturamos el evento original UNA vez aquí; ExploreScreen tiene su
-        // propio listener con el mismo nombre — para evitar double-handling,
-        // usamos un sub-evento solo cuando NO estamos ya en explore.
-        const wrappedHandler = (e) => {
-          if (tab === 'explore') return; // ExploreScreen lo maneja directo
-          handler(e);
-        };
-        window.addEventListener('mtx:expand-player', wrappedHandler);
-        return () => window.removeEventListener('mtx:expand-player', wrappedHandler);
-      }, [tab]);
+      // Sub-fase 0.3 (Fase B/C) eliminó este listener obsoleto: antes el tap
+      // en el mini-bar forzaba setTab('explore') para que ExploreScreen
+      // pudiera montar el VideoPlayerFullscreen. Ahora el player es global
+      // (GlobalPlayerOverlay vive a nivel del MentexApp) y captura
+      // 'mtx:expand-player' directamente sin cambiar de tab. Mantenerlo
+      // causaba el bug de "regreso a Explorar" al minimizar el fullscreen
+      // desde el Home con sesión activa.
 
       // Suscripción al store del player vía evento directo (no usamos
       // window.useNowPlaying aquí porque su disponibilidad depende del orden

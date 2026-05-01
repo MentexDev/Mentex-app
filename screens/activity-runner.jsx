@@ -19,21 +19,24 @@
 
 (function() {
   if (typeof window === 'undefined' || window.__mtxActivityRunner) return;
-  let state = { activity: null, exitConfirmOpen: false, queueOpen: false };
+  // completionOpen: true cuando el timer llegó a 0 o el user marcó como completa
+  // → muestra RunnerCompletionScreen ENCIMA del runner antes de cerrar.
+  let state = { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
   const emit = () => window.dispatchEvent(new CustomEvent('mtx:activity-runner-changed', { detail: { ...state } }));
   window.__mtxActivityRunner = {
     get: () => ({ ...state }),
     open: (activity) => {
       if (!activity) return;
-      state = { activity, exitConfirmOpen: false, queueOpen: false };
+      state = { activity, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
       emit();
     },
-    requestExit: () => { state = { ...state, exitConfirmOpen: true }; emit(); },
-    cancelExit:  () => { state = { ...state, exitConfirmOpen: false }; emit(); },
-    openQueue:   () => { state = { ...state, queueOpen: true }; emit(); },
-    closeQueue:  () => { state = { ...state, queueOpen: false }; emit(); },
+    requestExit:    () => { state = { ...state, exitConfirmOpen: true }; emit(); },
+    cancelExit:     () => { state = { ...state, exitConfirmOpen: false }; emit(); },
+    openQueue:      () => { state = { ...state, queueOpen: true }; emit(); },
+    closeQueue:     () => { state = { ...state, queueOpen: false }; emit(); },
+    showCompletion: () => { state = { ...state, completionOpen: true, exitConfirmOpen: false }; emit(); },
     close: () => {
-      state = { activity: null, exitConfirmOpen: false, queueOpen: false };
+      state = { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
       emit();
     },
   };
@@ -48,7 +51,7 @@ function useActivityRunner() {
   }, []);
   return window.__mtxActivityRunner
     ? window.__mtxActivityRunner.get()
-    : { activity: null, exitConfirmOpen: false, queueOpen: false };
+    : { activity: null, exitConfirmOpen: false, queueOpen: false, completionOpen: false };
 }
 
 // ── Set de mensajes alternantes según runnerKind ─────────────────────────────
@@ -82,16 +85,17 @@ function _buildRunnerPlaylist(activity) {
   const accent = activity?.accent || '#3dffd1';
   return {
     id: 'runner-suggestions',
-    title: 'Tu ritual de hoy',           // → cabecera consistente
+    title: 'Tu ritual de hoy',
     author: { name: 'Mentex', isOfficial: true },
-    isWatchLater: true,                   // → "Tu cola personal" en eyebrow
+    isWatchLater: false,                          // NO es watch-later
+    _eyebrowOverride: 'Recomendados para ti',     // override del eyebrow del queue sheet
     isPublic: false,
     createdBy: 'mentex',
     accent,
     bg: activity?.bg || `linear-gradient(135deg, ${accent}33, ${accent}10)`,
     items: suggestions.map(s => s.id),
     totalVideos: suggestions.length,
-    _runnerActivityId: activity?.id,      // hint para distinguir cola del runner
+    _runnerActivityId: activity?.id,
   };
 }
 
@@ -166,6 +170,18 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
   const handleSkipForward = () => setSecondsLeft(s => Math.max(0, s - 30));
   const handleSkipBack = () => setSecondsLeft(s => Math.min(totalSec, s + 30));
 
+  // Menú de opciones (3 puntos arriba derecha)
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
+  const handleReset = () => {
+    setSecondsLeft(totalSec);
+    setIsPlaying(true);
+    setOptionsOpen(false);
+  };
+  const handleMarkComplete = () => {
+    setOptionsOpen(false);
+    onCompleteRef.current?.();
+  };
+
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:200,
@@ -208,7 +224,79 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
           }}/>
           {activity?.kind || copy.eyebrow}
         </div>
-        <div style={{ width:38 }}/>
+        {/* Botón 3-puntos con menú: Marcar como completada · Reiniciar */}
+        <div style={{ position:'relative' }}>
+          <button onClick={() => setOptionsOpen(o => !o)} aria-label="Más opciones" className="mtx-tap" style={{
+            width:38, height:38, borderRadius:999, border:0, cursor:'pointer',
+            background: optionsOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+            backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+            color:'var(--ink-1)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            transition:'background .2s',
+          }}>
+            <IcMoreV size={18} stroke="currentColor"/>
+          </button>
+          {optionsOpen && (
+            <>
+              {/* Backdrop para cerrar al tap fuera */}
+              <div onClick={() => setOptionsOpen(false)} style={{
+                position:'fixed', inset:0, zIndex:1,
+              }}/>
+              {/* Menú dropdown */}
+              <div style={{
+                position:'absolute', top:'calc(100% + 8px)', right:0,
+                minWidth:200, zIndex:5,
+                background:'linear-gradient(180deg, rgba(28,32,30,0.96), rgba(20,24,22,0.98))',
+                backdropFilter:'blur(28px) saturate(160%)', WebkitBackdropFilter:'blur(28px) saturate(160%)',
+                border:'0.5px solid rgba(255,255,255,0.1)',
+                borderRadius:14,
+                boxShadow:'0 20px 50px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)',
+                padding:6,
+                animation:'mtxMenuIn .18s ease both',
+                fontFamily:'var(--ff-sans)',
+              }}>
+                <style>{`@keyframes mtxMenuIn { from { opacity:0; transform:translateY(-4px) scale(0.97); } to { opacity:1; transform:none; } }`}</style>
+                <button onClick={handleMarkComplete} className="mtx-tap" style={{
+                  appearance:'none', cursor:'pointer', textAlign:'left',
+                  width:'100%', padding:'10px 12px', borderRadius:10,
+                  border:0, background:'transparent',
+                  display:'flex', alignItems:'center', gap:10,
+                  color:'var(--ink-1)', fontSize:13, fontWeight:600,
+                  fontFamily:'var(--ff-sans)',
+                }}>
+                  <div style={{
+                    width:28, height:28, borderRadius:8, flexShrink:0,
+                    background:`${accent}1a`, border:`0.5px solid ${accent}40`,
+                    color: accent,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>
+                    <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/>
+                  </div>
+                  <span>Marcar como completada</span>
+                </button>
+                <button onClick={handleReset} className="mtx-tap" style={{
+                  appearance:'none', cursor:'pointer', textAlign:'left',
+                  width:'100%', padding:'10px 12px', borderRadius:10,
+                  border:0, background:'transparent',
+                  display:'flex', alignItems:'center', gap:10,
+                  color:'var(--ink-1)', fontSize:13, fontWeight:600,
+                  fontFamily:'var(--ff-sans)',
+                }}>
+                  <div style={{
+                    width:28, height:28, borderRadius:8, flexShrink:0,
+                    background:'rgba(255,255,255,0.05)',
+                    border:'0.5px solid rgba(255,255,255,0.08)',
+                    color:'var(--ink-2)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>
+                    <IcRefresh size={13} stroke="currentColor" strokeWidth={1.8}/>
+                  </div>
+                  <span>Empezar desde cero</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body — cuerpo principal centrado */}
@@ -348,38 +436,30 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </div>
       </div>
 
-      {/* Companion mini-bar al fondo (estilo MtxNowPlayingBar) */}
-      <RunnerCompanionBar activity={activity}/>
+      {/* Companion al fondo del runner — sticky bottom + safe space inferior */}
+      <RunnerCompanionBar
+        activity={activity}
+        suggestionCount={_resolveSuggestions(activity).length}
+      />
 
-      {/* Footer con "Marcar como completa" */}
-      <div style={{
-        position:'relative', zIndex:2,
-        padding:'4px 28px 24px',
-        display:'flex', justifyContent:'center',
-        flexShrink:0,
-      }}>
-        <button onClick={() => onCompleteRef.current?.()} className="mtx-tap" style={{
-          background:'transparent', border:0, cursor:'pointer',
-          color:'rgba(255,255,255,0.5)', fontSize:12.5, fontWeight:600,
-          fontFamily:'var(--ff-sans)', padding:'8px 14px',
-          letterSpacing:'-0.005em',
-        }}>
-          Marcar como completa
-        </button>
-      </div>
+      {/* Safe space inferior */}
+      <div style={{ height:18, flexShrink:0 }}/>
     </div>
   );
 }
 
 // ── RunnerCompanionBar ────────────────────────────────────────────────────────
-// Mini-player widget al fondo del runner, estilo MtxNowPlayingBar.
-//   - Sin audio: pill compacto "Acompáñate con sonido" + chevR.
-//     Tap → abre la cola del runner (PlaylistQueueSheet con sugerencias).
-//   - Con audio: cover + título + autor + play/pause + chevR.
-//     Tap en el wrap → abre la cola. Tap en play/pause → pausa/reanuda.
-function RunnerCompanionBar({ activity }) {
-  const useNowPlaying = (typeof window !== 'undefined' && window.useNowPlaying) || (() => ({ currentItem:null, isPlaying:false }));
-  const { currentItem, isPlaying } = useNowPlaying();
+// Widget al fondo del runner. Dos estados:
+//   - SIN audio (vacío): tile "shortcut" — icono stack-of-cards (tipo cola)
+//     + eyebrow neon "≡ RECOMENDADOS PARA TI" + título "Tu ritual de hoy"
+//     + count + chev verde grande circular. Tap → abre el queue del runner.
+//   - CON audio (activo): mini-bar idéntico al MtxNowPlayingBar — barra
+//     progreso accent arriba + cover + título + sub + play/pause grande +
+//     icono lista (≡) (en lugar de X) que abre el queue. Tap en el wrap
+//     también abre el queue.
+function RunnerCompanionBar({ activity, suggestionCount }) {
+  const useNowPlaying = (typeof window !== 'undefined' && window.useNowPlaying) || (() => ({ currentItem:null, isPlaying:false, progress:0 }));
+  const { currentItem, isPlaying, progress } = useNowPlaying();
   const accent = activity?.accent || '#3dffd1';
 
   const handleOpenQueue = () => window.__mtxActivityRunner?.openQueue();
@@ -390,72 +470,119 @@ function RunnerCompanionBar({ activity }) {
     else window.__mtxPlayer.resume();
   };
 
-  // Sin audio activo — CTA invitacional
+  // ── ESTADO VACÍO: shortcut tile ──────────────────────────────────────────
   if (!currentItem) {
     return (
-      <div style={{ position:'relative', zIndex:2, padding:'8px 18px 4px', flexShrink:0 }}>
-        <button onClick={handleOpenQueue} aria-label="Abrir cola de sonidos" className="mtx-tap" style={{
+      <div style={{ position:'relative', zIndex:2, padding:'10px 18px 4px', flexShrink:0 }}>
+        <button onClick={handleOpenQueue} aria-label="Abrir recomendados" className="mtx-tap" style={{
           appearance:'none', cursor:'pointer', textAlign:'left',
           width:'100%', boxSizing:'border-box',
-          padding:'11px 12px', borderRadius:18,
-          background:'linear-gradient(180deg, rgba(20,24,22,0.88), rgba(15,19,18,0.96))',
+          padding:'14px 14px', borderRadius:20,
+          background:'linear-gradient(180deg, rgba(20,24,22,0.78), rgba(15,19,18,0.92))',
           backdropFilter:'blur(28px) saturate(160%)', WebkitBackdropFilter:'blur(28px) saturate(160%)',
-          border:`0.5px dashed ${accent}40`,
-          boxShadow:`0 -2px 14px ${accent}1a, inset 0 1px 0 rgba(255,255,255,0.04)`,
-          display:'flex', alignItems:'center', gap:11,
+          border:'0.5px solid rgba(255,255,255,0.08)',
+          boxShadow:'0 -2px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
+          display:'flex', alignItems:'center', gap:13,
           fontFamily:'var(--ff-sans)',
+          position:'relative', overflow:'hidden',
         }}>
+          {/* Icono stack-of-cards (estilo "cola") con halo neon */}
           <div style={{
-            width:42, height:42, borderRadius:11, flexShrink:0,
-            background:`linear-gradient(135deg, ${accent}33, ${accent}10)`,
-            border:`0.5px solid ${accent}45`,
+            position:'relative', width:54, height:54, flexShrink:0,
             display:'flex', alignItems:'center', justifyContent:'center',
-            color: accent,
-            boxShadow:`0 0 12px ${accent}33`,
           }}>
-            <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>
+            {/* Cards apiladas — 3 capas con offset y opacity */}
+            <div style={{
+              position:'absolute', top:6, left:10, width:36, height:42, borderRadius:8,
+              background:'rgba(255,255,255,0.04)',
+              border:'0.5px solid rgba(255,255,255,0.06)',
+            }}/>
+            <div style={{
+              position:'absolute', top:3, left:6, width:36, height:42, borderRadius:8,
+              background:'rgba(255,255,255,0.07)',
+              border:'0.5px solid rgba(255,255,255,0.1)',
+            }}/>
+            <div style={{
+              position:'absolute', top:0, left:2, width:38, height:44, borderRadius:9,
+              background:'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
+              border:'0.5px solid rgba(255,255,255,0.14)',
+              boxShadow:`0 0 14px ${accent}33, inset 0 1px 0 rgba(255,255,255,0.08)`,
+            }}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{
-              fontSize:13.5, fontWeight:700, color:'var(--ink-1)',
-              letterSpacing:'-0.008em', lineHeight:1.2,
-            }}>Acompáñate con sonido</div>
+              display:'inline-flex', alignItems:'center', gap:5,
+              fontSize:9.5, fontWeight:800, color: accent,
+              letterSpacing:'0.18em', textTransform:'uppercase', marginBottom:3,
+            }}>
+              <IcList size={10} stroke="currentColor" strokeWidth={2}/>
+              Recomendados para ti
+            </div>
             <div style={{
-              fontSize:11, color:'rgba(255,255,255,0.55)', marginTop:1.5,
-              letterSpacing:'-0.005em',
-            }}>Sugerencias para tu actividad</div>
+              fontSize:16, fontWeight:800, color:'var(--ink-1)',
+              letterSpacing:'-0.018em', lineHeight:1.18,
+              fontFamily:'var(--ff-display)',
+            }}>Tu ritual de hoy</div>
+            <div style={{ fontSize:11.5, color:'rgba(255,255,255,0.5)', marginTop:1, letterSpacing:'-0.005em' }}>
+              {suggestionCount} {suggestionCount === 1 ? 'item' : 'items'}
+            </div>
           </div>
-          <IcChevR size={14} stroke="rgba(255,255,255,0.45)" strokeWidth={1.8} style={{ flexShrink:0 }}/>
+          {/* Chev verde grande circular */}
+          <div style={{
+            width:42, height:42, borderRadius:'50%', flexShrink:0,
+            border:`1px solid ${accent}`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color: accent,
+            boxShadow:`0 0 12px ${accent}40`,
+          }}>
+            <IcChevR size={16} stroke="currentColor" strokeWidth={2}/>
+          </div>
         </button>
       </div>
     );
   }
 
-  // Audio activo — mini-player layout
+  // ── ESTADO ACTIVO: mini-bar con barra progreso ──────────────────────────
   const itemAccent = currentItem.accent || '#3dffd1';
   const subParts = [
     currentItem.author,
     (window.CONTENT_TYPES || []).find(t => t.id === currentItem.type)?.label,
   ].filter(Boolean);
   const subtitle = subParts.join(' · ');
+  const progressPct = Math.max(0, Math.min(1, Number(progress) || 0));
 
   return (
-    <div style={{ position:'relative', zIndex:2, padding:'8px 18px 4px', flexShrink:0 }}>
+    <div style={{ position:'relative', zIndex:2, padding:'10px 18px 4px', flexShrink:0 }}>
       <div onClick={handleOpenQueue} role="button" tabIndex={0} aria-label="Abrir cola"
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenQueue(); } }}
         className="mtx-tap" style={{
           cursor:'pointer',
-          padding:'10px 12px', borderRadius:18,
-          background:'linear-gradient(180deg, rgba(20,24,22,0.88), rgba(15,19,18,0.96))',
+          padding:'10px 10px 10px 10px', borderRadius:20,
+          background:'linear-gradient(180deg, rgba(20,24,22,0.85), rgba(15,19,18,0.95))',
           backdropFilter:'blur(28px) saturate(160%)', WebkitBackdropFilter:'blur(28px) saturate(160%)',
           border:`0.5px solid ${itemAccent}33`,
-          boxShadow:`0 -2px 14px ${itemAccent}1f, inset 0 1px 0 rgba(255,255,255,0.06)`,
-          display:'flex', alignItems:'center', gap:10,
+          boxShadow:`0 -2px 16px ${itemAccent}1f, inset 0 1px 0 rgba(255,255,255,0.06)`,
+          display:'flex', alignItems:'center', gap:11,
           fontFamily:'var(--ff-sans)',
           position:'relative', overflow:'hidden',
       }}>
+        {/* Barra de progreso superpuesta arriba */}
         <div style={{
-          width:42, height:42, borderRadius:11, flexShrink:0,
+          position:'absolute', top:0, left:0, right:0, height:1.5,
+          background:'rgba(255,255,255,0.05)',
+          zIndex:2, borderRadius:'20px 20px 0 0',
+        }}>
+          <div style={{
+            width:`${progressPct * 100}%`, height:'100%',
+            background: itemAccent,
+            boxShadow:`0 0 8px ${itemAccent}cc, 0 0 14px ${itemAccent}55`,
+            transition:'width .3s linear',
+          }}/>
+        </div>
+
+        {/* Cover */}
+        <div style={{
+          width:46, height:46, borderRadius:12, flexShrink:0,
           position:'relative', overflow:'hidden',
           background: currentItem.bg || `linear-gradient(135deg, ${itemAccent}33, ${itemAccent}10)`,
           border:`0.5px solid ${itemAccent}40`,
@@ -467,6 +594,7 @@ function RunnerCompanionBar({ activity }) {
             }}/>
           )}
         </div>
+        {/* Título + sub */}
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{
             fontSize:13.5, fontWeight:700, color:'var(--ink-1)',
@@ -481,21 +609,34 @@ function RunnerCompanionBar({ activity }) {
             }}>{subtitle}</div>
           )}
         </div>
+        {/* Play/pause grande */}
         <button onClick={handleTogglePlay} aria-label={isPlaying ? 'Pausar audio' : 'Reanudar audio'} className="mtx-tap" style={{
           appearance:'none', cursor:'pointer', flexShrink:0,
-          width:38, height:38, borderRadius:'50%',
+          width:42, height:42, borderRadius:'50%',
           border:`0.5px solid ${itemAccent}55`,
-          background:`linear-gradient(180deg, ${itemAccent}26 0%, ${itemAccent}0a 100%)`,
+          background:`linear-gradient(180deg, ${itemAccent}33 0%, ${itemAccent}10 100%)`,
           color: itemAccent,
           display:'flex', alignItems:'center', justifyContent:'center',
-          boxShadow:`0 0 12px ${itemAccent}44, inset 0 1px 0 rgba(255,255,255,0.16)`,
+          boxShadow:`0 0 12px ${itemAccent}55, inset 0 1px 0 rgba(255,255,255,0.18)`,
         }}>
           {isPlaying
-            ? <IcPause size={14} stroke="currentColor" strokeWidth={1.8}/>
-            : <IcPlay size={13} stroke="currentColor"/>
+            ? <IcPause size={15} stroke="currentColor" strokeWidth={1.8}/>
+            : <IcPlay size={14} stroke="currentColor"/>
           }
         </button>
-        <IcChevR size={14} stroke="rgba(255,255,255,0.45)" strokeWidth={1.8} style={{ flexShrink:0 }}/>
+        {/* Icono lista — abre el queue (reemplaza la X de cerrar del mini-bar) */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleOpenQueue(); }}
+          aria-label="Abrir cola y sugerencias" className="mtx-tap" style={{
+            appearance:'none', cursor:'pointer', flexShrink:0,
+            width:32, height:32, borderRadius:'50%',
+            border:'0.5px solid rgba(255,255,255,0.08)',
+            background:'rgba(255,255,255,0.04)',
+            color:'var(--ink-3)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          <IcList size={13} stroke="currentColor" strokeWidth={1.8}/>
+        </button>
       </div>
     </div>
   );
@@ -702,9 +843,165 @@ function ConfirmExitRunnerModal({ activity, secondsLeft, totalSec, onCancel, onC
   );
 }
 
+// ── RunnerCompletionScreen ────────────────────────────────────────────────────
+// Modal de celebración cuando el runner llega a 0 (o el user marca como
+// completada desde el menú). Estilo consistente con CompletionScreen pero
+// adaptado: sin score gigante (no estamos cerrando una sesión completa,
+// solo una activity), confetti suaves del accent, stats compactas, CTAs
+// claros. Tono celebratorio pero no over-the-top.
+function RunnerCompletionScreen({ activity, totalSec, onClose }) {
+  const accent = activity?.accent || '#3dffd1';
+  const totalMin = Math.max(1, Math.floor((totalSec || 0) / 60));
+  const copy = _resolveCopy(activity?.runnerKind);
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:215,
+      background:`radial-gradient(80% 50% at 50% 0%, ${accent}1f, transparent 60%), #050706`,
+      display:'flex', flexDirection:'column',
+      animation:'mtxRunnerCompIn .55s cubic-bezier(.25,.8,.25,1) both',
+      overflow:'hidden',
+    }}>
+      <style>{`
+        @keyframes mtxRunnerCompIn { from { opacity:0; transform:scale(1.05); } to { opacity:1; transform:scale(1); } }
+        @keyframes mtxRunnerConfetti0 { 0% { transform:translateY(-20px) rotate(0); opacity:0; } 10% { opacity:1; } 100% { transform:translateY(900px) rotate(360deg); opacity:0; } }
+        @keyframes mtxRunnerConfetti1 { 0% { transform:translateY(-20px) rotate(0); opacity:0; } 10% { opacity:1; } 100% { transform:translateY(820px) rotate(-360deg); opacity:0; } }
+        @keyframes mtxRunnerConfetti2 { 0% { transform:translateY(-20px) rotate(0); opacity:0; } 10% { opacity:1; } 100% { transform:translateY(950px) rotate(180deg); opacity:0; } }
+      `}</style>
+
+      {/* Confetti — paleta del accent + neon */}
+      {Array.from({ length: 22 }).map((_, i) => {
+        const colors = [accent, '#ffffff', `${accent}aa`];
+        const left = (i * 17 + 5) % 100;
+        const delay = (i * 0.21) % 4;
+        const dur = 2.6 + (i % 5) * 0.4;
+        const animIdx = i % 3;
+        const size = 4 + (i % 3) * 2;
+        return (
+          <div key={i} style={{
+            position:'absolute', top:-10, left:`${left}%`,
+            width:size, height:size, borderRadius: i % 2 === 0 ? '50%' : 2,
+            background: colors[i % colors.length],
+            boxShadow:`0 0 6px ${colors[i % colors.length]}`,
+            animation:`mtxRunnerConfetti${animIdx} ${dur}s cubic-bezier(.25,.46,.45,.94) ${delay}s infinite`,
+            pointerEvents:'none',
+          }}/>
+        );
+      })}
+
+      {/* Top: eyebrow + título */}
+      <div style={{ padding:'72px 28px 0', textAlign:'center', position:'relative', zIndex:2 }}>
+        <div className="mtx-eyebrow" style={{
+          fontSize:10, color: accent, marginBottom:10,
+          letterSpacing:'0.16em',
+          display:'inline-flex', alignItems:'center', gap:6,
+        }}>
+          <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>
+          Actividad completada
+        </div>
+        <h1 style={{ margin:0, fontSize:30, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.03em', lineHeight:1.1 }}>
+          ¡Lo lograste!
+        </h1>
+        <p style={{ margin:'10px 0 0', fontSize:13.5, color:'var(--ink-3)', lineHeight:1.5 }}>
+          Otro paso hacia una mente más afilada.
+        </p>
+      </div>
+
+      {/* Centro: ring grande con check + stats */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'24px 28px', position:'relative', zIndex:2 }}>
+        <div style={{ position:'relative', width:172, height:172, marginBottom:24 }}>
+          {/* Halo */}
+          <div style={{
+            position:'absolute', inset:-30, borderRadius:'50%',
+            background:`radial-gradient(50% 50% at 50% 50%, ${accent}55 0%, transparent 70%)`,
+            filter:'blur(28px)', pointerEvents:'none',
+          }}/>
+          <svg width="172" height="172" viewBox="0 0 172 172" style={{ position:'relative' }}>
+            <defs>
+              <linearGradient id="runner-comp-grad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#6affd9"/>
+                <stop offset="1" stopColor={accent}/>
+              </linearGradient>
+              <filter id="runner-comp-glow">
+                <feGaussianBlur stdDeviation="3"/>
+                <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <circle cx="86" cy="86" r="74" fill="none" stroke={`${accent}33`} strokeWidth="3.5"/>
+            <circle cx="86" cy="86" r="74" fill="none"
+              stroke="url(#runner-comp-grad)" strokeWidth="4.5" strokeLinecap="round"
+              filter="url(#runner-comp-glow)"
+              style={{ strokeDasharray: 2 * Math.PI * 74, strokeDashoffset: 0 }}/>
+          </svg>
+          <div style={{
+            position:'absolute', inset:0,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color: accent,
+          }}>
+            <IcCheck size={64} stroke="currentColor" strokeWidth={1.8}/>
+          </div>
+        </div>
+
+        {/* Frase del kind */}
+        <div style={{
+          fontSize:13, color:'var(--ink-2)', textAlign:'center',
+          maxWidth:280, lineHeight:1.55, marginBottom:20,
+          letterSpacing:'-0.005em',
+        }}>
+          {copy.motto}.
+        </div>
+
+        {/* Stats compactos */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:10, width:'100%', maxWidth:320 }}>
+          <CompletionStatTile label="Tiempo" value={`${totalMin}`} unit="min" Ic={IcClock} accent={accent}/>
+          <CompletionStatTile label="Actividad" value="1" unit="hecha" Ic={IcCheck} accent={accent}/>
+        </div>
+      </div>
+
+      {/* Bottom: CTAs */}
+      <div style={{ padding:'0 24px 32px', display:'flex', flexDirection:'column', gap:10, position:'relative', zIndex:2 }}>
+        <button onClick={onClose} className="mtx-tap" style={{
+          width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
+          background:`linear-gradient(180deg, ${accent}cc 0%, ${accent} 100%)`,
+          color:'#0a1410', fontSize:15, fontWeight:700,
+          fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+          boxShadow:`0 0 0 1px ${accent}88, 0 14px 36px -10px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.4)`,
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        }}>
+          Volver al ritual
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CompletionStatTile({ label, value, unit, Ic, accent }) {
+  return (
+    <div className="mtx-glass" style={{
+      padding:'12px 14px', borderRadius:16,
+      background:'rgba(255,255,255,0.03)',
+      border:'0.5px solid rgba(255,255,255,0.06)',
+      display:'flex', flexDirection:'column', gap:4,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:6, color: accent }}>
+        <Ic size={11} stroke="currentColor"/>
+        <span style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)' }}>{label}</span>
+      </div>
+      <div style={{ display:'flex', alignItems:'baseline', gap:5 }}>
+        <span style={{
+          fontSize:24, fontWeight:700, color:'var(--ink-1)',
+          fontVariantNumeric:'tabular-nums', letterSpacing:'-0.03em', lineHeight:1,
+          fontFamily:'var(--ff-display)',
+        }}>{value}</span>
+        <span style={{ fontSize:11, color:'var(--ink-3)' }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── ActivityRunnerOverlay ────────────────────────────────────────────────────
 function ActivityRunnerOverlay() {
-  const { activity, exitConfirmOpen, queueOpen } = useActivityRunner();
+  const { activity, exitConfirmOpen, queueOpen, completionOpen } = useActivityRunner();
   const toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: () => {} };
   const [snapshot, setSnapshot] = React.useState({ secondsLeft: 0, totalSec: 0 });
 
@@ -744,6 +1041,10 @@ function ActivityRunnerOverlay() {
 
   const handleRequestClose = () => window.__mtxActivityRunner?.requestExit();
   const handleComplete = () => {
+    // Mostrar modal de celebración antes de cerrar
+    window.__mtxActivityRunner?.showCompletion();
+  };
+  const handleCompletionClose = () => {
     toast.show({ message: `${activity.title || 'Actividad'} · completada`, duration: 1900 });
     window.__mtxActivityRunner?.close();
   };
@@ -806,6 +1107,13 @@ function ActivityRunnerOverlay() {
           onAbandon={handleAbandon}
         />
       )}
+      {completionOpen && (
+        <RunnerCompletionScreen
+          activity={activity}
+          totalSec={snapshot.totalSec}
+          onClose={handleCompletionClose}
+        />
+      )}
     </>
   );
 
@@ -816,6 +1124,6 @@ function ActivityRunnerOverlay() {
 
 Object.assign(window, {
   ActivityRunner, ActivityRunnerOverlay, ConfirmExitRunnerModal,
-  RunnerCompanionBar,
+  RunnerCompanionBar, RunnerCompletionScreen,
   useActivityRunner,
 });
