@@ -921,6 +921,21 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   //     Default 1 km. Persiste durante la sesión del runner; al cerrar
   //     vuelve al default.
   const [stepSize, setStepSize] = React.useState(1);
+
+  // Fase 4 — stopwatch UP para metricType='distance'. Corre desde el
+  // mount mientras la activity no esté completa. Mide tiempo total
+  // (visualizado como mm:ss) y permite computar el ritmo en min/km.
+  // Pausa cuando current >= effectiveTarget; reset lo vuelve a 0.
+  const [elapsedMs, setElapsedMs] = React.useState(0);
+  const isDistance = metricType === 'distance';
+  React.useEffect(() => {
+    if (!isDistance) return;
+    if (current >= effectiveTarget) return; // pausa al completar
+    const startedAt = Date.now() - elapsedMs;
+    const id = setInterval(() => setElapsedMs(Date.now() - startedAt), 250);
+    return () => clearInterval(id);
+  }, [isDistance, current, effectiveTarget]);
+
   const onCompleteRef = React.useRef(onComplete);
   React.useEffect(() => { onCompleteRef.current = onComplete; });
 
@@ -1004,7 +1019,7 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
   const handleIncrement = () => setCurrent(c => _round(Math.min(effectiveTarget, c + stepSize)));
   const handleDecrement = () => setCurrent(c => _round(Math.max(0, c - stepSize)));
   const handleQuickAdd  = () => setCurrent(c => _round(Math.min(effectiveTarget, c + stepSize * 5)));
-  const handleReset = () => { setCurrent(0); setExtendBy(0); };
+  const handleReset = () => { setCurrent(0); setExtendBy(0); setElapsedMs(0); };
   const handleMarkComplete = () => onCompleteRef.current?.();
   // "Añadir más" — extiende el target. Step depende de la métrica.
   const handleAddMore = () => {
@@ -1157,6 +1172,53 @@ function CounterRunnerBody({ activity, onRequestClose, onComplete }) {
       }}>
         {Math.round(pct * 100)}% completado · {_fmtStep(effectiveTarget)} {unit} totales
       </div>
+
+      {/* Stopwatch + ritmo — solo para distance. Tiempo total transcurrido
+          en mm:ss y ritmo computado en min/km (calculado desde el primer
+          km registrado). El ritmo solo aparece cuando current > 0 — antes
+          no tiene sentido mostrar "∞ /km". */}
+      {isDistance && (() => {
+        const totalSec = Math.floor(elapsedMs / 1000);
+        const mm = Math.floor(totalSec / 60);
+        const ss = totalSec % 60;
+        const elapsedStr = `${mm}:${String(ss).padStart(2, '0')}`;
+        const showPace = current > 0 && totalSec > 0;
+        let paceStr = null;
+        if (showPace) {
+          const paceSec = totalSec / current;
+          const pmm = Math.floor(paceSec / 60);
+          const pss = Math.round(paceSec % 60);
+          paceStr = `${pmm}:${String(pss).padStart(2, '0')}`;
+        }
+        return (
+          <div style={{
+            marginTop:8,
+            display:'flex', alignItems:'center', justifyContent:'center', gap:14,
+            fontSize:11, fontWeight:600, color: accent,
+            letterSpacing:'0.04em',
+            fontVariantNumeric:'tabular-nums',
+            opacity: 0.92,
+          }}>
+            <span style={{
+              display:'inline-flex', alignItems:'center', gap:5,
+              padding:'4px 10px', borderRadius:999,
+              background:`${accent}14`, border:`0.5px solid ${accent}33`,
+            }}>
+              <IcClock size={11} stroke="currentColor" strokeWidth={2}/>
+              {elapsedStr}
+            </span>
+            {showPace && (
+              <span style={{
+                display:'inline-flex', alignItems:'center', gap:5,
+                padding:'4px 10px', borderRadius:999,
+                background:`${accent}14`, border:`0.5px solid ${accent}33`,
+              }}>
+                {paceStr} <span style={{ fontSize:9.5, opacity:0.7 }}>/{unit}</span>
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       <div style={{
         marginTop:22,
