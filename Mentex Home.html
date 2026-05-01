@@ -52,7 +52,7 @@
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
   <script type="text/babel" src="screens/global-player.jsx?v=1"></script>
   <script type="text/babel" src="screens/ritual-player.jsx?v=5"></script>
-  <script type="text/babel" src="screens/activity-runner.jsx?v=11"></script>
+  <script type="text/babel" src="screens/activity-runner.jsx?v=12"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -372,18 +372,8 @@
 
             {/* Portal mount point for sheets rendered from inside ExploreScreen.
                 Sits at IOSDevice level so position:absolute anchors to device viewport,
-                not to the (often very tall) scrollable mtx-bg content.
-                position:absolute + inset:0 + pointerEvents:none lo fija al
-                viewport del iPhone (mismo bounding del IOSDevice) sin tapar
-                interacciones de los hijos — los overlays internos
-                (Activity Runner, AddContent, etc.) usan inset:0 que ahora
-                se posiciona contra ESTE root y no contra mtx-bg scrolleable
-                (que en pantallas con mucho contenido del Home crecía a
-                1500+ px y desbordaba al runner por debajo del frame). */}
-            <div id="mtx-overlay-root" style={{
-              position: 'absolute', inset: 0,
-              pointerEvents: 'none',
-            }}/>
+                not to the (often very tall) scrollable mtx-bg content. */}
+            <div id="mtx-overlay-root"/>
 
             {/* Sub-fase 0.3 · Player global unificado. Único punto de montaje
                 del VideoSheet + VideoPlayerFullscreen + PlaylistQueueSheet en

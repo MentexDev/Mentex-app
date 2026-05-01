@@ -307,15 +307,11 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </div>
       </div>
 
-      {/* Body — cuerpo principal centrado.
-          paddingBottom:130 reserva espacio para el companion absoluto al
-          bottom (~88px alto + 18px safe + margen) — así el contenido nunca
-          queda detrás del companion bar. min-height:0 evita overflow del
-          flex column si el contenido excede su altura. */}
+      {/* Body — cuerpo principal centrado */}
       <div style={{
-        flex:1, minHeight:0, position:'relative', zIndex:2,
+        flex:1, position:'relative', zIndex:2,
         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-        padding:'8px 28px 130px',
+        padding:'8px 28px',
       }}>
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <h1 style={{
@@ -448,21 +444,16 @@ function ActivityRunner({ activity, onRequestClose, onComplete }) {
         </div>
       </div>
 
-      {/* Companion al fondo del runner — position:absolute para garantizar
-          que siempre quede pegado al bottom del overlay, incluso si el body
-          flex:1 se desborda (en pantallas pequeñas, el contenido del timer
-          + copy + controles puede exceder y empujar al companion fuera del
-          viewport). zIndex:3 lo deja encima del Aurora y el body. bottom:6
-          lo pega al borde — el componente RunnerCompanionBar ya tiene
-          padding interno de 4-10px que da el aire visual. */}
-      <div style={{
-        position:'absolute', left:0, right:0, bottom:6, zIndex:3,
-      }}>
-        <RunnerCompanionBar
-          activity={activity}
-          suggestionCount={_resolveSuggestions(activity).length}
-        />
-      </div>
+      {/* Companion al fondo del runner — sticky bottom + safe space inferior.
+          height:28 deja más aire al borde inferior del iPhone (vs 18 previo)
+          que quedaba muy pegado al home indicator. */}
+      <RunnerCompanionBar
+        activity={activity}
+        suggestionCount={_resolveSuggestions(activity).length}
+      />
+
+      {/* Safe space inferior */}
+      <div style={{ height:28, flexShrink:0 }}/>
     </div>
   );
 }
