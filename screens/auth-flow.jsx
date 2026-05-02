@@ -466,12 +466,12 @@
     username: '',
     tagline: '',
     bio: '',
-    // Step 2 — Intención
-    goal: null,                 // 'productivity'|'rest'|'learn'|'sleep'|'anxiety'
+    // Step 2 — Intención (multi-select)
+    goals: [],                  // ['productivity','rest','learn',...]
     // Step 3 — Baseline screen time
     baselineHours: 6,           // 1..12 (slider)
     // Step 4 — Distractores
-    blockedApps: [],            // ['instagram','tiktok','youtube',...]
+    blockedApps: [],            // ['ig','tt','yt',...]
     // Step 5 — Energía / contenido preferido
     contentPrefs: [],           // ['books','meditations','biographies','talks','sounds']
     // Step 6 — Hora dorada
@@ -480,13 +480,27 @@
     sessionMin: 25,             // 15|25|45|60|90
     // Step 8 — Voz del coach
     coachVoice: null,           // 'warm'|'contemplative'|'energetic'|'wise'
-    // Step 10 — Notificaciones
-    notificationsEnabled: null, // true|false (null = no decidido)
+    // Step 10 — Notificaciones (multi-select de 5 tipos, default todas ON)
+    notifications: {
+      session: true,
+      coach: true,
+      milestones: true,
+      breaks: true,
+      content: true,
+    },
     // Compat con onboarding legacy (no usados en Phase 3 nueva, pero preservados
     // por si algún consumer los lee — se quitan en cleanup futuro)
-    goals: [], experience: null, timeMin: 15, timeOfDay: null,
-    blockApps: null, commit7d: true,
+    goal: null, experience: null, timeMin: 15, timeOfDay: null,
+    blockApps: null, commit7d: true, notificationsEnabled: null,
   };
+
+  // Helper: merge answers garantizando shape de objetos anidados (ej: notifications)
+  function _mergeAnswers(base, patch) {
+    var merged = Object.assign({}, base, patch || {});
+    // Deep-merge para notifications (5 keys obligatorias)
+    merged.notifications = Object.assign({}, base.notifications, (patch && patch.notifications) || {});
+    return merged;
+  }
 
   if (typeof window !== 'undefined' && !window.__mtxOnboarding) {
     var storedOb = _loadOnboardingFromStorage();
@@ -494,14 +508,15 @@
       ? {
           step: typeof storedOb.step === 'number' ? storedOb.step : 0,
           // Merge: defaults < stored. Garantiza que un user con state vieja
-          // del placeholder no rompa cuando arranque el onboarding nuevo.
-          answers: Object.assign({}, _OB_DEFAULTS, storedOb.answers || {}),
+          // del placeholder no rompa cuando arranque el onboarding nuevo,
+          // y que notifications siempre tenga las 5 keys.
+          answers: _mergeAnswers(_OB_DEFAULTS, storedOb.answers || {}),
           completed: !!storedOb.completed,
           startedAt: storedOb.startedAt || null,
         }
       : {
           step: 0,
-          answers: Object.assign({}, _OB_DEFAULTS),
+          answers: _mergeAnswers(_OB_DEFAULTS, null),
           completed: false,
           startedAt: null,
         };
@@ -539,9 +554,9 @@
         _setObState({ step: Math.max(0, step) });
       },
 
-      // Update parcial de answers
+      // Update parcial de answers (deep-merge para objetos anidados como notifications)
       updateAnswers: function(patch) {
-        var next = Object.assign({}, _obState.answers, patch);
+        var next = _mergeAnswers(_obState.answers, patch);
         _setObState({ answers: next });
       },
 
@@ -575,7 +590,7 @@
       reset: function() {
         _obState = {
           step: 0,
-          answers: Object.assign({}, _OB_DEFAULTS),
+          answers: _mergeAnswers(_OB_DEFAULTS, null),
           completed: false,
           startedAt: null,
         };
@@ -587,7 +602,7 @@
         try { localStorage.removeItem(ONBOARDING_STORAGE_KEY); } catch (_) {}
         _obState = {
           step: 0,
-          answers: Object.assign({}, _OB_DEFAULTS),
+          answers: _mergeAnswers(_OB_DEFAULTS, null),
           completed: false,
           startedAt: null,
         };

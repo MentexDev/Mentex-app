@@ -25,12 +25,18 @@
 
   // ── Data constants ─────────────────────────────────────────────────────────
 
+  // 10 goals — multi-select. Layout grid 2-col compacto (icon arriba + label).
   var GOAL_OPTIONS = [
-    { id: 'productivity', label: 'Productividad',     icon: '🎯', desc: 'Termina lo que importa' },
-    { id: 'rest',         label: 'Descanso mental',   icon: '🌙', desc: 'Calma para volver a ti' },
-    { id: 'learn',        label: 'Aprender más',      icon: '📚', desc: 'Profundiza tu mente' },
-    { id: 'sleep',        label: 'Dormir mejor',      icon: '😴', desc: 'Descanso con intención' },
-    { id: 'anxiety',      label: 'Reducir ansiedad',  icon: '🌿', desc: 'Vuelve a tu centro' },
+    { id: 'productivity', label: 'Productividad',    icon: '🎯' },
+    { id: 'rest',         label: 'Descanso mental',  icon: '🌙' },
+    { id: 'learn',        label: 'Aprender más',     icon: '📚' },
+    { id: 'sleep',        label: 'Dormir mejor',     icon: '😴' },
+    { id: 'anxiety',      label: 'Menos ansiedad',   icon: '🌿' },
+    { id: 'focus',        label: 'Concentrarme',     icon: '🧠' },
+    { id: 'habits',       label: 'Crear hábitos',    icon: '🌱' },
+    { id: 'self',         label: 'Conmigo mismo',    icon: '✨' },
+    { id: 'detox',        label: 'Menos redes',      icon: '🚫' },
+    { id: 'create',       label: 'Crear más',        icon: '🛠️' },
   ];
 
   // 9 apps más comunes en distracción. Ids matchean APPS en components/app-icons.jsx
@@ -40,12 +46,16 @@
     'rd', 'sn', 'wa', 'fb', 'nf',
   ];
 
+  // Content prefs — grid 2-col compacto (igual visual que goals).
   var CONTENT_OPTIONS = [
-    { id: 'books',        label: 'Resúmenes de libros',  icon: '📚', desc: 'Sapiens, Atomic Habits, El Poder del Ahora…' },
-    { id: 'meditations',  label: 'Meditaciones',         icon: '🧘', desc: 'Guiadas para foco, calma y sueño' },
-    { id: 'biographies',  label: 'Biografías',           icon: '🌟', desc: 'Mentes que cambiaron el mundo' },
-    { id: 'talks',        label: 'Charlas profundas',    icon: '🎙️', desc: 'Filósofos, científicos, monjes' },
-    { id: 'sounds',       label: 'Sonidos & ambientes',  icon: '🎵', desc: 'Lluvia, café, frecuencias' },
+    { id: 'books',        label: 'Libros',         icon: '📚' },
+    { id: 'meditations',  label: 'Meditaciones',   icon: '🧘' },
+    { id: 'biographies',  label: 'Biografías',     icon: '🌟' },
+    { id: 'talks',        label: 'Charlas',        icon: '🎙️' },
+    { id: 'sounds',       label: 'Sonidos',        icon: '🎵' },
+    { id: 'mind',         label: 'Filosofía',      icon: '🧠' },
+    { id: 'science',      label: 'Ciencia',        icon: '🔬' },
+    { id: 'sleep',        label: 'Para dormir',    icon: '🌙' },
   ];
 
   var FOCUS_TIME_OPTIONS = [
@@ -143,10 +153,81 @@
   }
 
 
-  // OptionCard: card grande seleccionable (icon + title + desc + check). Para
-  // goals, content prefs, focus times, coach voices.
+  // Style helper: gradient + edge highlight para botones unselected. Da "vida"
+  // sin filter:blur (que genera GPU bugs). Background con gradient sutil top→
+  // bottom + box-shadow inset para edge highlight.
+  function _bgForState(selected, accent) {
+    if (selected) {
+      return {
+        background: 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))',
+        borderColor: 'rgba(61,255,209,0.50)',
+        boxShadow: '0 0 28px rgba(61,255,209,0.14), inset 0 1px 0 rgba(61,255,209,0.22)',
+      };
+    }
+    return {
+      background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012))',
+      borderColor: 'rgba(255,255,255,0.10)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+    };
+  }
+
+
+  // CompactOptionCard — grid 2-col. Icon arriba grande + label abajo. Check
+  // overlay top-right cuando seleccionado. Reutilizable para goals + content
+  // prefs + cualquier multi-select de muchas opciones donde queremos densidad.
+  function CompactOptionCard(props) {
+    var selected = !!props.selected;
+    var bg = _bgForState(selected);
+    return React.createElement('button', {
+      onClick: props.onClick,
+      className: 'mtx-tap',
+      style: {
+        position: 'relative',
+        appearance: 'none', cursor: 'pointer',
+        padding: '14px 8px',
+        borderRadius: 14,
+        background: bg.background,
+        border: '0.5px solid ' + bg.borderColor,
+        boxShadow: bg.boxShadow,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 8,
+        transition: 'all .18s ease',
+        fontFamily: 'var(--ff-sans)',
+        minHeight: 86,
+      },
+    },
+      React.createElement('div', {
+        style: { fontSize: 26, lineHeight: 1 },
+      }, props.icon),
+      React.createElement('div', {
+        style: {
+          fontSize: 12.5, fontWeight: 600,
+          color: selected ? 'var(--ink-1)' : 'var(--ink-2)',
+          textAlign: 'center',
+          letterSpacing: '-0.005em',
+          lineHeight: 1.2,
+        },
+      }, props.label),
+      selected && React.createElement('div', {
+        style: {
+          position: 'absolute', top: 8, right: 8,
+          width: 18, height: 18, borderRadius: 9,
+          background: 'var(--neon)',
+          color: '#02110b',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        },
+      }, React.createElement(window.IcCheck || 'span', { size: 11, stroke: 'currentColor', strokeWidth: 2.6 }))
+    );
+  }
+
+
+  // OptionCard: card grande horizontal (icon + label + desc + check).
+  // Para steps donde la desc añade valor y el set es chico (focus times,
+  // coach voices, notification toggles).
   function OptionCard(props) {
     var selected = !!props.selected;
+    var compact = !!props.compact;
+    var bg = _bgForState(selected);
     return React.createElement('button', {
       onClick: props.onClick,
       className: 'mtx-tap',
@@ -154,48 +235,49 @@
         width: '100%',
         appearance: 'none', cursor: 'pointer',
         textAlign: 'left',
-        padding: '16px 18px',
-        borderRadius: 16,
-        background: selected
-          ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.05))'
-          : 'rgba(255,255,255,0.03)',
-        border: '0.5px solid ' + (selected ? 'rgba(61,255,209,0.45)' : 'rgba(255,255,255,0.08)'),
-        boxShadow: selected ? '0 0 24px rgba(61,255,209,0.10)' : 'none',
-        display: 'flex', alignItems: 'center', gap: 14,
-        transition: 'background .2s ease, border-color .2s ease, box-shadow .2s ease',
+        padding: compact ? '11px 14px' : '16px 18px',
+        borderRadius: compact ? 13 : 16,
+        background: bg.background,
+        border: '0.5px solid ' + bg.borderColor,
+        boxShadow: bg.boxShadow,
+        display: 'flex', alignItems: 'center', gap: compact ? 11 : 14,
+        transition: 'all .18s ease',
         fontFamily: 'var(--ff-sans)',
       },
     },
       React.createElement('div', {
         style: {
-          width: 44, height: 44, borderRadius: 12,
+          width: compact ? 36 : 44, height: compact ? 36 : 44,
+          borderRadius: compact ? 10 : 12,
           background: selected ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
           border: '0.5px solid ' + (selected ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.06)'),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, lineHeight: 1, flexShrink: 0,
+          fontSize: compact ? 18 : 22, lineHeight: 1, flexShrink: 0,
         },
       }, props.icon),
       React.createElement('div', { style: { flex: 1, minWidth: 0 } },
         React.createElement('div', {
           style: {
-            fontSize: 14.5, fontWeight: 600,
+            fontSize: compact ? 13.5 : 14.5, fontWeight: 600,
             color: selected ? 'var(--ink-1)' : 'var(--ink-2)',
             marginBottom: props.desc ? 2 : 0,
+            letterSpacing: '-0.005em',
           },
         }, props.label),
         props.desc && React.createElement('div', {
-          style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.35 },
+          style: { fontSize: compact ? 11.5 : 12, color: 'var(--ink-3)', lineHeight: 1.35 },
         }, props.desc)
       ),
       selected && React.createElement('div', {
         style: {
-          width: 22, height: 22, borderRadius: 11,
+          width: compact ? 20 : 22, height: compact ? 20 : 22,
+          borderRadius: compact ? 10 : 11,
           background: 'var(--neon)',
           color: '#02110b',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
         },
-      }, React.createElement(window.IcCheck || 'span', { size: 14, stroke: 'currentColor', strokeWidth: 2.5 }))
+      }, React.createElement(window.IcCheck || 'span', { size: compact ? 12 : 14, stroke: 'currentColor', strokeWidth: 2.5 }))
     );
   }
 
@@ -501,77 +583,124 @@
   }
 
 
-  // ── Step 2: Goal ───────────────────────────────────────────────────────────
+  // ── Step 2: Goals (multi-select) ───────────────────────────────────────────
   function StepGoal(props) {
     var ans = props.answers;
     var onChange = props.onChange;
+    var picked = ans.goals || [];
+
+    function toggle(id) {
+      var next = picked.indexOf(id) >= 0
+        ? picked.filter(function(p) { return p !== id; })
+        : picked.concat([id]);
+      onChange({ goals: next });
+    }
+
     return React.createElement('div', null,
       React.createElement(StepHeader, {
         eyebrow: 'Paso 2 · Intención',
         title: '¿Qué quieres lograr?',
-        subtitle: 'Esto personaliza el contenido recomendado y el tono de tu coach.',
+        subtitle: 'Elige todos los que te resuenen. Personalizan el contenido y el tono de tu coach.',
       }),
       React.createElement('div', {
-        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 10 },
+        style: {
+          padding: '0 24px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10,
+        },
       },
         GOAL_OPTIONS.map(function(g) {
-          return React.createElement(OptionCard, {
+          return React.createElement(CompactOptionCard, {
             key: g.id,
             icon: g.icon,
             label: g.label,
-            desc: g.desc,
-            selected: ans.goal === g.id,
-            onClick: function() { onChange({ goal: g.id }); },
+            selected: picked.indexOf(g.id) >= 0,
+            onClick: function() { toggle(g.id); },
           });
         })
-      )
+      ),
+      React.createElement('div', {
+        style: {
+          padding: '14px 28px 0',
+          textAlign: 'center', fontSize: 12,
+          color: picked.length ? 'var(--neon)' : 'var(--ink-3)',
+          fontWeight: picked.length ? 600 : 500,
+          transition: 'color .2s',
+        },
+      }, picked.length === 0 ? 'Selecciona al menos uno' :
+          picked.length + (picked.length === 1 ? ' intención' : ' intenciones'))
     );
   }
 
 
-  // ── Step 3: Baseline screen time (slider) ──────────────────────────────────
+  // ── Step 3: Baseline screen time (slider + impacto proyectado) ─────────────
+  // El "wow" de este step es mostrar el costo oculto del scroll (días/año
+  // perdidos) Y la oportunidad real (horas que Mentex te puede devolver).
+  // El user pasa de "esto es estadística" a "esto es mi vida en juego".
   function StepBaseline(props) {
     var ans = props.answers;
     var onChange = props.onChange;
     var hours = typeof ans.baselineHours === 'number' ? ans.baselineHours : 6;
     var weeklyHrs = hours * 7;
-    // Color refleja la intensidad sin juzgar — sutil
-    var pct = Math.min(1, hours / 12);
+    var yearlyHrs = hours * 365;
+    var yearlyDays = Math.round(yearlyHrs / 24);
+    // Si Mentex captura 30% de ese tiempo y lo convierte en foco, eso son:
+    var recoveredHrsWeek = Math.round(weeklyHrs * 0.30);
+    var recoveredHrsYear = Math.round(yearlyHrs * 0.30);
+
+    var feedbackLines = hours <= 3 ? {
+      tag: '🌱 Ya cuidas tu atención',
+      msg: 'Mentex te lleva un paso más allá: profundidad sostenida.',
+    } : hours <= 6 ? {
+      tag: '⚖️ Estás cerca del promedio',
+      msg: 'Pequeños redirects acumulan cambios visibles en semanas.',
+    } : hours <= 9 ? {
+      tag: '🌊 Mucho ruido digital',
+      msg: 'Mentex puede devolverte horas reales sin que lo sientas drástico.',
+    } : {
+      tag: '🌋 Vives en el feed',
+      msg: 'Acá empieza el cambio real — un paso a la vez, no de golpe.',
+    };
 
     return React.createElement('div', null,
       React.createElement(StepHeader, {
         eyebrow: 'Paso 3 · Punto de partida',
-        title: '¿Cuánto tiempo en pantalla al día?',
-        subtitle: 'Sin juicio. Es tu baseline para que veas el progreso real con Mentex.',
+        title: 'Hablemos de tus pantallas.',
+        subtitle: 'Para medir tu progreso real, necesitamos un baseline honesto. Sin juicios — solo claridad.',
       }),
       React.createElement('div', { style: { padding: '0 28px' } },
         // Visualización: número grande
         React.createElement('div', {
-          style: {
-            textAlign: 'center', marginBottom: 22, marginTop: 10,
-          },
+          style: { textAlign: 'center', marginBottom: 18, marginTop: 6 },
         },
           React.createElement('div', {
             style: {
-              fontSize: 64, fontWeight: 700, lineHeight: 1,
+              fontSize: 9.5, color: 'var(--ink-3)', letterSpacing: '0.16em',
+              fontWeight: 600, textTransform: 'uppercase', marginBottom: 8,
+            },
+          }, 'Horas al día en redes y entretenimiento'),
+          React.createElement('div', {
+            style: {
+              fontSize: 60, fontWeight: 700, lineHeight: 1,
               color: 'var(--ink-1)', letterSpacing: '-0.03em',
               fontFeatureSettings: '"tnum" on',
             },
           },
             hours,
             React.createElement('span', {
-              style: { fontSize: 22, fontWeight: 500, color: 'var(--ink-3)', marginLeft: 6 },
+              style: { fontSize: 20, fontWeight: 500, color: 'var(--ink-3)', marginLeft: 6 },
             }, 'h')
           ),
           React.createElement('div', {
             style: {
-              marginTop: 8, fontSize: 12.5, color: 'var(--ink-3)',
+              marginTop: 6, fontSize: 12, color: 'var(--ink-3)',
             },
-          }, '≈ ' + weeklyHrs + ' horas a la semana')
+          }, '≈ ' + weeklyHrs + ' h/semana · ' + yearlyDays + ' días al año')
         ),
 
         // Slider
-        React.createElement('div', { style: { padding: '4px 0 16px' } },
+        React.createElement('div', { style: { padding: '4px 0 8px' } },
           React.createElement('input', {
             type: 'range',
             min: 1, max: 12, step: 1,
@@ -587,8 +716,8 @@
           React.createElement('div', {
             style: {
               display: 'flex', justifyContent: 'space-between',
-              fontSize: 11, color: 'var(--ink-4, rgba(255,255,255,0.40))',
-              marginTop: 4,
+              fontSize: 10.5, color: 'var(--ink-4, rgba(255,255,255,0.40))',
+              marginTop: 2,
             },
           },
             React.createElement('span', null, '1h'),
@@ -596,21 +725,61 @@
           )
         ),
 
-        // Reflexión sutil
+        // Feedback contextual breve
         React.createElement('div', {
           style: {
-            marginTop: 24, padding: '14px 16px',
-            background: 'rgba(61,255,209,0.04)',
-            border: '0.5px solid rgba(61,255,209,0.15)',
+            marginTop: 18, padding: '12px 14px',
+            background: 'rgba(255,255,255,0.025)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
             borderRadius: 12,
-            fontSize: 12.5, color: 'var(--ink-2)',
-            lineHeight: 1.5,
           },
         },
-          hours <= 3 ? '🌱 Ya cuidas tu atención. Mentex te ayuda a profundizar.'
-          : hours <= 6 ? '⚖️ Estás en el promedio. Hay espacio claro para crecer.'
-          : hours <= 9 ? '🌊 Mucho ruido digital. Mentex va a moverte el panorama.'
-          : '🌋 Vives en el feed. Acá empieza el cambio real — paso a paso.'
+          React.createElement('div', {
+            style: {
+              fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)',
+              marginBottom: 3,
+            },
+          }, feedbackLines.tag),
+          React.createElement('div', {
+            style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 },
+          }, feedbackLines.msg)
+        ),
+
+        // ── La promesa: lo que Mentex puede devolver ─────────────────────────
+        // Este es el wow factor. El user ve el costo en términos humanos
+        // (días al año) y la oportunidad concreta (horas recuperadas).
+        React.createElement('div', {
+          style: {
+            marginTop: 14,
+            padding: '14px 16px',
+            background: 'linear-gradient(180deg, rgba(61,255,209,0.10), rgba(61,255,209,0.02))',
+            border: '0.5px solid rgba(61,255,209,0.28)',
+            borderRadius: 14,
+            boxShadow: '0 0 24px rgba(61,255,209,0.06), inset 0 1px 0 rgba(61,255,209,0.18)',
+          },
+        },
+          React.createElement('div', {
+            style: {
+              fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.16em',
+              fontWeight: 700, textTransform: 'uppercase', marginBottom: 8,
+            },
+          }, 'Tu oportunidad con Mentex'),
+          React.createElement('div', {
+            style: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 },
+          },
+            React.createElement('span', {
+              style: {
+                fontSize: 24, fontWeight: 700, color: 'var(--neon)',
+                letterSpacing: '-0.02em', fontFeatureSettings: '"tnum" on',
+              },
+            }, '+' + recoveredHrsWeek + 'h'),
+            React.createElement('span', {
+              style: { fontSize: 12, color: 'var(--ink-2)' },
+            }, 'a la semana de foco real')
+          ),
+          React.createElement('div', {
+            style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.45 },
+          }, 'Si redirigimos solo 30% de ese tiempo a sesiones con Mentex, son ' + recoveredHrsYear + ' horas recuperadas al año — ' + Math.round(recoveredHrsYear / 24) + ' días enteros para ti.')
         )
       )
     );
@@ -656,6 +825,7 @@
             if (!app) return null;
             var Ic = app.Icon;
             var on = picked.indexOf(id) >= 0;
+            var bg = _bgForState(on);
             return React.createElement('button', {
               key: id,
               onClick: function() { toggle(id); },
@@ -664,9 +834,9 @@
                 appearance: 'none', cursor: 'pointer',
                 padding: '14px 6px',
                 borderRadius: 16,
-                background: on ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.03)',
-                border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.08)'),
-                boxShadow: on ? '0 0 18px rgba(61,255,209,0.10)' : 'none',
+                background: bg.background,
+                border: '0.5px solid ' + bg.borderColor,
+                boxShadow: bg.boxShadow,
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 gap: 8,
                 transition: 'all .18s ease',
@@ -711,7 +881,7 @@
   }
 
 
-  // ── Step 5: Content prefs ──────────────────────────────────────────────────
+  // ── Step 5: Content prefs (multi-select, mismo grid compacto que goals) ────
   function StepContent(props) {
     var ans = props.answers;
     var onChange = props.onChange;
@@ -728,17 +898,21 @@
       React.createElement(StepHeader, {
         eyebrow: 'Paso 5 · Energía',
         title: '¿Qué tipo de contenido te activa?',
-        subtitle: 'Curaremos tu Explorar con esto. Puedes elegir más de uno.',
+        subtitle: 'Curaremos tu Explorar con esto. Elige todos los que te llamen.',
       }),
       React.createElement('div', {
-        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 10 },
+        style: {
+          padding: '0 24px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10,
+        },
       },
         CONTENT_OPTIONS.map(function(c) {
-          return React.createElement(OptionCard, {
+          return React.createElement(CompactOptionCard, {
             key: c.id,
             icon: c.icon,
             label: c.label,
-            desc: c.desc,
             selected: picked.indexOf(c.id) >= 0,
             onClick: function() { toggle(c.id); },
           });
@@ -768,7 +942,7 @@
         subtitle: 'Tu coach programará rituales y recordatorios contigo.',
       }),
       React.createElement('div', {
-        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 10 },
+        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 },
       },
         FOCUS_TIME_OPTIONS.map(function(f) {
           return React.createElement(OptionCard, {
@@ -776,6 +950,7 @@
             icon: f.icon,
             label: f.label,
             desc: f.desc,
+            compact: true,
             selected: ans.focusTime === f.id,
             onClick: function() { onChange({ focusTime: f.id }); },
           });
@@ -786,6 +961,9 @@
 
 
   // ── Step 7: Session duration ───────────────────────────────────────────────
+  // El framing aquí no es "elige cuánto enfocarte" sino "elige el átomo de tu
+  // ritual diario". Mentex va a planificar tu día alrededor de esto: rutinas,
+  // recordatorios, descansos. La duración es cómo Mentex respira contigo.
   function StepSessionDuration(props) {
     var ans = props.answers;
     var onChange = props.onChange;
@@ -794,14 +972,15 @@
     return React.createElement('div', null,
       React.createElement(StepHeader, {
         eyebrow: 'Paso 7 · Sesión inicial',
-        title: '¿Cuánto dura tu primer foco?',
-        subtitle: 'Empezar pequeño funciona. Puedes subir cuando lo sientas natural.',
+        title: '¿Cuánto dura tu sesión base?',
+        subtitle: 'Esta es la unidad de tu ritual diario. Mentex programará rutinas, recordatorios y descansos alrededor de esto.',
       }),
       React.createElement('div', {
-        style: { padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 10 },
+        style: { padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 8 },
       },
         SESSION_DURATIONS.map(function(d) {
           var on = current === d.value;
+          var bg = _bgForState(on);
           return React.createElement('button', {
             key: d.value,
             onClick: function() { onChange({ sessionMin: d.value }); },
@@ -809,15 +988,13 @@
             style: {
               width: '100%',
               appearance: 'none', cursor: 'pointer',
-              padding: '14px 18px',
-              borderRadius: 14,
-              background: on
-                ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.05))'
-                : 'rgba(255,255,255,0.03)',
-              border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.45)' : 'rgba(255,255,255,0.08)'),
-              boxShadow: on ? '0 0 24px rgba(61,255,209,0.10)' : 'none',
+              padding: '12px 16px',
+              borderRadius: 13,
+              background: bg.background,
+              border: '0.5px solid ' + bg.borderColor,
+              boxShadow: bg.boxShadow,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              transition: 'all .2s ease',
+              transition: 'all .18s ease',
               fontFamily: 'var(--ff-sans)',
               textAlign: 'left',
             },
@@ -825,32 +1002,56 @@
             React.createElement('div', null,
               React.createElement('div', {
                 style: {
-                  fontSize: 17, fontWeight: 700,
+                  fontSize: 16, fontWeight: 700,
                   color: on ? 'var(--ink-1)' : 'var(--ink-2)',
                   letterSpacing: '-0.01em',
                   fontFeatureSettings: '"tnum" on',
                 },
               }, d.label),
               React.createElement('div', {
-                style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+                style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 1 },
               }, d.tagline)
             ),
             on && React.createElement('div', {
               style: {
-                width: 26, height: 26, borderRadius: 13,
+                width: 22, height: 22, borderRadius: 11,
                 background: 'var(--neon)',
                 color: '#02110b',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               },
-            }, React.createElement(window.IcCheck || 'span', { size: 15, stroke: 'currentColor', strokeWidth: 2.5 }))
+            }, React.createElement(window.IcCheck || 'span', { size: 13, stroke: 'currentColor', strokeWidth: 2.6 }))
           );
         })
+      ),
+
+      // Tip box: framing de cómo va a funcionar el ritual
+      React.createElement('div', {
+        style: {
+          margin: '16px 28px 0',
+          padding: '12px 14px',
+          background: 'rgba(61,255,209,0.04)',
+          border: '0.5px solid rgba(61,255,209,0.16)',
+          borderRadius: 12,
+        },
+      },
+        React.createElement('div', {
+          style: {
+            fontSize: 11, fontWeight: 700, color: 'var(--neon)',
+            letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 4,
+          },
+        }, '💡 Cómo lo va a usar Mentex'),
+        React.createElement('div', {
+          style: { fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5 },
+        }, 'Tu día puede ser una sola sesión profunda o varias cortas intercaladas. Mentex se adapta — empezar pequeño es la regla, el ritmo se construye después.')
       )
     );
   }
 
 
   // ── Step 8: Coach voice ────────────────────────────────────────────────────
+  // Layout horizontal compacto: icon a la izq, label + preview en mismo bloque
+  // sin gap. La preview es la prueba viva del tono — debe leerse junto al
+  // nombre, no separado.
   function StepCoachVoice(props) {
     var ans = props.answers;
     var onChange = props.onChange;
@@ -859,13 +1060,14 @@
       React.createElement(StepHeader, {
         eyebrow: 'Paso 8 · Tu coach',
         title: 'Conoce tu voz interior.',
-        subtitle: 'Cuatro tonos. Elige el que te resuene hoy. Lo cambias cuando quieras.',
+        subtitle: 'Cuatro tonos. Elige el que te resuene hoy. Puedes cambiarlo después.',
       }),
       React.createElement('div', {
-        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 10 },
+        style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 },
       },
         COACH_VOICES.map(function(v) {
           var on = ans.coachVoice === v.id;
+          var bg = _bgForState(on);
           return React.createElement('button', {
             key: v.id,
             onClick: function() { onChange({ coachVoice: v.id }); },
@@ -874,54 +1076,51 @@
               width: '100%',
               appearance: 'none', cursor: 'pointer',
               textAlign: 'left',
-              padding: '16px 18px',
-              borderRadius: 16,
-              background: on
-                ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.05))'
-                : 'rgba(255,255,255,0.03)',
-              border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.45)' : 'rgba(255,255,255,0.08)'),
-              boxShadow: on ? '0 0 24px rgba(61,255,209,0.10)' : 'none',
+              padding: '11px 14px',
+              borderRadius: 13,
+              background: bg.background,
+              border: '0.5px solid ' + bg.borderColor,
+              boxShadow: bg.boxShadow,
+              display: 'flex', alignItems: 'center', gap: 12,
               fontFamily: 'var(--ff-sans)',
-              transition: 'all .2s ease',
+              transition: 'all .18s ease',
             },
           },
             React.createElement('div', {
               style: {
-                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8,
+                width: 40, height: 40, borderRadius: 11,
+                background: on ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
+                border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.06)'),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, flexShrink: 0,
               },
-            },
+            }, v.icon),
+            React.createElement('div', { style: { flex: 1, minWidth: 0 } },
               React.createElement('div', {
                 style: {
-                  width: 38, height: 38, borderRadius: 11,
-                  background: on ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
-                  border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.06)'),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20,
-                },
-              }, v.icon),
-              React.createElement('div', {
-                style: {
-                  fontSize: 14.5, fontWeight: 600,
+                  fontSize: 14, fontWeight: 700,
                   color: on ? 'var(--ink-1)' : 'var(--ink-2)',
+                  letterSpacing: '-0.005em',
+                  marginBottom: 1,
                 },
               }, v.label),
-              React.createElement('div', { style: { flex: 1 } }),
-              on && React.createElement('div', {
+              React.createElement('div', {
                 style: {
-                  width: 22, height: 22, borderRadius: 11,
-                  background: 'var(--neon)',
-                  color: '#02110b',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11.5, lineHeight: 1.35,
+                  color: 'var(--ink-3)', fontStyle: 'italic',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 },
-              }, React.createElement(window.IcCheck || 'span', { size: 14, stroke: 'currentColor', strokeWidth: 2.5 }))
+              }, v.preview)
             ),
-            React.createElement('div', {
+            on && React.createElement('div', {
               style: {
-                paddingLeft: 50,
-                fontSize: 12.5, lineHeight: 1.5,
-                color: 'var(--ink-3)', fontStyle: 'italic',
+                width: 22, height: 22, borderRadius: 11,
+                background: 'var(--neon)',
+                color: '#02110b',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
               },
-            }, v.preview)
+            }, React.createElement(window.IcCheck || 'span', { size: 13, stroke: 'currentColor', strokeWidth: 2.6 }))
           );
         })
       )
@@ -937,8 +1136,13 @@
 
     var lines = React.useMemo(function() {
       var goalLabel = (function() {
-        var g = GOAL_OPTIONS.find(function(o) { return o.id === ans.goal; });
-        return g ? g.label.toLowerCase() : 'tu intención';
+        var pickedGoals = ans.goals || [];
+        if (pickedGoals.length === 0) return 'tu intención';
+        if (pickedGoals.length === 1) {
+          var g = GOAL_OPTIONS.find(function(o) { return o.id === pickedGoals[0]; });
+          return g ? g.label.toLowerCase() : 'tu intención';
+        }
+        return 'tus ' + pickedGoals.length + ' intenciones';
       })();
       var voiceLabel = (function() {
         var v = COACH_VOICES.find(function(o) { return o.id === ans.coachVoice; });
@@ -952,7 +1156,7 @@
         'Activando bloqueo' + (apps ? ' para ' + apps + (apps === 1 ? ' app' : ' apps') : '') + '…',
         'Sincronizando tu universo Mentex…',
       ];
-    }, [ans.goal, ans.coachVoice, ans.sessionMin, ans.blockedApps]);
+    }, [ans.goals, ans.coachVoice, ans.sessionMin, ans.blockedApps]);
 
     var doneCountState = React.useState(0);
     var doneCount = doneCountState[0];
@@ -1030,63 +1234,193 @@
   }
 
 
-  // ── Step 10: Notifications + welcome ───────────────────────────────────────
+  // ── Step 10: Notifications (multi-select brutal) ───────────────────────────
+  // En lugar de un binario "activar/no activar", mostrar 5 tipos de notif y
+  // que el user toggle individualmente. Por defecto todos ON — el user solo
+  // des-habilita lo que no quiera. Cada row tiene su propio switch + icon
+  // semántico + sublabel contextualizado con sus respuestas previas.
+  var NOTIFICATION_TYPES = [
+    {
+      id: 'session', icon: '🎯', label: 'Recordatorio de sesión',
+      desc: 'Cada día a tu hora preferida',
+    },
+    {
+      id: 'coach', icon: '✨', label: 'Tu coach IA',
+      desc: 'Cuando quiera compartirte algo importante',
+    },
+    {
+      id: 'milestones', icon: '🏆', label: 'Hitos & progreso',
+      desc: 'Celebra cada logro y semana cerrada',
+    },
+    {
+      id: 'breaks', icon: '🌙', label: 'Descanso digital',
+      desc: 'Cuando hayas pasado mucho tiempo en pantalla',
+    },
+    {
+      id: 'content', icon: '📚', label: 'Nuevo contenido',
+      desc: 'Solo lo relevante para tus intereses',
+    },
+  ];
+
+  // Toggle row pill: switch a la derecha, icon + label + desc a la izquierda.
+  function NotifToggleRow(props) {
+    var on = !!props.on;
+    var bg = _bgForState(on);
+    return React.createElement('button', {
+      onClick: props.onClick,
+      className: 'mtx-tap',
+      style: {
+        width: '100%',
+        appearance: 'none', cursor: 'pointer',
+        textAlign: 'left',
+        padding: '12px 14px',
+        borderRadius: 14,
+        background: bg.background,
+        border: '0.5px solid ' + bg.borderColor,
+        boxShadow: bg.boxShadow,
+        display: 'flex', alignItems: 'center', gap: 12,
+        fontFamily: 'var(--ff-sans)',
+        transition: 'all .18s ease',
+      },
+    },
+      React.createElement('div', {
+        style: {
+          width: 38, height: 38, borderRadius: 11,
+          background: on ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
+          border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.28)' : 'rgba(255,255,255,0.06)'),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20, lineHeight: 1, flexShrink: 0,
+        },
+      }, props.icon),
+      React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+        React.createElement('div', {
+          style: {
+            fontSize: 13.5, fontWeight: 600,
+            color: on ? 'var(--ink-1)' : 'var(--ink-2)',
+            letterSpacing: '-0.005em',
+            marginBottom: 1,
+          },
+        }, props.label),
+        React.createElement('div', {
+          style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.35 },
+        }, props.desc)
+      ),
+      // Switch visual (el button maneja toggle, no toca un input real)
+      React.createElement('div', {
+        style: {
+          width: 40, height: 22, borderRadius: 11,
+          background: on ? 'var(--neon)' : 'rgba(255,255,255,0.10)',
+          position: 'relative',
+          transition: 'background .18s ease',
+          flexShrink: 0,
+          boxShadow: on ? '0 0 12px rgba(61,255,209,0.35)' : 'inset 0 1px 0 rgba(255,255,255,0.04)',
+        },
+      },
+        React.createElement('div', {
+          style: {
+            position: 'absolute',
+            top: 2,
+            left: on ? 20 : 2,
+            width: 18, height: 18,
+            borderRadius: 9,
+            background: on ? '#02110b' : '#e8e8e8',
+            transition: 'left .18s ease',
+          },
+        })
+      )
+    );
+  }
+
   function StepNotifications(props) {
     var ans = props.answers;
     var onChange = props.onChange;
     var firstName = (ans.name || '').trim().split(' ')[0] || 'amig@';
+    var notif = ans.notifications || {};
+    // Derivar estado "todas activas"
+    var allOn = NOTIFICATION_TYPES.every(function(t) { return notif[t.id] === true; });
+    var allOff = NOTIFICATION_TYPES.every(function(t) { return notif[t.id] === false; });
+
+    function toggle(id) {
+      var next = Object.assign({}, notif);
+      next[id] = !next[id];
+      onChange({ notifications: next });
+    }
+
+    function setAll(value) {
+      var next = {};
+      NOTIFICATION_TYPES.forEach(function(t) { next[t.id] = value; });
+      onChange({ notifications: next });
+    }
 
     return React.createElement('div', null,
       React.createElement(StepHeader, {
         eyebrow: 'Paso 10 · Listos',
         title: 'Estás dentro, ' + firstName + '.',
-        subtitle: 'Una última cosa para terminar de afinar tu app.',
+        subtitle: 'Última afinada: ¿qué te gustaría que te recordemos?',
       }),
       React.createElement('div', { style: { padding: '0 24px' } },
+        // Lista de toggles
+        React.createElement('div', {
+          style: { display: 'flex', flexDirection: 'column', gap: 8 },
+        },
+          NOTIFICATION_TYPES.map(function(t) {
+            return React.createElement(NotifToggleRow, {
+              key: t.id,
+              icon: t.icon,
+              label: t.label,
+              desc: t.desc,
+              on: notif[t.id] === true,
+              onClick: function() { toggle(t.id); },
+            });
+          })
+        ),
+
+        // Action row: activar todas / desactivar todas
         React.createElement('div', {
           style: {
-            padding: '20px 18px',
-            borderRadius: 16,
-            background: 'linear-gradient(180deg, rgba(61,255,209,0.06), rgba(61,255,209,0.02))',
-            border: '0.5px solid rgba(61,255,209,0.20)',
+            marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           },
         },
-          React.createElement('div', {
+          React.createElement('button', {
+            onClick: function() { setAll(true); },
+            disabled: allOn,
+            className: 'mtx-tap',
             style: {
-              fontSize: 32, marginBottom: 10, textAlign: 'center',
+              appearance: 'none', cursor: allOn ? 'default' : 'pointer',
+              background: 'transparent', border: 'none',
+              color: allOn ? 'var(--ink-4, rgba(255,255,255,0.30))' : 'var(--neon)',
+              fontSize: 12, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+              padding: '6px 10px',
+              opacity: allOn ? 0.5 : 1,
             },
-          }, '🔔'),
-          React.createElement('div', {
+          }, 'Activar todas'),
+          React.createElement('span', {
+            style: { color: 'var(--ink-4, rgba(255,255,255,0.30))', fontSize: 11 },
+          }, '·'),
+          React.createElement('button', {
+            onClick: function() { setAll(false); },
+            disabled: allOff,
+            className: 'mtx-tap',
             style: {
-              fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
-              textAlign: 'center', marginBottom: 6,
+              appearance: 'none', cursor: allOff ? 'default' : 'pointer',
+              background: 'transparent', border: 'none',
+              color: allOff ? 'var(--ink-4, rgba(255,255,255,0.30))' : 'var(--ink-3)',
+              fontSize: 12, fontWeight: 500,
+              fontFamily: 'var(--ff-sans)',
+              padding: '6px 10px',
+              opacity: allOff ? 0.5 : 1,
             },
-          }, '¿Activar notificaciones?'),
-          React.createElement('div', {
-            style: {
-              fontSize: 13, color: 'var(--ink-3)', textAlign: 'center',
-              lineHeight: 1.5, marginBottom: 16,
-            },
-          }, 'Para recordarte tu sesión, celebrar cada hito, y avisarte cuando tu coach IA quiera compartirte algo.'),
-          React.createElement('div', {
-            style: { display: 'flex', flexDirection: 'column', gap: 10 },
+          }, 'Desactivar todas')
+        ),
+
+        // Microtexto debajo
+        React.createElement('div', {
+          style: {
+            marginTop: 4, textAlign: 'center',
+            fontSize: 11, color: 'var(--ink-4, rgba(255,255,255,0.40))',
           },
-            React.createElement(OptionCard, {
-              icon: '✓',
-              label: 'Activar notificaciones',
-              desc: 'Recomendado',
-              selected: ans.notificationsEnabled === true,
-              onClick: function() { onChange({ notificationsEnabled: true }); },
-            }),
-            React.createElement(OptionCard, {
-              icon: '○',
-              label: 'No por ahora',
-              desc: 'Puedes activarlas después en Ajustes',
-              selected: ans.notificationsEnabled === false,
-              onClick: function() { onChange({ notificationsEnabled: false }); },
-            })
-          )
-        )
+        }, 'Puedes ajustarlas en cualquier momento desde Ajustes.')
       )
     );
   }
@@ -1112,8 +1446,8 @@
     var validators = [
       // 0: Profile — name + username obligatorios
       function(a) { return !!(a.name && a.name.trim().length >= 2 && a.username && a.username.trim().length >= 3); },
-      // 1: Goal
-      function(a) { return !!a.goal; },
+      // 1: Goals (multi-select) — al menos 1
+      function(a) { return Array.isArray(a.goals) && a.goals.length > 0; },
       // 2: Baseline (siempre válido — slider con default)
       function(a) { return typeof a.baselineHours === 'number'; },
       // 3: Blocked apps — al menos 1
@@ -1128,8 +1462,9 @@
       function(a) { return !!a.coachVoice; },
       // 8: Fake-load (auto-advance, siempre válido)
       function(a) { return true; },
-      // 9: Notifications — válido si decidió true o false
-      function(a) { return a.notificationsEnabled === true || a.notificationsEnabled === false; },
+      // 9: Notifications (multi-select, defaults ON) — siempre válido.
+      //    El user puede continuar incluso con todas en off (es su decisión).
+      function(a) { return true; },
     ];
     var canNext = validators[step] ? validators[step](answers) : true;
 
