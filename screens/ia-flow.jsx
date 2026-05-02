@@ -858,7 +858,11 @@ function IAInputBar(props) {
   return (
     <div style={{
       flexShrink: 0,
-      padding: '8px 12px 14px',
+      // paddingBottom 38 = 34 (home indicator zone) + 4 breathing room.
+      // El home indicator del iPhone (z=60, height 34) overlay los últimos
+      // 34px del frame; sin este padding el input bar queda visualmente
+      // pegado al fondo y parcialmente cubierto por el indicator.
+      padding: '8px 12px 38px',
       background: 'linear-gradient(180deg, rgba(10,13,12,0) 0%, rgba(10,13,12,0.85) 40%, rgba(10,13,12,0.97) 100%)',
       backdropFilter: 'blur(20px) saturate(160%)',
       WebkitBackdropFilter: 'blur(20px) saturate(160%)',
@@ -1408,15 +1412,14 @@ function IAHubHeader(props) {
 }
 
 
-// ── IAChatHeader — header del chat view: back + title + acciones ─────────
-// El back button (chevron izquierda) reemplaza al history en este modo. La
-// idea: el user está en una página INTERNA, el back es la primary action.
-// Si quiere ver/cambiar de conversación, abre el history sheet via... mmm,
-// como no hay history button aquí, lo expongo a través del long-press del
-// title pill (futuro) o simplemente: back→hub→history. Más simple por ahora.
-//
-// Decisión: poner SOLO 3 icon buttons en chat view (back + new + settings).
-// El history se accede desde el hub. Mantener las cosas simples.
+// ── IAChatHeader — header del chat view ──────────────────────────────────
+// Layout izquierda→derecha: [← back] [+ new] [Título plano + dropdown ⌄]
+//                                                              [⚙️ settings]
+// • Back, new, y título clusterizados a la izquierda. Settings solo a la
+//   derecha (utility periférica).
+// • Título es texto plano (no pill) + chev de dropdown — el user puede
+//   tap para renombrar. minWidth:0 + ellipsis para títulos largos.
+// • Spacer flex:1 entre título y settings empuja settings a la derecha.
 function IAChatHeader(props) {
   var current = props.current;
   return (
@@ -1428,38 +1431,42 @@ function IAChatHeader(props) {
       WebkitBackdropFilter: 'blur(18px) saturate(140%)',
       borderBottom: '0.5px solid rgba(255,255,255,0.04)',
     }}>
-      <div style={{ padding: '0 16px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ padding: '0 12px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
         <IAIconButton aria-label="Volver al menú IA" onClick={props.onBack}>
           <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
         </IAIconButton>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: 0, padding: '0 4px' }}>
-          {current && (
-            <button
-              onClick={props.onRename}
-              className="mtx-tap"
-              style={{
-                appearance: 'none', cursor: 'pointer',
-                maxWidth: '100%',
-                padding: '6px 12px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.04)',
-                border: '0.5px solid rgba(255,255,255,0.08)',
-                color: 'var(--ink-1)',
-                fontSize: 12.5, fontWeight: 600,
-                fontFamily: 'var(--ff-sans)',
-                letterSpacing: '-0.01em',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}>
-              <span style={{
-                maxWidth: 200,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>{current.title}</span>
-              <IcChevD size={10} stroke="var(--ink-3)" strokeWidth={1.8}/>
-            </button>
-          )}
-        </div>
+
         <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
         </IAIconButton>
+
+        {/* Título plano + chev dropdown — sin background pill. Empieza pegado
+            al + new button con un pequeño gap. minWidth:0 + ellipsis evita
+            que títulos largos empujen settings fuera del área. */}
+        <button
+          onClick={props.onRename}
+          className="mtx-tap"
+          aria-label="Renombrar conversación"
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            background: 'transparent', border: 0,
+            flex: 1, minWidth: 0,
+            padding: '6px 4px 6px 6px',
+            color: 'var(--ink-1)',
+            fontSize: 13.5, fontWeight: 600,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.01em',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            textAlign: 'left',
+          }}>
+          <span style={{
+            minWidth: 0, flex: 'none',
+            maxWidth: 'calc(100% - 16px)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{current ? current.title : 'Nueva conversación'}</span>
+          <IcChevD size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
+        </button>
+
         <IAIconButton aria-label="Configuración del asistente" onClick={props.onSettings}>
           <IcSettings size={15} stroke="currentColor" strokeWidth={1.6}/>
         </IAIconButton>
@@ -1470,25 +1477,28 @@ function IAChatHeader(props) {
 
 
 // ── IAEmptyChatHint — placeholder cuando entras al chat con conv vacía ───
-// Solo se muestra si por alguna razón el user llegó al chat view sin
-// mensajes (ej: tap "Nueva conversación" sin enviar nada todavía). Sutil,
-// invita a escribir abajo.
+// Centrado VERTICAL Y HORIZONTAL en el body. Se renderiza dentro de un
+// container flex:1 (el body de IAScreen), así que con height:100% +
+// flex centering, el hint queda a media pantalla — no pegado arriba.
 function IAEmptyChatHint() {
   return (
     <div style={{
-      padding: '40px 24px',
+      height: '100%',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '24px',
       textAlign: 'center',
       animation: 'mtx-fade-up .35s ease both .2s both',
       opacity: 0.7,
     }}>
       <div style={{
-        width: 48, height: 48, borderRadius: '50%', margin: '0 auto 12px',
+        width: 48, height: 48, borderRadius: '50%', marginBottom: 14,
         background: 'linear-gradient(135deg, rgba(61,255,209,0.16), rgba(155,138,255,0.06))',
         border: '0.5px solid rgba(61,255,209,0.22)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 22,
       }}>🌿</div>
-      <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5, maxWidth: 240, margin: '0 auto' }}>
+      <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5, maxWidth: 240 }}>
         Escribe lo que tengas en mente. Empezamos por ahí.
       </div>
     </div>

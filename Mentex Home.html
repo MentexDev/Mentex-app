@@ -45,7 +45,7 @@
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=11"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=12"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -383,36 +383,30 @@
                 )}
               </div>
 
-              {/* IA screen — fuera del content wrapper porque necesita altura
-                  fija del iPhone visible area. Two-state navigation:
-                    • Hub (root): tab bar visible. IAScreen renderiza hero +
-                      chips, scroll interno con paddingBottom para clearear
-                      la tab bar (que overlay a z=50).
-                    • Chat (interno): tab bar hidden via __mtxNav. IAScreen
-                      renderiza header + body + input bar. Input siempre
-                      visible al fondo, tab bar oculta así que no compite.
-                  El wrapper es siempre top:0,bottom:0 (cubre mtx-bg content
-                  box completo, 874px = iPhone visible area). */}
-              {tab === 'ai' && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0,
-                  // bottom:110 siempre — esto alinea el wrapper con el iPhone
-                  // visible bottom (mtx-bg tiene paddingBottom:110 que se
-                  // come ahí). Resultado: en chat mode, el input bar llega
-                  // al fondo visible; en hub mode, el tab bar overlay z=50
-                  // tapa los últimos 78px del wrapper, así que el hub aplica
-                  // su propio paddingBottom para que las chips no queden
-                  // bajo la tab bar.
-                  bottom: 110,
-                  zIndex: 2,
-                  display: 'flex', flexDirection: 'column',
-                }}>
-                  <IAScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
-                </div>
-              )}
-
             </div>
+
+            {/* IA screen — fuera de mtx-bg para anclarse al viewport del
+                iPhone (no al contenido scrollable). Mismo patrón que los
+                sheets: position:absolute → climbs hasta IOSDevice outer
+                wrapper (position:relative) → no se mueve con scroll.
+                top:0 cubre desde el tope (status bar z=10 queda encima).
+                bottom:0 llega al iPhone bottom (home indicator z=60 encima).
+                Two-state navigation:
+                  • Hub: tab bar (z=50 dentro de mtx-bg) overlay sobre los
+                    últimos ~78px → hub aplica paddingBottom:90 para que
+                    las chips no queden tapadas.
+                  • Chat: tab bar oculto vía __mtxNav. Input bar al fondo
+                    con paddingBottom:34 para clearear el home indicator. */}
+            {tab === 'ai' && (
+              <div style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                zIndex: 2,
+                display: 'flex', flexDirection: 'column',
+              }}>
+                <IAScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+              </div>
+            )}
 
             {/* Sheets — fuera de .mtx-bg para anclarse al viewport del iPhone (no al contenido scrollable) */}
             {selectedChallenge && (
