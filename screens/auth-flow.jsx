@@ -459,22 +459,52 @@
     } catch (_) {}
   }
 
+  // Defaults centralizados — usados por load merge + reset.
+  var _OB_DEFAULTS = {
+    // Step 1 — Identidad (preconfigura __mtxProfile)
+    name: '',
+    username: '',
+    tagline: '',
+    bio: '',
+    // Step 2 — Intención
+    goal: null,                 // 'productivity'|'rest'|'learn'|'sleep'|'anxiety'
+    // Step 3 — Baseline screen time
+    baselineHours: 6,           // 1..12 (slider)
+    // Step 4 — Distractores
+    blockedApps: [],            // ['instagram','tiktok','youtube',...]
+    // Step 5 — Energía / contenido preferido
+    contentPrefs: [],           // ['books','meditations','biographies','talks','sounds']
+    // Step 6 — Hora dorada
+    focusTime: null,            // 'morning'|'afternoon'|'evening'|'variable'
+    // Step 7 — Sesión inicial
+    sessionMin: 25,             // 15|25|45|60|90
+    // Step 8 — Voz del coach
+    coachVoice: null,           // 'warm'|'contemplative'|'energetic'|'wise'
+    // Step 10 — Notificaciones
+    notificationsEnabled: null, // true|false (null = no decidido)
+    // Compat con onboarding legacy (no usados en Phase 3 nueva, pero preservados
+    // por si algún consumer los lee — se quitan en cleanup futuro)
+    goals: [], experience: null, timeMin: 15, timeOfDay: null,
+    blockApps: null, commit7d: true,
+  };
+
   if (typeof window !== 'undefined' && !window.__mtxOnboarding) {
     var storedOb = _loadOnboardingFromStorage();
-    var _obState = storedOb || {
-      step: 0,
-      answers: {
-        goals: [],            // array de strings: 'focus' | 'sleep' | 'stress' | 'learning' | 'productivity' | 'wellbeing'
-        experience: null,     // 'new' | 'some' | 'experienced'
-        timeMin: 15,           // 5 | 10 | 15 | 20
-        timeOfDay: null,      // 'morning' | 'afternoon' | 'evening'
-        blockApps: null,      // bool
-        name: '',
-        commit7d: true,
-      },
-      completed: false,
-      startedAt: null,
-    };
+    var _obState = storedOb
+      ? {
+          step: typeof storedOb.step === 'number' ? storedOb.step : 0,
+          // Merge: defaults < stored. Garantiza que un user con state vieja
+          // del placeholder no rompa cuando arranque el onboarding nuevo.
+          answers: Object.assign({}, _OB_DEFAULTS, storedOb.answers || {}),
+          completed: !!storedOb.completed,
+          startedAt: storedOb.startedAt || null,
+        }
+      : {
+          step: 0,
+          answers: Object.assign({}, _OB_DEFAULTS),
+          completed: false,
+          startedAt: null,
+        };
 
     var _emitOb = function() {
       window.dispatchEvent(new CustomEvent('mtx:onboarding-changed'));
@@ -515,9 +545,27 @@
         _setObState({ answers: next });
       },
 
-      // Marca completado y dispara completion en __mtxAuth
+      // Marca completado y dispara completion en __mtxAuth.
+      // También pre-configura __mtxProfile con los datos identitarios del Step 1
+      // (nombre, username, tagline, bio) para que el user llegue al app con
+      // su perfil ya armado — no en blanco.
       complete: function() {
         _setObState({ completed: true });
+        var ans = _obState.answers || {};
+        if (window.__mtxProfile && typeof window.__mtxProfile.update === 'function') {
+          var profilePatch = {};
+          if (ans.name && ans.name.trim())       profilePatch.name = ans.name.trim();
+          if (ans.username && ans.username.trim()) {
+            var uname = ans.username.trim();
+            profilePatch.handle = uname.charAt(0) === '@' ? uname : ('@' + uname);
+          }
+          if (ans.tagline && ans.tagline.trim()) profilePatch.tagline = ans.tagline.trim();
+          if (ans.bio && ans.bio.trim())         profilePatch.bio = ans.bio.trim();
+          if (ans.name && ans.name.trim())       profilePatch.initial = ans.name.trim().charAt(0).toUpperCase();
+          if (Object.keys(profilePatch).length) {
+            try { window.__mtxProfile.update(profilePatch); } catch (_) {}
+          }
+        }
         if (window.__mtxAuth) {
           window.__mtxAuth.completeOnboarding(_obState.answers);
         }
@@ -527,10 +575,7 @@
       reset: function() {
         _obState = {
           step: 0,
-          answers: {
-            goals: [], experience: null, timeMin: 15, timeOfDay: null,
-            blockApps: null, name: '', commit7d: true,
-          },
+          answers: Object.assign({}, _OB_DEFAULTS),
           completed: false,
           startedAt: null,
         };
@@ -542,10 +587,7 @@
         try { localStorage.removeItem(ONBOARDING_STORAGE_KEY); } catch (_) {}
         _obState = {
           step: 0,
-          answers: {
-            goals: [], experience: null, timeMin: 15, timeOfDay: null,
-            blockApps: null, name: '', commit7d: true,
-          },
+          answers: Object.assign({}, _OB_DEFAULTS),
           completed: false,
           startedAt: null,
         };

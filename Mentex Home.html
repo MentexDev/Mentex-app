@@ -32,7 +32,8 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auth-flow.jsx?v=10"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=11"></script>
+  <script type="text/babel" src="screens/onboarding-flow.jsx?v=2"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -449,34 +450,8 @@
                 onBack={() => setAuthView('forgot-otp')}
               />
             )}
-            {authView === 'onboarding' && (
-              // Phase 3 placeholder mientras se construye onboarding real
-              <div style={{
-                position: 'absolute', inset: 0, zIndex: 50,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                background: '#0a0d0a', padding: 40, textAlign: 'center',
-              }}>
-                <div style={{ fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.16em', marginBottom: 12 }}>PHASE 3 PLACEHOLDER</div>
-                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 16 }}>Onboarding</h1>
-                <p style={{ fontSize: 14, color: 'var(--ink-3)', marginBottom: 24, maxWidth: 280 }}>
-                  8-step onboarding real llega en Phase 3. Por ahora completa para drop al app.
-                </p>
-                <button
-                  onClick={() => {
-                    if (window.__mtxOnboarding) {
-                      window.__mtxOnboarding.updateAnswers({ name: 'Juan', timeMin: 30 });
-                      window.__mtxOnboarding.complete();
-                    }
-                  }}
-                  className="mtx-tap"
-                  style={{
-                    padding: '12px 20px', borderRadius: 12,
-                    background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
-                    border: '0.5px solid rgba(61,255,209,0.40)',
-                    color: 'var(--neon)', cursor: 'pointer',
-                    fontSize: 13.5, fontWeight: 700,
-                  }}>Completar (test)</button>
-              </div>
+            {authView === 'onboarding' && typeof window.OnboardingScreen !== 'undefined' && (
+              <window.OnboardingScreen />
             )}
 
             <div className="mtx-bg" style={{
