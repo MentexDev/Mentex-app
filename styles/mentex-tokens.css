@@ -363,6 +363,45 @@
 @keyframes mtx-spin { to { transform: rotate(360deg); } }
 @keyframes mtx-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes mtx-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Auth/Onboarding animations — auroras, particles, zen icon, CTA breath */
+@keyframes mtx-zen-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+@keyframes mtx-aurora-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.95; }
+  33%      { transform: translate(8%, -6%) scale(1.08); opacity: 1; }
+  66%      { transform: translate(-6%, 8%) scale(0.96); opacity: 0.85; }
+}
+@keyframes mtx-aurora-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+  50%      { transform: translate(-10%, -8%) scale(1.12); opacity: 1; }
+}
+@keyframes mtx-particle-drift {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  25%      { opacity: 0.7; }
+  50%      { transform: translateY(-12px) translateX(6px); opacity: 0.5; }
+  75%      { opacity: 0.7; }
+}
+@keyframes mtx-cta-breath {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(61,255,209,0.20), 0 12px 32px -10px rgba(61,255,209,0.45), inset 0 0 16px rgba(61,255,209,0.08); }
+  50%      { box-shadow: 0 0 0 1px rgba(61,255,209,0.32), 0 14px 40px -8px rgba(61,255,209,0.60), inset 0 0 22px rgba(61,255,209,0.14); }
+}
+@keyframes mtx-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+/* Reduce motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .mtx-zen-icon, .mtx-aurora, .mtx-particle, .mtx-cta-breath {
+    animation: none !important;
+  }
+}
 @keyframes mtx-shimmer-bg {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }

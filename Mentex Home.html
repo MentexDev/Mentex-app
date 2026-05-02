@@ -32,7 +32,7 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auth-flow.jsx?v=1"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -411,28 +411,59 @@
           <div style={{ position: 'relative', width: 402, height: 874, flexShrink: 0 }}>
           <IOSDevice width={402} height={874} dark={true}>
             <ToastProvider>
-            {/* Phase 0 · Auth/Onboarding overlays — cubren todo cuando
+            {/* Phase 1 · Auth/Onboarding overlays — cubren todo cuando
                 authView !== 'app' (zIndex:50, position:absolute inset:0).
-                Splash auto-progresa a welcome; welcome dispara mock auth;
-                onboarding placeholder permite completar para testear app. */}
+                Welcome multi-slide → AuthScreen (providers + email) →
+                AuthOTPScreen (6 dígitos) → onboarding (placeholder Phase 3). */}
             {authView === 'splash' && typeof window.SplashScreen !== 'undefined' && (
               <window.SplashScreen onNext={() => setAuthView('welcome')}/>
             )}
-            {authView === 'welcome' && typeof window.WelcomeScreenPlaceholder !== 'undefined' && (
-              <window.WelcomeScreenPlaceholder
-                onMockAuth={({ email, isReturning }) => {
-                  // Phase 0 mock — Phase 1+ usa el flow real con OTP
-                  window.__mtxAuth.sendOTP(email).then((res) => {
-                    if (res.error) return;
-                    window.__mtxAuth.verifyOTP('123456').then((res2) => {
-                      // El effect de authState detecta el login y navega solo
-                    });
-                  });
-                }}
+            {authView === 'welcome' && typeof window.WelcomeScreen !== 'undefined' && (
+              <window.WelcomeScreen
+                onContinue={() => setAuthView('auth-email')}
+                onSignIn={() => setAuthView('auth-email')}
               />
             )}
-            {authView === 'onboarding' && typeof window.OnboardingScreenPlaceholder !== 'undefined' && (
-              <window.OnboardingScreenPlaceholder/>
+            {authView === 'auth-email' && typeof window.AuthScreen !== 'undefined' && (
+              <window.AuthScreen
+                onBack={() => setAuthView('welcome')}
+                onEmailSent={(email) => setAuthView('auth-otp')}
+              />
+            )}
+            {authView === 'auth-otp' && typeof window.AuthOTPScreen !== 'undefined' && (
+              <window.AuthOTPScreen
+                email={(window.__mtxAuth?.get?.() || {}).pendingEmail || ''}
+                onBack={() => setAuthView('auth-email')}
+              />
+            )}
+            {authView === 'onboarding' && (
+              // Phase 3 placeholder mientras se construye onboarding real
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 50,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: '#0a0d0a', padding: 40, textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.16em', marginBottom: 12 }}>PHASE 3 PLACEHOLDER</div>
+                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 16 }}>Onboarding</h1>
+                <p style={{ fontSize: 14, color: 'var(--ink-3)', marginBottom: 24, maxWidth: 280 }}>
+                  8-step onboarding real llega en Phase 3. Por ahora completa para drop al app.
+                </p>
+                <button
+                  onClick={() => {
+                    if (window.__mtxOnboarding) {
+                      window.__mtxOnboarding.updateAnswers({ name: 'Juan', timeMin: 30 });
+                      window.__mtxOnboarding.complete();
+                    }
+                  }}
+                  className="mtx-tap"
+                  style={{
+                    padding: '12px 20px', borderRadius: 12,
+                    background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
+                    border: '0.5px solid rgba(61,255,209,0.40)',
+                    color: 'var(--neon)', cursor: 'pointer',
+                    fontSize: 13.5, fontWeight: 700,
+                  }}>Completar (test)</button>
+              </div>
             )}
 
             <div className="mtx-bg" style={{
