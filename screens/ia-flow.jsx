@@ -1189,9 +1189,11 @@ function IAScreen(props) {
   var viewState = React.useState('hub');
   var view = viewState[0]; var setView = viewState[1];
 
-  // historyOpen + settingsOpen + agendaOpen lifted to MentexApp via props
-  // (sheets renderizan al nivel del shell para verse SOBRE el tab bar — z-index).
-  var historyOpen = !!props.historyOpen;
+  // history/settings/agenda sheets viven al nivel del shell (MentexApp) para
+  // renderizarse SOBRE el tab bar — z-index requirement. IAScreen solo
+  // necesita los SETTERS para abrirlos; los `open` flags los lee el sheet
+  // directamente del state del shell. (audit IMP-2: antes pasábamos también
+  // historyOpen/settingsOpen/agendaOpen pero IAScreen no los leía).
   var setHistoryOpen = props.setHistoryOpen || function() {};
   var setSettingsOpen = props.setSettingsOpen || function() {};
   var setAgendaOpen = props.setAgendaOpen || function() {};

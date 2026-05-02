@@ -129,7 +129,10 @@
         _emit();
       },
       addReminder: function(reminder) {
-        var newR = Object.assign({ id: 'r' + Date.now(), completed: false, recurrence: null }, reminder);
+        // ID con random suffix — evita colisiones si dos addReminder se llaman
+        // en la misma ms (audit IMP-4). Math.random().toString(36) da [a-z0-9].
+        var newId = 'r' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        var newR = Object.assign({ id: newId, completed: false, recurrence: null }, reminder);
         _agendaState = Object.assign({}, _agendaState, {
           reminders: _agendaState.reminders.concat([newR]),
         });
@@ -270,12 +273,17 @@
     var onDismiss = props.onDismiss;
     var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
 
+    // Audit IMP-3: el dismiss antes era silencioso (la card desaparecía sin
+    // feedback). Ahora ambos paths muestran toast — accept con confirmación
+    // explícita, dismiss con un mensaje sutil de "descartada" para que el
+    // user no piense que la app perdió la propuesta sin pedir confirmación.
     var handleCta = function(cta) {
       if (cta.id === 'accept') {
         onAccept(p.id);
         toast.show({ message: '✓ Listo · ' + p.title, duration: 2000 });
       } else {
         onDismiss(p.id);
+        toast.show({ message: 'Descartada · ' + p.title, duration: 1600 });
       }
     };
 
@@ -450,6 +458,19 @@
     var proposals = nav.proposals;
     var reminders = nav.reminders;
 
+    // Audit IMP-5: onClose recreates each MentexApp render. Guardarlo en ref
+    // y usar deps:[open] en lugar de [open, onClose] evita re-registro del
+    // keydown listener en cada keystroke del shell.
+    var onCloseRef = React.useRef(onClose);
+    React.useEffect(function() { onCloseRef.current = onClose; });
+
+    // useId para vincular aria-labelledby del dialog con el h2 del título.
+    // Si dos AgendaSheets coexistieran, los IDs serían únicos.
+    var titleId = React.useId ? React.useId() : 'agenda-title';
+
+    // Ref al sheet inner para focus trap inicial — al abrir, foco al sheet.
+    var sheetRef = React.useRef(null);
+
     // ESC para cerrar (consistente con history/settings sheets). Bail out si
     // user está tipeando en input (a futuro tendremos add-reminder input).
     React.useEffect(function() {
@@ -459,11 +480,18 @@
         var t = e.target;
         var tag = (t && t.tagName) || '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
-        onClose && onClose();
+        if (onCloseRef.current) onCloseRef.current();
       };
       window.addEventListener('keydown', onKey);
+      // Mover foco al sheet container al abrir — reduce confusión para
+      // keyboard/screen-reader users (audit CRIT-1). El container es
+      // tabIndex=-1 para poder recibir foco programático sin estar en el
+      // tab order natural.
+      if (sheetRef.current) {
+        try { sheetRef.current.focus({ preventScroll: true }); } catch (_) {}
+      }
       return function() { window.removeEventListener('keydown', onKey); };
-    }, [open, onClose]);
+    }, [open]);
 
     if (!open) return null;
 
@@ -485,14 +513,29 @@
     };
 
     return (
-      <div style={{
+      // Backdrop overlay — role="presentation" porque visualmente decora pero
+      // semánticamente es solo un click target para cerrar (audit CRIT-1).
+      // Animation mtx-fade-in (opacity puro) en lugar de mtx-fade-up — el
+      // backdrop no debería slidear, solo aparecer (audit IMP-1).
+      <div role="presentation" style={{
         position: 'absolute', inset: 0, zIndex: 100,
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
         background: 'rgba(0,0,0,0.5)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        animation: 'mtx-fade-up .25s ease',
+        animation: 'mtx-fade-in .25s ease',
       }} onClick={onClose}>
-        <div onClick={function(e) { e.stopPropagation(); }} style={{
+        {/* Sheet inner — role="dialog" + aria-modal lo identifica como modal
+            para screen readers; aria-labelledby vincula con el h2 "Agenda".
+            tabIndex=-1 permite que reciba foco programático sin entrar al
+            tab order natural. (audit CRIT-1) */}
+        <div
+          ref={sheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          onClick={function(e) { e.stopPropagation(); }}
+          style={{
           background: 'rgba(15,19,19,0.94)',
           backdropFilter: 'blur(28px) saturate(160%)',
           WebkitBackdropFilter: 'blur(28px) saturate(160%)',
@@ -503,6 +546,7 @@
           maxHeight: '88%', overflow: 'auto',
           display: 'flex', flexDirection: 'column',
           animation: 'mtx-fade-up .32s cubic-bezier(.4,1.4,.5,1)',
+          outline: 'none', /* sin halo en focus programático */
         }} className="mtx-no-scrollbar">
           {/* Grabber */}
           <div style={{
@@ -525,7 +569,7 @@
                 marginBottom: 4,
                 fontFamily: 'var(--ff-sans)',
               }}>{dayLabel}</div>
-              <h2 style={{
+              <h2 id={titleId} style={{
                 margin: 0, fontSize: 22, fontWeight: 600,
                 color: 'var(--ink-1)', letterSpacing: '-0.02em',
                 fontFamily: 'var(--ff-display, var(--ff-sans))',
