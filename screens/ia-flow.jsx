@@ -1553,7 +1553,7 @@ function IAScreen(props) {
         current={current}
         onBack={goHub}
         onNewChat={handleNewConversationFromChat}
-        onSettings={handleSettings}
+        onAgenda={handleAgenda}
         onOpenHistory={function() { setHistoryOpen(true); }}
       />
 
@@ -1619,16 +1619,19 @@ function IAHubHeader(props) {
 
 
 // ── IAChatHeader — header del chat view ──────────────────────────────────
-// Layout izquierda→derecha: [← back] [Título plano + dropdown ⌄] [spacer]
-//                                                       [+ new] [⚙️ settings]
-// • Back y título a la izquierda; new chat y settings a la derecha (utility).
-// • Título es texto plano (sin pill background) + chev de dropdown. Tap
-//   en el chev/título → abre el history sheet (no rename — eso vivirá en
-//   el 3-dots de cada row del history en el futuro).
-// • flex:1 minWidth:0 + ellipsis en el span del título evita que títulos
-//   largos empujen los íconos derechos fuera del área.
+// Layout izquierda→derecha: [← back] [Título plano + dropdown ⌄] [+ new] [📅?]
+// • Back + título a la izquierda; "+" siempre, agenda solo en sesión activa.
+// • Settings NO vive en el chat — vive solo en el hub raíz del tab IA. Dentro
+//   de un chat el user no necesita configurar el asistente; quitar reduce
+//   ruido visual y deja el header minimalista.
+// • La agenda solo aparece cuando el chat es scope='session-active' (acceso
+//   rápido desde HomeActive). En chats normales del tab IA tampoco aparece —
+//   ahí solo "+ nuevo chat" tiene sentido como utility.
+// • Título es texto plano (sin pill background) + chev de dropdown. Tap →
+//   abre el history sheet.
 function IAChatHeader(props) {
   var current = props.current;
+  var isSessionScope = current && current.scope === 'session-active';
   return (
     <div style={{
       flexShrink: 0,
@@ -1673,9 +1676,14 @@ function IAChatHeader(props) {
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
         </IAIconButton>
 
-        <IAIconButton aria-label="Configuración del asistente" onClick={props.onSettings}>
-          <IcSettings size={15} stroke="currentColor" strokeWidth={1.6}/>
-        </IAIconButton>
+        {/* Agenda solo en chat de sesión activa — acceso rápido al timeline
+            del día sin salir del coach. En chats normales del tab IA, este
+            slot no aparece (header queda con solo back+title+nuevo). */}
+        {isSessionScope && (
+          <IAIconButton aria-label="Agenda del día" onClick={props.onAgenda}>
+            <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
+          </IAIconButton>
+        )}
       </div>
     </div>
   );
