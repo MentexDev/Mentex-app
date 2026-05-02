@@ -32,7 +32,7 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auth-flow.jsx?v=12"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=13"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=3"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
@@ -949,12 +949,13 @@
                   }}>→ Login screen</button>
                 <button
                   onClick={() => {
-                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    // Acceso directo: reset onboarding + inyectar user dev
+                    // sincrónico (sin signup mock async). Salto al step 1.
                     if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
-                    // Crear user nuevo sin onboarding completado para forzar onboarding
-                    window.__mtxAuth.signUpWithPassword('newuser@mentex.app', 'password123').then(() => {
-                      setAuthView('onboarding');
-                    });
+                    if (window.__mtxAuth && typeof window.__mtxAuth._devCreateOnboardingUser === 'function') {
+                      window.__mtxAuth._devCreateOnboardingUser();
+                    }
+                    setAuthView('onboarding');
                   }}
                   style={{
                     padding: '8px 12px', borderRadius: 8,
@@ -965,7 +966,7 @@
                     fontFamily: 'var(--ff-sans)',
                     cursor: 'pointer',
                     textAlign: 'left',
-                  }}>→ Onboarding (con user nuevo)</button>
+                  }}>→ Onboarding (acceso directo)</button>
                 <button
                   onClick={() => {
                     if (window.__mtxAuth) window.__mtxAuth._reset();

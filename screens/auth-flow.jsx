@@ -435,6 +435,27 @@
         _state = { user: null, isAuthenticated: false };
         _emit();
       },
+
+      // Dev-only: inyecta sincrónicamente un user "nuevo" (sin onboarding)
+      // sin pasar por signUpWithPassword. Útil para acceder al onboarding
+      // desde el Tweaks Panel sin esperar el mock network delay.
+      _devCreateOnboardingUser: function() {
+        var fake = {
+          id: 'dev-onboarding-' + Date.now(),
+          email: 'dev-onboarding@mentex.app',
+          name: null,
+          provider: 'dev',
+          createdAt: Date.now(),
+          onboardingCompleted: false,
+          lastActiveAt: Date.now(),
+        };
+        _setState({
+          user: fake,
+          isAuthenticated: true,
+          pendingEmail: null,
+          pendingUserType: null,
+        });
+      },
     };
   }
 
