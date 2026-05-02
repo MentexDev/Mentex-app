@@ -536,11 +536,70 @@ function useAppsBreak() {
 // CONTEXTUAL (las apps se desbloquean por X minutos sin parar la sesión).
 // El countdown corre DENTRO de esta card — no en una pantalla fullscreen
 // porque "descansar del aprendizaje" no tiene sentido en una app de aprendizaje.
-function AppsProtectionCard({ blockedApps = [] }) {
+function AppsProtectionCard({ blockedApps = [], onEditApps = () => {} }) {
   const { breakState, protectionDisabled } = useAppsBreak();
   const startBreakPicker = () => window.__mtxAppsBreak?.openPicker();
   const stopBreak = () => window.__mtxAppsBreak?.stop();
   const resumeProtection = () => window.__mtxAppsBreak?.resume();
+
+  // Empty state: el user inició sesión sin seleccionar apps a bloquear.
+  // "PROTECCIÓN ACTIVA · 0 apps" + botón "Descanso" no tiene sentido — no
+  // hay nada que descansar. Card invitando a activar la protección. Tap
+  // "Activar" abre el AppsEditorSheet (mismo modal que ya existe), el user
+  // puede escoger apps sin tener que finalizar la sesión.
+  if (blockedApps.length === 0 && !protectionDisabled && !breakState) {
+    return (
+      <div style={{ padding:'0 20px 16px' }}>
+        <div className="mtx-glass" style={{
+          borderRadius:22, padding:'18px 18px 16px',
+          background:'radial-gradient(70% 100% at 50% 0%, rgba(255,255,255,0.04), transparent 60%), var(--glass-2)',
+          border:'0.5px solid rgba(255,255,255,0.08)',
+          position:'relative', overflow:'hidden',
+        }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+              <div style={{
+                width:32, height:32, borderRadius:'50%',
+                background:'rgba(255,255,255,0.05)',
+                border:'0.5px solid rgba(255,255,255,0.10)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color:'var(--ink-3)', flexShrink:0,
+              }}>
+                <IcShield size={14} stroke="currentColor" strokeWidth={1.8}/>
+              </div>
+              <div style={{ minWidth:0 }}>
+                <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--ink-4)', marginBottom:2, letterSpacing:'0.14em' }}>
+                  Protección
+                </div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>
+                  Sin apps protegidas
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={onEditApps}
+              className="mtx-tap"
+              aria-label="Activar protección — seleccionar apps a bloquear"
+              style={{
+                appearance:'none', cursor:'pointer', flexShrink:0,
+                padding:'8px 14px', borderRadius:999,
+                background:'linear-gradient(180deg, rgba(61,255,209,0.18), rgba(61,255,209,0.06))',
+                border:'0.5px solid rgba(61,255,209,0.40)',
+                color:'var(--neon)',
+                fontSize:12, fontWeight:700, letterSpacing:'-0.005em',
+                fontFamily:'var(--ff-sans)',
+                display:'inline-flex', alignItems:'center', gap:6,
+                boxShadow:'0 0 0 1px rgba(61,255,209,0.16), inset 0 0 12px rgba(61,255,209,0.06)',
+              }}
+            >
+              <IcShield size={12} stroke="currentColor" strokeWidth={2.2}/>
+              Activar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Estado especial: el usuario apagó la protección por completo. La card se
   // muestra en gris-rojizo invitando a retomar — no hay apps "bloqueadas"
@@ -1044,6 +1103,7 @@ function HomeActive({
   selectedRoutineIds = [],
   onOpenPlayer = () => {},
   onFinishSession = () => {},
+  onEditApps = () => {},
   onEditRoutines = () => {},
   // (ctx) → MentexApp setea editTimeCtx con { initialMinutes,
   // elapsedMinutes, minMinutes } para hidratar el CustomTimeModal global.
@@ -1280,7 +1340,7 @@ function HomeActive({
       </div>
 
       {/* ── CARD 2 · Apps protegidas (con descanso contextual) ─────────── */}
-      <AppsProtectionCard blockedApps={blockedApps}/>
+      <AppsProtectionCard blockedApps={blockedApps} onEditApps={onEditApps}/>
 
       {/* ── CARD 3 · Ritual de hoy (actividades) ───────────────────────── */}
       <div style={{ marginBottom:24 }}>

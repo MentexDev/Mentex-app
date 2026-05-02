@@ -155,6 +155,11 @@ const MtxSectionHead = ({ title, action, eyebrow, subtitle, onAction, actionIcon
               width: 30, height: 30, borderRadius: 999,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, alignSelf: 'center',
+              // Margins negativos: el button (30px) NO debe extender la
+              // altura del row del header (h2 es ~22px). Sin esto, el row
+              // crece a 30px y el subtitle queda 8px más separado del
+              // título cuando hay actionIcon vs cuando no — inconsistente.
+              marginTop: -4, marginBottom: -4,
               transition: 'background .2s, border-color .2s',
             }}>
             {actionIcon}
