@@ -833,12 +833,20 @@
             }}>¿Qué te recuerdo?</h3>
           </div>
 
-          {/* Input título */}
+          {/* Input título — Enter submit si título válido (audit IMP-2).
+              Patrón mobile estándar: "return" del keyboard creates el reminder
+              sin requerir tap del botón Crear. */}
           <input
             ref={inputRef}
             type="text"
             value={title}
             onChange={function(e) { setTitle(e.target.value); }}
+            onKeyDown={function(e) {
+              if (e.key === 'Enter' && !e.shiftKey && title.trim()) {
+                e.preventDefault();
+                handleCreate();
+              }
+            }}
             placeholder="Ej: Beber agua, llamar a..."
             maxLength={80}
             style={{
@@ -1005,11 +1013,19 @@
     // al medio de la pantalla en vez de dockear al menú inferior. Mismo
     // bug que reportó Phase 2 CRIT-1 (sheets en explore-flow.jsx). El
     // portal root es hermano de .mtx-bg, así que ancla al iPhone viewport.
-    var portalRoot = (typeof document !== 'undefined')
-      ? document.getElementById('mtx-overlay-root')
-      : null;
+    //
+    // useMemo: portalRoot lookup solo se hace una vez (audit IMP-3). El
+    // mtx-overlay-root es estático en Mentex Home.html así que no cambia.
+    // useCallback: handleAddClose se memoiza para que AddReminderSheet
+    // no re-registre keydown listener en cada render del card (audit IMP-4).
+    var portalRoot = React.useMemo(function() {
+      return (typeof document !== 'undefined')
+        ? document.getElementById('mtx-overlay-root')
+        : null;
+    }, []);
+    var handleAddClose = React.useCallback(function() { setAddOpen(false); }, []);
     var sheetEl = addOpen
-      ? <AddReminderSheet open={true} onClose={function() { setAddOpen(false); }}/>
+      ? <AddReminderSheet open={true} onClose={handleAddClose}/>
       : null;
     var portalledSheet = sheetEl
       ? (portalRoot && window.ReactDOM ? window.ReactDOM.createPortal(sheetEl, portalRoot) : sheetEl)

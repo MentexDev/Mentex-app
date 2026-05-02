@@ -1352,26 +1352,33 @@ function IAScreen(props) {
     var handler = function(e) {
       var ctx = (e && e.detail) || {};
       // __mtxIAChat.list() retorna array de conversations (no .get() — ese
-      // toma un id y retorna 1 sola). Bug detectado en smoke test.
+      // toma un id y retorna 1 sola).
       var existing = window.__mtxIAChat.list().find(function(c) {
         return c.scope === 'session-active';
       });
       var conv;
       if (existing) {
-        // Reusar la conv de session activa — el user puede haber cerrado
-        // el chat antes y volver al mismo hilo.
-        conv = existing;
+        // Reusar conv de session activa, PERO regenerar el saludo con el
+        // state actual si hubo cambios (audit IMP-7: antes el saludo
+        // quedaba stale — "17 min restantes" cuando ya quedaban 5).
+        // El primer mensaje del assistant es siempre el saludo, así que
+        // solo lo updateamos in-place sin tocar messages posteriores.
+        var firstAsst = existing.messages.find(function(m) { return m.role === 'assistant'; });
+        var freshGreeting = _buildSessionGreeting(ctx);
+        if (firstAsst && firstAsst.content !== freshGreeting) {
+          window.__mtxIAChat.updateMessage(existing.id, firstAsst.id, { content: freshGreeting });
+        }
         window.__mtxIAChat.setCurrent(existing.id);
+        conv = existing;
       } else {
         conv = window.__mtxIAChat.create();
-        // Marcar scope para diferenciarla de chats normales (en Fase 5
-        // se usará para auto-archive cuando termina la sesión).
+        // Marcar scope para diferenciarla de chats normales — el effect
+        // del MentexApp limpia conv con scope='session-active' al fin
+        // de sesión (audit CRIT-1) para evitar reuso con datos stale.
         window.__mtxIAChat.update(conv.id, {
           title: 'Tu sesión activa',
           scope: 'session-active',
         });
-        // Saludo contextualizado del assistant — el coach refleja el
-        // state actual y propone next steps.
         var greeting = _buildSessionGreeting(ctx);
         window.__mtxIAChat.addMessage(conv.id, {
           role: 'assistant',
@@ -1440,6 +1447,15 @@ function IAScreen(props) {
   };
 
   var goHub = function() {
+    // Si el chat actual es de scope='session-active' (abierto desde el
+    // botón ✦ del HomeActive), el back debe regresar al HomeActive, no
+    // al hub del tab IA — preserva el contexto del user que estaba en
+    // sesión y solo quería consultar al coach. Disparamos un evento que
+    // MentexApp escucha para hacer setTab('home').
+    if (current && current.scope === 'session-active') {
+      window.dispatchEvent(new CustomEvent('mtx:ia-leave-session-chat'));
+      return;
+    }
     setView('hub');
   };
 

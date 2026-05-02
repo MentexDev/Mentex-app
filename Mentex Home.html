@@ -47,8 +47,8 @@
   <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-settings.jsx?v=5"></script>
-  <script type="text/babel" src="screens/ia-agenda.jsx?v=6"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=20"></script>
+  <script type="text/babel" src="screens/ia-agenda.jsx?v=7"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=22"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -232,6 +232,16 @@
         return () => window.removeEventListener('mtx:open-user-profile', handler);
       }, []);
 
+      // Listener: el user toca back en el chat de sesión activa (scope=
+      // 'session-active' abierto desde HomeActive). Volver al tab home
+      // preserva el contexto — el user solo consultó al coach mientras
+      // estaba en sesión, no quería irse al hub del tab IA.
+      React.useEffect(() => {
+        const handler = () => setTab('home');
+        window.addEventListener('mtx:ia-leave-session-chat', handler);
+        return () => window.removeEventListener('mtx:ia-leave-session-chat', handler);
+      }, []);
+
       // Sub-fase 0.3 (Fase B/C) eliminó este listener obsoleto: antes el tap
       // en el mini-bar forzaba setTab('explore') para que ExploreScreen
       // pudiera montar el VideoPlayerFullscreen. Ahora el player es global
@@ -262,6 +272,27 @@
       const hasMiniPlayer = !!nowPlayingItem && !playerFullscreenOpen;
 
       const isActive = tweaks.homeState === 'active';
+
+      // ── Audit CRIT-1 · Limpiar chat efímero al finalizar sesión ──────────
+      // Las conversaciones con scope='session-active' se crean al tap del
+      // botón ✦ del HomeActive y se hidratan con un saludo contextualizado
+      // al state de esa sesión específica (apps, tiempo, ritual, recordatorios).
+      // Si NO se limpian al finalizar la sesión, en la próxima sesión el user
+      // reusa la conv vieja con datos stale ("17 min restantes" cuando ya no
+      // hay sesión, "4 apps bloqueadas" cuando bloqueó otras esta vez).
+      // Este effect detecta el cambio active → inactive y purga las conv
+      // session-active. Las conv normales (sin scope) se preservan en history.
+      const wasActiveRef = React.useRef(isActive);
+      React.useEffect(() => {
+        if (wasActiveRef.current && !isActive) {
+          // Acabamos de pasar de active → inactive
+          if (typeof window !== 'undefined' && window.__mtxIAChat) {
+            const sessionConvs = window.__mtxIAChat.list().filter(c => c.scope === 'session-active');
+            sessionConvs.forEach(c => window.__mtxIAChat.deleteConversation(c.id));
+          }
+        }
+        wasActiveRef.current = isActive;
+      }, [isActive]);
 
       // ── Sub-fase 0.1 · Cableo del store __mtxActiveQueue ─────────────────
       // Cuando hay sesión activa, empujamos el ritual del día como playlist
