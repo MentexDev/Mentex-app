@@ -33,7 +33,7 @@
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=35"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
@@ -48,7 +48,7 @@
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-settings.jsx?v=5"></script>
   <script type="text/babel" src="screens/ia-agenda.jsx?v=6"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=17"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=19"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -396,6 +396,18 @@
                     onEditRoutines={() => setRoutinesEditorOpen(true)}
                     onEditTime={({ initialMinutes, elapsedMinutes, minMinutes }) =>
                       setEditTimeCtx({ initialMinutes, elapsedMinutes, minMinutes })}
+                    onOpenSessionChat={(ctx) => {
+                      // Cambia al tab IA + dispara evento con contexto de
+                      // sesión. El timeout 60ms da tiempo a que IAScreen
+                      // se monte antes de procesar el evento (sino el
+                      // listener no está registrado todavía).
+                      setTab('ai');
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('mtx:ia-open-session-chat', {
+                          detail: ctx,
+                        }));
+                      }, 60);
+                    }}
                   />
                 )}
               </div>

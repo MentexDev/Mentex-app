@@ -147,6 +147,20 @@
       _emit();
     },
 
+    // Patch genérico de propiedades de conversation. Para campos custom
+    // como `scope` (chat efímero de sesión activa) que necesitan
+    // diferenciarse de conversaciones normales sin agregar campos al
+    // model base. NO sobreescribe id ni messages.
+    update: function(id, patch) {
+      var safePatch = Object.assign({}, patch);
+      delete safePatch.id;
+      delete safePatch.messages;
+      _conversations = _conversations.map(function(c) {
+        return c.id === id ? Object.assign({}, c, safePatch) : c;
+      });
+      _emit();
+    },
+
     pin: function(id, pinned) {
       _conversations = _conversations.map(function(c) {
         return c.id === id ? Object.assign({}, c, { pinned: !!pinned }) : c;
@@ -688,14 +702,18 @@ function IAMessageBubble(props) {
           maxWidth: '82%',
           padding: '10px 14px', borderRadius: 18,
           borderBottomRightRadius: 6,
-          background: 'linear-gradient(135deg, rgba(61,255,209,0.16), rgba(61,255,209,0.06))',
-          border: '0.5px solid rgba(61,255,209,0.28)',
+          // Tinte neon más sutil — antes 0.16/0.06 con border 0.28 y glow
+          // 0.4 se sentía muy intenso. Ahora más calmado, manteniendo el
+          // affordance visual de "tu mensaje" con neon tint pero sin
+          // dominar visualmente la conversación.
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.09), rgba(61,255,209,0.03))',
+          border: '0.5px solid rgba(61,255,209,0.16)',
           color: 'var(--ink-1)',
           fontSize: 13.5, lineHeight: 1.45,
           fontFamily: 'var(--ff-sans)',
           letterSpacing: '-0.005em',
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          boxShadow: '0 8px 20px -10px rgba(61,255,209,0.4)',
+          boxShadow: '0 6px 14px -10px rgba(61,255,209,0.18)',
         }}>{msg.content}</div>
       </div>
     );
@@ -751,6 +769,44 @@ function IAMessageBubble(props) {
         {state === 'error' && (
           <div style={{ color: '#ff8b8b' }}>
             Algo se interrumpió. Vuelve a intentar.
+          </div>
+        )}
+
+        {/* Quick action chips — solo cuando el mensaje del assistant trae
+            chips. Tap en un chip dispara evento mtx:ia-chip-tap con el
+            label, que el IAScreen escucha para llenar el draft del input.
+            Atenuados visualmente para no competir con el contenido. */}
+        {Array.isArray(msg.chips) && msg.chips.length > 0 && state === 'done' && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+            marginTop: 12,
+            paddingTop: 10,
+            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+          }}>
+            {msg.chips.map(function(chip, i) {
+              return (
+                <button
+                  key={chip + '-' + i}
+                  onClick={function() {
+                    window.dispatchEvent(new CustomEvent('mtx:ia-chip-tap', {
+                      detail: { label: chip },
+                    }));
+                  }}
+                  className="mtx-tap"
+                  aria-label={'Acción rápida · ' + chip}
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    padding: '6px 12px', borderRadius: 999,
+                    border: '0.5px solid rgba(61,255,209,0.22)',
+                    background: 'rgba(61,255,209,0.04)',
+                    color: 'var(--neon)',
+                    fontSize: 11.5, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    transition: 'background .2s, border-color .2s',
+                  }}>{chip}</button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -809,7 +865,9 @@ function IAMessages(props) {
   }, [len, lastContentLen]);
 
   return (
-    <div ref={rootRef} style={{ paddingTop: 4, paddingBottom: 8 }}>
+    // paddingTop:18 para que el primer mensaje no quede pegado al header
+    // del chat (antes con paddingTop:4 se sentía apretado al título).
+    <div ref={rootRef} style={{ paddingTop: 18, paddingBottom: 8 }}>
       {messages.map(function(msg) {
         return <IAMessageBubble key={msg.id} msg={msg}/>;
       })}
@@ -1168,6 +1226,47 @@ function IAHistoryRow(props) {
 }
 
 
+// ── _buildSessionGreeting — saludo contextualizado del coach ───────────────
+// Usa el state actual de la sesión activa (apps, tiempo, ritual, recordatorios)
+// para componer un mensaje del assistant que refleje DÓNDE está el user en
+// este momento. No fluff genérico — info accionable. Llamado solo desde el
+// listener 'mtx:ia-open-session-chat' al abrir el chat desde HomeActive.
+function _buildSessionGreeting(ctx) {
+  var blocked = ctx.blockedAppsCount || 0;
+  var minutesLeft = ctx.minutesLeft || 0;
+  var ritualPending = Math.max(0, (ctx.ritualTotal || 0) - (ctx.ritualDone || 0));
+  var remindersPending = ctx.remindersPending || 0;
+
+  var lines = [];
+  lines.push('Estoy contigo en tu sesión activa.');
+  lines.push('');
+
+  // Línea de status — solo menciona las dimensiones que tienen contenido,
+  // así el saludo se adapta al state real (no dice "0 apps bloqueadas").
+  var bullets = [];
+  if (minutesLeft > 0) {
+    bullets.push('• ' + minutesLeft + ' min restantes de tu sesión');
+  }
+  if (blocked > 0) {
+    bullets.push('• ' + blocked + ' app' + (blocked === 1 ? '' : 's') + ' fuera de tu mente');
+  }
+  if (ritualPending > 0) {
+    bullets.push('• ' + ritualPending + ' item' + (ritualPending === 1 ? '' : 's') + ' pendiente' + (ritualPending === 1 ? '' : 's') + ' en tu ritual');
+  }
+  if (remindersPending > 0) {
+    bullets.push('• ' + remindersPending + ' recordatorio' + (remindersPending === 1 ? '' : 's') + ' activo' + (remindersPending === 1 ? '' : 's'));
+  }
+
+  if (bullets.length > 0) {
+    lines.push(bullets.join('\n'));
+    lines.push('');
+  }
+
+  lines.push('¿En qué te ayudo ahora? Puedo agregar recordatorios, sumar items a tu ritual, recomendarte apps a bloquear o extender tu tiempo.');
+  return lines.join('\n');
+}
+
+
 // ── IAScreen — componente raíz de la sección ───────────────────────────────
 // Two-state navigation:
 //   • view='hub'  → tab bar VISIBLE (root del tab IA), sin input bar. Hero
@@ -1242,6 +1341,80 @@ function IAScreen(props) {
     var handler = function() { setView('chat'); };
     window.addEventListener('mtx:ia-enter-chat', handler);
     return function() { window.removeEventListener('mtx:ia-enter-chat', handler); };
+  }, []);
+
+  // ── Listener: acceso rápido desde HomeActive (botón IA del header) ─────
+  // Crea conv efímera con scope='session-active' o reusa la existente.
+  // Saludo contextualizado del assistant referencia state real de la sesión
+  // (apps bloqueadas, tiempo restante, ritual pendiente, recordatorios).
+  // Quick action chips invitan a las 4 acciones más probables.
+  React.useEffect(function() {
+    var handler = function(e) {
+      var ctx = (e && e.detail) || {};
+      // __mtxIAChat.list() retorna array de conversations (no .get() — ese
+      // toma un id y retorna 1 sola). Bug detectado en smoke test.
+      var existing = window.__mtxIAChat.list().find(function(c) {
+        return c.scope === 'session-active';
+      });
+      var conv;
+      if (existing) {
+        // Reusar la conv de session activa — el user puede haber cerrado
+        // el chat antes y volver al mismo hilo.
+        conv = existing;
+        window.__mtxIAChat.setCurrent(existing.id);
+      } else {
+        conv = window.__mtxIAChat.create();
+        // Marcar scope para diferenciarla de chats normales (en Fase 5
+        // se usará para auto-archive cuando termina la sesión).
+        window.__mtxIAChat.update(conv.id, {
+          title: 'Tu sesión activa',
+          scope: 'session-active',
+        });
+        // Saludo contextualizado del assistant — el coach refleja el
+        // state actual y propone next steps.
+        var greeting = _buildSessionGreeting(ctx);
+        window.__mtxIAChat.addMessage(conv.id, {
+          role: 'assistant',
+          content: greeting,
+          state: 'done',
+          chips: [
+            'Añadir recordatorio',
+            'Sugerir ritual',
+            'Recomendar apps',
+            'Extender tiempo',
+          ],
+        });
+      }
+      setView('chat');
+    };
+    window.addEventListener('mtx:ia-open-session-chat', handler);
+    return function() { window.removeEventListener('mtx:ia-open-session-chat', handler); };
+  }, []);
+
+  // ── Listener: chip tap dentro del mensaje del assistant ─────────────────
+  // El chip se traduce en una pregunta natural que llena el draft del input.
+  // El user puede editar antes de enviar (no se manda automático). Cada chip
+  // mapea a un prompt específico en CHIP_PROMPTS — si el chip no coincide,
+  // usamos el label tal cual como prompt fallback.
+  React.useEffect(function() {
+    var CHIP_PROMPTS = {
+      'Añadir recordatorio': '¿Puedes ayudarme a crear un recordatorio nuevo?',
+      'Sugerir ritual': '¿Qué item recomendarías agregar a mi ritual de hoy?',
+      'Recomendar apps': '¿Qué apps debería bloquear ahora?',
+      'Extender tiempo': 'Quiero extender mi sesión. ¿Cuánto tiempo me sugieres?',
+    };
+    var handler = function(e) {
+      var label = e && e.detail && e.detail.label;
+      if (!label) return;
+      var prompt = CHIP_PROMPTS[label] || label;
+      setDraft(prompt);
+      // Focus textarea para que el user pueda editar
+      setTimeout(function() {
+        if (textareaRef.current) textareaRef.current.focus();
+      }, 60);
+    };
+    window.addEventListener('mtx:ia-chip-tap', handler);
+    return function() { window.removeEventListener('mtx:ia-chip-tap', handler); };
   }, []);
 
   var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };

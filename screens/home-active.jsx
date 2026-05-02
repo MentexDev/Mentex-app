@@ -1108,6 +1108,10 @@ function HomeActive({
   // (ctx) → MentexApp setea editTimeCtx con { initialMinutes,
   // elapsedMinutes, minMinutes } para hidratar el CustomTimeModal global.
   onEditTime = () => {},
+  // (ctx) → MentexApp cambia a tab IA y dispara evento mtx:ia-open-session-chat
+  // con contexto (apps, tiempo, ritual). Acceso rápido al coach desde la
+  // sesión activa — saluda contextualizado y ofrece quick actions.
+  onOpenSessionChat = () => {},
 }) {
   // Filtrar ACTIVITIES por las rutinas que el usuario activó en HomeInactive
   // (state.routines). Antes se mostraban todas las defaults siempre, ignorando
@@ -1194,25 +1198,62 @@ function HomeActive({
             El ruido está fuera. Tu mente, dentro.
           </p>
         </div>
-        <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
-          position:'relative', width:44, height:44, borderRadius:999,
-          background:'var(--glass-2)', border:'0.5px solid var(--glass-stroke)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
-        }}>
-          <IcBell size={20} stroke="var(--ink-1)"/>
-          {notifCount > 0 && (
-            <span style={{
-              position:'absolute', top:1, right:1,
-              width:18, height:18, padding:0,
-              borderRadius:999, background:'var(--neon)',
-              color:'#0a1410', fontSize:10, fontWeight:700,
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+          {/* Acceso rápido al coach IA — abre chat con saludo contextualizado
+              en función de apps bloqueadas, ritual pendiente, recordatorios y
+              tiempo restante. Reutiliza ia-flow.jsx + nueva conv efímera. */}
+          <button
+            onClick={() => {
+              const completedSet = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
+                ? new Set(window.__mtxRunnerCompleted.list()) : new Set();
+              const ritualTotal = visibleActivities.length + ritualExtras.length;
+              const ritualDone  = visibleActivities.filter(a => a.done || completedSet.has(a.id)).length;
+              const remindersPending = (typeof window !== 'undefined' && window.__mtxIAAgenda)
+                ? window.__mtxIAAgenda.get().reminders.filter(r => !r.completed).length
+                : 0;
+              onOpenSessionChat({
+                blockedAppsCount: blockedApps.length,
+                plannedMinutes: totalMin,
+                elapsedMinutes: Math.floor(elapsedSec / 60),
+                minutesLeft: Math.max(0, Math.ceil((total - elapsedSec) / 60)),
+                ritualTotal,
+                ritualDone,
+                remindersPending,
+              });
+            }}
+            aria-label="Abrir coach Mentex"
+            className="mtx-tap"
+            style={{
+              position:'relative', width:44, height:44, borderRadius:999,
+              background:'linear-gradient(135deg, rgba(61,255,209,0.12), rgba(61,255,209,0.04))',
+              border:'0.5px solid rgba(61,255,209,0.28)',
               display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:'0 0 10px var(--neon-glow)', border:'1.5px solid #0a0d0a',
-              lineHeight:1, fontVariantNumeric:'tabular-nums',
-            }}>{notifCount > 9 ? '9+' : notifCount}</span>
-          )}
-        </button>
+              color:'var(--neon)', cursor:'pointer', flexShrink:0,
+              boxShadow:'0 0 0 1px rgba(61,255,209,0.10), inset 0 0 12px rgba(61,255,209,0.06)',
+            }}
+          >
+            <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>
+          </button>
+          <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
+            position:'relative', width:44, height:44, borderRadius:999,
+            background:'var(--glass-2)', border:'0.5px solid var(--glass-stroke)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
+          }}>
+            <IcBell size={20} stroke="var(--ink-1)"/>
+            {notifCount > 0 && (
+              <span style={{
+                position:'absolute', top:1, right:1,
+                width:18, height:18, padding:0,
+                borderRadius:999, background:'var(--neon)',
+                color:'#0a1410', fontSize:10, fontWeight:700,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow:'0 0 10px var(--neon-glow)', border:'1.5px solid #0a0d0a',
+                lineHeight:1, fontVariantNumeric:'tabular-nums',
+              }}>{notifCount > 9 ? '9+' : notifCount}</span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ── CARD 1 · Cronómetro (sin apps adentro) ─────────────────────── */}
@@ -1220,17 +1261,15 @@ function HomeActive({
         <div className="mtx-glass" style={{
           borderRadius:28, padding:'24px 20px 20px',
           display:'flex', flexDirection:'column', alignItems:'center',
-          background:'radial-gradient(70% 80% at 50% 0%, rgba(61,255,209,0.07), transparent 60%), var(--glass-2)',
+          // Halo neon directo en el background del card — el radial-gradient
+          // se mezcla con var(--glass-2) sin necesidad de un div extra con
+          // filter:blur. (Antes había un <div top:-50 filter:blur(24px)>
+          // como halo, pero overflow:hidden del card cortaba el blur creando
+          // un seam horizontal visible — bug visual reportado).
+          background:'radial-gradient(70% 80% at 50% 0%, rgba(61,255,209,0.10), transparent 65%), var(--glass-2)',
           borderColor:'rgba(61,255,209,0.12)',
           position:'relative', overflow:'hidden',
         }}>
-          <div style={{
-            position:'absolute', top:-50, left:'50%', transform:'translateX(-50%) translateZ(0)',
-            width:260, height:90, borderRadius:'50%',
-            background:'radial-gradient(60% 100% at 50% 50%, rgba(61,255,209,0.16), transparent 70%)',
-            pointerEvents:'none', filter:'blur(24px)',
-            willChange:'transform',
-          }}/>
 
           {/* Editar tiempo — lápiz arriba a la derecha de la card. Abre
               el CustomTimeModal global del MentexApp (UNICO mount point)
