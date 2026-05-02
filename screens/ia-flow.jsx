@@ -864,36 +864,23 @@ function IAInputBar(props) {
       WebkitBackdropFilter: 'blur(20px) saturate(160%)',
       borderTop: '0.5px solid rgba(255,255,255,0.04)',
     }}>
+      {/* Container del input — flex column. Textarea ocupa el TOP (full
+          width, alineado a la izquierda desde el primer pixel para que el
+          texto empiece arriba a la izquierda — patrón ChatGPT/Claude). Los
+          4 botones viven en una row INFERIOR (paperclip izquierda, mic+send
+          derecha). Esto deja la zona de escritura libre y abierta sin
+          sentirse encapsulada entre botones. */}
       <div style={{
-        display: 'flex', alignItems: 'flex-end', gap: 6,
-        padding: '6px 6px 6px 6px',
-        borderRadius: 24,
+        display: 'flex', flexDirection: 'column', gap: 4,
+        padding: '10px 14px 8px',
+        borderRadius: 22,
         background: 'rgba(255,255,255,0.04)',
         border: '0.5px solid rgba(255,255,255,0.10)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -12px rgba(0,0,0,0.6)',
         transition: 'border-color .2s, background .2s',
       }}>
-        {/* Upload */}
-        <button
-          onClick={onUpload}
-          aria-label="Adjuntar archivo"
-          className="mtx-tap"
-          style={{
-            width: 36, height: 36, borderRadius: 999, border: 0,
-            background: 'transparent',
-            color: 'var(--ink-3)',
-            cursor: 'pointer', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background .2s, color .2s',
-          }}>
-          {/* Paperclip inline SVG (no hay IcAttach) */}
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
-          </svg>
-        </button>
-
-        {/* Textarea */}
+        {/* Textarea — full width, padding mínimo en los lados (alineado al
+            container interior). Empieza arriba-izquierda. */}
         <textarea
           ref={textareaRef}
           value={value}
@@ -902,63 +889,90 @@ function IAInputBar(props) {
           placeholder="Pregúntame algo o describe cómo te sientes…"
           rows={1}
           style={{
-            flex: 1, minWidth: 0,
+            width: '100%',
             resize: 'none', appearance: 'none', border: 0, outline: 'none',
             background: 'transparent',
             color: 'var(--ink-1)',
             fontSize: 14, lineHeight: 1.45,
             fontFamily: 'var(--ff-sans)',
             letterSpacing: '-0.005em',
-            padding: '10px 4px',
+            padding: '4px 0',
             maxHeight: 132,
             overflowY: 'hidden',  // Activado dinámicamente por el effect
+            display: 'block',
           }}
         />
 
-        {/* Voice */}
-        <button
-          onClick={onVoice}
-          aria-label="Hablar con el asistente"
-          className="mtx-tap"
-          style={{
-            width: 36, height: 36, borderRadius: 999, border: 0,
-            background: 'transparent',
-            color: 'var(--ink-3)',
-            cursor: 'pointer', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background .2s, color .2s',
-          }}>
-          <IcMic size={17} stroke="currentColor" strokeWidth={1.7}/>
-        </button>
+        {/* Botones row — paperclip a la izquierda, mic+send a la derecha */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          marginTop: 2,
+        }}>
+          {/* Upload (left) */}
+          <button
+            onClick={onUpload}
+            aria-label="Adjuntar archivo"
+            className="mtx-tap"
+            style={{
+              width: 32, height: 32, borderRadius: 999, border: 0,
+              background: 'transparent',
+              color: 'var(--ink-3)',
+              cursor: 'pointer', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background .2s, color .2s',
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
 
-        {/* Send (neon cuando hay texto, opaco cuando no) */}
-        <button
-          onClick={canSend ? onSend : undefined}
-          aria-label="Enviar mensaje"
-          disabled={!canSend}
-          className="mtx-tap"
-          style={{
-            width: 36, height: 36, borderRadius: 999, border: 0,
-            background: canSend
-              ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
-              : 'rgba(255,255,255,0.06)',
-            color: canSend ? '#0a1410' : 'var(--ink-4)',
-            cursor: canSend ? 'pointer' : 'not-allowed',
-            flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: canSend
-              ? '0 0 0 1px rgba(61,255,209,0.25), 0 6px 16px -4px rgba(61,255,209,0.45)'
-              : 'none',
-            transition: 'background .2s, box-shadow .2s, color .2s, transform .15s',
-            transform: canSend ? 'scale(1)' : 'scale(0.94)',
-          }}>
-          {/* Arrow up — inline SVG */}
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 19V5"/>
-            <path d="M5 12l7-7 7 7"/>
-          </svg>
-        </button>
+          <div style={{ flex: 1 }}/>
+
+          {/* Voice (right) */}
+          <button
+            onClick={onVoice}
+            aria-label="Hablar con el asistente"
+            className="mtx-tap"
+            style={{
+              width: 32, height: 32, borderRadius: 999, border: 0,
+              background: 'transparent',
+              color: 'var(--ink-3)',
+              cursor: 'pointer', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background .2s, color .2s',
+            }}>
+            <IcMic size={16} stroke="currentColor" strokeWidth={1.7}/>
+          </button>
+
+          {/* Send (neon cuando hay texto, opaco cuando no) */}
+          <button
+            onClick={canSend ? onSend : undefined}
+            aria-label="Enviar mensaje"
+            disabled={!canSend}
+            className="mtx-tap"
+            style={{
+              width: 34, height: 34, borderRadius: 999, border: 0,
+              background: canSend
+                ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
+                : 'rgba(255,255,255,0.06)',
+              color: canSend ? '#0a1410' : 'var(--ink-4)',
+              cursor: canSend ? 'pointer' : 'not-allowed',
+              flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: canSend
+                ? '0 0 0 1px rgba(61,255,209,0.25), 0 6px 16px -4px rgba(61,255,209,0.45)'
+                : 'none',
+              transition: 'background .2s, box-shadow .2s, color .2s, transform .15s',
+              transform: canSend ? 'scale(1)' : 'scale(0.94)',
+            }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5"/>
+              <path d="M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Hint sutil de keyboard shortcut. Solo visible si hay contenido. */}
@@ -978,17 +992,17 @@ function IAInputBar(props) {
 }
 
 
-// ── IAHistorySheet — drawer de conversaciones previas ──────────────────────
-// Bottom sheet (mismo lenguaje que AutoRoutineCreateSheet, NotificationsSheet).
-// Lista de conversaciones agrupada por pinned + recientes; cada row tiene
-// preview del primer mensaje, fecha relativa, y acciones: switch, pin, delete.
+// ── IAHistorySheet — drawer minimalista (ChatGPT-style) ─────────────────
+// Diseño revisado: simple, sin previews, sin chrome ornamental. Conversaciones
+// agrupadas por fecha relativa (Hoy / Ayer / Días anteriores), cada row es
+// solo el título + un botón de 3 puntos a la derecha para eliminar. Tap en
+// la row entra a la conversación.
 function IAHistorySheet(props) {
   var open = props.open;
   var onClose = props.onClose;
   var conversations = props.conversations;
   var currentId = props.currentId;
   var onSelect = props.onSelect;
-  var onNew = props.onNew;
 
   // ESC para cerrar (consistencia con resto de modales)
   React.useEffect(function() {
@@ -1006,22 +1020,44 @@ function IAHistorySheet(props) {
 
   if (!open) return null;
 
-  var pinned = conversations.filter(function(c) { return c.pinned; });
-  var rest = conversations.filter(function(c) { return !c.pinned; })
-    .sort(function(a, b) { return b.updatedAt - a.updatedAt; });
+  // Agrupar por fecha relativa al day-start de hoy
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var yesterdayStart = todayStart - 86400000;
+  var sortedConvs = conversations.slice().sort(function(a, b) { return b.updatedAt - a.updatedAt; });
+  var groups = { hoy: [], ayer: [], anteriores: [] };
+  sortedConvs.forEach(function(c) {
+    if (c.updatedAt >= todayStart) groups.hoy.push(c);
+    else if (c.updatedAt >= yesterdayStart) groups.ayer.push(c);
+    else groups.anteriores.push(c);
+  });
 
-  var formatTime = function(ts) {
-    var d = new Date(ts);
-    var now = new Date();
-    var diffMs = now - d;
-    var diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return 'Ahora';
-    if (diffMin < 60) return diffMin + ' min';
-    var diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return diffH + ' h';
-    var diffD = Math.floor(diffH / 24);
-    if (diffD < 7) return diffD + ' d';
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+  var handleDelete = function(c, e) {
+    if (e) e.stopPropagation();
+    if (window.confirm('¿Eliminar "' + c.title + '"?')) {
+      window.__mtxIAChat.deleteConversation(c.id);
+    }
+  };
+
+  var renderSection = function(label, convs) {
+    if (convs.length === 0) return null;
+    return (
+      <div key={label} style={{ marginBottom: 10 }}>
+        <div className="mtx-eyebrow" style={{
+          fontSize: 9.5, padding: '0 20px 6px', color: 'var(--ink-4)',
+          letterSpacing: '0.14em',
+        }}>{label}</div>
+        {convs.map(function(c) {
+          return (
+            <IAHistoryRow key={c.id} conversation={c}
+              isCurrent={c.id === currentId}
+              onSelect={function() { onSelect(c.id); onClose(); }}
+              onDelete={function(e) { handleDelete(c, e); }}
+            />
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -1033,186 +1069,92 @@ function IAHistorySheet(props) {
       animation: 'mtx-fade-up .25s ease',
     }} onClick={onClose}>
       <div onClick={function(e) { e.stopPropagation(); }} style={{
-        background: 'rgba(15,19,19,0.92)',
+        background: 'rgba(15,19,19,0.94)',
         backdropFilter: 'blur(28px) saturate(160%)',
         WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-        borderTop: '0.5px solid rgba(255,255,255,0.12)',
-        borderTopLeftRadius: 32, borderTopRightRadius: 32,
-        padding: '18px 0 28px',
-        boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
-        maxHeight: '88%', overflow: 'auto',
-        animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+        borderTop: '0.5px solid rgba(255,255,255,0.10)',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        padding: '14px 0 24px',
+        boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+        maxHeight: '78%', overflow: 'auto',
+        animation: 'mtx-fade-up .32s cubic-bezier(.4,1.4,.5,1)',
       }} className="mtx-no-scrollbar">
+        {/* Grabber */}
         <div style={{
-          width: 38, height: 4, borderRadius: 999, margin: '0 auto 16px',
-          background: 'rgba(255,255,255,0.18)',
+          width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+          background: 'rgba(255,255,255,0.16)',
         }}/>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '0 20px', marginBottom: 16, gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mtx-eyebrow" style={{ marginBottom: 4, fontSize: 10 }}>Tus conversaciones</div>
-            <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)', letterSpacing: '-0.025em' }}>
-              Historial
-            </h2>
-          </div>
-          <button onClick={onClose} aria-label="Cerrar" style={{
-            width: 36, height: 36, borderRadius: 999,
-            background: 'rgba(255,255,255,0.06)',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--ink-1)', cursor: 'pointer', flexShrink: 0,
-          }}><IcClose size={16} stroke="currentColor"/></button>
+        {/* Título minimalista (sin eyebrow ornamental) */}
+        <div style={{ padding: '0 20px 12px' }}>
+          <h2 style={{
+            margin: 0, fontSize: 16, fontWeight: 600,
+            color: 'var(--ink-1)', letterSpacing: '-0.015em',
+            fontFamily: 'var(--ff-sans)',
+          }}>Historial</h2>
         </div>
 
-        {/* CTA Nueva conversación arriba (atajo) */}
-        <div style={{ padding: '0 20px 14px' }}>
-          <button
-            onClick={function() { onNew(); onClose(); }}
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: 'pointer',
-              width: '100%', padding: '12px 14px', borderRadius: 16,
-              background: 'linear-gradient(135deg, rgba(61,255,209,0.10), rgba(61,255,209,0.02))',
-              border: '0.5px solid rgba(61,255,209,0.28)',
-              color: 'var(--neon)',
-              fontSize: 13.5, fontWeight: 600,
-              fontFamily: 'var(--ff-sans)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: 'inset 0 0 14px rgba(61,255,209,0.05)',
-              transition: 'background .2s, border-color .2s',
-            }}>
-            <IcPlus size={14} stroke="currentColor" strokeWidth={2.2}/>
-            Nueva conversación
-          </button>
-        </div>
-
-        {/* Empty state si no hay conversaciones */}
+        {/* Empty state */}
         {conversations.length === 0 && (
-          <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 16, margin: '0 auto 12px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '0.5px solid rgba(255,255,255,0.06)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--ink-3)',
-            }}>
-              <IcMessage size={22} stroke="currentColor" strokeWidth={1.6}/>
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)', marginBottom: 4 }}>
-              Aún no tienes conversaciones
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', maxWidth: 240, margin: '0 auto', lineHeight: 1.4 }}>
-              Tu primer mensaje aparecerá aquí. El historial te deja retomar charlas anteriores.
+          <div style={{ padding: '36px 20px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5, maxWidth: 260, margin: '0 auto' }}>
+              Aún no tienes conversaciones. Tu primer mensaje aparecerá aquí.
             </div>
           </div>
         )}
 
-        {/* Pinned section */}
-        {pinned.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div className="mtx-eyebrow" style={{
-              fontSize: 9.5, padding: '0 20px 8px', color: 'var(--ink-3)',
-              letterSpacing: '0.14em',
-            }}>Fijadas</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {pinned.map(function(c) {
-                return (
-                  <IAHistoryRow key={c.id} conversation={c}
-                    isCurrent={c.id === currentId}
-                    formatTime={formatTime}
-                    onSelect={function() { onSelect(c.id); onClose(); }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Recientes */}
-        {rest.length > 0 && (
-          <div>
-            {pinned.length > 0 && (
-              <div className="mtx-eyebrow" style={{
-                fontSize: 9.5, padding: '0 20px 8px', color: 'var(--ink-3)',
-                letterSpacing: '0.14em',
-              }}>Recientes</div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {rest.map(function(c) {
-                return (
-                  <IAHistoryRow key={c.id} conversation={c}
-                    isCurrent={c.id === currentId}
-                    formatTime={formatTime}
-                    onSelect={function() { onSelect(c.id); onClose(); }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {renderSection('Hoy', groups.hoy)}
+        {renderSection('Ayer', groups.ayer)}
+        {renderSection('Días anteriores', groups.anteriores)}
       </div>
     </div>
   );
 }
 
 
-// Row individual del history. Click → select. Pin/delete via iconos pequeños
-// que aparecen al hover (en touch siempre visibles, opacity sutil).
+// Row minimalista del history. Solo título + botón 3-puntos a la derecha
+// (delete via window.confirm). Mismo patrón que ChatGPT mobile.
 function IAHistoryRow(props) {
   var c = props.conversation;
   var isCurrent = props.isCurrent;
-  var formatTime = props.formatTime;
   var onSelect = props.onSelect;
-
-  var preview = (function() {
-    if (!c.messages || c.messages.length === 0) return 'Conversación vacía';
-    var firstUser = c.messages.find(function(m) { return m.role === 'user'; });
-    return ((firstUser && firstUser.content) || c.messages[0].content || '').slice(0, 80);
-  })();
+  var onDelete = props.onDelete;
 
   return (
-    <div
-      onClick={onSelect}
-      role="button"
-      tabIndex={0}
-      onKeyDown={function(e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
-      }}
-      className="mtx-tap"
-      style={{
-        cursor: 'pointer',
-        padding: '12px 20px',
-        borderTop: '0.5px solid rgba(255,255,255,0.04)',
-        background: isCurrent ? 'rgba(61,255,209,0.05)' : 'transparent',
-        transition: 'background .2s',
-        display: 'flex', gap: 10, alignItems: 'flex-start',
-      }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          marginBottom: 3,
-        }}>
-          {c.pinned && (
-            <IcBookmarkFill size={11} stroke="var(--neon)" strokeWidth={2}/>
-          )}
-          <div style={{
-            flex: 1, minWidth: 0,
-            fontSize: 13.5, fontWeight: 600,
-            color: isCurrent ? 'var(--neon)' : 'var(--ink-1)',
-            letterSpacing: '-0.01em',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{c.title}</div>
-          <div style={{
-            fontSize: 10.5, color: 'var(--ink-4)',
-            fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-          }}>{formatTime(c.updatedAt)}</div>
-        </div>
-        <div style={{
-          fontSize: 11.5, color: 'var(--ink-3)',
-          lineHeight: 1.4, letterSpacing: '-0.005em',
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      padding: '0 8px 0 20px',
+      background: isCurrent ? 'rgba(61,255,209,0.05)' : 'transparent',
+      transition: 'background .15s',
+    }}>
+      <button
+        onClick={onSelect}
+        className="mtx-tap"
+        style={{
+          appearance: 'none', cursor: 'pointer', textAlign: 'left',
+          flex: 1, minWidth: 0, border: 0, background: 'transparent',
+          padding: '11px 0',
+          fontSize: 13.5, fontWeight: 500,
+          color: isCurrent ? 'var(--neon)' : 'var(--ink-1)',
+          letterSpacing: '-0.005em',
+          fontFamily: 'var(--ff-sans)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>{preview}</div>
-      </div>
+        }}>
+        {c.title}
+      </button>
+      <button
+        onClick={onDelete}
+        aria-label={'Eliminar conversación ' + c.title}
+        className="mtx-tap"
+        style={{
+          appearance: 'none', cursor: 'pointer',
+          width: 32, height: 32, borderRadius: 999, border: 0, background: 'transparent',
+          color: 'var(--ink-4)', flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'color .15s, background .15s',
+        }}>
+        <IcMoreH size={15} stroke="currentColor" strokeWidth={1.7}/>
+      </button>
     </div>
   );
 }
@@ -1441,8 +1383,9 @@ function IAScreen(props) {
 
 
 // ── IAHubHeader — header del hub (root): icon row simple ─────────────────
-// No tiene title pill (no hay current conversation a destacar — el user todavía
-// no ha entrado a una). Solo los 4 icon buttons.
+// Orden de iconos (left→right): historial · [spacer] · nueva · calendario · settings.
+// Por convención del user: la nueva conversación pegada a las acciones primarias
+// del lado derecho, calendario y settings al borde como utilities periféricas.
 function IAHubHeader(props) {
   return (
     <div style={{ padding: '0 16px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1451,11 +1394,11 @@ function IAHubHeader(props) {
         <IcList size={16} stroke="currentColor" strokeWidth={1.7}/>
       </IAIconButton>
       <div style={{ flex: 1 }}/>
-      <IAIconButton aria-label="Agenda del día" onClick={props.onAgenda}>
-        <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
-      </IAIconButton>
       <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
         <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
+      </IAIconButton>
+      <IAIconButton aria-label="Agenda del día" onClick={props.onAgenda}>
+        <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
       </IAIconButton>
       <IAIconButton aria-label="Configuración del asistente" onClick={props.onSettings}>
         <IcSettings size={15} stroke="currentColor" strokeWidth={1.6}/>
