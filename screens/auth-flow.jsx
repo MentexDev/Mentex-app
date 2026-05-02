@@ -510,6 +510,11 @@
       breaks: true,
       content: true,
     },
+    // Step 11 — Welcome wow (no inputs, presentación)
+    // Step 12 — Plan selection (paywall)
+    selectedPlan: null,            // 'free'|'monthly'|'annual' — null hasta decidir
+    billingCycle: 'annual',        // toggle en paywall, default annual (best value)
+    trialStartedAt: null,           // ms epoch cuando arrancó trial; null si free
     // Compat con onboarding legacy (no usados en Phase 3 nueva, pero preservados
     // por si algún consumer los lee — se quitan en cleanup futuro)
     goal: null, experience: null, timeMin: 15, timeOfDay: null,

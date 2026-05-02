@@ -1461,6 +1461,477 @@
   }
 
 
+  // ── Step 11: Welcome wow (first-time experience) ──────────────────────────
+  // Después del fake-load + notificaciones, NO drop directo al app. Primero
+  // celebración personalizada con los highlights de lo que el user configuró.
+  // Es el momento "tu Mentex está listo" — máxima excitación emocional, justo
+  // antes del paywall.
+  function StepWelcomeWow(props) {
+    var ans = props.answers;
+    var firstName = (ans.name || '').trim().split(' ')[0] || 'amig@';
+
+    // Derivar highlights desde answers
+    var contentLabel = (function() {
+      var labels = (ans.contentPrefs || [])
+        .map(function(id) {
+          var c = CONTENT_OPTIONS.find(function(o) { return o.id === id; });
+          return c ? c.label.toLowerCase() : null;
+        })
+        .filter(Boolean);
+      if (labels.length === 0) return 'tus contenidos favoritos';
+      if (labels.length === 1) return labels[0];
+      if (labels.length === 2) return labels[0] + ' y ' + labels[1];
+      return labels.slice(0, 2).join(', ') + ' y más';
+    })();
+
+    var voiceLabel = (function() {
+      var v = COACH_VOICES.find(function(o) { return o.id === ans.coachVoice; });
+      return v ? v.label.toLowerCase() : 'tu coach';
+    })();
+
+    var focusTimeLabel = (function() {
+      var f = FOCUS_TIME_OPTIONS.find(function(o) { return o.id === ans.focusTime; });
+      if (!f) return null;
+      if (f.id === 'variable') return null; // no incluir "por la variable"
+      return f.label.toLowerCase();
+    })();
+
+    var hrs = ans.routineHours || 2;
+    var apps = (ans.blockedApps || []).length;
+
+    // 4 highlights, cada uno con icon + título + sub
+    var highlights = [
+      {
+        icon: '📚',
+        title: 'Tu Explorar curado',
+        sub: 'Con ' + contentLabel + ' que te energizan',
+      },
+      {
+        icon: '✨',
+        title: 'Tu coach ' + voiceLabel,
+        sub: 'Listo para conversar contigo cuando lo necesites',
+      },
+      apps > 0 ? {
+        icon: '🛡️',
+        title: 'Bloqueo de ' + apps + (apps === 1 ? ' app' : ' apps'),
+        sub: 'Activado automáticamente al iniciar foco',
+      } : null,
+      {
+        icon: '🎯',
+        title: hrs + (hrs === 1 ? ' hora' : ' horas') + ' al día' + (focusTimeLabel ? ' por la ' + focusTimeLabel : ''),
+        sub: 'Tu rutina está calibrada y lista',
+      },
+    ].filter(Boolean);
+
+    return React.createElement('div', null,
+      // Hero con sparkle grande arriba
+      React.createElement('div', {
+        style: {
+          textAlign: 'center', padding: '20px 28px 22px',
+        },
+      },
+        React.createElement('div', {
+          style: {
+            fontSize: 56, lineHeight: 1, marginBottom: 18,
+            animation: 'mtx-zen-breath 2.4s ease-in-out infinite',
+          },
+        }, '✦'),
+        React.createElement('div', {
+          style: {
+            fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.18em',
+            fontWeight: 700, textTransform: 'uppercase', marginBottom: 12,
+          },
+        }, 'Tu Mentex está listo'),
+        React.createElement('h1', {
+          style: {
+            margin: 0, fontSize: 28, lineHeight: 1.18, fontWeight: 700,
+            color: 'var(--ink-1)', letterSpacing: '-0.015em',
+          },
+        }, 'Bienvenido a tu',
+          React.createElement('br'),
+          React.createElement('span', {
+            style: { color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 },
+          }, 'universo Mentex'),
+          ', ' + firstName + '.'
+        ),
+        React.createElement('p', {
+          style: {
+            margin: '12px auto 0', maxWidth: 300,
+            fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-3)',
+          },
+        }, 'Calibramos cada pieza con lo que nos contaste. Mira lo que preparamos:')
+      ),
+
+      // Highlights stack
+      React.createElement('div', {
+        style: {
+          padding: '0 24px',
+          display: 'flex', flexDirection: 'column', gap: 10,
+          marginBottom: 4,
+        },
+      },
+        highlights.map(function(h, i) {
+          return React.createElement('div', {
+            key: i,
+            style: {
+              padding: '14px 16px',
+              borderRadius: 14,
+              background: 'linear-gradient(180deg, rgba(61,255,209,0.08), rgba(61,255,209,0.02))',
+              border: '0.5px solid rgba(61,255,209,0.22)',
+              boxShadow: '0 0 18px rgba(61,255,209,0.05), inset 0 1px 0 rgba(61,255,209,0.14)',
+              display: 'flex', alignItems: 'center', gap: 14,
+              animation: 'mtx-fade-up .5s ease ' + (0.1 + i * 0.12) + 's both',
+              fontFamily: 'var(--ff-sans)',
+            },
+          },
+            React.createElement('div', {
+              style: {
+                width: 40, height: 40, borderRadius: 11,
+                background: 'rgba(61,255,209,0.10)',
+                border: '0.5px solid rgba(61,255,209,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 22, lineHeight: 1, flexShrink: 0,
+              },
+            }, h.icon),
+            React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+              React.createElement('div', {
+                style: {
+                  fontSize: 13.5, fontWeight: 700,
+                  color: 'var(--ink-1)', marginBottom: 2,
+                  letterSpacing: '-0.005em',
+                },
+              }, h.title),
+              React.createElement('div', {
+                style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.35 },
+              }, h.sub)
+            )
+          );
+        })
+      )
+    );
+  }
+
+
+  // ── Step 12: Plan selection (paywall premium) ─────────────────────────────
+  // El momento de máxima conversión. Un solo plan Premium con toggle de ciclo
+  // mensual/anual. Trial 7 días. Continuar gratis siempre disponible (sin
+  // hard paywall — Mentex respeta la decisión del user).
+  var PREMIUM_BENEFITS = [
+    {
+      icon: '♾️',
+      title: 'Catálogo completo',
+      sub: 'Miles de libros, meditaciones, biografías y charlas',
+    },
+    {
+      icon: '✨',
+      title: 'Coach IA ilimitado',
+      sub: 'Conversaciones sin tope, descargas sin filtro',
+    },
+    {
+      icon: '🛡️',
+      title: 'Bloqueo sin límites',
+      sub: 'Cualquier app, en cualquier horario',
+    },
+    {
+      icon: '📊',
+      title: 'Métricas avanzadas',
+      sub: 'Tu progreso semanal, hitos y reportes profundos',
+    },
+    {
+      icon: '🎯',
+      title: 'Rituales adaptativos',
+      sub: 'Tu coach diseña según tu energía del día',
+    },
+  ];
+
+  // Pill segmented toggle Mensual/Anual con sliding thumb neon.
+  function PlanCycleToggle(props) {
+    var cycle = props.cycle;
+    var onChange = props.onChange;
+    return React.createElement('div', {
+      style: { position: 'relative' },
+    },
+      // Badge "Ahorras 23%" arriba del lado anual
+      React.createElement('div', {
+        style: {
+          position: 'absolute', top: -10, right: 14,
+          padding: '3px 10px',
+          borderRadius: 999,
+          background: 'var(--neon)',
+          color: '#02110b',
+          fontSize: 10, fontWeight: 800,
+          letterSpacing: '0.04em',
+          boxShadow: '0 4px 14px rgba(61,255,209,0.30)',
+          fontFamily: 'var(--ff-sans)',
+          zIndex: 2,
+        },
+      }, 'AHORRAS 23%'),
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          padding: 4,
+          borderRadius: 12,
+          background: 'rgba(255,255,255,0.04)',
+          border: '0.5px solid rgba(255,255,255,0.10)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+          position: 'relative',
+        },
+      },
+        // Sliding thumb
+        React.createElement('div', {
+          style: {
+            position: 'absolute',
+            top: 4, bottom: 4,
+            left: cycle === 'monthly' ? 4 : 'calc(50% + 0px)',
+            width: 'calc(50% - 4px)',
+            background: 'linear-gradient(180deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06))',
+            border: '0.5px solid rgba(61,255,209,0.50)',
+            borderRadius: 9,
+            boxShadow: '0 0 18px rgba(61,255,209,0.20), inset 0 1px 0 rgba(61,255,209,0.30)',
+            transition: 'left .22s cubic-bezier(.4,0,.2,1)',
+          },
+        }),
+        ['monthly', 'annual'].map(function(c) {
+          var on = cycle === c;
+          return React.createElement('button', {
+            key: c,
+            onClick: function() { onChange(c); },
+            className: 'mtx-tap',
+            style: {
+              flex: 1, position: 'relative', zIndex: 1,
+              appearance: 'none', cursor: 'pointer',
+              border: 'none', background: 'transparent',
+              padding: '10px 0',
+              fontFamily: 'var(--ff-sans)',
+              fontSize: 13, fontWeight: 700,
+              color: on ? 'var(--neon)' : 'var(--ink-3)',
+              transition: 'color .2s',
+              letterSpacing: '-0.005em',
+            },
+          }, c === 'monthly' ? 'Mensual' : 'Anual');
+        })
+      )
+    );
+  }
+
+  // Card de precio dinámica según el ciclo elegido
+  function PriceCard(props) {
+    var cycle = props.cycle;
+    var isAnnual = cycle === 'annual';
+    var pricePerMonth = isAnnual ? '9.99' : '12.99';
+    var subline = isAnnual
+      ? 'Cobrado $119.88 al año · Ahorras $36'
+      : 'Cobrado mensualmente · Cancela cuando quieras';
+
+    return React.createElement('div', {
+      style: {
+        padding: '20px 18px',
+        borderRadius: 18,
+        background: 'linear-gradient(180deg, rgba(61,255,209,0.12), rgba(61,255,209,0.02))',
+        border: '0.5px solid rgba(61,255,209,0.32)',
+        boxShadow: '0 0 32px rgba(61,255,209,0.10), inset 0 1px 0 rgba(61,255,209,0.22)',
+        textAlign: 'center',
+      },
+    },
+      React.createElement('div', {
+        style: {
+          display: 'inline-flex', alignItems: 'baseline', gap: 4,
+        },
+      },
+        React.createElement('span', {
+          style: {
+            fontSize: 16, fontWeight: 600, color: 'var(--ink-2)',
+            verticalAlign: 'top',
+          },
+        }, '$'),
+        React.createElement('span', {
+          style: {
+            fontSize: 52, fontWeight: 700, color: 'var(--neon)',
+            letterSpacing: '-0.025em', lineHeight: 1,
+            fontFeatureSettings: '"tnum" on',
+          },
+        }, pricePerMonth),
+        React.createElement('span', {
+          style: {
+            fontSize: 14, fontWeight: 500, color: 'var(--ink-3)',
+            marginLeft: 4,
+          },
+        }, '/mes')
+      ),
+      React.createElement('div', {
+        style: {
+          marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)',
+          lineHeight: 1.4,
+        },
+      }, subline),
+      // Trial pill
+      React.createElement('div', {
+        style: {
+          marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px',
+          borderRadius: 999,
+          background: 'rgba(61,255,209,0.14)',
+          border: '0.5px solid rgba(61,255,209,0.32)',
+          fontSize: 11.5, fontWeight: 700, color: 'var(--neon)',
+          letterSpacing: '-0.005em',
+          fontFamily: 'var(--ff-sans)',
+        },
+      },
+        React.createElement('span', { style: { fontSize: 12 } }, '💚'),
+        React.createElement('span', null, '7 días gratis · Sin compromiso')
+      )
+    );
+  }
+
+  function StepPlanSelection(props) {
+    var ans = props.answers;
+    var onChange = props.onChange;
+    var onComplete = props.onComplete;
+    var cycle = ans.billingCycle || 'annual';
+
+    function selectCycle(c) { onChange({ billingCycle: c }); }
+
+    function startTrial() {
+      onChange({
+        selectedPlan: cycle, // 'monthly' | 'annual'
+        trialStartedAt: Date.now(),
+      });
+      // Defer complete a próximo tick para que el answer patch persista primero
+      setTimeout(function() { if (onComplete) onComplete(); }, 0);
+    }
+
+    function continueFree() {
+      onChange({ selectedPlan: 'free', trialStartedAt: null });
+      setTimeout(function() { if (onComplete) onComplete(); }, 0);
+    }
+
+    return React.createElement('div', null,
+      // Hero
+      React.createElement('div', {
+        style: { padding: '4px 28px 20px', textAlign: 'center' },
+      },
+        React.createElement('div', {
+          style: {
+            fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.18em',
+            fontWeight: 700, textTransform: 'uppercase', marginBottom: 10,
+          },
+        }, '✦ Mentex Premium'),
+        React.createElement('h1', {
+          style: {
+            margin: 0, fontSize: 26, lineHeight: 1.16, fontWeight: 700,
+            color: 'var(--ink-1)', letterSpacing: '-0.015em',
+          },
+        }, 'Desbloquea tu',
+          React.createElement('br'),
+          React.createElement('span', {
+            style: { color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 },
+          }, 'Mentex completo')
+        ),
+        React.createElement('p', {
+          style: {
+            margin: '10px auto 0', maxWidth: 300,
+            fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)',
+          },
+        }, 'Todo el catálogo, tu coach sin límites, foco profundo. Sin compromisos.')
+      ),
+
+      // Benefits
+      React.createElement('div', {
+        style: {
+          padding: '0 24px',
+          display: 'flex', flexDirection: 'column', gap: 8,
+          marginBottom: 22,
+        },
+      },
+        PREMIUM_BENEFITS.map(function(b, i) {
+          return React.createElement('div', {
+            key: i,
+            style: {
+              padding: '11px 14px',
+              borderRadius: 13,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012))',
+              border: '0.5px solid rgba(255,255,255,0.10)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+              display: 'flex', alignItems: 'center', gap: 12,
+              fontFamily: 'var(--ff-sans)',
+            },
+          },
+            React.createElement('div', {
+              style: {
+                width: 34, height: 34, borderRadius: 10,
+                background: 'rgba(61,255,209,0.10)',
+                border: '0.5px solid rgba(61,255,209,0.22)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0,
+              },
+            }, b.icon),
+            React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+              React.createElement('div', {
+                style: {
+                  fontSize: 13.5, fontWeight: 700, color: 'var(--ink-1)',
+                  letterSpacing: '-0.005em', marginBottom: 1,
+                },
+              }, b.title),
+              React.createElement('div', {
+                style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.35 },
+              }, b.sub)
+            )
+          );
+        })
+      ),
+
+      // Toggle ciclo
+      React.createElement('div', {
+        style: { padding: '0 28px', marginBottom: 16 },
+      },
+        React.createElement(PlanCycleToggle, {
+          cycle: cycle,
+          onChange: selectCycle,
+        })
+      ),
+
+      // Price card
+      React.createElement('div', {
+        style: { padding: '0 28px', marginBottom: 22 },
+      },
+        React.createElement(PriceCard, { cycle: cycle })
+      ),
+
+      // CTAs (custom — el step usa hideFooter=true)
+      React.createElement('div', {
+        style: { padding: '0 28px 24px' },
+      },
+        React.createElement(PrimaryCTA, {
+          onClick: startTrial,
+          label: 'Empezar 7 días gratis',
+        }),
+        React.createElement('button', {
+          onClick: continueFree,
+          className: 'mtx-tap',
+          style: {
+            width: '100%',
+            marginTop: 10, marginBottom: 6,
+            appearance: 'none', cursor: 'pointer',
+            background: 'transparent', border: 'none',
+            color: 'var(--ink-3)',
+            fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--ff-sans)',
+            padding: '10px 0',
+          },
+        }, 'Continuar con plan gratuito'),
+        React.createElement('div', {
+          style: {
+            textAlign: 'center', fontSize: 10.5,
+            color: 'var(--ink-4, rgba(255,255,255,0.40))',
+            lineHeight: 1.5,
+            marginTop: 4,
+          },
+        }, 'Cancela cuando quieras desde Ajustes.')
+      )
+    );
+  }
+
+
   // ── Main: OnboardingScreen ─────────────────────────────────────────────────
   // Lee el store via useOnboarding(), decide qué step renderizar, y orquesta
   // navegación + completion.
@@ -1498,7 +1969,10 @@
       // 8: Fake-load (auto-advance, siempre válido)
       function(a) { return true; },
       // 9: Notifications (multi-select, defaults ON) — siempre válido.
-      //    El user puede continuar incluso con todas en off (es su decisión).
+      function(a) { return true; },
+      // 10: Welcome wow — no inputs, siempre válido (CTA "Ver mi plan")
+      function(a) { return true; },
+      // 11: Plan selection — siempre válido (los CTAs llaman complete directo)
       function(a) { return true; },
     ];
     var canNext = validators[step] ? validators[step](answers) : true;
@@ -1511,15 +1985,17 @@
       if (window.__mtxOnboarding) window.__mtxOnboarding.back();
     }
     function handleNext() {
-      if (step >= 9) {
+      if (step >= 11) {
         // Último step → complete
         if (window.__mtxOnboarding) window.__mtxOnboarding.complete();
         return;
       }
       if (window.__mtxOnboarding) window.__mtxOnboarding.next();
     }
+    function handleComplete() {
+      if (window.__mtxOnboarding) window.__mtxOnboarding.complete();
+    }
     function handleSkip() {
-      // Skip avanza sin requerir validación; aplicable solo a steps opcionales.
       if (window.__mtxOnboarding) window.__mtxOnboarding.next();
     }
 
@@ -1554,8 +2030,20 @@
         },
       });
     } else if (step === 9) {
-      ctaLabel = 'Empezar a usar Mentex';
+      ctaLabel = 'Continuar';
       stepEl = React.createElement(StepNotifications, { answers: answers, onChange: handleChange });
+    } else if (step === 10) {
+      // Welcome wow: CTA conecta naturalmente al paywall del step 11
+      ctaLabel = 'Ver mi plan';
+      stepEl = React.createElement(StepWelcomeWow, { answers: answers });
+    } else if (step === 11) {
+      // Paywall: hideFooter porque tiene CTAs internos custom (trial vs free)
+      hideFooter = true;
+      stepEl = React.createElement(StepPlanSelection, {
+        answers: answers,
+        onChange: handleChange,
+        onComplete: handleComplete,
+      });
     } else {
       // Safety: step fuera de rango → completar
       if (window.__mtxOnboarding) window.__mtxOnboarding.complete();
@@ -1564,7 +2052,7 @@
 
     return React.createElement(OnboardingShell, {
       stepIndex: step,
-      totalSteps: 10,
+      totalSteps: 12,
       onBack: handleBack,
       onNext: handleNext,
       onSkip: handleSkip,
@@ -1572,7 +2060,8 @@
       ctaDisabled: !canNext,
       ctaLabel: ctaLabel,
       hideFooter: hideFooter,
-      lockNav: step === 8, // durante fake-load, no permitir back
+      // Lock back nav en fake-load (8), welcome wow (10), y paywall (11)
+      lockNav: step === 8 || step === 10 || step === 11,
     }, stepEl);
   }
 
