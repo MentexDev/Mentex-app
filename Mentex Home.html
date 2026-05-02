@@ -32,7 +32,7 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auth-flow.jsx?v=5"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=6"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -420,20 +420,33 @@
             )}
             {authView === 'welcome' && typeof window.WelcomeScreen !== 'undefined' && (
               <window.WelcomeScreen
-                onContinue={() => setAuthView('auth-email')}
-                onSignIn={() => setAuthView('auth-email')}
+                onContinue={() => setAuthView('auth')}
+                onSignIn={() => setAuthView('auth')}
               />
             )}
-            {authView === 'auth-email' && typeof window.AuthScreen !== 'undefined' && (
+            {authView === 'auth' && typeof window.AuthScreen !== 'undefined' && (
               <window.AuthScreen
                 onBack={() => setAuthView('welcome')}
-                onEmailSent={(email) => setAuthView('auth-otp')}
+                onForgot={() => setAuthView('forgot-email')}
               />
             )}
-            {authView === 'auth-otp' && typeof window.AuthOTPScreen !== 'undefined' && (
+            {authView === 'forgot-email' && typeof window.ForgotPasswordEmailScreen !== 'undefined' && (
+              <window.ForgotPasswordEmailScreen
+                onBack={() => setAuthView('auth')}
+                onSent={(email) => setAuthView('forgot-otp')}
+              />
+            )}
+            {authView === 'forgot-otp' && typeof window.AuthOTPScreen !== 'undefined' && (
               <window.AuthOTPScreen
-                email={(window.__mtxAuth?.get?.() || {}).pendingEmail || ''}
-                onBack={() => setAuthView('auth-email')}
+                email={(window.__mtxAuth?.get?.() || {}).resetEmail || ''}
+                onBack={() => setAuthView('forgot-email')}
+                verifyFn={(otp) => window.__mtxAuth.verifyResetOTP(otp)}
+                onVerified={() => setAuthView('forgot-new')}
+              />
+            )}
+            {authView === 'forgot-new' && typeof window.ForgotPasswordNewScreen !== 'undefined' && (
+              <window.ForgotPasswordNewScreen
+                onBack={() => setAuthView('forgot-otp')}
               />
             )}
             {authView === 'onboarding' && (
@@ -815,7 +828,10 @@
               de sync con __mtxNav arriba). El user en una vista interna ya
               tiene su back button propio — el menú con los 5 íconos solo
               estorba a esa altura del flujo. */}
-          {!tabBarHidden && (
+          {/* Tab bar: solo visible cuando el user está en el app real.
+              Durante auth/onboarding (authView !== 'app') la barra NO debe
+              aparecer — el user no se ha registrado, no puede navegar. */}
+          {!tabBarHidden && authView === 'app' && (
             <div className="mtx-tabbar-clean">
               <MtxTabBar active={tab} onChange={setTab}/>
             </div>

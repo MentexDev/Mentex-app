@@ -33,10 +33,11 @@
   var AUTH_VIEWS = {
     SPLASH: 'splash',
     WELCOME: 'welcome',
-    AUTH_EMAIL: 'auth-email',
-    AUTH_OTP: 'auth-otp',
-    AUTH_APPLE_MOCK: 'auth-apple-mock',
-    AUTH_GOOGLE_MOCK: 'auth-google-mock',
+    AUTH: 'auth',                      // unified screen con tabs sign-in/sign-up + Apple/Google
+    AUTH_OTP: 'auth-otp',              // OTP para email magic link (futuro/legacy)
+    FORGOT_EMAIL: 'forgot-email',      // forgot password step 1
+    FORGOT_OTP: 'forgot-otp',          // forgot password step 2
+    FORGOT_NEW_PASSWORD: 'forgot-new', // forgot password step 3
     ONBOARDING: 'onboarding',
     APP: 'app',
   };
@@ -184,6 +185,155 @@
       resendOTP: function() {
         return _mockNetworkDelay(400, 800).then(function() {
           return { ok: true };
+        });
+      },
+
+      // ── Email/password flow (sign in tradicional) ──────────────────────
+      // Mock validation:
+      //   • Cualquier email contiene 'existing@' / 'returning@' / 'demo@'
+      //     → returning user. Password "password123" o "demo1234" valida.
+      //   • Otros emails → "credentials_invalid" (no registered)
+      //   • Password incorrecto en 5 intentos → "account_locked" mock
+      //   • Phase 2+ reemplaza con backend real (Supabase password auth /
+      //     Clerk / Auth.js).
+      signInWithPassword: function(email, password) {
+        return _mockNetworkDelay(700, 1300).then(function() {
+          var trimmed = (email || '').trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+            return { error: 'invalid_email' };
+          }
+          if (!password || password.length < 6) {
+            return { error: 'password_too_short' };
+          }
+          var userType = _detectMockUserType(trimmed);
+          if (userType === 'new') {
+            // Email no registered en sistema mock
+            return { error: 'no_account' };
+          }
+          // Validar password mock — para returning/demo users:
+          var validPasswords = userType === 'demo' ? ['demo1234'] : ['password123', 'mentex123'];
+          if (validPasswords.indexOf(password) === -1) {
+            return { error: 'wrong_password' };
+          }
+          var user;
+          if (userType === 'demo') {
+            user = {
+              id: 'demo-user',
+              email: trimmed,
+              name: 'Demo',
+              provider: 'password',
+              createdAt: Date.now() - 90 * 24 * 60 * 60 * 1000,
+              onboardingCompleted: true,
+              lastActiveAt: Date.now(),
+            };
+          } else {
+            user = {
+              id: _genId('user'),
+              email: trimmed,
+              name: trimmed.split('@')[0],
+              provider: 'password',
+              createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
+              onboardingCompleted: true,
+              lastActiveAt: Date.now(),
+            };
+          }
+          _setState({
+            user: user,
+            isAuthenticated: true,
+            pendingEmail: null,
+            pendingUserType: null,
+          });
+          return { ok: true, user: user, isReturning: true };
+        });
+      },
+
+      // Sign up con email + password
+      signUpWithPassword: function(email, password) {
+        return _mockNetworkDelay(800, 1400).then(function() {
+          var trimmed = (email || '').trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+            return { error: 'invalid_email' };
+          }
+          if (!password || password.length < 6) {
+            return { error: 'password_too_short' };
+          }
+          var userType = _detectMockUserType(trimmed);
+          if (userType === 'returning' || userType === 'demo') {
+            // Email ya registrado en sistema mock
+            return { error: 'email_taken' };
+          }
+          var user = {
+            id: _genId('user'),
+            email: trimmed,
+            name: null, // se setea en onboarding
+            provider: 'password',
+            createdAt: Date.now(),
+            onboardingCompleted: false,
+            lastActiveAt: Date.now(),
+          };
+          _setState({
+            user: user,
+            isAuthenticated: true,
+            pendingEmail: null,
+            pendingUserType: null,
+          });
+          return { ok: true, user: user, isReturning: false };
+        });
+      },
+
+      // ── Forgot password flow ───────────────────────────────────────────
+      // 3 pasos:
+      //   1. requestPasswordReset(email) → manda OTP al email
+      //   2. verifyResetOTP(otp) → valida 123456
+      //   3. resetPassword(newPassword) → setea nueva password + auto-login
+      requestPasswordReset: function(email) {
+        return _mockNetworkDelay(700, 1200).then(function() {
+          var trimmed = (email || '').trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+            return { error: 'invalid_email' };
+          }
+          // Por seguridad, NO revelar si el email existe o no — siempre
+          // retornar OK aunque no esté registrado. Estándar wellness apps.
+          _setState({ resetEmail: trimmed });
+          return { ok: true };
+        });
+      },
+
+      verifyResetOTP: function(otp) {
+        return _mockNetworkDelay(600, 1000).then(function() {
+          if (otp !== '123456') {
+            return { error: 'wrong_otp' };
+          }
+          _setState({ resetVerified: true });
+          return { ok: true };
+        });
+      },
+
+      resetPassword: function(newPassword) {
+        return _mockNetworkDelay(700, 1200).then(function() {
+          if (!newPassword || newPassword.length < 6) {
+            return { error: 'password_too_short' };
+          }
+          if (!_state.resetEmail || !_state.resetVerified) {
+            return { error: 'flow_not_started' };
+          }
+          // Auto-login después del reset (UX standard)
+          var user = {
+            id: _genId('user'),
+            email: _state.resetEmail,
+            name: _state.resetEmail.split('@')[0],
+            provider: 'password',
+            createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
+            onboardingCompleted: true,
+            lastActiveAt: Date.now(),
+          };
+          _setState({
+            user: user,
+            isAuthenticated: true,
+            resetEmail: null,
+            resetVerified: false,
+          });
+          return { ok: true, user: user };
         });
       },
 
@@ -561,8 +711,9 @@
 
 
   // ── ParticleField — partículas sutiles drift ───────────────────────────────
-  // 36 partículas con animation-delay y duration variados para drift orgánico.
+  // Particles con animation-delay y duration variados para drift orgánico.
   // Solo transform/opacity. Posiciones aleatorias generadas una vez (useMemo).
+  // Speed: 6-12s duration (antes era 14-28s, se sentía estático).
   function ParticleField(props) {
     var count = props.count || 36;
     var particles = React.useMemo(function() {
@@ -572,9 +723,9 @@
           left: Math.random() * 100,
           top: Math.random() * 100,
           size: 1.5 + Math.random() * 2.5,
-          duration: 14 + Math.random() * 14,
-          delay: Math.random() * -28,
-          opacity: 0.2 + Math.random() * 0.4,
+          duration: 6 + Math.random() * 6,
+          delay: Math.random() * -12,
+          opacity: 0.25 + Math.random() * 0.45,
         });
       }
       return arr;
@@ -760,8 +911,91 @@
   }
 
 
-  // ── WelcomeScreen — orquestador de los 3 slides + dots + CTA ──────────────
+  // ── FeatureGlyph: ritual del día (slide 4) ────────────────────────────────
+  function FeatureGlyphRitual() {
+    return (
+      <div style={{ width: 96, height: 96, position: 'relative' }}>
+        <svg width="96" height="96" viewBox="0 0 96 96">
+          <defs>
+            <linearGradient id="fg-ritual" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6affd9"/>
+              <stop offset="100%" stopColor="#1ad9ad"/>
+            </linearGradient>
+            <radialGradient id="fg-ritual-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#3DFFD1" stopOpacity="0.32"/>
+              <stop offset="100%" stopColor="#3DFFD1" stopOpacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="48" cy="48" r="44" fill="url(#fg-ritual-glow)"/>
+          {/* Sun rays */}
+          <g stroke="url(#fg-ritual)" strokeWidth="2.2" strokeLinecap="round" opacity="0.85">
+            <line x1="48" y1="14" x2="48" y2="22"/>
+            <line x1="48" y1="74" x2="48" y2="82"/>
+            <line x1="14" y1="48" x2="22" y2="48"/>
+            <line x1="74" y1="48" x2="82" y2="48"/>
+            <line x1="24" y1="24" x2="29" y2="29"/>
+            <line x1="67" y1="67" x2="72" y2="72"/>
+            <line x1="24" y1="72" x2="29" y2="67"/>
+            <line x1="67" y1="29" x2="72" y2="24"/>
+          </g>
+          {/* Sun core */}
+          <circle cx="48" cy="48" r="14" fill="rgba(61,255,209,0.10)"
+                  stroke="url(#fg-ritual)" strokeWidth="2.4"
+                  style={{ filter: 'drop-shadow(0 0 8px rgba(61,255,209,0.5))' }}/>
+          <circle cx="48" cy="48" r="3" fill="#3DFFD1"/>
+        </svg>
+      </div>
+    );
+  }
+
+  // ── FeatureGlyph: progreso (slide 5) ──────────────────────────────────────
+  function FeatureGlyphProgress() {
+    return (
+      <div style={{ width: 96, height: 96, position: 'relative' }}>
+        <svg width="96" height="96" viewBox="0 0 96 96">
+          <defs>
+            <linearGradient id="fg-prog" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stopColor="#1ad9ad"/>
+              <stop offset="100%" stopColor="#9b8aff"/>
+            </linearGradient>
+            <radialGradient id="fg-prog-glow" cx="50%" cy="60%" r="50%">
+              <stop offset="0%" stopColor="#3DFFD1" stopOpacity="0.28"/>
+              <stop offset="100%" stopColor="#3DFFD1" stopOpacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="48" cy="48" r="44" fill="url(#fg-prog-glow)"/>
+          {/* Trend line ascending */}
+          <polyline points="20,68 32,56 44,60 56,42 68,46 80,28"
+                    fill="none" stroke="url(#fg-prog)" strokeWidth="2.6"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    style={{ filter: 'drop-shadow(0 0 6px rgba(61,255,209,0.5))' }}/>
+          {/* Dots en cada vertex */}
+          <circle cx="20" cy="68" r="2.5" fill="#1ad9ad"/>
+          <circle cx="32" cy="56" r="2.5" fill="#3DFFD1"/>
+          <circle cx="44" cy="60" r="2.5" fill="#3DFFD1"/>
+          <circle cx="56" cy="42" r="2.5" fill="#3DFFD1"/>
+          <circle cx="68" cy="46" r="2.5" fill="#3DFFD1"/>
+          <circle cx="80" cy="28" r="3.5" fill="#9b8aff"
+                  style={{ filter: 'drop-shadow(0 0 8px rgba(155,138,255,0.7))' }}/>
+        </svg>
+      </div>
+    );
+  }
+
+
+  // ── WelcomeScreen — orquestador de los 5 slides + dots + CTA ──────────────
   function WelcomeScreen(props) {
+    function makeSubtitle(text) {
+      return (
+        <div style={{
+          fontSize: 14.5, fontWeight: 400,
+          color: 'var(--ink-3)', letterSpacing: '-0.005em',
+          fontFamily: 'var(--ff-sans)',
+          textAlign: 'center', lineHeight: 1.5,
+          maxWidth: 320,
+        }}>{text}</div>
+      );
+    }
     var slidesData = React.useMemo(function() { return [
       {
         hero: <MentexZenIcon size={120}/>,
@@ -771,32 +1005,22 @@
       {
         hero: <FeatureGlyphShield/>,
         title: 'Silencia el ruido digital',
-        subtitle: (
-          <div style={{
-            fontSize: 14.5, fontWeight: 400,
-            color: 'var(--ink-3)', letterSpacing: '-0.005em',
-            fontFamily: 'var(--ff-sans)',
-            textAlign: 'center', lineHeight: 1.5,
-            maxWidth: 320,
-          }}>
-            Bloquea las apps que te roban el foco mientras estás presente.
-          </div>
-        ),
+        subtitle: makeSubtitle('Bloquea las apps que te roban el foco mientras estás presente.'),
       },
       {
         hero: <FeatureGlyphCoach/>,
         title: 'Tu coach personal',
-        subtitle: (
-          <div style={{
-            fontSize: 14.5, fontWeight: 400,
-            color: 'var(--ink-3)', letterSpacing: '-0.005em',
-            fontFamily: 'var(--ff-sans)',
-            textAlign: 'center', lineHeight: 1.5,
-            maxWidth: 320,
-          }}>
-            Mentex aprende contigo y te guía día a día. Pregúntale lo que sea.
-          </div>
-        ),
+        subtitle: makeSubtitle('Mentex aprende contigo y te guía día a día. Pregúntale lo que sea.'),
+      },
+      {
+        hero: <FeatureGlyphRitual/>,
+        title: 'Tu ritual diario',
+        subtitle: makeSubtitle('Construye hábitos pequeños que se vuelven irrompibles con el tiempo.'),
+      },
+      {
+        hero: <FeatureGlyphProgress/>,
+        title: 'Mide tu progreso',
+        subtitle: makeSubtitle('Visualiza cuánto has crecido y celebra cada paso del camino.'),
       },
     ]; }, []);
 
@@ -806,24 +1030,20 @@
     var dir = dirState[0]; var setDir = dirState[1];
 
     // Auto-advance cada 5s. Pausable cuando el user hace tap en dots (resetea
-    // el timer al tap manual). El último slide NO loopea automáticamente —
-    // empuja al user a continuar. Si quiere quedarse en él, bien.
-    //
-    // Guard contra React StrictMode double-fire: useRef para track el último
-    // timer y prevenir multiple timers paralelos. En dev mode, StrictMode
-    // dispara el effect 2x y sin guard ambos timers se ejecutan duplicando
-    // el avance — el user veía el slide saltar de 0 a 2 inmediatamente.
+    // el timer al tap manual). LOOP INFINITO: del último vuelve al primero
+    // (el user feedback fue claro — quedarse fijo en el último slide se
+    // sentía como "se rompió"). Guard contra React StrictMode double-fire
+    // via useRef.
     var advanceTimerRef = React.useRef(null);
     React.useEffect(function() {
       if (advanceTimerRef.current) {
         clearTimeout(advanceTimerRef.current);
         advanceTimerRef.current = null;
       }
-      if (idx >= slidesData.length - 1) return;
       advanceTimerRef.current = setTimeout(function() {
         advanceTimerRef.current = null;
         setDir('next');
-        setIdx(function(i) { return Math.min(i + 1, slidesData.length - 1); });
+        setIdx(function(i) { return (i + 1) % slidesData.length; });
       }, 5000);
       return function() {
         if (advanceTimerRef.current) {
@@ -878,10 +1098,12 @@
           })}
         </div>
 
-        {/* Dots indicator */}
+        {/* Dots indicator — más cerca del CTA, ahora que el menú inferior
+            no existe en welcome. Bottom 132 deja aire para el CTA + sign-in
+            link debajo, sin que se sienta perdido. */}
         <div style={{
           position: 'absolute',
-          left: 0, right: 0, bottom: 168,
+          left: 0, right: 0, bottom: 132,
           display: 'flex', justifyContent: 'center', gap: 8,
           zIndex: 3,
         }}>
@@ -898,7 +1120,7 @@
                   width: active ? 24 : 6, height: 6,
                   borderRadius: 999, border: 0,
                   background: active ? 'var(--neon)' : 'rgba(255,255,255,0.20)',
-                  boxShadow: active ? '0 0 10px rgba(61,255,209,0.6)' : 'none',
+                  boxShadow: active ? '0 0 8px rgba(61,255,209,0.45)' : 'none',
                   transition: 'width .35s ease, background .35s, box-shadow .35s',
                   padding: 0,
                 }}/>
@@ -906,13 +1128,15 @@
           })}
         </div>
 
-        {/* CTA único + sign-in link */}
+        {/* CTA único + sign-in link. Bottom 32 (más abajo que antes 60).
+            Glow más sutil — antes el halo verde dominaba el bottom de la
+            pantalla. Ahora pulsation reducida + box-shadow menos intenso. */}
         <div style={{
           position: 'absolute',
-          left: 0, right: 0, bottom: 60,
+          left: 0, right: 0, bottom: 32,
           padding: '0 32px',
           zIndex: 3,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
         }}>
           <button
             onClick={props.onContinue}
@@ -921,16 +1145,16 @@
             style={{
               appearance: 'none', cursor: 'pointer',
               width: '100%',
-              padding: '15px 22px', borderRadius: 999,
-              border: '0.5px solid rgba(61,255,209,0.50)',
-              background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
+              padding: '14px 22px', borderRadius: 999,
+              border: '0.5px solid rgba(61,255,209,0.36)',
+              background: 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.05))',
               color: 'var(--neon)',
               fontSize: 15, fontWeight: 700,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-              boxShadow: '0 0 0 1px rgba(61,255,209,0.20), 0 12px 32px -10px rgba(61,255,209,0.45), inset 0 0 16px rgba(61,255,209,0.08)',
-              animation: 'mtx-cta-breath 3.6s ease-in-out infinite',
-              willChange: 'transform, box-shadow',
+              boxShadow: '0 0 0 0.5px rgba(61,255,209,0.14), 0 6px 18px -10px rgba(61,255,209,0.30), inset 0 0 10px rgba(61,255,209,0.05)',
+              animation: 'mtx-cta-breath-soft 4s ease-in-out infinite',
+              willChange: 'box-shadow',
             }}>Empezar</button>
           <button
             onClick={props.onSignIn}
@@ -938,7 +1162,7 @@
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: 'pointer',
-              padding: '6px 14px',
+              padding: '4px 14px',
               border: 0, background: 'transparent',
               color: 'var(--ink-3)',
               fontSize: 13, fontWeight: 500,
@@ -990,63 +1214,104 @@
   // PHASE 1c · Auth screens (Email + OTP + Apple/Google mocks)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── AuthScreen — pantalla central con providers + email field ─────────────
+  // ── MentexLogoMark — mini logo (zen icon + wordmark) para headers ─────────
+  // Reutilizable en headers de auth/forgot. Compact y consistent.
+  function MentexLogoMark(props) {
+    var size = props.size || 14;
+    return (
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        opacity: 0.95,
+      }}>
+        <MentexZenIcon size={28} animate={false}/>
+        <span style={{
+          fontSize: size, fontWeight: 700,
+          color: 'var(--ink-1)',
+          letterSpacing: '0.04em', textTransform: 'uppercase',
+          fontFamily: 'var(--ff-display, var(--ff-sans))',
+        }}>MENTEX</span>
+      </div>
+    );
+  }
+
+
+  // ── AuthScreen — pantalla profesional con tabs Sign In / Sign Up ─────────
+  // Layout (top→bottom):
+  //   1. Header: back button + logo Mentex centrado
+  //   2. Hero: título dinámico ("Bienvenido de vuelta" / "Crea tu cuenta")
+  //   3. Tab toggle: Iniciar sesión | Crear cuenta
+  //   4. Apple + Google CTAs (mismos en ambos modos)
+  //   5. Separator
+  //   6. Email field
+  //   7. Password field con toggle visibility (+confirm si signup)
+  //   8. "¿Olvidaste tu contraseña?" (solo en sign-in)
+  //   9. CTA primario "Iniciar sesión" / "Crear cuenta"
+  //   10. Footer legal
   function AuthScreen(props) {
+    // Modo inicial: si props.initialMode='signup', empezar en signup; si no, signin
+    var modeState = React.useState(props.initialMode === 'signup' ? 'signup' : 'signin');
+    var mode = modeState[0]; var setMode = modeState[1];
+
     var emailState = React.useState('');
     var email = emailState[0]; var setEmail = emailState[1];
+    var passwordState = React.useState('');
+    var password = passwordState[0]; var setPassword = passwordState[1];
+    var showPasswordState = React.useState(false);
+    var showPassword = showPasswordState[0]; var setShowPassword = showPasswordState[1];
+
     var loadingState = React.useState(null);
     var loading = loadingState[0]; var setLoading = loadingState[1];
     var errorState = React.useState(null);
     var error = errorState[0]; var setError = errorState[1];
-    var inputRef = React.useRef(null);
 
-    var handleEmailContinue = function() {
-      var trimmed = email.trim();
-      if (!trimmed) {
-        setError('Ingresa tu email');
-        if (inputRef.current) inputRef.current.focus();
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    var emailRef = React.useRef(null);
+
+    var clearError = function() { if (error) setError(null); };
+
+    var handleSubmit = function() {
+      var trimmedEmail = email.trim();
+      if (!trimmedEmail) { setError('Ingresa tu email'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
         setError('Ese email no se ve bien');
         return;
       }
+      if (!password) { setError('Ingresa tu contraseña'); return; }
+      if (password.length < 6) { setError('La contraseña necesita 6+ caracteres'); return; }
+
       setError(null);
       setLoading('email');
-      window.__mtxAuth.sendOTP(trimmed).then(function(res) {
+      var fn = mode === 'signin'
+        ? window.__mtxAuth.signInWithPassword(trimmedEmail, password)
+        : window.__mtxAuth.signUpWithPassword(trimmedEmail, password);
+      fn.then(function(res) {
         setLoading(null);
-        if (res.error === 'invalid_email') {
-          setError('Ese email no se ve bien');
-          return;
-        }
-        if (res.error === 'network') {
-          setError('Error de conexión. Reintenta.');
-          return;
-        }
-        if (res.ok && props.onEmailSent) props.onEmailSent(trimmed);
+        if (res.error === 'invalid_email') return setError('Ese email no se ve bien');
+        if (res.error === 'password_too_short') return setError('La contraseña necesita 6+ caracteres');
+        if (res.error === 'no_account') return setError('No encontramos esa cuenta. ¿Quieres crear una?');
+        if (res.error === 'wrong_password') return setError('Contraseña incorrecta');
+        if (res.error === 'email_taken') return setError('Ese email ya está registrado. Inicia sesión.');
+        if (res.error === 'network') return setError('Error de conexión. Reintenta.');
+        // Success → MentexApp routea automáticamente
       });
     };
 
     var handleApple = function() {
       setLoading('apple');
-      window.__mtxAuth.signInWithApple().then(function() {
-        setLoading(null);
-        // El effect de auth en MentexApp navega solo a onboarding/app
-      });
+      window.__mtxAuth.signInWithApple().then(function() { setLoading(null); });
     };
     var handleGoogle = function() {
       setLoading('google');
-      window.__mtxAuth.signInWithGoogle().then(function() {
-        setLoading(null);
-      });
+      window.__mtxAuth.signInWithGoogle().then(function() { setLoading(null); });
     };
 
-    var onKey = function(e) {
+    var onKeyDown = function(e) {
       if (e.key === 'Enter' && !loading) {
         e.preventDefault();
-        handleEmailContinue();
+        handleSubmit();
       }
     };
+
+    var isSignIn = mode === 'signin';
 
     return (
       <div style={{
@@ -1055,14 +1320,15 @@
         animation: 'mtx-fade-in .35s ease',
       }}>
         <MeshGradientBackground/>
-        <ParticleField count={20}/>
+        <ParticleField count={22}/>
 
-        {/* Header con back button */}
+        {/* Header: back + logo centrado */}
         <div style={{
           position: 'absolute', top: 60, left: 0, right: 0,
           padding: '0 16px',
-          display: 'flex', alignItems: 'center', gap: 10,
+          display: 'flex', alignItems: 'center',
           zIndex: 3,
+          height: 36,
         }}>
           <button
             onClick={props.onBack}
@@ -1078,44 +1344,93 @@
             }}>
             <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
           </button>
-          <div style={{ flex: 1 }}/>
-          <MentexZenIcon size={36} animate={false}/>
+          <div style={{
+            position: 'absolute', left: 0, right: 0,
+            display: 'flex', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <MentexLogoMark size={13}/>
+          </div>
         </div>
 
-        {/* Body — title + form */}
+        {/* Body — scrollable form */}
         <div style={{
           position: 'absolute',
-          top: 130, left: 0, right: 0, bottom: 32,
+          top: 116, left: 0, right: 0, bottom: 24,
           padding: '0 28px',
           zIndex: 3,
           display: 'flex', flexDirection: 'column',
           overflow: 'auto',
         }} className="mtx-no-scrollbar">
-          <div style={{ marginBottom: 28 }}>
-            <div style={{
-              fontSize: 9.5, color: 'var(--neon)',
-              letterSpacing: '0.16em', textTransform: 'uppercase',
-              fontWeight: 600, marginBottom: 6,
-              fontFamily: 'var(--ff-sans)',
-            }}>BIENVENIDO</div>
+
+          {/* Hero title — cambia con el mode */}
+          <div style={{ marginBottom: 18 }}>
             <h1 style={{
               margin: 0,
-              fontSize: 26, fontWeight: 700,
+              fontSize: 24, fontWeight: 700,
               color: 'var(--ink-1)',
               letterSpacing: '-0.025em',
               fontFamily: 'var(--ff-display, var(--ff-sans))',
-              lineHeight: 1.15,
-            }}>Empecemos.</h1>
+              lineHeight: 1.2,
+            }}>{isSignIn ? 'Bienvenido de vuelta.' : 'Crea tu cuenta.'}</h1>
             <p style={{
-              margin: '8px 0 0',
-              fontSize: 13.5, color: 'var(--ink-3)',
-              letterSpacing: '-0.005em',
+              margin: '6px 0 0',
+              fontSize: 13, color: 'var(--ink-3)',
               fontFamily: 'var(--ff-sans)',
               lineHeight: 1.5,
-            }}>Ingresa con tu cuenta o crea una nueva. Es la misma puerta.</p>
+            }}>{isSignIn
+              ? 'Ingresa para continuar tu camino.'
+              : 'Únete y empieza tu mejor versión hoy.'}</p>
           </div>
 
-          {/* Apple Sign In — primary, top */}
+          {/* Tab toggle Sign In / Sign Up */}
+          <div style={{
+            display: 'flex', gap: 4,
+            padding: 4,
+            background: 'rgba(255,255,255,0.03)',
+            border: '0.5px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
+            marginBottom: 18,
+          }}>
+            <button
+              onClick={function() { setMode('signin'); clearError(); }}
+              aria-pressed={isSignIn}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '9px 12px', borderRadius: 9,
+                border: 0,
+                background: isSignIn
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))'
+                  : 'transparent',
+                color: isSignIn ? 'var(--neon)' : 'var(--ink-3)',
+                fontSize: 13, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                boxShadow: isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.30)' : 'none',
+                transition: 'background .25s, color .25s',
+              }}>Iniciar sesión</button>
+            <button
+              onClick={function() { setMode('signup'); clearError(); }}
+              aria-pressed={!isSignIn}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '9px 12px', borderRadius: 9,
+                border: 0,
+                background: !isSignIn
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))'
+                  : 'transparent',
+                color: !isSignIn ? 'var(--neon)' : 'var(--ink-3)',
+                fontSize: 13, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                boxShadow: !isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.30)' : 'none',
+                transition: 'background .25s, color .25s',
+              }}>Crear cuenta</button>
+          </div>
+
+          {/* Apple + Google */}
           <button
             onClick={handleApple}
             disabled={!!loading}
@@ -1123,27 +1438,24 @@
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: loading ? 'wait' : 'pointer',
-              width: '100%', height: 50,
+              width: '100%', height: 48,
               padding: '0 18px',
-              borderRadius: 14,
+              borderRadius: 12,
               border: '0.5px solid rgba(255,255,255,0.10)',
               background: '#000',
               color: '#fff',
-              fontSize: 14.5, fontWeight: 600,
+              fontSize: 14, fontWeight: 600,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              marginBottom: 10,
+              marginBottom: 8,
               opacity: loading && loading !== 'apple' ? 0.5 : 1,
-              transition: 'opacity .2s',
             }}>
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="currentColor">
+            <svg width="14" height="18" viewBox="0 0 16 20" fill="currentColor">
               <path d="M11.4 10.6c0-2.4 2-3.6 2.1-3.6-1.1-1.6-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8C1.6 5.3 0 6.3 0 8.7c0 1.6.5 3.4 1.4 4.8.7 1.3 1.6 2.6 2.6 2.6 1 0 1.4-.7 2.6-.7 1.3 0 1.6.7 2.7.6 1.1 0 1.8-1.3 2.5-2.5.4-.7.7-1.6 1-2.5-.1 0-2.4-.9-2.4-3.4M9.4 3.5c.5-.7.9-1.7.8-2.6-.8 0-1.7.5-2.3 1.2C7.4 2.7 6.9 3.7 7 4.6c.9.1 1.9-.4 2.4-1.1Z"/>
             </svg>
-            {loading === 'apple' ? 'Conectando…' : 'Continuar con Apple'}
+            {loading === 'apple' ? 'Conectando…' : (isSignIn ? 'Continuar con Apple' : 'Crear con Apple')}
           </button>
-
-          {/* Google Sign In */}
           <button
             onClick={handleGoogle}
             disabled={!!loading}
@@ -1151,90 +1463,149 @@
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: loading ? 'wait' : 'pointer',
-              width: '100%', height: 50,
+              width: '100%', height: 48,
               padding: '0 18px',
-              borderRadius: 14,
+              borderRadius: 12,
               border: '0.5px solid rgba(255,255,255,0.12)',
               background: 'rgba(255,255,255,0.04)',
               color: 'var(--ink-1)',
-              fontSize: 14.5, fontWeight: 600,
+              fontSize: 14, fontWeight: 600,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              marginBottom: 22,
+              marginBottom: 18,
               opacity: loading && loading !== 'google' ? 0.5 : 1,
-              transition: 'opacity .2s',
             }}>
-            <svg width="18" height="18" viewBox="0 0 18 18">
+            <svg width="16" height="16" viewBox="0 0 18 18">
               <path d="M17.6 9.2c0-.6-.1-1.2-.2-1.7H9v3.3h4.8c-.2 1.1-.8 2-1.8 2.6v2.2h2.9c1.7-1.5 2.7-3.8 2.7-6.4Z" fill="#4285f4"/>
               <path d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3C2.4 16 5.4 18 9 18Z" fill="#34a853"/>
               <path d="M3.9 10.7c-.2-.5-.3-1.1-.3-1.7s.1-1.2.3-1.7V5H.9C.3 6.2 0 7.6 0 9s.3 2.8.9 4l3-2.3Z" fill="#fbbc05"/>
               <path d="M9 3.6c1.3 0 2.5.4 3.5 1.3l2.6-2.6C13.5.9 11.4 0 9 0 5.4 0 2.4 2 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6Z" fill="#ea4335"/>
             </svg>
-            {loading === 'google' ? 'Conectando…' : 'Continuar con Google'}
+            {loading === 'google' ? 'Conectando…' : (isSignIn ? 'Continuar con Google' : 'Crear con Google')}
           </button>
 
           {/* Separator */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            marginBottom: 18,
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
             <div style={{
-              fontSize: 11, color: 'var(--ink-4)',
-              letterSpacing: '0.06em',
+              fontSize: 10.5, color: 'var(--ink-4)',
+              letterSpacing: '0.08em',
               fontFamily: 'var(--ff-sans)',
               fontWeight: 600,
             }}>O CON EMAIL</div>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
           </div>
 
-          {/* Email input + CTA continue */}
+          {/* Email */}
           <input
-            ref={inputRef}
+            ref={emailRef}
             type="email"
             inputMode="email"
             autoComplete="email"
             value={email}
-            onChange={function(e) { setEmail(e.target.value); setError(null); }}
-            onKeyDown={onKey}
+            onChange={function(e) { setEmail(e.target.value); clearError(); }}
             placeholder="tu@email.com"
             disabled={!!loading}
             style={{
               appearance: 'none', WebkitAppearance: 'none',
-              width: '100%', height: 50,
+              width: '100%', height: 48,
               boxSizing: 'border-box',
               padding: '0 16px',
-              borderRadius: 14,
+              borderRadius: 12,
               border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
               background: 'rgba(255,255,255,0.03)',
               color: 'var(--ink-1)',
-              fontSize: 14.5, fontFamily: 'var(--ff-sans)',
+              fontSize: 14, fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-              outline: 'none',
-              colorScheme: 'dark',
-              transition: 'border-color .2s, background .2s',
-              marginBottom: 10,
+              outline: 'none', colorScheme: 'dark',
+              marginBottom: 8,
             }}
           />
+
+          {/* Password con toggle visibility */}
+          <div style={{ position: 'relative', marginBottom: 6 }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete={isSignIn ? 'current-password' : 'new-password'}
+              value={password}
+              onChange={function(e) { setPassword(e.target.value); clearError(); }}
+              onKeyDown={onKeyDown}
+              placeholder={isSignIn ? 'Tu contraseña' : 'Crea una contraseña (6+)'}
+              disabled={!!loading}
+              style={{
+                appearance: 'none', WebkitAppearance: 'none',
+                width: '100%', height: 48,
+                boxSizing: 'border-box',
+                padding: '0 44px 0 16px',
+                borderRadius: 12,
+                border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--ink-1)',
+                fontSize: 14, fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                outline: 'none', colorScheme: 'dark',
+              }}
+            />
+            <button
+              onClick={function() { setShowPassword(!showPassword); }}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              type="button"
+              className="mtx-tap"
+              style={{
+                position: 'absolute', right: 6, top: 6,
+                appearance: 'none', cursor: 'pointer',
+                width: 36, height: 36, borderRadius: 8,
+                border: 0, background: 'transparent',
+                color: 'var(--ink-3)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <IcEye size={16} stroke="currentColor" strokeWidth={1.7}/>
+            </button>
+          </div>
+
+          {/* Forgot password — solo en sign-in */}
+          {isSignIn && (
+            <div style={{ textAlign: 'right', marginBottom: 14 }}>
+              <button
+                onClick={props.onForgot}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  border: 0, background: 'transparent',
+                  color: 'var(--ink-3)',
+                  fontSize: 12, fontWeight: 500,
+                  fontFamily: 'var(--ff-sans)',
+                  padding: '4px 0',
+                }}>¿Olvidaste tu contraseña?</button>
+            </div>
+          )}
+          {!isSignIn && <div style={{ height: 14 }}/>}
+
+          {/* Error inline */}
           {error && (
             <div style={{
               fontSize: 12, color: 'rgba(255,140,140,0.95)',
               fontFamily: 'var(--ff-sans)',
-              marginBottom: 10,
-              padding: '0 4px',
+              marginBottom: 12,
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255,107,107,0.06)',
+              border: '0.5px solid rgba(255,107,107,0.20)',
             }}>{error}</div>
           )}
+
+          {/* CTA primario */}
           <button
-            onClick={handleEmailContinue}
+            onClick={handleSubmit}
             disabled={!!loading}
-            aria-label="Enviar código al email"
+            aria-label={isSignIn ? 'Iniciar sesión' : 'Crear cuenta'}
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: loading ? 'wait' : 'pointer',
               width: '100%', height: 50,
               padding: '0 18px',
-              borderRadius: 14,
+              borderRadius: 12,
               border: '0.5px solid rgba(61,255,209,0.40)',
               background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
               color: 'var(--neon)',
@@ -1243,23 +1614,414 @@
               letterSpacing: '-0.005em',
               boxShadow: '0 0 0 1px rgba(61,255,209,0.16), inset 0 0 14px rgba(61,255,209,0.08)',
               opacity: loading && loading !== 'email' ? 0.5 : 1,
-              transition: 'opacity .2s',
-            }}>{loading === 'email' ? 'Enviando código…' : 'Enviar código'}</button>
+            }}>{loading === 'email'
+              ? (isSignIn ? 'Ingresando…' : 'Creando cuenta…')
+              : (isSignIn ? 'Iniciar sesión' : 'Crear cuenta')}</button>
 
-          {/* Footer legal links */}
+          {/* Demo hint */}
+          <div style={{
+            marginTop: 12,
+            fontSize: 11, color: 'var(--ink-4)',
+            fontFamily: 'var(--ff-sans)',
+            textAlign: 'center',
+            lineHeight: 1.5,
+          }}>
+            Demo: <span style={{ color: 'var(--neon)', fontWeight: 600 }}>existing@mentex.app</span> + <span style={{ color: 'var(--neon)', fontWeight: 600 }}>password123</span>
+          </div>
+
           <div style={{ flex: 1 }}/>
+          {/* Footer legal */}
           <div style={{
             padding: '20px 0 8px',
             textAlign: 'center',
             fontSize: 11, color: 'var(--ink-4)',
             fontFamily: 'var(--ff-sans)',
             letterSpacing: '-0.005em',
+            lineHeight: 1.6,
           }}>
             Al continuar aceptas nuestros{' '}
             <a href="#" style={{ color: 'var(--ink-3)', textDecoration: 'underline' }}>Términos</a>
             {' '}y la{' '}
             <a href="#" style={{ color: 'var(--ink-3)', textDecoration: 'underline' }}>Política de privacidad</a>.
           </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── ForgotPasswordEmailScreen — Step 1: input email ───────────────────────
+  function ForgotPasswordEmailScreen(props) {
+    var emailState = React.useState('');
+    var email = emailState[0]; var setEmail = emailState[1];
+    var loadingState = React.useState(false);
+    var loading = loadingState[0]; var setLoading = loadingState[1];
+    var errorState = React.useState(null);
+    var error = errorState[0]; var setError = errorState[1];
+    var inputRef = React.useRef(null);
+
+    React.useEffect(function() {
+      var t = setTimeout(function() { if (inputRef.current) inputRef.current.focus(); }, 200);
+      return function() { clearTimeout(t); };
+    }, []);
+
+    var handleSend = function() {
+      var trimmed = email.trim();
+      if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        setError('Ingresa un email válido');
+        return;
+      }
+      setError(null);
+      setLoading(true);
+      window.__mtxAuth.requestPasswordReset(trimmed).then(function(res) {
+        setLoading(false);
+        if (res.error) {
+          setError('No pudimos enviar el código. Reintenta.');
+          return;
+        }
+        if (props.onSent) props.onSent(trimmed);
+      });
+    };
+
+    var onKeyDown = function(e) {
+      if (e.key === 'Enter' && !loading) { e.preventDefault(); handleSend(); }
+    };
+
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 50,
+        overflow: 'hidden',
+        animation: 'mtx-fade-in .35s ease',
+      }}>
+        <MeshGradientBackground/>
+
+        <div style={{
+          position: 'absolute', top: 60, left: 0, right: 0,
+          padding: '0 16px',
+          display: 'flex', alignItems: 'center',
+          zIndex: 3, height: 36,
+        }}>
+          <button
+            onClick={props.onBack}
+            aria-label="Volver al login"
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: 36, height: 36, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              color: 'var(--ink-1)', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
+          </button>
+        </div>
+
+        <div style={{
+          position: 'absolute',
+          top: 130, left: 0, right: 0, bottom: 32,
+          padding: '0 28px',
+          zIndex: 3,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{
+            fontSize: 9.5, color: 'var(--neon)',
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+            fontWeight: 600, marginBottom: 6,
+            fontFamily: 'var(--ff-sans)',
+          }}>RECUPERAR ACCESO</div>
+          <h1 style={{
+            margin: 0, marginBottom: 8,
+            fontSize: 24, fontWeight: 700,
+            color: 'var(--ink-1)',
+            letterSpacing: '-0.025em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+            lineHeight: 1.2,
+          }}>¿Olvidaste tu contraseña?</h1>
+          <p style={{
+            margin: '0 0 22px',
+            fontSize: 13.5, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            lineHeight: 1.5,
+          }}>Sin problema. Te enviamos un código de 6 dígitos para restablecerla.</p>
+
+          <input
+            ref={inputRef}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={function(e) { setEmail(e.target.value); if (error) setError(null); }}
+            onKeyDown={onKeyDown}
+            placeholder="tu@email.com"
+            disabled={loading}
+            style={{
+              appearance: 'none', WebkitAppearance: 'none',
+              width: '100%', height: 48,
+              boxSizing: 'border-box',
+              padding: '0 16px',
+              borderRadius: 12,
+              border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
+              background: 'rgba(255,255,255,0.03)',
+              color: 'var(--ink-1)',
+              fontSize: 14, fontFamily: 'var(--ff-sans)',
+              outline: 'none', colorScheme: 'dark',
+              marginBottom: 12,
+            }}
+          />
+
+          {error && (
+            <div style={{
+              fontSize: 12, color: 'rgba(255,140,140,0.95)',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 12,
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255,107,107,0.06)',
+              border: '0.5px solid rgba(255,107,107,0.20)',
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={handleSend}
+            disabled={loading}
+            aria-label="Enviar código de recuperación"
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: loading ? 'wait' : 'pointer',
+              width: '100%', height: 50,
+              borderRadius: 12,
+              border: '0.5px solid rgba(61,255,209,0.40)',
+              background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
+              color: 'var(--neon)',
+              fontSize: 14.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              boxShadow: '0 0 0 1px rgba(61,255,209,0.16), inset 0 0 14px rgba(61,255,209,0.08)',
+              opacity: loading ? 0.6 : 1,
+            }}>{loading ? 'Enviando…' : 'Enviar código'}</button>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── ForgotPasswordNewScreen — Step 3: nueva contraseña + confirm ──────────
+  function ForgotPasswordNewScreen(props) {
+    var pwState = React.useState('');
+    var pw = pwState[0]; var setPw = pwState[1];
+    var pw2State = React.useState('');
+    var pw2 = pw2State[0]; var setPw2 = pw2State[1];
+    var showState = React.useState(false);
+    var show = showState[0]; var setShow = showState[1];
+    var loadingState = React.useState(false);
+    var loading = loadingState[0]; var setLoading = loadingState[1];
+    var errorState = React.useState(null);
+    var error = errorState[0]; var setError = errorState[1];
+    var inputRef = React.useRef(null);
+
+    React.useEffect(function() {
+      var t = setTimeout(function() { if (inputRef.current) inputRef.current.focus(); }, 200);
+      return function() { clearTimeout(t); };
+    }, []);
+
+    var strength = React.useMemo(function() {
+      if (!pw) return 0;
+      var score = 0;
+      if (pw.length >= 6) score++;
+      if (pw.length >= 10) score++;
+      if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+      if (/\d/.test(pw)) score++;
+      if (/[^a-zA-Z0-9]/.test(pw)) score++;
+      return Math.min(score, 4);
+    }, [pw]);
+
+    var handleSubmit = function() {
+      if (pw.length < 6) return setError('La contraseña necesita 6+ caracteres');
+      if (pw !== pw2) return setError('Las contraseñas no coinciden');
+      setError(null);
+      setLoading(true);
+      window.__mtxAuth.resetPassword(pw).then(function(res) {
+        setLoading(false);
+        if (res.error) { setError('No pudimos restablecer la contraseña.'); return; }
+        // Auto-login + drop al app via MentexApp routing
+      });
+    };
+
+    var strengthLabels = ['', 'Débil', 'Aceptable', 'Buena', 'Excelente'];
+    var strengthColors = ['', '#FF6B6B', '#FFB347', '#9DB7FF', '#3DFFD1'];
+
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 50,
+        overflow: 'hidden',
+        animation: 'mtx-fade-in .35s ease',
+      }}>
+        <MeshGradientBackground/>
+
+        <div style={{
+          position: 'absolute', top: 60, left: 0, right: 0,
+          padding: '0 16px',
+          display: 'flex', alignItems: 'center',
+          zIndex: 3, height: 36,
+        }}>
+          <button
+            onClick={props.onBack}
+            aria-label="Volver"
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: 36, height: 36, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              color: 'var(--ink-1)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
+          </button>
+        </div>
+
+        <div style={{
+          position: 'absolute',
+          top: 130, left: 0, right: 0, bottom: 32,
+          padding: '0 28px',
+          zIndex: 3,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{
+            fontSize: 9.5, color: 'var(--neon)',
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+            fontWeight: 600, marginBottom: 6,
+            fontFamily: 'var(--ff-sans)',
+          }}>NUEVA CONTRASEÑA</div>
+          <h1 style={{
+            margin: 0, marginBottom: 8,
+            fontSize: 24, fontWeight: 700,
+            color: 'var(--ink-1)',
+            letterSpacing: '-0.025em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+          }}>Crea una nueva</h1>
+          <p style={{
+            margin: '0 0 22px',
+            fontSize: 13, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            lineHeight: 1.5,
+          }}>Algo que recuerdes pero solo tú sepas. Mínimo 6 caracteres.</p>
+
+          {/* Password 1 */}
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              ref={inputRef}
+              type={show ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={pw}
+              onChange={function(e) { setPw(e.target.value); if (error) setError(null); }}
+              placeholder="Nueva contraseña"
+              disabled={loading}
+              style={{
+                appearance: 'none', WebkitAppearance: 'none',
+                width: '100%', height: 48,
+                boxSizing: 'border-box',
+                padding: '0 44px 0 16px',
+                borderRadius: 12,
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--ink-1)',
+                fontSize: 14, fontFamily: 'var(--ff-sans)',
+                outline: 'none', colorScheme: 'dark',
+              }}
+            />
+            <button
+              onClick={function() { setShow(!show); }}
+              aria-label={show ? 'Ocultar' : 'Mostrar'}
+              type="button"
+              className="mtx-tap"
+              style={{
+                position: 'absolute', right: 6, top: 6,
+                appearance: 'none', cursor: 'pointer',
+                width: 36, height: 36, borderRadius: 8,
+                border: 0, background: 'transparent',
+                color: 'var(--ink-3)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <IcEye size={16} stroke="currentColor" strokeWidth={1.7}/>
+            </button>
+          </div>
+
+          {/* Strength bar */}
+          {pw && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 5 }}>
+                {[0, 1, 2, 3].map(function(i) {
+                  return (
+                    <div key={i} style={{
+                      flex: 1, height: 3, borderRadius: 999,
+                      background: i < strength ? strengthColors[strength] : 'rgba(255,255,255,0.06)',
+                      transition: 'background .2s',
+                    }}/>
+                  );
+                })}
+              </div>
+              <div style={{
+                fontSize: 11, color: strengthColors[strength] || 'var(--ink-4)',
+                fontFamily: 'var(--ff-sans)',
+                fontWeight: 500,
+              }}>{strengthLabels[strength]}</div>
+            </div>
+          )}
+
+          {/* Password confirm */}
+          <input
+            type={show ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={pw2}
+            onChange={function(e) { setPw2(e.target.value); if (error) setError(null); }}
+            placeholder="Confirma tu contraseña"
+            disabled={loading}
+            style={{
+              appearance: 'none', WebkitAppearance: 'none',
+              width: '100%', height: 48,
+              boxSizing: 'border-box',
+              padding: '0 16px',
+              borderRadius: 12,
+              border: '0.5px solid ' + (pw2 && pw2 !== pw ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
+              background: 'rgba(255,255,255,0.03)',
+              color: 'var(--ink-1)',
+              fontSize: 14, fontFamily: 'var(--ff-sans)',
+              outline: 'none', colorScheme: 'dark',
+              marginBottom: 12,
+            }}
+          />
+
+          {error && (
+            <div style={{
+              fontSize: 12, color: 'rgba(255,140,140,0.95)',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 12,
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255,107,107,0.06)',
+              border: '0.5px solid rgba(255,107,107,0.20)',
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            aria-label="Restablecer contraseña"
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: loading ? 'wait' : 'pointer',
+              width: '100%', height: 50,
+              borderRadius: 12,
+              border: '0.5px solid rgba(61,255,209,0.40)',
+              background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
+              color: 'var(--neon)',
+              fontSize: 14.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              boxShadow: '0 0 0 1px rgba(61,255,209,0.16), inset 0 0 14px rgba(61,255,209,0.08)',
+              opacity: loading ? 0.6 : 1,
+            }}>{loading ? 'Restableciendo…' : 'Restablecer y entrar'}</button>
         </div>
       </div>
     );
@@ -1299,13 +2061,15 @@
     var verify = function(fullOtp) {
       setLoading(true);
       setError(null);
-      window.__mtxAuth.verifyOTP(fullOtp).then(function(res) {
+      // verifyFn es customizable: forgot-password flow pasa verifyResetOTP,
+      // signup pasa verifyOTP por default. props.onVerified callback corre
+      // después del ok (e.g. forgot navega a nueva contraseña screen).
+      var verifyFn = props.verifyFn || function(otp) { return window.__mtxAuth.verifyOTP(otp); };
+      verifyFn(fullOtp).then(function(res) {
         setLoading(false);
         if (res.error === 'wrong_otp') {
           setAttempts(function(n) { return n + 1; });
           setError('Código incorrecto. Intenta de nuevo.');
-          // Shake animation: limpiar inputs después de 600ms para que el user
-          // pueda tipear de nuevo sin tener que borrar manualmente.
           setTimeout(function() {
             setDigits(['', '', '', '', '', '']);
             if (inputs.current[0]) inputs.current[0].focus();
@@ -1313,7 +2077,9 @@
           return;
         }
         if (res.ok) {
-          // El effect de auth en MentexApp navega automáticamente
+          if (props.onVerified) props.onVerified(res);
+          // Si no hay onVerified custom, el effect de auth en MentexApp navega
+          // automáticamente para el caso signup.
         }
       });
     };
@@ -1533,7 +2299,10 @@
     WelcomeScreen: WelcomeScreen,
     AuthScreen: AuthScreen,
     AuthOTPScreen: AuthOTPScreen,
+    ForgotPasswordEmailScreen: ForgotPasswordEmailScreen,
+    ForgotPasswordNewScreen: ForgotPasswordNewScreen,
     MentexZenIcon: MentexZenIcon,
+    MentexLogoMark: MentexLogoMark,
   });
 
 })();
