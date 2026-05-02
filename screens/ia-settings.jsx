@@ -90,25 +90,30 @@
       _emit();
     },
 
-    // Memory
-    addMemory: function(type, content) {
-      var trimmed = String(content || '').trim();
-      if (!trimmed) return null;
+    // Memory — shape: { id, type, label, value, createdAt }
+    //   label: título corto (one-line en lista). REQUERIDO.
+    //   value: detalle opcional (multi-line, oculto en lista, visible en detail).
+    addMemory: function(type, label, value) {
+      var l = String(label || '').trim();
+      if (!l) return null;
       var fact = {
         id: _genId('mem'),
         type: type || 'context',
-        content: trimmed,
+        label: l,
+        value: String(value || '').trim(),
         createdAt: Date.now(),
       };
       _state.memory = _state.memory.concat([fact]);
       _emit();
       return fact;
     },
-    updateMemory: function(id, content) {
-      var trimmed = String(content || '').trim();
-      if (!trimmed) return;
+    updateMemory: function(id, patch) {
       _state.memory = _state.memory.map(function(m) {
-        return m.id === id ? Object.assign({}, m, { content: trimmed }) : m;
+        if (m.id !== id) return m;
+        var next = Object.assign({}, m, patch);
+        if (typeof next.label === 'string') next.label = next.label.trim();
+        if (typeof next.value === 'string') next.value = next.value.trim();
+        return next;
       });
       _emit();
     },
@@ -243,10 +248,10 @@ var _INTEGRATIONS = [
     scopes: ['Leer páginas seleccionadas', 'Crear páginas en una base'] },
   { id: 'linear',         label: 'Linear',          emoji: '⚡', desc: 'Crea tareas y revisa tu queue',
     scopes: ['Ver issues', 'Crear issues asignados a ti'] },
-  { id: 'spotify',        label: 'Spotify',         emoji: '🎵', desc: 'Reproduce playlists de enfoque',
-    scopes: ['Ver tu biblioteca', 'Reproducir música'] },
-  { id: 'slack',          label: 'Slack',           emoji: '💼', desc: 'Activa modo No Molestar durante el enfoque',
-    scopes: ['Cambiar tu status', 'Activar Do Not Disturb'] },
+  { id: 'spotify',        label: 'Spotify',         emoji: '🎵', desc: 'Abre playlists de enfoque desde el coach',
+    scopes: ['Ver tu biblioteca', 'Abrir playlists vía deep-link', 'Pausar/reanudar (solo Premium)'] },
+  { id: 'slack',          label: 'Slack',           emoji: '💼', desc: 'Si trabajas con Slack: status "Enfocado" + No Molestar durante sesiones',
+    scopes: ['Cambiar tu status a "Enfocado"', 'Activar Do Not Disturb', 'Restaurar al terminar la sesión'] },
 ];
 
 
@@ -678,12 +683,55 @@ function ToggleRow(props) {
 // TAB ② — MemoryTab
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Quick-chip suggestions por categoría — pre-pueblan el campo "label" al tap.
+// Diseñados para que el user empiece desde una plantilla común y la edite,
+// reduciendo fricción y guiando hacia entradas estructuradas.
+var _MEMORY_SUGGESTIONS = {
+  identity: [
+    'Soy data scientist',
+    'Trabajo en producto',
+    'Estudio medicina',
+    'Soy padre/madre',
+    'Soy emprendedor',
+    'Soy estudiante',
+    'Soy diseñador',
+    'Soy desarrollador',
+  ],
+  goal: [
+    '4h diarias de enfoque',
+    'Hacer ejercicio 5 días/semana',
+    'Aprender un idioma',
+    'Terminar mi tesis',
+    'Lanzar mi proyecto este trimestre',
+    'Leer 12 libros este año',
+    'Meditar 10 min al día',
+  ],
+  context: [
+    'Cambio de ciudad reciente',
+    'Trabajo nuevo',
+    'Etapa creativa intensa',
+    'Recuperación de lesión',
+    'Año sabático',
+    'Maternidad/paternidad reciente',
+    'Cambio de carrera',
+  ],
+  preference: [
+    'Soy más productivo de mañana',
+    'Prefiero respuestas concretas',
+    'Sin emojis, por favor',
+    'Música ambient durante enfoque',
+    'Sesiones de 90 min máximo',
+    'Detesto las metáforas',
+  ],
+};
+
+
 function MemoryTab() {
   var config = useIAConfig();
   var addCtxState = React.useState(null);
   var addCtx = addCtxState[0]; var setAddCtx = addCtxState[1];
-  var editCtxState = React.useState(null);
-  var editCtx = editCtxState[0]; var setEditCtx = editCtxState[1];
+  var detailCtxState = React.useState(null);
+  var detailCtx = detailCtxState[0]; var setDetailCtx = detailCtxState[1];
 
   if (!config) return null;
   var memory = config.memory;
@@ -701,6 +749,10 @@ function MemoryTab() {
     }
   };
 
+  // Helper: legacy facts pueden tener `content` en vez de `label`
+  var factLabel = function(m) { return m.label || m.content || ''; };
+  var factValue = function(m) { return m.value || ''; };
+
   return (
     <div style={{ animation: 'mtx-fade-up .25s ease both' }}>
       <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 14,
@@ -711,7 +763,7 @@ function MemoryTab() {
           Lo que el coach recuerda de ti
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.45 }}>
-          Estos datos alimentan el contexto cada vez que hablas con tu coach. Solo tú los puedes ver y editar.
+          Estos datos alimentan el contexto cada vez que hablas con tu coach. Toca un recuerdo para ver el detalle.
         </div>
       </div>
 
@@ -723,7 +775,9 @@ function MemoryTab() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 4px 8px',
             }}>
-              <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: type.accent }}>{type.label}</span>
+              <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: type.accent }}>
+                {type.label} {items.length > 0 ? '· ' + items.length : ''}
+              </span>
               <button onClick={function() { setAddCtx({ type: type.id }); }}
                 aria-label={'Agregar a ' + type.label}
                 className="mtx-tap"
@@ -749,50 +803,44 @@ function MemoryTab() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {items.map(function(m) {
+                  var hasValue = factValue(m).length > 0;
                   return (
-                    <div key={m.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 12px', borderRadius: 12,
-                      background: 'rgba(255,255,255,0.025)',
-                      border: '0.5px solid rgba(255,255,255,0.05)',
-                    }}>
+                    <button key={m.id}
+                      onClick={function() { setDetailCtx(m); }}
+                      className="mtx-tap"
+                      style={{
+                        appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', borderRadius: 12,
+                        background: 'rgba(255,255,255,0.025)',
+                        border: '0.5px solid rgba(255,255,255,0.05)',
+                        fontFamily: 'var(--ff-sans)',
+                        transition: 'background .2s, border-color .2s',
+                      }}>
                       <span style={{
-                        width: 4, height: 16, borderRadius: 2,
+                        width: 3, height: 18, borderRadius: 2,
                         background: type.accent, flexShrink: 0,
                       }}/>
-                      <div style={{ flex: 1, minWidth: 0,
-                        fontSize: 12.5, color: 'var(--ink-1)',
-                        lineHeight: 1.4, letterSpacing: '-0.005em',
-                      }}>{m.content}</div>
-                      <button onClick={function() { setEditCtx(m); }}
-                        aria-label="Editar"
-                        className="mtx-tap"
-                        style={{
-                          appearance: 'none', cursor: 'pointer',
-                          width: 28, height: 28, borderRadius: 999,
-                          background: 'transparent',
-                          color: 'var(--ink-3)', border: 0,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                        <IcEdit size={12} stroke="currentColor" strokeWidth={1.8}/>
-                      </button>
-                      <button onClick={function() {
-                          if (window.confirm('¿Eliminar este recuerdo?')) {
-                            window.__mtxIAConfig.removeMemory(m.id);
-                          }
-                        }}
-                        aria-label="Eliminar"
-                        className="mtx-tap"
-                        style={{
-                          appearance: 'none', cursor: 'pointer',
-                          width: 28, height: 28, borderRadius: 999,
-                          background: 'transparent',
-                          color: 'var(--ink-4)', border: 0,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                        <IcClose size={12} stroke="currentColor" strokeWidth={1.8}/>
-                      </button>
-                    </div>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          fontSize: 12.5, fontWeight: 500, color: 'var(--ink-1)',
+                          letterSpacing: '-0.005em',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          flex: 1, minWidth: 0,
+                        }}>{factLabel(m)}</span>
+                        {hasValue && (
+                          <span style={{
+                            flexShrink: 0,
+                            fontSize: 9, fontWeight: 700,
+                            padding: '1.5px 6px', borderRadius: 999,
+                            background: 'rgba(255,255,255,0.04)',
+                            color: 'var(--ink-3)',
+                            letterSpacing: '0.04em', textTransform: 'uppercase',
+                          }}>+ detalle</span>
+                        )}
+                      </div>
+                      <IcChevR size={11} stroke="var(--ink-4)" strokeWidth={1.8}/>
+                    </button>
                   );
                 })}
               </div>
@@ -815,28 +863,33 @@ function MemoryTab() {
           }}>Olvidar todo</button>
       )}
 
-      {/* Add modal */}
+      {/* Add modal — categorizado por tipo (Identidad/Metas/Contexto/Pref) */}
       {addCtx && (
-        <MemoryEditModal
+        <MemoryAddModal
           type={addCtx.type}
-          initialValue=""
-          onSave={function(v) {
-            window.__mtxIAConfig.addMemory(addCtx.type, v);
+          onSave={function(label, value) {
+            window.__mtxIAConfig.addMemory(addCtx.type, label, value);
             setAddCtx(null);
           }}
           onClose={function() { setAddCtx(null); }}
         />
       )}
-      {/* Edit modal */}
-      {editCtx && (
-        <MemoryEditModal
-          type={editCtx.type}
-          initialValue={editCtx.content}
-          onSave={function(v) {
-            window.__mtxIAConfig.updateMemory(editCtx.id, v);
-            setEditCtx(null);
+
+      {/* Detail sheet — view/edit/delete */}
+      {detailCtx && (
+        <MemoryDetailSheet
+          fact={detailCtx}
+          onClose={function() { setDetailCtx(null); }}
+          onSave={function(patch) {
+            window.__mtxIAConfig.updateMemory(detailCtx.id, patch);
+            setDetailCtx(null);
           }}
-          onClose={function() { setEditCtx(null); }}
+          onDelete={function() {
+            if (window.confirm('¿Eliminar este recuerdo?')) {
+              window.__mtxIAConfig.removeMemory(detailCtx.id);
+              setDetailCtx(null);
+            }
+          }}
         />
       )}
     </div>
@@ -844,41 +897,161 @@ function MemoryTab() {
 }
 
 
-function MemoryEditModal(props) {
+// MemoryAddModal — bottom sheet categorizado, una sola implementación pero
+// con UX específica por tipo (color, eyebrow, suggestions, placeholders).
+// Estructura: title input (label) + detalle textarea (value) + quick-chips
+// que pre-pueblan el label.
+function MemoryAddModal(props) {
   var type = _MEMORY_TYPES.find(function(t) { return t.id === props.type; }) || _MEMORY_TYPES[0];
-  var valState = React.useState(props.initialValue || '');
-  var val = valState[0]; var setVal = valState[1];
-  var inputRef = React.useRef(null);
+  var labelState = React.useState('');
+  var label = labelState[0]; var setLabel = labelState[1];
+  var valueState = React.useState('');
+  var value = valueState[0]; var setValue = valueState[1];
+  var labelRef = React.useRef(null);
 
   React.useEffect(function() {
-    setTimeout(function() { if (inputRef.current) inputRef.current.focus(); }, 100);
+    setTimeout(function() { if (labelRef.current) labelRef.current.focus(); }, 100);
   }, []);
+
+  // ESC cierra
+  React.useEffect(function() {
+    var onKey = function(e) {
+      if (e.key !== 'Escape') return;
+      var t = e.target;
+      var tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      props.onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, []);
+
+  var suggestions = _MEMORY_SUGGESTIONS[type.id] || [];
+
+  var placeholders = {
+    identity:   { label: 'Quién eres en una frase',          value: 'Detalle: tu rol, contexto, lo que define tu día a día' },
+    goal:       { label: 'Qué quieres lograr',                value: 'Por qué te importa, cuándo, qué pasa si lo logras' },
+    context:    { label: 'Tu situación actual en una frase', value: 'Cómo te afecta, qué condiciona tus decisiones' },
+    preference: { label: 'Cómo te gusta trabajar',           value: 'En qué momento, con qué estilo, qué evitar' },
+  };
+  var ph = placeholders[type.id] || { label: 'Título corto', value: 'Detalle (opcional)' };
 
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 110,
       background: 'rgba(0,0,0,0.6)',
       backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      padding: 20,
-      animation: 'mtx-fade-up .2s ease',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      animation: 'mtx-fade-up .25s ease',
     }} onClick={props.onClose}>
       <div onClick={function(e) { e.stopPropagation(); }} style={{
-        width: '100%', maxWidth: 360,
-        padding: 18,
-        borderRadius: 22,
         background: 'rgba(15,19,19,0.96)',
-        border: '0.5px solid rgba(255,255,255,0.10)',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-        marginBottom: 30,
-      }}>
-        <div className="mtx-eyebrow" style={{ fontSize: 10, marginBottom: 8, color: type.accent }}>{type.label}</div>
+        backdropFilter: 'blur(28px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+        borderTop: '0.5px solid rgba(255,255,255,0.10)',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        padding: '14px 20px 24px',
+        boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+        maxHeight: '90%', overflow: 'auto',
+        animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+      }} className="mtx-no-scrollbar">
+        {/* Grabber */}
+        <div style={{
+          width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+          background: 'rgba(255,255,255,0.16)',
+        }}/>
+
+        {/* Header con accent color de la categoría */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          marginBottom: 16, gap: 12,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mtx-eyebrow" style={{
+              fontSize: 9.5, marginBottom: 4, color: type.accent,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: type.accent,
+                boxShadow: '0 0 8px ' + type.accent + 'AA',
+              }}/>
+              Nuevo · {type.label}
+            </div>
+            <div style={{
+              fontSize: 16, fontWeight: 600, color: 'var(--ink-1)',
+              letterSpacing: '-0.018em',
+              fontFamily: 'var(--ff-sans)',
+            }}>{type.desc}</div>
+          </div>
+          <button onClick={props.onClose} aria-label="Cerrar" style={{
+            width: 32, height: 32, borderRadius: 999,
+            background: 'rgba(255,255,255,0.04)',
+            border: '0.5px solid rgba(255,255,255,0.06)',
+            color: 'var(--ink-2)', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}><IcClose size={14} stroke="currentColor"/></button>
+        </div>
+
+        {/* Label input — corto, una línea */}
+        <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 6, color: 'var(--ink-3)' }}>Título</div>
+        <input
+          ref={labelRef}
+          type="text"
+          value={label}
+          onChange={function(e) { setLabel(e.target.value); }}
+          placeholder={ph.label}
+          maxLength={80}
+          style={{
+            width: '100%',
+            appearance: 'none', border: 0, outline: 'none',
+            background: 'rgba(255,255,255,0.04)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            borderRadius: 12,
+            padding: '11px 14px',
+            color: 'var(--ink-1)',
+            fontSize: 14, fontWeight: 500,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 14,
+          }}
+        />
+
+        {/* Quick suggestions chips */}
+        {suggestions.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-4)' }}>Sugerencias rápidas</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {suggestions.map(function(s, i) {
+                return (
+                  <button key={i}
+                    onClick={function() { setLabel(s); if (labelRef.current) labelRef.current.focus(); }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '5px 10px', borderRadius: 999,
+                      background: 'rgba(255,255,255,0.025)',
+                      border: '0.5px solid ' + type.accent + '20',
+                      color: 'var(--ink-2)',
+                      fontSize: 11, fontWeight: 500, fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                    }}>{s}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Value textarea — opcional, multi-línea */}
+        <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 6, color: 'var(--ink-3)' }}>
+          Detalle <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>· opcional</span>
+        </div>
         <textarea
-          ref={inputRef}
-          value={val}
-          onChange={function(e) { setVal(e.target.value); }}
-          placeholder={type.desc + '...'}
-          maxLength={200}
+          value={value}
+          onChange={function(e) { setValue(e.target.value); }}
+          placeholder={ph.value}
+          maxLength={500}
           rows={3}
           style={{
             width: '100%',
@@ -886,38 +1059,259 @@ function MemoryEditModal(props) {
             background: 'rgba(255,255,255,0.04)',
             border: '0.5px solid rgba(255,255,255,0.08)',
             borderRadius: 12,
-            padding: '10px 12px',
+            padding: '11px 14px',
             color: 'var(--ink-1)',
-            fontSize: 13.5, lineHeight: 1.45,
+            fontSize: 13, lineHeight: 1.45,
             fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
             resize: 'none',
-            marginBottom: 12,
+            marginBottom: 14,
           }}
         />
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={props.onClose} style={{
             appearance: 'none', cursor: 'pointer',
-            flex: 1, padding: '10px 14px', borderRadius: 12,
+            flex: 1, padding: '11px 14px', borderRadius: 14,
             background: 'rgba(255,255,255,0.04)',
             border: '0.5px solid rgba(255,255,255,0.06)',
             color: 'var(--ink-2)',
             fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
           }}>Cancelar</button>
           <button
-            onClick={function() { if (val.trim()) props.onSave(val); }}
-            disabled={!val.trim()}
+            onClick={function() { if (label.trim()) props.onSave(label, value); }}
+            disabled={!label.trim()}
             style={{
-              appearance: 'none', cursor: val.trim() ? 'pointer' : 'not-allowed',
-              flex: 1, padding: '10px 14px', borderRadius: 12,
-              background: val.trim()
+              appearance: 'none', cursor: label.trim() ? 'pointer' : 'not-allowed',
+              flex: 1, padding: '11px 14px', borderRadius: 14,
+              background: label.trim()
                 ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
                 : 'rgba(255,255,255,0.04)',
               border: 0,
-              color: val.trim() ? '#0a1410' : 'var(--ink-4)',
+              color: label.trim() ? '#0a1410' : 'var(--ink-4)',
               fontSize: 13, fontWeight: 700, fontFamily: 'var(--ff-sans)',
-              opacity: val.trim() ? 1 : 0.5,
-            }}>Guardar</button>
+              opacity: label.trim() ? 1 : 0.5,
+              boxShadow: label.trim() ? '0 6px 16px -4px rgba(61,255,209,0.4)' : 'none',
+            }}>Guardar recuerdo</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// MemoryDetailSheet — bottom sheet que muestra el fact completo con view/edit
+// in-place (label + value editables) + delete. Llamado al tap de un row.
+function MemoryDetailSheet(props) {
+  var type = _MEMORY_TYPES.find(function(t) { return t.id === props.fact.type; }) || _MEMORY_TYPES[0];
+  // Edit mode in-place (no separate modal). Initially false → solo view.
+  // Tap "Editar" → fields se vuelven editables.
+  var editingState = React.useState(false);
+  var editing = editingState[0]; var setEditing = editingState[1];
+
+  var initialLabel = props.fact.label || props.fact.content || '';
+  var initialValue = props.fact.value || '';
+  var labelState = React.useState(initialLabel);
+  var label = labelState[0]; var setLabel = labelState[1];
+  var valueState = React.useState(initialValue);
+  var value = valueState[0]; var setValue = valueState[1];
+
+  React.useEffect(function() {
+    var onKey = function(e) {
+      if (e.key !== 'Escape') return;
+      var t = e.target;
+      var tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      props.onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, []);
+
+  var dirty = label.trim() !== initialLabel || value.trim() !== initialValue;
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 110,
+      background: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      animation: 'mtx-fade-up .25s ease',
+    }} onClick={props.onClose}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{
+        background: 'rgba(15,19,19,0.96)',
+        backdropFilter: 'blur(28px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+        borderTop: '0.5px solid rgba(255,255,255,0.10)',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        padding: '14px 20px 24px',
+        boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+        maxHeight: '90%', overflow: 'auto',
+        animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+      }} className="mtx-no-scrollbar">
+        <div style={{
+          width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+          background: 'rgba(255,255,255,0.16)',
+        }}/>
+
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          marginBottom: 16, gap: 12,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mtx-eyebrow" style={{
+              fontSize: 9.5, marginBottom: 4, color: type.accent,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: type.accent,
+                boxShadow: '0 0 8px ' + type.accent + 'AA',
+              }}/>
+              {type.label}
+            </div>
+          </div>
+          <button onClick={props.onClose} aria-label="Cerrar" style={{
+            width: 32, height: 32, borderRadius: 999,
+            background: 'rgba(255,255,255,0.04)',
+            border: '0.5px solid rgba(255,255,255,0.06)',
+            color: 'var(--ink-2)', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}><IcClose size={14} stroke="currentColor"/></button>
+        </div>
+
+        {editing ? (
+          <div>
+            <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 6, color: 'var(--ink-3)' }}>Título</div>
+            <input
+              type="text"
+              value={label}
+              onChange={function(e) { setLabel(e.target.value); }}
+              maxLength={80}
+              style={{
+                width: '100%',
+                appearance: 'none', border: 0, outline: 'none',
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                borderRadius: 12,
+                padding: '11px 14px',
+                color: 'var(--ink-1)',
+                fontSize: 14, fontWeight: 500,
+                fontFamily: 'var(--ff-sans)',
+                marginBottom: 14,
+              }}
+            />
+            <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 6, color: 'var(--ink-3)' }}>
+              Detalle <span style={{ color: 'var(--ink-4)', fontWeight: 500 }}>· opcional</span>
+            </div>
+            <textarea
+              value={value}
+              onChange={function(e) { setValue(e.target.value); }}
+              maxLength={500}
+              rows={4}
+              style={{
+                width: '100%',
+                appearance: 'none', border: 0, outline: 'none',
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                borderRadius: 12,
+                padding: '11px 14px',
+                color: 'var(--ink-1)',
+                fontSize: 13, lineHeight: 1.45,
+                fontFamily: 'var(--ff-sans)',
+                resize: 'none',
+                marginBottom: 14,
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={function() {
+                  setLabel(initialLabel);
+                  setValue(initialValue);
+                  setEditing(false);
+                }} style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '11px 14px', borderRadius: 14,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                color: 'var(--ink-2)',
+                fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+              }}>Cancelar</button>
+              <button
+                onClick={function() {
+                  if (label.trim()) props.onSave({ label: label, value: value });
+                }}
+                disabled={!label.trim() || !dirty}
+                style={{
+                  appearance: 'none', cursor: (label.trim() && dirty) ? 'pointer' : 'not-allowed',
+                  flex: 1, padding: '11px 14px', borderRadius: 14,
+                  background: (label.trim() && dirty)
+                    ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
+                    : 'rgba(255,255,255,0.04)',
+                  border: 0,
+                  color: (label.trim() && dirty) ? '#0a1410' : 'var(--ink-4)',
+                  fontSize: 13, fontWeight: 700, fontFamily: 'var(--ff-sans)',
+                  opacity: (label.trim() && dirty) ? 1 : 0.5,
+                }}>Guardar</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            {/* View mode */}
+            <div style={{
+              padding: '14px 16px', borderRadius: 16,
+              background: 'rgba(255,255,255,0.025)',
+              border: '0.5px solid ' + type.accent + '24',
+              marginBottom: 14,
+            }}>
+              <div style={{
+                fontSize: 16, fontWeight: 600, color: 'var(--ink-1)',
+                letterSpacing: '-0.018em', lineHeight: 1.35,
+                marginBottom: initialValue ? 8 : 0,
+              }}>{initialLabel}</div>
+              {initialValue && (
+                <div style={{
+                  fontSize: 12.5, color: 'var(--ink-3)',
+                  lineHeight: 1.5, letterSpacing: '-0.005em',
+                  whiteSpace: 'pre-wrap',
+                  paddingTop: 8,
+                  borderTop: '0.5px solid rgba(255,255,255,0.04)',
+                }}>{initialValue}</div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={function() { setEditing(true); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 1, padding: '11px 14px', borderRadius: 14,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  color: 'var(--ink-1)',
+                  fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                <IcEdit size={13} stroke="currentColor" strokeWidth={1.7}/>
+                Editar
+              </button>
+              <button onClick={props.onDelete}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 1, padding: '11px 14px', borderRadius: 14,
+                  background: 'rgba(255,107,107,0.06)',
+                  border: '0.5px solid rgba(255,107,107,0.20)',
+                  color: '#ff8b8b',
+                  fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                <IcClose size={13} stroke="currentColor" strokeWidth={1.7}/>
+                Eliminar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
