@@ -191,101 +191,104 @@ function _markCoachWhisperShown() {
   try { localStorage.setItem('__mtx_whisper_lastShown', String(Date.now())); } catch (_) {}
 }
 
-// ── CoachWhisperBubble — speech bubble que sale del botón ✦ ───────────────
-// Aparece anclado debajo del button ✦ del header con tail apuntando hacia
-// arriba. Tap en CTA primary → abre el chat (onOpenCoach). Tap en × o
-// fuera del bubble → cierra. Auto-dismiss a los 12s para no acumular.
+// ── CoachWhisperBubble — speech bubble sutil del botón ✦ ──────────────────
+// Diseño tranquilo, no spam: glass más translucent, border neutro (no neon
+// agresivo), CTA inline tipográfico (no fill button shouty). Animación
+// fade pura larga (slide-up suave, no abrupto). Auto-dismiss a 14s.
 function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss }) {
   const { msg, cta } = _coachWhisperMessage(coachVoice, firstName);
 
   React.useEffect(() => {
-    const t = setTimeout(() => onDismiss(), 12000);
+    const t = setTimeout(() => onDismiss(), 14000);
     return () => clearTimeout(t);
   }, [onDismiss]);
 
   return (
     <div style={{
-      position:'absolute', top:128, right:14,
-      maxWidth:280,
-      animation:'mtx-fade-up .35s ease both',
+      position:'absolute', top:130, right:14,
+      width:268,
+      animation:'mtx-whisper-in .55s cubic-bezier(.22,.9,.32,1) both',
       zIndex:6,
       fontFamily:'var(--ff-sans)',
     }}>
-      {/* Tail — pequeño cuadro rotado 45° apuntando arriba al botón ✦.
-          Right:62 alinea con el centro del botón ✦ (top:78 right:70 width:44
-          → centro a right:92, pero el bubble está en right:14 con maxWidth
-          → tail right relativo al bubble: ~62 desde right). */}
+      {/* Tail — cuadrito sutil con bg sin border. El bg matchea exacto
+          el del bubble para que se vea como continuación natural. */}
       <div style={{
-        position:'absolute', top:-6, right:62,
-        width:12, height:12,
-        background:'rgba(10,14,12,0.92)',
-        borderTop:'0.5px solid rgba(61,255,209,0.30)',
-        borderLeft:'0.5px solid rgba(61,255,209,0.30)',
+        position:'absolute', top:-5, right:62,
+        width:11, height:11,
+        background:'rgba(20,24,22,0.72)',
+        backdropFilter:'blur(28px) saturate(180%)',
+        WebkitBackdropFilter:'blur(28px) saturate(180%)',
+        borderTop:'0.5px solid rgba(255,255,255,0.08)',
+        borderLeft:'0.5px solid rgba(255,255,255,0.08)',
         transform:'rotate(45deg)',
         zIndex:0,
       }}/>
-      {/* Bubble */}
+      {/* Bubble — translucent glass, border neutro, sin neon outline */}
       <div style={{
         position:'relative',
-        background:'rgba(10,14,12,0.92)',
-        border:'0.5px solid rgba(61,255,209,0.30)',
-        borderRadius:18,
-        padding:'14px 16px 14px',
-        boxShadow:'0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)',
-        backdropFilter:'blur(20px) saturate(160%)',
-        WebkitBackdropFilter:'blur(20px) saturate(160%)',
+        background:'rgba(20,24,22,0.72)',
+        border:'0.5px solid rgba(255,255,255,0.10)',
+        borderRadius:20,
+        padding:'14px 16px 12px',
+        boxShadow:'0 16px 40px rgba(0,0,0,0.32), 0 0 0 0.5px rgba(255,255,255,0.02), inset 0 1px 0 rgba(255,255,255,0.06)',
+        backdropFilter:'blur(28px) saturate(180%)',
+        WebkitBackdropFilter:'blur(28px) saturate(180%)',
       }}>
-        {/* Close × top-right */}
+        {/* Close × top-right — más sutil */}
         <button
           onClick={onDismiss}
           aria-label="Cerrar"
           className="mtx-tap"
           style={{
-            position:'absolute', top:8, right:8,
-            width:22, height:22, borderRadius:999,
-            background:'rgba(255,255,255,0.05)', border:'none',
-            color:'var(--ink-3)', cursor:'pointer',
-            fontSize:13, lineHeight:1,
+            position:'absolute', top:6, right:6,
+            width:24, height:24, borderRadius:999,
+            background:'transparent', border:'none',
+            color:'rgba(255,255,255,0.40)', cursor:'pointer',
+            fontSize:14, lineHeight:1, fontWeight:300,
             display:'flex', alignItems:'center', justifyContent:'center',
           }}
         >×</button>
 
-        {/* Eyebrow */}
+        {/* Eyebrow — sin uppercase forzado, color más sutil con opacity */}
         <div style={{
-          fontSize:9, fontWeight:700, color:'var(--neon)',
-          letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:5,
+          fontSize:10.5, fontWeight:600,
+          color:'rgba(61,255,209,0.85)',
+          letterSpacing:'0.04em',
+          marginBottom:6,
           display:'inline-flex', alignItems:'center', gap:5,
         }}>
-          <IcSparkles size={11} stroke="currentColor" strokeWidth={2}/>
+          <IcSparkles size={11} stroke="currentColor" strokeWidth={1.8}/>
           Tu coach
         </div>
 
-        {/* Mensaje */}
+        {/* Mensaje — más respiro, color con leve opacity */}
         <div style={{
-          fontSize:13, lineHeight:1.4, color:'var(--ink-1)',
-          marginBottom:12, paddingRight:14,
+          fontSize:13.5, lineHeight:1.5,
+          color:'rgba(255,255,255,0.92)',
+          marginBottom:10, paddingRight:14,
           letterSpacing:'-0.005em',
+          fontWeight:400,
         }}>{msg}</div>
 
-        {/* CTA primary */}
+        {/* CTA — inline tipográfico, no fill button. Subtle neon link
+            con flecha animada. Más Apple/Linear que Spotify-loud. */}
         <button
           onClick={onOpen}
           className="mtx-tap"
           style={{
             appearance:'none', cursor:'pointer',
-            width:'100%', height:36,
-            borderRadius:11,
-            background:'var(--neon)',
-            color:'#02110b', border:'none',
-            fontSize:12.5, fontWeight:700,
+            background:'transparent', border:'none',
+            padding:'4px 0', margin:0,
+            color:'var(--neon)',
+            fontSize:13, fontWeight:600,
             letterSpacing:'-0.005em',
             fontFamily:'var(--ff-sans)',
-            boxShadow:'0 6px 18px rgba(61,255,209,0.30)',
-            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            display:'inline-flex', alignItems:'center', gap:5,
           }}
         >
           {cta}
-          <IcChevR size={13} stroke="currentColor" strokeWidth={2.4}/>
+          <IcChevR size={12} stroke="currentColor" strokeWidth={2.2}/>
         </button>
       </div>
     </div>
