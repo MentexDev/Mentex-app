@@ -44,7 +44,7 @@
   <script type="text/babel" src="screens/profile.jsx?v=28"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=51"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -109,6 +109,13 @@
       const [interruptedOpen, setInterruptedOpen] = React.useState(false);
       const [interruptedStats, setInterruptedStats] = React.useState({ elapsedMin: 0 });
       const [userProfileId, setUserProfileId] = React.useState(null); // userId del perfil de otro usuario abierto
+      // tabBarHidden — Reflejo del store global __mtxNav. Cada flow (Explorar,
+      // Comunidad...) puede llamar window.__mtxNav.setInternal(section, bool)
+      // cuando entra/sale de páginas internas. Aquí escuchamos los eventos y
+      // ocultamos la tab bar cuando el tab actual está en una vista interna —
+      // el menú con los 5 íconos estorba al user que ya navegó hacia adentro
+      // y tiene su propio back button. Vuelve cuando el flow regresa a home.
+      const [tabBarHidden, setTabBarHidden] = React.useState(false);
       const [state, setState] = React.useState({
         // Sin preselecciones: el usuario decide qué activar.
         // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
@@ -274,6 +281,34 @@
         }
         window.__mtxActiveQueue.setRitualPlaylist(base);
       }, [isActive, _ritualExtrasForQueue.length]);
+
+      // ── Tab bar visibility — escucha __mtxNav store global. Cuando el flow
+      // del tab actual entra a una vista interna (Explorar → library /
+      // playlist-overview / category-full / add-content), oculta la barra
+      // inferior. Vuelve a aparecer al regresar a la vista raíz del tab,
+      // o al cambiar de tab a uno que no esté en vista interna.
+      React.useEffect(() => {
+        const sync = () => {
+          const internal = (typeof window !== 'undefined' && window.__mtxNav)
+            ? window.__mtxNav.snapshot()
+            : {};
+          setTabBarHidden(!!internal[tab]);
+        };
+        sync();
+        window.addEventListener('mtx:nav-internal-changed', sync);
+        return () => window.removeEventListener('mtx:nav-internal-changed', sync);
+      }, [tab]);
+
+      // ── Scroll-to-top en transiciones de tab + estado del Home.
+      // Cuando el user cambia de tab (Home → Explorar → Profile), o cuando
+      // el Home transiciona Inactive ↔ Active, el contenedor scrollable del
+      // iPhone frame puede estar a media página del screen previo. Reset al
+      // top para que el header del nuevo screen se vea desde el inicio.
+      React.useEffect(() => {
+        if (typeof window !== 'undefined' && typeof window.scrollMtxBgToTop === 'function') {
+          window.scrollMtxBgToTop();
+        }
+      }, [tab, isActive, view]);
 
       // Selected time pill formatting for primary button
       const fmtTime = (m) => {
@@ -542,10 +577,16 @@
               acción secundaria, para que no esté invitando al usuario a
               terminar todo el tiempo. */}
 
-          {/* Clean transparent tabbar at the very bottom */}
-          <div className="mtx-tabbar-clean">
-            <MtxTabBar active={tab} onChange={setTab}/>
-          </div>
+          {/* Clean transparent tabbar at the very bottom. Se oculta cuando
+              el flow del tab actual está en una vista interna (ver useEffect
+              de sync con __mtxNav arriba). El user en una vista interna ya
+              tiene su back button propio — el menú con los 5 íconos solo
+              estorba a esa altura del flujo. */}
+          {!tabBarHidden && (
+            <div className="mtx-tabbar-clean">
+              <MtxTabBar active={tab} onChange={setTab}/>
+            </div>
+          )}
 
           <CustomTimeModal
             open={!!editTimeCtx}

@@ -24,6 +24,70 @@ if (typeof window !== 'undefined' && !window.__mtxRitual) {
   };
 }
 
+// ── __mtxNav — store global de "estoy en una vista interna" por sección ──────
+// Cada tab puede setear si su flow está actualmente en una página interna
+// (no la página raíz de la sección). Cuando setInternal('explore', true)
+// el shell oculta la tab bar — el user ya navegó y tiene su propio back
+// button, así que el menú inferior estorbaría.
+//
+// Convención: section es el nombre del tab ('home', 'explore', 'community',
+// 'profile'). isInternal = true cuando la vista activa NO es la raíz.
+//
+// IIFE pattern (idéntico a __mtxAutoRoutines): block-scoped `const` con
+// arrow functions causaba TDZ-like behavior en Babel-standalone (las
+// closures veían `_state.internal` como undefined fuera de snapshot()).
+// Wrapping en IIFE function-scoped resuelve.
+//
+// Helper utilitario: scrollMtxBgToTop() resetea el scroll del frame-iPhone
+// a top. Usado al cambiar de vista interna o al transicionar entre estados
+// del home (Inactive → Active) para que SIEMPRE se vea el header al entrar
+// a un screen nuevo, no quede a mitad de scroll.
+(function() {
+  if (typeof window === 'undefined' || window.__mtxNav) return;
+  var _internal = {};
+  function _emit() {
+    var copy = {};
+    for (var k in _internal) copy[k] = _internal[k];
+    window.dispatchEvent(new CustomEvent('mtx:nav-internal-changed', { detail: { internal: copy } }));
+  }
+  window.__mtxNav = {
+    setInternal: function(section, isInternal) {
+      var prev = !!_internal[section];
+      var next = !!isInternal;
+      if (prev === next) return;
+      _internal[section] = next;
+      _emit();
+    },
+    getInternal: function(section) { return !!_internal[section]; },
+    snapshot: function() {
+      var copy = {};
+      for (var k in _internal) copy[k] = _internal[k];
+      return copy;
+    },
+  };
+})();
+
+if (typeof window !== 'undefined' && !window.scrollMtxBgToTop) {
+  // Walk: cada screen renderiza dentro de .mtx-bg, que vive dentro de un
+  // contenedor con overflow:auto (el viewport del iPhone frame). Reseteamos
+  // tanto el scrollTop del scroll-parent como el del .mtx-bg propio por si
+  // futuros cambios mueven la propiedad de overflow.
+  window.scrollMtxBgToTop = () => {
+    const bg = document.querySelector('.mtx-bg');
+    if (!bg) return;
+    let p = bg.parentElement;
+    while (p) {
+      const cs = getComputedStyle(p);
+      if (cs.overflowY === 'auto' || cs.overflowY === 'scroll') {
+        p.scrollTop = 0;
+        break;
+      }
+      p = p.parentElement;
+    }
+    if (bg.scrollTop) bg.scrollTop = 0;
+  };
+}
+
 // Hook compartido para suscribirse a cambios del Ritual (re-render al add/remove)
 function useRitualItems() {
   const [, force] = React.useReducer(x => x + 1, 0);
@@ -6825,19 +6889,19 @@ function LibraryScreen({ onBack, onItemClick, onPlaylistClick }) {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlaylistClick(watchLater); } }}
                 className="mtx-glass mtx-tap"
                 style={{
-                  display:'flex', alignItems:'center', gap:14,
-                  padding:14, borderRadius:18, cursor:'pointer',
+                  display:'flex', alignItems:'center', gap:12,
+                  padding:'10px 12px', borderRadius:16, cursor:'pointer',
                   background:'linear-gradient(135deg, rgba(61,255,209,0.08), rgba(61,255,209,0.02))',
                   border:'0.5px solid rgba(61,255,209,0.22)',
-                  boxShadow:'0 0 0 0.5px rgba(61,255,209,0.08), 0 12px 28px -14px rgba(61,255,209,0.4)',
+                  boxShadow:'0 0 0 0.5px rgba(61,255,209,0.08), 0 10px 24px -14px rgba(61,255,209,0.4)',
                 }}
               >
                 <div style={{
-                  width:64, height:64, borderRadius:14, flexShrink:0,
+                  width:50, height:50, borderRadius:12, flexShrink:0,
                   position:'relative', overflow:'hidden',
                   background:watchLater.bg,
                   border:'0.5px solid rgba(61,255,209,0.3)',
-                  boxShadow:'0 6px 18px -8px rgba(61,255,209,0.4)',
+                  boxShadow:'0 5px 14px -8px rgba(61,255,209,0.4)',
                 }}>
                   {watchLater.thumbnail && (
                     <img src={watchLater.thumbnail} alt="" loading="lazy" style={{
@@ -6855,27 +6919,27 @@ function LibraryScreen({ onBack, onItemClick, onPlaylistClick }) {
                     display:'flex', alignItems:'center', justifyContent:'center',
                     color:'var(--neon)',
                   }}>
-                    <IcBookmarkFill size={22} stroke="currentColor"/>
+                    <IcBookmarkFill size={18} stroke="currentColor"/>
                   </div>
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{
                     fontSize:9, fontWeight:700, letterSpacing:'0.14em',
-                    color:'var(--neon)', textTransform:'uppercase', marginBottom:3,
+                    color:'var(--neon)', textTransform:'uppercase', marginBottom:2,
                   }}>
                     Tu cola personal
                   </div>
                   <div style={{
-                    fontSize:15, fontWeight:700, color:'var(--ink-1)',
-                    letterSpacing:'-0.02em', marginBottom:2,
+                    fontSize:14, fontWeight:700, color:'var(--ink-1)',
+                    letterSpacing:'-0.02em', marginBottom:1,
                   }}>
                     Ver más tarde
                   </div>
-                  <div style={{ fontSize:11, color:'var(--ink-3)' }}>
+                  <div style={{ fontSize:10.5, color:'var(--ink-3)' }}>
                     {watchLater.totalVideos} guardados · {watchLater.totalDuration}
                   </div>
                 </div>
-                <IcChevR size={16} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                <IcChevR size={15} stroke="var(--ink-3)" strokeWidth={1.8}/>
               </div>
             </div>
           )}
@@ -7620,6 +7684,28 @@ function SearchScreen({ onClose, onItemClick, onPlaylistClick }) {
 // ── ExploreScreen — hub principal con view routing (Fase 2) ───────────────────
 function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   const nav = useExploreNav();
+
+  // ── Signaling: tab bar visibility + scroll reset ────────────────────────────
+  // Cada vez que cambie la vista interna (home → library → playlist-overview →
+  // category-full → add-content), emitir señal al shell:
+  //   • Si nav.state.view !== 'home' → vista interna → ocultar tab bar
+  //   • Resetear scroll del frame al top: el user entra desde un screen que
+  //     pudo haber dejado el scroll a media página; sin reset, el nuevo
+  //     screen aparece "cortado" sin que se vea su header.
+  // Cleanup al unmount (cambio de tab): resetear internal=false para que el
+  // tab bar vuelva a aparecer en el siguiente tab.
+  React.useEffect(() => {
+    const isInternal = nav.state.view !== 'home';
+    window.__mtxNav?.setInternal('explore', isInternal);
+    if (typeof window.scrollMtxBgToTop === 'function') {
+      window.scrollMtxBgToTop();
+    }
+  }, [nav.state.view, nav.state.playlistId, nav.state.categoryId]);
+
+  React.useEffect(() => () => {
+    window.__mtxNav?.setInternal('explore', false);
+  }, []);
+
   const [filterType, setFilterType] = React.useState('all');
   const [comingSoonItem, setComingSoonItem] = React.useState(null);
   // Sub-fase 0.3 · El estado del player vive en window.__mtxGlobalPlayer
