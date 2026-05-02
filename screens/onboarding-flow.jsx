@@ -47,15 +47,19 @@
   ];
 
   // Content prefs — grid 2-col compacto (igual visual que goals).
+  // IDs prefijados con namespace implícito en su contexto. Notar que evitamos
+  // colisión con GOAL_OPTIONS: usamos 'sleep_content' (no 'sleep') para no
+  // chocar con goal 'sleep' (Dormir mejor) si alguna phase futura hace lookup
+  // global por id sin saber qué array es.
   var CONTENT_OPTIONS = [
-    { id: 'books',        label: 'Libros',         icon: '📚' },
-    { id: 'meditations',  label: 'Meditaciones',   icon: '🧘' },
-    { id: 'biographies',  label: 'Biografías',     icon: '🌟' },
-    { id: 'talks',        label: 'Charlas',        icon: '🎙️' },
-    { id: 'sounds',       label: 'Sonidos',        icon: '🎵' },
-    { id: 'mind',         label: 'Filosofía',      icon: '🧠' },
-    { id: 'science',      label: 'Ciencia',        icon: '🔬' },
-    { id: 'sleep',        label: 'Para dormir',    icon: '🌙' },
+    { id: 'books',         label: 'Libros',         icon: '📚' },
+    { id: 'meditations',   label: 'Meditaciones',   icon: '🧘' },
+    { id: 'biographies',   label: 'Biografías',     icon: '🌟' },
+    { id: 'talks',         label: 'Charlas',        icon: '🎙️' },
+    { id: 'sounds',        label: 'Sonidos',        icon: '🎵' },
+    { id: 'mind',          label: 'Filosofía',      icon: '🧠' },
+    { id: 'science',       label: 'Ciencia',        icon: '🔬' },
+    { id: 'sleep_content', label: 'Para dormir',    icon: '🌙' },
   ];
 
   var FOCUS_TIME_OPTIONS = [
@@ -1195,6 +1199,13 @@
     var doneCount = doneCountState[0];
     var setDoneCount = doneCountState[1];
     var advancedRef = React.useRef(false);
+    // Blind spot #9 defense: onAutoAdvance es una prop que se recrea en cada
+    // render del padre. Si el effect tiene deps:[] (necesario para no
+    // re-arrancar timers), el closure captura la versión inicial y se
+    // queda obsoleta. Ref pattern actualiza el callback sin re-disparar
+    // el effect.
+    var onAutoAdvanceRef = React.useRef(onAutoAdvance);
+    onAutoAdvanceRef.current = onAutoAdvance;
 
     React.useEffect(function() {
       // Cada línea aparece secuencialmente cada 600ms.
@@ -1204,9 +1215,9 @@
       var t4 = setTimeout(function() { setDoneCount(4); }, 2300);
       var t5 = setTimeout(function() { setDoneCount(5); }, 2900);
       var tFinal = setTimeout(function() {
-        if (!advancedRef.current && typeof onAutoAdvance === 'function') {
+        if (!advancedRef.current && typeof onAutoAdvanceRef.current === 'function') {
           advancedRef.current = true;
-          onAutoAdvance();
+          onAutoAdvanceRef.current();
         }
       }, 3700);
       return function() {
@@ -1499,24 +1510,30 @@
     var hrs = ans.routineHours || 2;
     var apps = (ans.blockedApps || []).length;
 
-    // 4 highlights, cada uno con icon + título + sub
+    // 4 highlights, cada uno con icon + título + sub. id estable para key
+    // de React (evita re-mount cuando highlights cambia de tamaño por el
+    // filter de apps>0).
     var highlights = [
       {
+        id: 'content',
         icon: '📚',
         title: 'Tu Explorar curado',
         sub: 'Con ' + contentLabel + ' que te energizan',
       },
       {
+        id: 'coach',
         icon: '✨',
         title: 'Tu coach ' + voiceLabel,
         sub: 'Listo para conversar contigo cuando lo necesites',
       },
       apps > 0 ? {
+        id: 'apps',
         icon: '🛡️',
         title: 'Bloqueo de ' + apps + (apps === 1 ? ' app' : ' apps'),
         sub: 'Activado automáticamente al iniciar foco',
       } : null,
       {
+        id: 'routine',
         icon: '🎯',
         title: hrs + (hrs === 1 ? ' hora' : ' horas') + ' al día' + (focusTimeLabel ? ' por la ' + focusTimeLabel : ''),
         sub: 'Tu rutina está calibrada y lista',
@@ -1572,7 +1589,7 @@
       },
         highlights.map(function(h, i) {
           return React.createElement('div', {
-            key: i,
+            key: h.id,
             style: {
               padding: '14px 16px',
               borderRadius: 14,
@@ -1720,7 +1737,7 @@
             style: {
               position: 'absolute',
               top: 3, bottom: 3,
-              left: cycle === 'monthly' ? 3 : 'calc(50% + 0px)',
+              left: cycle === 'monthly' ? 3 : '50%',
               width: 'calc(50% - 3px)',
               background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))',
               border: '0.5px solid rgba(255,255,255,0.12)',
@@ -1796,20 +1813,30 @@
     var onChange = props.onChange;
     var onComplete = props.onComplete;
     var cycle = ans.billingCycle || 'annual';
+    // Guard contra doble-click rápido en CTAs. Si user toca dos veces antes
+    // del re-render que unmount-ea el componente, ambos handlers podrían
+    // disparar complete(). Es idempotente pero feo. Ref previene la 2da.
+    var completedRef = React.useRef(false);
 
     function selectCycle(c) { onChange({ billingCycle: c }); }
 
     function startTrial() {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      // updateAnswers + complete son SÍNCRONOS (Object.assign + dispatchEvent).
+      // No setTimeout(0) — el state queda consistente en el mismo tick.
       onChange({
         selectedPlan: cycle,
         trialStartedAt: Date.now(),
       });
-      setTimeout(function() { if (onComplete) onComplete(); }, 0);
+      if (onComplete) onComplete();
     }
 
     function continueFree() {
+      if (completedRef.current) return;
+      completedRef.current = true;
       onChange({ selectedPlan: 'free', trialStartedAt: null });
-      setTimeout(function() { if (onComplete) onComplete(); }, 0);
+      if (onComplete) onComplete();
     }
 
     return React.createElement('div', null,
@@ -2118,8 +2145,12 @@
       ctaDisabled: !canNext,
       ctaLabel: ctaLabel,
       hideFooter: hideFooter,
-      // Lock back nav en fake-load (8), welcome wow (10), y paywall (11)
-      lockNav: step === 8 || step === 10 || step === 11,
+      // Lock back nav en fake-load (8), notifications (9), welcome wow (10),
+      // y paywall (11). El fake-load es one-way porque auto-advanza al
+      // re-mount; permitir back desde step 9 a step 8 generaría un loop UX
+      // (fake-load se reproduce, advance, repeat). Step 9 cierra el flow
+      // de configuración: para editar prefs hay que ir a Settings (Phase 7).
+      lockNav: step === 8 || step === 9 || step === 10 || step === 11,
     }, stepEl);
   }
 

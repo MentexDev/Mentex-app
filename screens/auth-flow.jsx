@@ -577,9 +577,11 @@
         if (_obState.step > 0) _setObState({ step: _obState.step - 1 });
       },
 
-      // Saltar a un step específico (útil para edit-preferences en settings)
+      // Saltar a un step específico (útil para edit-preferences en settings).
+      // Bound a [0, 11] — 12 steps total. La safety en OnboardingScreen
+      // también cubre overflow, pero no está de más prevenir aquí también.
       goTo: function(step) {
-        _setObState({ step: Math.max(0, step) });
+        _setObState({ step: Math.max(0, Math.min(11, step)) });
       },
 
       // Update parcial de answers (deep-merge para objetos anidados como notifications)
