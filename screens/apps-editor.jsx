@@ -189,10 +189,15 @@ function AppsEditorSheet({ blockedApps, onChange, onClose }) {
           )}
         </div>
 
-        {/* Footer fijo: counter + Listo */}
+        {/* Footer fijo: counter + Listo. Override inline del height de
+            mtx-btn-neon (56px global) → 44px aquí. mtx-btn-neon es CTA
+            primario para acciones decisivas (Aplicar, Crear, Comenzar
+            jornada); en este footer "Listo" es un confirm más liviano,
+            análogo a las pills del catálogo de rutinas, y el 56px se
+            sentía pesado contra las filas compactas (~47px). */}
         <div style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
-          padding: '14px 20px 22px',
+          padding: '12px 20px 18px',
           background: 'linear-gradient(180deg, rgba(14,17,20,0) 0%, rgba(14,17,20,0.95) 30%, rgba(14,17,20,0.98) 100%)',
           display: 'flex', alignItems: 'center', gap: 10,
           backdropFilter: 'blur(20px)',
@@ -202,12 +207,16 @@ function AppsEditorSheet({ blockedApps, onChange, onClose }) {
             <div style={{ fontSize: 11, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
               Silenciar
             </div>
-            <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink-1)', letterSpacing: '-0.02em', marginTop: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-1)', letterSpacing: '-0.02em', marginTop: 1 }}>
               {blockedCount} {blockedCount === 1 ? 'aplicación' : 'aplicaciones'}
             </div>
           </div>
-          <button onClick={handleClose} className="mtx-btn-neon mtx-tap" style={{ minWidth: 110 }}>
-            <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> Listo
+          <button onClick={handleClose} className="mtx-btn-neon mtx-tap" style={{
+            minWidth: 100,
+            height: 44, padding: '0 18px',
+            fontSize: 14, gap: 8,
+          }}>
+            <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/> Listo
           </button>
         </div>
       </div>
