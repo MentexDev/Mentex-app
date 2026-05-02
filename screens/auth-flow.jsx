@@ -861,18 +861,19 @@
   // Animation pattern: cada mockup tiene un detalle "vivo" (timer pulsando,
   // mensaje typing, chip rotating) para que se sienta dinámico, no estático.
 
-  // Hero card: contenedor glass común que TODOS los mockups usan
+  // Hero card: contenedor glass común que TODOS los mockups usan.
+  // Tamaño 320×440 (antes 280×340) — más grande/llamativo según feedback.
   function HeroCard(props) {
     return (
       <div style={{
         position: 'relative',
-        width: 280, height: 340,
-        borderRadius: 28,
+        width: 320, height: 440,
+        borderRadius: 32,
         background: 'linear-gradient(180deg, rgba(20,24,22,0.85), rgba(8,12,10,0.92))',
         border: '0.5px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 24px 60px -20px rgba(0,0,0,0.6), inset 0 0 0 0.5px rgba(255,255,255,0.04)',
+        boxShadow: '0 28px 70px -24px rgba(0,0,0,0.7), inset 0 0 0 0.5px rgba(255,255,255,0.04)',
         overflow: 'hidden',
-        padding: 18,
+        padding: 22,
         display: 'flex', flexDirection: 'column',
         backdropFilter: 'blur(20px) saturate(140%)',
         WebkitBackdropFilter: 'blur(20px) saturate(140%)',
@@ -1119,86 +1120,119 @@
     );
   }
 
-  // ── HeroMockup4: Agenda — propuestas + recordatorios ──────────────────────
-  function HeroMockupAgenda() {
+  // ── HeroMockup4: Biblioteca de contenidos — miles disponibles ─────────────
+  // Grid 2-col de cards con cover + categoría + duración. Muestra la
+  // diversidad y volumen del catálogo para vender el valor "miles de
+  // contenidos a tu disposición".
+  function HeroMockupContent() {
+    var items = [
+      { eyebrow: 'CHARLA',     title: 'Steve Jobs · Stanford', meta: '15 min', accent: '#FFB347', emoji: '🎙' },
+      { eyebrow: 'MEDITACIÓN', title: 'Respira y vuelve a ti', meta: '10 min', accent: '#3DFFD1', emoji: '🌿' },
+      { eyebrow: 'LECTURA',    title: 'Atomic Habits · cap 1', meta: '20 pp',  accent: '#9DB7FF', emoji: '📖' },
+      { eyebrow: 'AUDIO',      title: 'Foco profundo · α',    meta: '45 min', accent: '#9b8aff', emoji: '🎵' },
+    ];
     return (
       <HeroCard>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{
-            fontSize: 8.5, color: 'var(--ink-4)',
-            letterSpacing: '0.14em', fontWeight: 700,
-            fontFamily: 'var(--ff-sans)',
-            marginBottom: 2,
-          }}>HOY · LUN 5 MAY</div>
-          <div style={{
-            fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
-            letterSpacing: '-0.02em',
-            fontFamily: 'var(--ff-display, var(--ff-sans))',
-          }}>Agenda</div>
-        </div>
-        {/* Propuesta */}
-        <div style={{
-          padding: 10,
-          borderRadius: 12,
-          border: '0.5px solid rgba(61,255,209,0.18)',
-          background: 'rgba(61,255,209,0.04)',
-          marginBottom: 8,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <div style={{ fontSize: 12 }}>🎯</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 10.5, fontWeight: 600, color: 'var(--ink-1)',
-                fontFamily: 'var(--ff-sans)',
-                lineHeight: 1.3,
-              }}>90 min libres a las 14:00</div>
-              <div style={{
-                fontSize: 9, color: 'var(--ink-3)',
-                fontFamily: 'var(--ff-sans)',
-                marginTop: 2, lineHeight: 1.4,
-              }}>Tu mejor ventana de enfoque profundo.</div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div>
+            <div style={{
+              fontSize: 9, color: 'var(--ink-4)',
+              letterSpacing: '0.14em', fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 2,
+            }}>EXPLORAR</div>
+            <div style={{
+              fontSize: 17, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.02em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+            }}>Tu biblioteca</div>
           </div>
           <div style={{
-            display: 'inline-block',
-            padding: '3px 10px', borderRadius: 999,
-            border: '0.5px solid rgba(61,255,209,0.40)',
-            background: 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))',
+            padding: '4px 10px', borderRadius: 999,
+            background: 'rgba(61,255,209,0.06)',
+            border: '0.5px solid rgba(61,255,209,0.20)',
             color: 'var(--neon)',
             fontSize: 9.5, fontWeight: 700,
             fontFamily: 'var(--ff-sans)',
-            marginTop: 8, marginLeft: 18,
-          }}>Reservar</div>
+            fontVariantNumeric: 'tabular-nums',
+          }}>2,400+</div>
         </div>
-        {/* Eventos timeline */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[
-            { time: '09:00', name: 'Daily standup', color: '#9DB7FF' },
-            { time: '10:30', name: 'Sesión profunda', color: 'var(--neon)' },
-            { time: '15:00', name: 'Review PRs', color: '#9DB7FF' },
-          ].map((ev, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '4px 0',
-            }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, color: 'var(--ink-3)',
-                fontVariantNumeric: 'tabular-nums',
+
+        {/* Grid 2-col de content cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          flex: 1,
+        }}>
+          {items.map(function(it, i) {
+            return (
+              <div key={i} style={{
+                position: 'relative',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, ' + it.accent + '22, ' + it.accent + '08)',
+                border: '0.5px solid ' + it.accent + '30',
+                padding: 10,
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                overflow: 'hidden',
+                minHeight: 90,
+              }}>
+                {/* Halo decorativo */}
+                <div style={{
+                  position: 'absolute', top: -20, right: -20,
+                  width: 60, height: 60, borderRadius: '50%',
+                  background: 'radial-gradient(circle, ' + it.accent + '40, transparent 70%)',
+                  pointerEvents: 'none',
+                }}/>
+                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 18, lineHeight: 1 }}>{it.emoji}</div>
+                  <div style={{
+                    fontSize: 7, fontWeight: 700,
+                    color: it.accent,
+                    letterSpacing: '0.14em',
+                    fontFamily: 'var(--ff-sans)',
+                  }}>{it.eyebrow}</div>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 600, color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    lineHeight: 1.2,
+                    marginBottom: 3,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}>{it.title}</div>
+                  <div style={{
+                    fontSize: 8.5, color: 'var(--ink-4)',
+                    fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>{it.meta}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer chips de categorías */}
+        <div style={{
+          marginTop: 10,
+          display: 'flex', flexWrap: 'wrap', gap: 4,
+        }}>
+          {['+ Series', '+ Sonidos', '+ Audiolibros', '+ Cursos'].map(function(c, i) {
+            return (
+              <div key={i} style={{
+                padding: '3px 8px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                color: 'var(--ink-3)',
+                fontSize: 8.5, fontWeight: 600,
                 fontFamily: 'var(--ff-sans)',
-                width: 30,
-              }}>{ev.time}</div>
-              <div style={{
-                width: 6, height: 6, borderRadius: 999,
-                background: ev.color,
-                boxShadow: '0 0 6px ' + ev.color + 'aa',
-              }}/>
-              <div style={{
-                fontSize: 10, fontWeight: 500, color: 'var(--ink-1)',
-                fontFamily: 'var(--ff-sans)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>{ev.name}</div>
-            </div>
-          ))}
+              }}>{c}</div>
+            );
+          })}
         </div>
       </HeroCard>
     );
@@ -1458,10 +1492,10 @@
         subtitle: 'Pequeños hábitos que se vuelven irrompibles con el tiempo.',
       },
       {
-        hero: <HeroMockupAgenda/>,
-        title: 'Tu día,',
-        accent: 'organizado por tu IA.',
-        subtitle: 'Recordatorios, eventos y propuestas de tu coach en un solo lugar.',
+        hero: <HeroMockupContent/>,
+        title: 'Miles de contenidos',
+        accent: 'a tu disposición.',
+        subtitle: 'Charlas, meditaciones, lecturas y audios para crecer cada día.',
       },
       {
         hero: <HeroMockupProgress/>,
@@ -1558,19 +1592,19 @@
             }}>Saltar</button>
         </div>
 
-        {/* Hero mockup container — centrado horizontal, top 130, swipeable */}
+        {/* Hero mockup container — más grande (320×440), centrado, swipeable */}
         <div
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={{
             position: 'absolute',
-            top: 110, left: 0, right: 0,
+            top: 100, left: 0, right: 0,
             display: 'flex', justifyContent: 'center',
             zIndex: 2,
           }}>
           {/* Crossfade entre mockups — todos renderizados, solo el visible
               tiene opacity:1 + transform:0. Mantiene transitions suaves. */}
-          <div style={{ position: 'relative', width: 280, height: 340 }}>
+          <div style={{ position: 'relative', width: 320, height: 440 }}>
             {slidesData.map(function(s, i) {
               var visible = i === idx;
               var offsetX = visible ? 0 : (i < idx ? -24 : 24);
@@ -1588,40 +1622,14 @@
           </div>
         </div>
 
-        {/* Text + dots zone — sandwich entre hero y CTA */}
+        {/* Text zone — sandwich entre hero y bottom controls */}
         <div style={{
           position: 'absolute',
-          left: 0, right: 0, bottom: 132,
+          left: 0, right: 0, bottom: 130,
           padding: '0 32px',
           zIndex: 3,
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
-          {/* Dots indicator — discretos, justo arriba del título */}
-          <div style={{
-            display: 'flex', gap: 6,
-            marginBottom: 18,
-          }}>
-            {slidesData.map(function(_, i) {
-              var active = i === idx;
-              return (
-                <button
-                  key={i}
-                  onClick={function() { goToSlide(i); }}
-                  aria-label={'Ir a slide ' + (i + 1)}
-                  className="mtx-tap"
-                  style={{
-                    appearance: 'none', cursor: 'pointer',
-                    width: active ? 18 : 5, height: 5,
-                    borderRadius: 999, border: 0,
-                    background: active ? 'var(--neon)' : 'rgba(255,255,255,0.16)',
-                    boxShadow: active ? '0 0 6px rgba(61,255,209,0.4)' : 'none',
-                    transition: 'width .35s ease, background .35s, box-shadow .35s',
-                    padding: 0,
-                  }}/>
-              );
-            })}
-          </div>
-
           {/* Title with accent — pattern inspirado en Friends app reference */}
           <h1 style={{
             margin: 0, marginBottom: 8,
@@ -1648,8 +1656,9 @@
           }}>{current.subtitle}</div>
         </div>
 
-        {/* Bottom controls: "¿Ya tienes cuenta? Inicia sesión" izquierda +
-            botón circular flecha derecha. Pattern de la imagen Food Scanning. */}
+        {/* Bottom controls: dots a la izquierda alineados verticalmente
+            con el botón circular a la derecha. Sin texto signin (el user
+            entrará al login eventualmente al tap continuar). */}
         <div style={{
           position: 'absolute',
           left: 0, right: 0, bottom: 38,
@@ -1657,23 +1666,33 @@
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           zIndex: 3,
         }}>
-          <button
-            onClick={props.onSignIn}
-            aria-label="Iniciar sesión con cuenta existente"
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: 'pointer',
-              padding: '8px 4px',
-              border: 0, background: 'transparent',
-              color: 'var(--ink-3)',
-              fontSize: 12.5, fontWeight: 500,
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              textAlign: 'left',
-              maxWidth: 200,
-              lineHeight: 1.4,
-            }}>¿Ya tienes cuenta?<br/><span style={{ color: 'var(--neon)', fontWeight: 700 }}>Inicia sesión</span></button>
+          {/* Dots a la izquierda, alineados al center del botón circular */}
+          <div style={{
+            display: 'flex', gap: 6,
+            paddingLeft: 8,
+          }}>
+            {slidesData.map(function(_, i) {
+              var active = i === idx;
+              return (
+                <button
+                  key={i}
+                  onClick={function() { goToSlide(i); }}
+                  aria-label={'Ir a slide ' + (i + 1)}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    width: active ? 22 : 6, height: 6,
+                    borderRadius: 999, border: 0,
+                    background: active ? 'var(--neon)' : 'rgba(255,255,255,0.18)',
+                    boxShadow: active ? '0 0 8px rgba(61,255,209,0.45)' : 'none',
+                    transition: 'width .35s ease, background .35s, box-shadow .35s',
+                    padding: 0,
+                  }}/>
+              );
+            })}
+          </div>
 
+          {/* Botón circular flecha → derecha, pattern Food Scanning */}
           <button
             onClick={props.onContinue}
             aria-label={isLast ? 'Empezar' : 'Siguiente'}
