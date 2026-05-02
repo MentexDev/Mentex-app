@@ -298,23 +298,29 @@ function AssistantConfigSheet(props) {
   ];
 
   return (
-    // Full-screen page (no bottom sheet). Wrapper empieza en top:60 para
-    // dejar visible el status bar del iPhone (z=10 dentro del IOSDevice).
-    // Antes con inset:0 el background del wrapper tapaba reloj/batería/señal.
-    // Los submodales (memory add, connect modal, avatar picker, detail sheet)
-    // anclan a este screen y dockean al iPhone bottom como bottom sheets.
+    // Full-screen page (no bottom sheet). Wrapper a inset:0 + background
+    // 100% sólido — el status bar y dynamic island del IOSDevice viven a
+    // z=150 (subimos el z-index en frames/ios-frame.jsx), así que pasan
+    // por ENCIMA del wrapper (z=100) sin que necesitemos dejar un hueco
+    // en top:60. Antes con top:60 + opacidad 0.99 los icon buttons del
+    // IAScreen se traslucían detrás del header del config.
+    // Los submodales (memory add, connect modal, avatar picker, detail
+    // sheet) anclan a este screen y dockean al iPhone bottom como bottom
+    // sheets — siguen funcionando igual.
     <div style={{
       position: 'absolute',
-      top: 60, left: 0, right: 0, bottom: 0,
+      inset: 0,
       zIndex: 100,
-      background: 'rgba(15,19,19,0.99)',
+      background: '#0F1313',
       display: 'flex', flexDirection: 'column',
       animation: 'mtx-fade-up .35s ease both',
     }}>
-      {/* Header con título centrado. paddingTop:18 + paddingBottom:14 dan
-          aire al título y al back button — antes se sentía pegado arriba. */}
+      {/* Header con paddingTop:60 para que el contenido (back + título +
+          tabs) quede debajo del status bar / dynamic island del iPhone.
+          paddingTop:18 + paddingBottom:14 dan aire al título y al back. */}
       <div style={{
         flexShrink: 0,
+        paddingTop: 60,
         background: 'linear-gradient(180deg, rgba(10,13,12,0.98) 0%, rgba(10,13,12,0.85) 80%, rgba(10,13,12,0.6) 100%)',
         backdropFilter: 'blur(18px) saturate(140%)',
         WebkitBackdropFilter: 'blur(18px) saturate(140%)',

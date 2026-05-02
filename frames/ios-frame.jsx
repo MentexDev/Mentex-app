@@ -199,13 +199,16 @@ function IOSDevice({
       fontFamily: '-apple-system, system-ui, sans-serif',
       WebkitFontSmoothing: 'antialiased',
     }}>
-      {/* dynamic island */}
+      {/* dynamic island — z=150 para quedar SOBRE los modales/sheets de la
+          app (que viven en z=100-130). Replica el comportamiento de iOS real:
+          el status bar y dynamic island siempre se ven, incluso cuando hay
+          un modal full-screen abierto. Toast (z=200) sigue por encima. */}
       <div style={{
         position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
-        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50,
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 150,
       }} />
-      {/* status bar (absolute) */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+      {/* status bar (absolute) — mismo razonamiento z=150 que dynamic island */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 150 }}>
         <IOSStatusBar dark={dark} />
       </div>
       {/* nav + content */}
