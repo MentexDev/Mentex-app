@@ -1,37 +1,37 @@
 # Graph Report - .  (2026-05-02)
 
 ## Corpus Check
-- Large corpus: 63 files · ~1,019,933 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 64 files · ~1,025,241 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 603 nodes · 673 edges · 57 communities detected
-- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 59 edges (avg confidence: 0.8)
+- 630 nodes · 732 edges · 59 communities detected
+- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 66 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Toast & Active Queue Shell|Toast & Active Queue Shell]]
-- [[_COMMUNITY_C-A-R Blind Spots Catalog|C-A-R Blind Spots Catalog]]
-- [[_COMMUNITY_Profile Sheets & Followers|Profile Sheets & Followers]]
-- [[_COMMUNITY_IA Chat Core|IA Chat Core]]
-- [[_COMMUNITY_Achievements System|Achievements System]]
-- [[_COMMUNITY_Home Inactive (entry)|Home Inactive (entry)]]
-- [[_COMMUNITY_IA Assistant Settings|IA Assistant Settings]]
-- [[_COMMUNITY_Activity Runner Helpers|Activity Runner Helpers]]
-- [[_COMMUNITY_Phase Home Audit Trail|Phase Home Audit Trail]]
-- [[_COMMUNITY_Phase Comunidad Audit|Phase Comunidad Audit]]
-- [[_COMMUNITY_Community Feed & Reviews|Community Feed & Reviews]]
-- [[_COMMUNITY_Voice Transcription Overlay|Voice Transcription Overlay]]
-- [[_COMMUNITY_Apps Protection & Break Picker|Apps Protection & Break Picker]]
-- [[_COMMUNITY_Achievement Tier Math|Achievement Tier Math]]
-- [[_COMMUNITY_Phase Runner Audit Trail|Phase Runner Audit Trail]]
-- [[_COMMUNITY_IA Agenda (Phase 4)|IA Agenda (Phase 4)]]
-- [[_COMMUNITY_Apps Editor Sheet|Apps Editor Sheet]]
-- [[_COMMUNITY_Challenges All Screen|Challenges All Screen]]
-- [[_COMMUNITY_Notifications Sheet|Notifications Sheet]]
-- [[_COMMUNITY_Ritual Playlist Builder|Ritual Playlist Builder]]
-- [[_COMMUNITY_Active Queue Compute|Active Queue Compute]]
-- [[_COMMUNITY_Chronological Feed Pattern|Chronological Feed Pattern]]
-- [[_COMMUNITY_Now Playing Bar|Now Playing Bar]]
+- [[_COMMUNITY_Community 0|Community 0]]
+- [[_COMMUNITY_Community 1|Community 1]]
+- [[_COMMUNITY_Community 3|Community 3]]
+- [[_COMMUNITY_Community 5|Community 5]]
+- [[_COMMUNITY_Community 6|Community 6]]
+- [[_COMMUNITY_Community 7|Community 7]]
+- [[_COMMUNITY_Community 8|Community 8]]
+- [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 11|Community 11]]
+- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 13|Community 13]]
+- [[_COMMUNITY_Community 15|Community 15]]
+- [[_COMMUNITY_Community 16|Community 16]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 19|Community 19]]
+- [[_COMMUNITY_Community 20|Community 20]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Community 27|Community 27]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 31|Community 31]]
 - [[_COMMUNITY_Community 33|Community 33]]
 - [[_COMMUNITY_Community 34|Community 34]]
 - [[_COMMUNITY_Community 35|Community 35]]
@@ -66,22 +66,24 @@
 - [[_COMMUNITY_Community 64|Community 64]]
 - [[_COMMUNITY_Community 65|Community 65]]
 - [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 67|Community 67]]
+- [[_COMMUNITY_Community 68|Community 68]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `useToast()` - 29 edges
-2. `AgendaSheet` - 14 edges
-3. `Phase Home — GPU + UX audit` - 12 edges
-4. `MentexApp` - 11 edges
-5. `useVoiceTranscription()` - 10 edges
-6. `Phase Runner — Lessons (audit C-A-R)` - 9 edges
-7. `useIAConfig()` - 7 edges
-8. `__mtxIAAgenda` - 7 edges
-9. `ExploreScreen()` - 6 edges
-10. `IOSDevice` - 6 edges
+2. `AgendaSheet` - 19 edges
+3. `IAScreen` - 15 edges
+4. `MentexApp shell` - 14 edges
+5. `Phase Home — GPU + UX audit` - 12 edges
+6. `HomeRemindersCard` - 12 edges
+7. `useVoiceTranscription()` - 10 edges
+8. `__mtxIAAgenda store` - 10 edges
+9. `Phase Runner — Lessons (audit C-A-R)` - 9 edges
+10. `Phase 5 IA quick-access lessons` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `MentexApp` --calls--> `MtxTabBar`  [INFERRED]
-  Mentex Home.html → components/mentex-shared.jsx
+- `MtxTabBar` --calls--> `MentexApp shell`  [INFERRED]
+  components/mentex-shared.jsx → Mentex Home.html
 - `FollowerRow()` --calls--> `useToast()`  [INFERRED]
   screens/profile-stats-sheets.jsx → components/mtx-toast.jsx
 - `HomeInactive()` --calls--> `useToast()`  [INFERRED]
@@ -92,107 +94,101 @@
   screens/apps-editor.jsx → components/mtx-toast.jsx
 
 ## Hyperedges (group relationships)
-- **Bottom-sheet drag-to-dismiss + ESC + backdrop-blur shell reused across LevelSheet/HoursSheet/FollowersSheet/AchievementSheet/EditProfileSheet/RankingFilterSheet** —  [INFERRED 0.88]
-- **__mtx* reactive store pattern (subscribe + getSnapshot + custom event)** — ia_agenda_mtxiaagenda, ia_flow_mtxiachat, ia_settings_mtxiaconfig, explore_flow_mtxnav, now_playing_bar_mtxplayer, global_player_mtxglobalplayer, auto_routines_mtxautoroutines, home_active_mtxappsbreak, profile_mtxprofile, active_queue_mtxactivequeue, explore_flow_mtxritual [INFERRED 0.90]
-- **Chronological feed pattern: _timeAgoToMs + _formatRelative + .sort by _sortTs in CommunityScreen.feed useMemo** — community_flow__timeagotoms, community_flow__formatrelative, community_flow_feed_usememo, community_flow_chronological_feed_pattern [INFERRED 0.92]
-- **Sheets lifted to MentexApp shell (z-index over tab bar)** — ia_agenda_agendasheet, ia_flow_iahistorysheet, ia_settings_assistantconfigsheet, mentex_home_mentexapp [EXTRACTED 1.00]
-- **Phase 4 audit cycle — 1 CRIT + 5 IMP findings on AgendaSheet** — phase_4_ia_agenda_lessons_doc, phase_4_crit_1_dialog_a11y, phase_4_imp_1_fade_in_token, phase_4_imp_2_dead_props, phase_4_imp_3_dismiss_feedback, phase_4_imp_4_id_collision, phase_4_imp_5_useeffect_deps, ia_agenda_agendasheet [EXTRACTED 1.00]
-- **Phase 1 audit keyboard a11y enforcement (role/tabIndex/onKeyDown)** — phase_1_lessons_imp_4, notifications_sheet_notifcard, home_active_activityrow [EXTRACTED 0.90]
-- **Portal consumers affected by mtx-overlay-root pointer-events regression** — mentex_home_mtxoverlayroot, phase_runner_lessons_globalplayerjsx, phase_runner_lessons_activityrunnerjsx, phase_runner_lessons_profilejsx, phase_runner_lessons_userprofileflowjsx, phase_runner_lessons_rankingflowjsx, phase_runner_lessons_exploreflowjsx [EXTRACTED 0.90]
-- **Bottom-sheet modals (grabber+backdrop+slideup) requiring ESC handler** — mentex_home_customtimemodal, mentex_home_autoroutinecreatesheet, mentex_home_autoroutinecreatedsheet, mentex_home_appseditorsheet, mentex_home_routineseditorsheet [INFERRED 0.85]
-- **GPU compositing fixes (filter:blur halos + infinite animations with willChange)** — phase_home_gpu_lessons_imp1, phase_home_gpu_lessons_imp2, phase_home_gpu_lessons_rule_willchange_blur [EXTRACTED 0.90]
+- **Phase 5 audit cycle (1 CRIT + 6 IMP)** — phase_5_finding_crit_1, phase_5_finding_imp_1, phase_5_finding_imp_2, phase_5_finding_imp_3, phase_5_finding_imp_4, phase_5_finding_imp_5, phase_5_finding_imp_6, ia_flow_iascreen, ia_agenda_homereminderscard, ia_agenda_addremindersheet, mentex_home_mentexapp, mentex_shared_mtxsectionhead [EXTRACTED 1.00]
+- **session-active conversation lifecycle (create in IAScreen, mutate from HomeActive button, cleanup in MentexApp wasActiveRef)** — ia_flow_iascreen, home_active_iaquickaccessbutton, mentex_home_wasactiveref_effect, ia_flow_store_mtxiachat, ia_flow_buildsessiongreeting [INFERRED 0.90]
+- **HomeActive + IAScreen + MentexApp event-based coupling (mtx:ia-open-session-chat + mtx:ia-leave-session-chat)** — home_active_homeactive, home_active_iaquickaccessbutton, ia_flow_iascreen, mentex_home_mentexapp [EXTRACTED 1.00]
 
 ## Communities
 
-### Community 0 - "Toast & Active Queue Shell"
+### Community 0 - "Community 0"
+Cohesion: 0.04
+Nodes (79): Blind Spot #2 — keydown sin isTypingInEditable guard, Blind Spot #4 — non-button clickables sin keyboard, Blind Spot #6 — timestamp approximations, Blind Spot #7 — template-literal DOM IDs sin useId, Blind Spot #9 — useEffect deps con callbacks recreados, ExploreScreen, __mtxBookmarks, __mtxNav (+71 more)
+
+### Community 1 - "Community 1"
 Cohesion: 0.04
 Nodes (32): useToast(), useActiveQueue(), ActiveQueueSwitcherOverlay(), AddContentScreen(), AddContentToPlaylistSheet(), BookmarkNameSheet(), BookmarksSheet(), _calculateEarnedPoints() (+24 more)
 
-### Community 2 - "C-A-R Blind Spots Catalog"
-Cohesion: 0.05
-Nodes (57): Blind Spot #2 — keydown sin isTypingInEditable guard, Blind Spot #4 — non-button clickables sin keyboard, Blind Spot #6 — timestamp approximations, Blind Spot #7 — template-literal DOM IDs sin useId, Blind Spot #9 — useEffect deps con callbacks recreados, ExploreScreen, __mtxBookmarks, __mtxNav (+49 more)
-
-### Community 3 - "Profile Sheets & Followers"
+### Community 3 - "Community 3"
 Cohesion: 0.07
 Nodes (30): AchievementSheet, FollowerRow, FollowersSheet, HoursSheet, LevelSheet, _LEVEL_TIERS (Mente Curiosa..Mente Maestra), _resolveDirectoryAuthors, StatSheetShell (shared bottom-sheet wrapper) (+22 more)
 
-### Community 5 - "IA Chat Core"
+### Community 5 - "Community 5"
 Cohesion: 0.1
-Nodes (5): IAHistorySheet(), IAScreen(), _mockAssistantReply(), _runMockResponse(), useIAChat()
+Nodes (6): _buildSessionGreeting(), IAHistorySheet(), IAScreen(), _mockAssistantReply(), _runMockResponse(), useIAChat()
 
-### Community 6 - "Achievements System"
+### Community 6 - "Community 6"
 Cohesion: 0.11
 Nodes (9): _buildAchievements(), _buildAchievementsForUser(), _buildAreaPaths(), ProfileScreen(), ProfileStatsTab(), useProfile(), useUserReviews(), useFollow() (+1 more)
 
-### Community 7 - "Home Inactive (entry)"
+### Community 7 - "Community 7"
 Cohesion: 0.14
 Nodes (10): HomeInactive(), RoutineIc(), RoutineIc(), _composeDur(), getColorById(), getIconById(), _getMetricType(), RoutineCreateSheet() (+2 more)
 
-### Community 8 - "IA Assistant Settings"
+### Community 8 - "Community 8"
 Cohesion: 0.16
 Nodes (7): ChannelsTab(), IntegrationsTab(), KnowledgeTab(), MemoryTab(), PersonalityTab(), PrivacyTab(), useIAConfig()
 
-### Community 9 - "Activity Runner Helpers"
+### Community 9 - "Community 9"
 Cohesion: 0.14
 Nodes (4): _buildRunnerPlaylist(), _resolveCopy(), _resolveSuggestions(), RunnerShell()
 
-### Community 10 - "Phase Home Audit Trail"
+### Community 10 - "Community 10"
 Cohesion: 0.18
 Nodes (17): Phase Home — GPU + UX audit, screens/apps-editor.jsx, screens/auto-routines.jsx, screens/custom-time-modal.jsx, screens/home-active.jsx, screens/home-inactive.jsx, IMP-1 filter:blur halos sin compositing hint, IMP-2 Infinite animations sin GPU compositing (+9 more)
 
-### Community 11 - "Phase Comunidad Audit"
+### Community 11 - "Community 11"
 Cohesion: 0.13
 Nodes (16): New blind spot #11 inner-component re-mount, CRIT-R1 Subcomponent defined inside parent (re-mount), CRIT-T1 span onClick missing keyboard a11y, CRIT-T2 setTimeout in useEffect without cleanup, Phase Comunidad audit lessons, IMP-T3 lookupAuthor O(n) -> Map memo, IMP-T4 force() re-render eager unfiltered, Pattern: useCommentCount filters by reviewId (+8 more)
 
-### Community 12 - "Community Feed & Reviews"
+### Community 12 - "Community 12"
 Cohesion: 0.15
 Nodes (6): CommunityReviewCard(), CommunityScreen(), ProfileReviewCard(), _formatRelative(), ThreadCommentRow(), useCommentCount()
 
-### Community 13 - "Voice Transcription Overlay"
+### Community 13 - "Community 13"
 Cohesion: 0.27
 Nodes (12): _applySmartPunctuation(), _capitalize(), _detectAndFormatList(), _detectVoiceCommand(), IAVoiceOverlay(), _mergeSegments(), _normalizeNumbers(), _parseSpokenInt() (+4 more)
 
-### Community 15 - "Apps Protection & Break Picker"
+### Community 15 - "Community 15"
 Cohesion: 0.19
 Nodes (5): AppsBreakPickerSheet(), AppsProtectionCard(), startInterval(), stopInterval(), useAppsBreak()
 
-### Community 16 - "Achievement Tier Math"
+### Community 16 - "Community 16"
 Cohesion: 0.24
 Nodes (6): _findCurrentTier(), _findNextTier(), FollowerRow(), LevelSheet(), StatSheetShell(), useStatSheet()
 
-### Community 18 - "Phase Runner Audit Trail"
+### Community 18 - "Community 18"
+Cohesion: 0.27
+Nodes (8): AgendaSheet(), EventRow(), eventTypeStyle(), formatDayLabel(), formatDuration(), HomeRemindersCard(), ProposalCard(), useIAAgenda()
+
+### Community 19 - "Community 19"
 Cohesion: 0.24
 Nodes (10): Phase Runner — Lessons (audit C-A-R), screens/activity-runner.jsx, Blind spot #11 — pointer-events:none hereda en cascada vía portal, CRIT-1 pointer-events:none en portal mount root rompe TODOS los hijos via portal, screens/explore-flow.jsx, screens/global-player.jsx, Meta-lesson: verificar suposiciones CSS empíricamente con getComputedStyle, screens/profile.jsx (+2 more)
 
-### Community 19 - "IA Agenda (Phase 4)"
+### Community 20 - "Community 20"
 Cohesion: 0.22
 Nodes (1): AppsEditorSheet()
 
-### Community 20 - "Apps Editor Sheet"
-Cohesion: 0.33
-Nodes (7): AgendaSheet(), EventRow(), eventTypeStyle(), formatDayLabel(), formatDuration(), ProposalCard(), useIAAgenda()
-
-### Community 22 - "Challenges All Screen"
+### Community 22 - "Community 22"
 Cohesion: 0.36
 Nodes (4): formatParticipants(), isAvailableStatus(), MtxChallengeCard(), MtxChallengeDetail()
 
-### Community 24 - "Notifications Sheet"
+### Community 24 - "Community 24"
 Cohesion: 0.33
 Nodes (3): getIc(), NotifCard(), NotificationsSheet()
 
-### Community 26 - "Ritual Playlist Builder"
+### Community 26 - "Community 26"
 Cohesion: 0.47
 Nodes (4): compute(), recompute(), resolveItems(), _resolvePlaylistItems()
 
-### Community 27 - "Active Queue Compute"
+### Community 27 - "Community 27"
 Cohesion: 0.4
 Nodes (2): openRitualActivity(), _resolveActivityToExploreItem()
 
-### Community 29 - "Chronological Feed Pattern"
+### Community 29 - "Community 29"
 Cohesion: 0.4
 Nodes (6): _formatRelative — ts → 'Ahora'/'Nm'/'Nh'/'Nd', _MOCK_COMMUNITY_REVIEWS (timeAgo seed), _timeAgoToMs — parses '2h'/'1d'/'Ahora' to ms epoch, Chronological feed pattern (merge own + mock, sort by _sortTs DESC, dynamic _formatRelative), CommunityScreen (unified feed), feed useMemo — chronological merge+sort
 
-### Community 31 - "Now Playing Bar"
+### Community 31 - "Community 31"
 Cohesion: 0.67
 Nodes (2): MtxNowPlayingBar(), useNowPlaying()
 
@@ -332,14 +328,22 @@ Nodes (1): IMP-4 Chained smoke tests fragile due to accumulated state
 Cohesion: 1.0
 Nodes (1): IMP-5 Silent Unsplash image 404s
 
+### Community 67 - "Community 67"
+Cohesion: 1.0
+Nodes (1): restoreReminder
+
+### Community 68 - "Community 68"
+Cohesion: 1.0
+Nodes (1): IAChatHeader
+
 ## Knowledge Gaps
-- **99 isolated node(s):** `IOSStatusBar`, `IOSGlassPill`, `IOSKeyboard`, `DynamicIsland (z=150)`, `frames/tweaks-panel.jsx` (+94 more)
+- **102 isolated node(s):** `IOSStatusBar`, `IOSGlassPill`, `IOSKeyboard`, `DynamicIsland (z=150)`, `frames/tweaks-panel.jsx` (+97 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `IA Agenda (Phase 4)`** (9 nodes): `AppRow()`, `AppsEditorSheet()`, `CategoryChip()`, `CategoryGroup()`, `Checkmark()`, `EmptyState()`, `FlatList()`, `apps-editor.jsx`, `SuggestedSection()`
+- **Thin community `Community 20`** (9 nodes): `AppRow()`, `AppsEditorSheet()`, `CategoryChip()`, `CategoryGroup()`, `Checkmark()`, `EmptyState()`, `FlatList()`, `apps-editor.jsx`, `SuggestedSection()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Active Queue Compute`** (6 nodes): `_buildRitualPlaylist()`, `GP()`, `ritual-player.jsx`, `openRitualActivity()`, `_resolveActivityToExploreItem()`, `useRitualPlayer()`
+- **Thin community `Community 27`** (6 nodes): `_buildRitualPlaylist()`, `GP()`, `ritual-player.jsx`, `openRitualActivity()`, `_resolveActivityToExploreItem()`, `useRitualPlayer()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Now Playing Bar`** (4 nodes): `_emit()`, `now-playing-bar.jsx`, `MtxNowPlayingBar()`, `useNowPlaying()`
+- **Thin community `Community 31`** (4 nodes): `_emit()`, `now-playing-bar.jsx`, `MtxNowPlayingBar()`, `useNowPlaying()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 33`** (2 nodes): `AutoRoutineCreateSheet`, `__mtxAutoRoutines`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -409,21 +413,25 @@ Nodes (1): IMP-5 Silent Unsplash image 404s
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 66`** (1 nodes): `IMP-5 Silent Unsplash image 404s`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 67`** (1 nodes): `restoreReminder`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 68`** (1 nodes): `IAChatHeader`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useToast()` connect `Toast & Active Queue Shell` to `IA Chat Core`, `Achievements System`, `Home Inactive (entry)`, `Community Feed & Reviews`, `Achievement Tier Math`, `IA Agenda (Phase 4)`, `Apps Editor Sheet`, `Notifications Sheet`?**
-  _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **Why does `IAScreen()` connect `IA Chat Core` to `Toast & Active Queue Shell`?**
-  _High betweenness centrality (0.021) - this node is a cross-community bridge._
-- **Why does `ProfileScreen()` connect `Achievements System` to `Toast & Active Queue Shell`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `useToast()` connect `Community 1` to `Community 5`, `Community 6`, `Community 7`, `Community 12`, `Community 16`, `Community 18`, `Community 20`, `Community 24`?**
+  _High betweenness centrality (0.079) - this node is a cross-community bridge._
+- **Why does `IAScreen()` connect `Community 5` to `Community 1`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
+- **Why does `ProfileScreen()` connect `Community 6` to `Community 1`?**
+  _High betweenness centrality (0.015) - this node is a cross-community bridge._
 - **Are the 28 inferred relationships involving `useToast()` (e.g. with `FollowerRow()` and `IAScreen()`) actually correct?**
   _`useToast()` has 28 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 2 inferred relationships involving `MentexApp` (e.g. with `IOSDevice` and `MtxTabBar`) actually correct?**
-  _`MentexApp` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 4 inferred relationships involving `AgendaSheet` (e.g. with `IAHistorySheet` and `AssistantConfigSheet`) actually correct?**
+  _`AgendaSheet` has 4 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 2 inferred relationships involving `MentexApp shell` (e.g. with `IOSDevice` and `MtxTabBar`) actually correct?**
+  _`MentexApp shell` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `IOSStatusBar`, `IOSGlassPill`, `IOSKeyboard` to the rest of the system?**
-  _99 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Toast & Active Queue Shell` be split into smaller, more focused modules?**
-  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+  _102 weakly-connected nodes found - possible documentation gaps or missing edges._
