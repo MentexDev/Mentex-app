@@ -25,10 +25,15 @@ function CustomTimeModal({
   // Tiempo ya transcurrido en la sesión activa (para mostrar el subtítulo
   // "Llevas X min de enfoque" cuando aplica). 0 si no hay sesión activa.
   elapsedMinutes = 0,
-  // Callback opcional para abrir el AutoRoutineCreateSheet con el tiempo
-  // actual como punto de partida. El secondary button "Convertir en
-  // rutina automática" lo invoca y cierra este modal en el mismo flow.
+  // Callback opcional. Si llega, se renderiza una row "Convertir en rutina
+  // automática" entre Atajos rápidos y Aplicar (mismo lenguaje visual que
+  // las rows del setup, terminada en una flecha circular). Cierra este
+  // modal y delega al host para abrir el AutoRoutineCreateSheet.
   onConvertToAuto = null,
+  // Título del modal — el host lo override desde el flow de auto-rutina
+  // para indicar que el tiempo elegido se aplica a TODOS los días de la
+  // rutina, no solo a una sesión puntual.
+  title = 'Tiempo de enfoque',
 }) {
   const _initH = initialMinutes != null ? Math.floor(initialMinutes / 60) : 1;
   const _initM = initialMinutes != null ? (initialMinutes % 60) : 30;
@@ -77,11 +82,10 @@ function CustomTimeModal({
         // el grabber para que no quede pegado al borde redondeado.
         padding: '18px 20px 44px',
         boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
-        // Height fijo para que el modal SIEMPRE abra al tamaño completo
-        // (~88% del viewport) en lugar de quedar anclado al bottom con
-        // espacio vacío arriba cuando el contenido natural es menor.
-        // overflow:auto permite scroll interno si el contenido excede.
-        height: '88%', overflow: 'auto',
+        // maxHeight para que el modal se adapte al contenido natural sin
+        // generar espacio vacío abajo. Si el contenido excede 88vh, hace
+        // scroll interno; si no, se ajusta justo al contenido.
+        maxHeight: '88%', overflow: 'auto',
         animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
       }} className="mtx-no-scrollbar">
         {/* Grabber */}
@@ -92,7 +96,7 @@ function CustomTimeModal({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="mtx-eyebrow" style={{ marginBottom: 4, fontSize: 10 }}>Personalizar</div>
-            <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)' }}>Tiempo de enfoque</h2>
+            <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)' }}>{title}</h2>
             {elapsedStr && (
               <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.4 }}>
                 {elapsedStr}elige el nuevo total.
@@ -155,6 +159,56 @@ function CustomTimeModal({
           </div>
         </div>
 
+        {/* Convertir en rutina automática — row inline (mismo lenguaje
+            visual que las rows del setup en AutoRoutineCreateSheet),
+            terminada en una flecha circular. Solo aparece si el host
+            provee onConvertToAuto (HomeInactive sí, HomeActive y el
+            propio AutoRoutineCreateSheet NO — fromAutoRoutine evita
+            loop, elapsed>0 evita confusión mid-sesión). */}
+        {onConvertToAuto && (
+          <button onClick={() => onConvertToAuto(totalMinutes)} className="mtx-tap" style={{
+            appearance: 'none', cursor: 'pointer', textAlign: 'left',
+            width: '100%', marginBottom: 14,
+            padding: '12px 14px', borderRadius: 16,
+            border: '0.5px solid rgba(61,255,209,0.22)',
+            background: 'linear-gradient(180deg, rgba(61,255,209,0.06), rgba(61,255,209,0.015))',
+            display: 'flex', alignItems: 'center', gap: 12,
+            fontFamily: 'var(--ff-sans)',
+            transition: 'background .25s, border-color .25s',
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+              background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06))',
+              border: '0.5px solid rgba(61,255,209,0.32)',
+              color: 'var(--neon)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <IcZap size={16} stroke="currentColor" strokeWidth={1.7}/>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)',
+                letterSpacing: '-0.005em',
+              }}>
+                Convertir en rutina automática
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2, lineHeight: 1.35 }}>
+                Inicia sola en el horario que elijas
+              </div>
+            </div>
+            <div style={{
+              width: 30, height: 30, borderRadius: 999, flexShrink: 0,
+              background: 'rgba(61,255,209,0.14)',
+              border: '0.5px solid rgba(61,255,209,0.32)',
+              color: 'var(--neon)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'inset 0 0 10px rgba(61,255,209,0.10)',
+            }}>
+              <IcChevR size={13} stroke="currentColor" strokeWidth={2.2}/>
+            </div>
+          </button>
+        )}
+
         {/* Apply — deshabilitado si totalMinutes < minMinutes (evita
             saltar a completed inmediato cuando se edita una sesión activa). */}
         <button className="mtx-btn-neon" style={{
@@ -170,32 +224,6 @@ function CustomTimeModal({
         }}>
           Aplicar · {hours > 0 ? `${hours}h ` : ''}{mins} min
         </button>
-
-        {/* Secondary CTA — convertir esta duración en rutina automática.
-            Cierra este modal y abre AutoRoutineCreateSheet, llevando la
-            duración elegida como semilla. Si el host no provee
-            onConvertToAuto, el botón no se renderiza (HomeActive lo
-            omite porque ya está en sesión activa — convertir mientras
-            corre la sesión no tiene sentido). */}
-        {onConvertToAuto && (
-          <button onClick={() => onConvertToAuto(totalMinutes)} className="mtx-tap" style={{
-            appearance: 'none', cursor: 'pointer',
-            width: '100%', marginTop: 14,
-            padding: '14px 16px', borderRadius: 18,
-            border: '0.5px solid rgba(61,255,209,0.30)',
-            background: 'linear-gradient(180deg, rgba(61,255,209,0.06), rgba(61,255,209,0.015))',
-            color: 'var(--neon)',
-            fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-            letterSpacing: '-0.005em',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: 'inset 0 0 18px rgba(61,255,209,0.04)',
-            transition: 'background .25s, border-color .25s',
-          }}>
-            <IcZap size={14} stroke="currentColor" strokeWidth={1.8}/>
-            Convertir en rutina automática
-            <IcChevR size={14} stroke="currentColor" strokeWidth={1.8}/>
-          </button>
-        )}
       </div>
     </div>
   );

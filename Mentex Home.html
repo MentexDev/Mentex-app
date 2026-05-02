@@ -34,8 +34,8 @@
   <script type="text/babel" src="components/mentex-shared.jsx?v=6"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=27"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=32"></script>
-  <script type="text/babel" src="screens/custom-time-modal.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auto-routines.jsx?v=1"></script>
+  <script type="text/babel" src="screens/custom-time-modal.jsx?v=8"></script>
+  <script type="text/babel" src="screens/auto-routines.jsx?v=2"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
   <script type="text/babel" src="screens/apps-editor.jsx?v=2"></script>
@@ -549,6 +549,10 @@
             initialMinutes={editTimeCtx?.initialMinutes ?? null}
             minMinutes={editTimeCtx?.minMinutes ?? 1}
             elapsedMinutes={editTimeCtx?.elapsedMinutes ?? 0}
+            // Título contextual — desde el flow de auto-rutina llega
+            // "Tiempo de enfoque diario" para indicar que el valor se
+            // aplica a TODOS los días de la rutina, no a una sesión.
+            title={editTimeCtx?.title || 'Tiempo de enfoque'}
             // Solo desde HomeInactive (sin elapsed, sin fromAutoRoutine)
             // ofrecemos convertir a rutina automática. Casos donde NO
             // aparece el botón:
@@ -595,9 +599,14 @@
               routinesCatalog={routinesCatalog}
               onEditTime={() => {
                 // fromAutoRoutine flag previene que el CustomTimeModal
-                // re-ofrezca el botón "Convertir en rutina automática"
-                // (evita loop de modales).
-                setEditTimeCtx({ initialMinutes: state.time || 90, fromAutoRoutine: true });
+                // re-ofrezca la row "Convertir en rutina automática"
+                // (evita loop de modales). title cambia el header para
+                // indicar que el tiempo es el total diario de la rutina.
+                setEditTimeCtx({
+                  initialMinutes: state.time || 90,
+                  fromAutoRoutine: true,
+                  title: 'Tiempo de enfoque diario',
+                });
               }}
               onEditApps={() => setAppsEditorOpen(true)}
               onEditRoutines={() => setRoutinesEditorOpen(true)}

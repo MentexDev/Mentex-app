@@ -145,8 +145,14 @@ function AutoRoutineCreateSheet({
   };
 
   return (
+    // zIndex 90 (no 110) deliberado: este sheet es el "padre" del flow.
+    // Cuando el user tap "Apps a bloquear" o "Rutinas del ritual" desde
+    // los SetupTiles, los editores correspondientes (apps-editor /
+    // routines-editor / custom-time-modal — todos a zIndex 100) deben
+    // renderizar POR ENCIMA de este sheet, no por detrás. Mantener este
+    // por debajo evita que el user pierda visibilidad del sub-editor.
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 110,
+      position: 'absolute', inset: 0, zIndex: 90,
       display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
       background: 'rgba(0,0,0,0.5)',
       backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
@@ -160,7 +166,7 @@ function AutoRoutineCreateSheet({
         borderTopLeftRadius: 32, borderTopRightRadius: 32,
         padding: '18px 20px 44px',
         boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
-        height: '88%', overflow: 'auto',
+        maxHeight: '88%', overflow: 'auto',
         animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
       }} className="mtx-no-scrollbar">
         <div style={{
