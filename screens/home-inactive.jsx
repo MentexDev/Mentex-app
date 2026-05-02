@@ -149,6 +149,149 @@ const LEARNING = [
 // "ladrones de atención" según la curaduría de Mentex.
 const _DEFAULT_VISIBLE_APP_IDS = ['ig', 'tt', 'yt', 'x', 'fb'];
 
+// ── Coach Whisper messages — saludo personalizado por coachVoice ──────────
+// Mapea cada voz del onboarding (warm/contemplative/energetic/wise) a un
+// saludo de mañana corto + CTA tono-consistente. firstName se interpola
+// runtime. El bubble aparece desde el botón ✦ del header.
+function _coachWhisperMessage(coachVoice, firstName) {
+  const name = (firstName || 'amig@').trim() || 'amig@';
+  const map = {
+    warm:          { msg: 'Hola, ' + name + '. ¿Te ayudo a programar tu día?',           cta: 'Hablemos' },
+    contemplative: { msg: 'Buen día, ' + name + '. Cuando quieras, podemos empezar.',    cta: 'Comenzar' },
+    energetic:     { msg: '¡' + name + '! ¿Listo para hacer hoy un gran día?',           cta: '¡Vamos!' },
+    wise:          { msg: 'Bienvenido, ' + name + '. La intención del día se construye temprano.', cta: 'Sentémonos' },
+  };
+  return map[coachVoice] || map.warm;
+}
+
+// ── _shouldShowCoachWhisper — decide si mostrar el bubble en HomeInactive ─
+// Reglas (no spam):
+//   • El user debe haber completado onboarding (sin completed → no whisper).
+//   • Mostrar la PRIMERA vez post-onboarding (lastShown ausente) Y
+//     después solo en la PRIMERA apertura de cada día (lastShown < 00:00 hoy).
+//   • Si el onboarding NO está completo, no mostrar nada.
+// localStorage key: '__mtx_whisper_lastShown' = ms timestamp.
+function _shouldShowCoachWhisper() {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
+  const ob = window.__mtxOnboarding ? window.__mtxOnboarding.get() : null;
+  if (!ob || !ob.completed) return false;
+  try {
+    const raw = localStorage.getItem('__mtx_whisper_lastShown');
+    if (!raw) return true; // primera vez
+    const lastShown = parseInt(raw, 10);
+    if (!isFinite(lastShown)) return true;
+    const lastDate = new Date(lastShown);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return lastDate.getTime() < today.getTime();
+  } catch (_) { return false; }
+}
+
+function _markCoachWhisperShown() {
+  try { localStorage.setItem('__mtx_whisper_lastShown', String(Date.now())); } catch (_) {}
+}
+
+// ── CoachWhisperBubble — speech bubble que sale del botón ✦ ───────────────
+// Aparece anclado debajo del button ✦ del header con tail apuntando hacia
+// arriba. Tap en CTA primary → abre el chat (onOpenCoach). Tap en × o
+// fuera del bubble → cierra. Auto-dismiss a los 12s para no acumular.
+function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss }) {
+  const { msg, cta } = _coachWhisperMessage(coachVoice, firstName);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => onDismiss(), 12000);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div style={{
+      position:'absolute', top:128, right:14,
+      maxWidth:280,
+      animation:'mtx-fade-up .35s ease both',
+      zIndex:6,
+      fontFamily:'var(--ff-sans)',
+    }}>
+      {/* Tail — pequeño cuadro rotado 45° apuntando arriba al botón ✦.
+          Right:62 alinea con el centro del botón ✦ (top:78 right:70 width:44
+          → centro a right:92, pero el bubble está en right:14 con maxWidth
+          → tail right relativo al bubble: ~62 desde right). */}
+      <div style={{
+        position:'absolute', top:-6, right:62,
+        width:12, height:12,
+        background:'rgba(10,14,12,0.92)',
+        borderTop:'0.5px solid rgba(61,255,209,0.30)',
+        borderLeft:'0.5px solid rgba(61,255,209,0.30)',
+        transform:'rotate(45deg)',
+        zIndex:0,
+      }}/>
+      {/* Bubble */}
+      <div style={{
+        position:'relative',
+        background:'rgba(10,14,12,0.92)',
+        border:'0.5px solid rgba(61,255,209,0.30)',
+        borderRadius:18,
+        padding:'14px 16px 14px',
+        boxShadow:'0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)',
+        backdropFilter:'blur(20px) saturate(160%)',
+        WebkitBackdropFilter:'blur(20px) saturate(160%)',
+      }}>
+        {/* Close × top-right */}
+        <button
+          onClick={onDismiss}
+          aria-label="Cerrar"
+          className="mtx-tap"
+          style={{
+            position:'absolute', top:8, right:8,
+            width:22, height:22, borderRadius:999,
+            background:'rgba(255,255,255,0.05)', border:'none',
+            color:'var(--ink-3)', cursor:'pointer',
+            fontSize:13, lineHeight:1,
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}
+        >×</button>
+
+        {/* Eyebrow */}
+        <div style={{
+          fontSize:9, fontWeight:700, color:'var(--neon)',
+          letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:5,
+          display:'inline-flex', alignItems:'center', gap:5,
+        }}>
+          <IcSparkles size={11} stroke="currentColor" strokeWidth={2}/>
+          Tu coach
+        </div>
+
+        {/* Mensaje */}
+        <div style={{
+          fontSize:13, lineHeight:1.4, color:'var(--ink-1)',
+          marginBottom:12, paddingRight:14,
+          letterSpacing:'-0.005em',
+        }}>{msg}</div>
+
+        {/* CTA primary */}
+        <button
+          onClick={onOpen}
+          className="mtx-tap"
+          style={{
+            appearance:'none', cursor:'pointer',
+            width:'100%', height:36,
+            borderRadius:11,
+            background:'var(--neon)',
+            color:'#02110b', border:'none',
+            fontSize:12.5, fontWeight:700,
+            letterSpacing:'-0.005em',
+            fontFamily:'var(--ff-sans)',
+            boxShadow:'0 6px 18px rgba(61,255,209,0.30)',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+          }}
+        >
+          {cta}
+          <IcChevR size={13} stroke="currentColor" strokeWidth={2.4}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const TIME_OPTIONS = [
 { v:15,  label:'15 min' },
 { v:30,  label:'30 min' },
@@ -516,6 +659,32 @@ function HomeInactive({
                  : hour < 19 ? 'Buenas tardes'
                  :             'Buenas noches';
 
+  // ── Coach Whisper (Phase 5.2) ──────────────────────────────────────────
+  // Bubble que sale del botón ✦ con saludo personalizado al coachVoice del
+  // onboarding. Aparece la primera vez post-onboarding O en la primera
+  // apertura de cada día (anti-spam). Tap CTA → abre el chat IA. La decisión
+  // se computa al mount (useState lazy) y se muestra después de 700ms para
+  // que el HomeInactive se siente primero en pantalla — no abrupto.
+  const [whisperOpen, setWhisperOpen] = React.useState(false);
+  const onboardingAnswers = React.useMemo(
+    () => (window.__mtxOnboarding ? window.__mtxOnboarding.get().answers : null),
+    []
+  );
+  React.useEffect(() => {
+    if (!_shouldShowCoachWhisper()) return;
+    const t = setTimeout(() => setWhisperOpen(true), 700);
+    return () => clearTimeout(t);
+  }, []);
+  const dismissWhisper = React.useCallback(() => {
+    setWhisperOpen(false);
+    _markCoachWhisperShown();
+  }, []);
+  const openWhisperChat = React.useCallback(() => {
+    setWhisperOpen(false);
+    _markCoachWhisperShown();
+    onOpenCoach();
+  }, [onOpenCoach]);
+
   // Banner tap handler (mock — abre toast por ahora)
   const toast = window.useToast ? window.useToast() : { show: () => {} };
   const handleBannerTap = (slide) => {
@@ -603,6 +772,17 @@ function HomeInactive({
             </span>
           )}
         </button>
+
+        {/* Coach Whisper Bubble — sale del botón ✦ con saludo del día.
+            Aparece primera vez post-onboarding o primera apertura del día. */}
+        {whisperOpen && (
+          <CoachWhisperBubble
+            coachVoice={onboardingAnswers ? onboardingAnswers.coachVoice : null}
+            firstName={onboardingAnswers && onboardingAnswers.name ? onboardingAnswers.name.split(' ')[0] : ''}
+            onOpen={openWhisperChat}
+            onDismiss={dismissWhisper}
+          />
+        )}
       </div>
 
       {/* ── Saludo + título + subtítulo (debajo del hero, sin eyebrow) ──
