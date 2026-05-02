@@ -1815,7 +1815,7 @@
     return React.createElement('div', null,
       // ── HERO compacto e impactante ──────────────────────────────────────
       React.createElement('div', {
-        style: { padding: '4px 28px 24px', textAlign: 'center' },
+        style: { padding: '4px 28px 22px', textAlign: 'center' },
       },
         React.createElement('div', {
           style: {
@@ -1840,6 +1840,13 @@
             fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)',
           },
         }, 'Acceso completo. Coach ilimitado. Foco profundo.')
+      ),
+
+      // ── PLAN CARD (toggle + precio) — primero, decisión clara ──────────
+      React.createElement('div', {
+        style: { padding: '0 28px', marginBottom: 24 },
+      },
+        React.createElement(PlanCard, { cycle: cycle, onChange: selectCycle })
       ),
 
       // ── SECTION HEADER ──────────────────────────────────────────────────
@@ -1871,12 +1878,12 @@
         })
       ),
 
-      // ── BENEFITS — protagonistas, cards grandes y elegantes ────────────
+      // ── BENEFITS — cards grandes que justifican el plan ────────────────
       React.createElement('div', {
         style: {
           padding: '0 24px',
           display: 'flex', flexDirection: 'column', gap: 10,
-          marginBottom: 24,
+          marginBottom: 22,
         },
       },
         PREMIUM_BENEFITS.map(function(b, i) {
@@ -1918,10 +1925,11 @@
       ),
 
       // ── SOCIAL PROOF ───────────────────────────────────────────────────
-      // Pill discreto con rating + count — añade trust sin ruido
+      // Pill discreto con rating + count, justo antes del CTA — refuerza
+      // confianza en el momento de decidir
       React.createElement('div', {
         style: {
-          padding: '0 28px', marginBottom: 22,
+          padding: '0 28px', marginBottom: 18,
           display: 'flex', justifyContent: 'center',
         },
       },
@@ -1945,13 +1953,6 @@
             style: { color: 'var(--ink-3)' },
           }, '· +50,000 mentes despiertas')
         )
-      ),
-
-      // ── PLAN CARD (toggle + precio) — elegante, no protagonista ────────
-      React.createElement('div', {
-        style: { padding: '0 28px', marginBottom: 24 },
-      },
-        React.createElement(PlanCard, { cycle: cycle, onChange: selectCycle })
       ),
 
       // ── CTAs ───────────────────────────────────────────────────────────
