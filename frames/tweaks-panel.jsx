@@ -197,6 +197,16 @@ function TweaksPanel({ title = 'Tweaks', children }) {
     };
     window.addEventListener('message', onMsg);
     window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+
+    // Auto-abrir el panel cuando la app corre STANDALONE (no embedded en
+    // Mentex Studio editor). En dev local, el user necesita acceso a los
+    // dev controls (auth reset, tweaks visuales) sin depender de un parent
+    // window externo. window.parent === window solo es true cuando la app
+    // está sola; cuando está dentro de un iframe del Studio, parent !== window.
+    if (window.parent === window) {
+      setOpen(true);
+    }
+
     return () => window.removeEventListener('message', onMsg);
   }, []);
 
