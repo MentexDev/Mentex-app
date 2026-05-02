@@ -862,18 +862,18 @@
   // mensaje typing, chip rotating) para que se sienta dinámico, no estático.
 
   // Hero card: contenedor glass común que TODOS los mockups usan.
-  // Tamaño 320×440 (antes 280×340) — más grande/llamativo según feedback.
+  // Tamaño 340×460 — más grande/llamativo según feedback iterado.
   function HeroCard(props) {
     return (
       <div style={{
         position: 'relative',
-        width: 320, height: 440,
+        width: 340, height: 460,
         borderRadius: 32,
         background: 'linear-gradient(180deg, rgba(20,24,22,0.85), rgba(8,12,10,0.92))',
         border: '0.5px solid rgba(255,255,255,0.08)',
         boxShadow: '0 28px 70px -24px rgba(0,0,0,0.7), inset 0 0 0 0.5px rgba(255,255,255,0.04)',
         overflow: 'hidden',
-        padding: 22,
+        padding: 24,
         display: 'flex', flexDirection: 'column',
         backdropFilter: 'blur(20px) saturate(140%)',
         WebkitBackdropFilter: 'blur(20px) saturate(140%)',
@@ -1568,43 +1568,39 @@
         <MeshGradientBackground/>
         <ParticleField count={28}/>
 
-        {/* Header: logo MENTEX top-left + "Saltar" top-right */}
+        {/* Header: solo wordmark "Mentex" centrado arriba (sin zen icon,
+            sin Saltar). Pattern Heartly reference — minimalista. */}
         <div style={{
           position: 'absolute',
           top: 60, left: 0, right: 0,
           padding: '0 24px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 4,
         }}>
-          <MentexLogoMark size={12}/>
-          <button
-            onClick={props.onContinue}
-            aria-label="Saltar al inicio de sesión"
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: 'pointer',
-              padding: '6px 12px',
-              border: 0, background: 'transparent',
-              color: 'var(--ink-3)',
-              fontSize: 13, fontWeight: 600,
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-            }}>Saltar</button>
+          <span style={{
+            fontSize: 14, fontWeight: 700,
+            color: 'var(--ink-1)',
+            letterSpacing: '0.04em', textTransform: 'uppercase',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+            opacity: 0.95,
+          }}>MENTEX</span>
         </div>
 
-        {/* Hero mockup container — más grande (320×440), centrado, swipeable */}
+        {/* Hero mockup container — centrado GARANTIZADO con position absolute
+            + left:50% + transform translateX(-50%). El antiguo flex-center
+            dentro de un container con left:0 right:0 podía desviarse en
+            algunos viewports (iframe del Studio). Ahora el centrado es
+            perfecto sin importar el ancestor. Tamaño 340×460 (antes 320×440). */}
         <div
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={{
             position: 'absolute',
-            top: 100, left: 0, right: 0,
-            display: 'flex', justifyContent: 'center',
+            top: 100, left: '50%',
+            transform: 'translateX(-50%)',
             zIndex: 2,
           }}>
-          {/* Crossfade entre mockups — todos renderizados, solo el visible
-              tiene opacity:1 + transform:0. Mantiene transitions suaves. */}
-          <div style={{ position: 'relative', width: 320, height: 440 }}>
+          <div style={{ position: 'relative', width: 340, height: 460 }}>
             {slidesData.map(function(s, i) {
               var visible = i === idx;
               var offsetX = visible ? 0 : (i < idx ? -24 : 24);
@@ -1777,18 +1773,18 @@
   }
 
 
-  // ── AuthScreen — pantalla profesional con tabs Sign In / Sign Up ─────────
-  // Layout (top→bottom):
-  //   1. Header: back button + logo Mentex centrado
-  //   2. Hero: título dinámico ("Bienvenido de vuelta" / "Crea tu cuenta")
-  //   3. Tab toggle: Iniciar sesión | Crear cuenta
-  //   4. Apple + Google CTAs (mismos en ambos modos)
-  //   5. Separator
-  //   6. Email field
-  //   7. Password field con toggle visibility (+confirm si signup)
-  //   8. "¿Olvidaste tu contraseña?" (solo en sign-in)
-  //   9. CTA primario "Iniciar sesión" / "Crear cuenta"
-  //   10. Footer legal
+  // ── AuthScreen — pantalla legendaria con tabs Sign In / Sign Up ─────────
+  // Layout vertical limpio (pattern Heartly elevado):
+  //   1. Header: back button + "MENTEX" wordmark centrado + spacer
+  //   2. Title hero grande dinámico ("Crea tu cuenta" / "Bienvenido de vuelta")
+  //   3. Subtitle inspiracional 1 línea
+  //   4. Tabs Sign In | Sign Up (pill toggle, neon en active)
+  //   5. Inputs con icons leading (mail, lock) — pegados visualmente
+  //   6. Row: "Recordarme" checkbox (signin) + "¿Olvidaste contraseña?"
+  //   7. CTA primario neon SÓLIDO gigante (no gradient transparente)
+  //   8. Separator "o continúa con"
+  //   9. Apple + Google side-by-side 50/50 (icons-only)
+  //   10. Footer: "¿No tienes cuenta? Crear una" / "¿Ya tienes cuenta? Iniciar"
   function AuthScreen(props) {
     // Modo inicial: si props.initialMode='signup', empezar en signup; si no, signin
     var modeState = React.useState(props.initialMode === 'signup' ? 'signup' : 'signin');
@@ -1855,6 +1851,9 @@
 
     var isSignIn = mode === 'signin';
 
+    var rememberState = React.useState(true);
+    var remember = rememberState[0]; var setRemember = rememberState[1];
+
     return (
       <div style={{
         position: 'absolute', inset: 0, zIndex: 50,
@@ -1862,9 +1861,9 @@
         animation: 'mtx-fade-in .35s ease',
       }}>
         <MeshGradientBackground/>
-        <ParticleField count={22}/>
+        <ParticleField count={20}/>
 
-        {/* Header: back + logo centrado */}
+        {/* Header: back izq + "MENTEX" wordmark centrado (sin zen icon) */}
         <div style={{
           position: 'absolute', top: 60, left: 0, right: 0,
           padding: '0 16px',
@@ -1891,7 +1890,13 @@
             display: 'flex', justifyContent: 'center',
             pointerEvents: 'none',
           }}>
-            <MentexLogoMark size={13}/>
+            <span style={{
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--ink-1)',
+              letterSpacing: '0.04em', textTransform: 'uppercase',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+              opacity: 0.95,
+            }}>MENTEX</span>
           </div>
         </div>
 
@@ -1905,34 +1910,38 @@
           overflow: 'auto',
         }} className="mtx-no-scrollbar">
 
-          {/* Hero title — cambia con el mode */}
-          <div style={{ marginBottom: 18 }}>
+          {/* Hero title — más grande, más impactante */}
+          <div style={{ marginBottom: 22 }}>
             <h1 style={{
               margin: 0,
-              fontSize: 24, fontWeight: 700,
+              fontSize: 28, fontWeight: 700,
               color: 'var(--ink-1)',
-              letterSpacing: '-0.025em',
+              letterSpacing: '-0.03em',
               fontFamily: 'var(--ff-display, var(--ff-sans))',
-              lineHeight: 1.2,
-            }}>{isSignIn ? 'Bienvenido de vuelta.' : 'Crea tu cuenta.'}</h1>
+              lineHeight: 1.15,
+            }}>{isSignIn ? (
+              <span>Bienvenido <span style={{ color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 }}>de vuelta</span>.</span>
+            ) : (
+              <span>Crea tu <span style={{ color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 }}>cuenta</span>.</span>
+            )}</h1>
             <p style={{
-              margin: '6px 0 0',
-              fontSize: 13, color: 'var(--ink-3)',
+              margin: '8px 0 0',
+              fontSize: 13.5, color: 'var(--ink-3)',
               fontFamily: 'var(--ff-sans)',
-              lineHeight: 1.5,
+              lineHeight: 1.55,
             }}>{isSignIn
               ? 'Ingresa para continuar tu camino.'
               : 'Únete y empieza tu mejor versión hoy.'}</p>
           </div>
 
-          {/* Tab toggle Sign In / Sign Up */}
+          {/* Tab toggle Sign In / Sign Up — pill compact, neon active */}
           <div style={{
             display: 'flex', gap: 4,
             padding: 4,
             background: 'rgba(255,255,255,0.03)',
             border: '0.5px solid rgba(255,255,255,0.06)',
-            borderRadius: 12,
-            marginBottom: 18,
+            borderRadius: 999,
+            marginBottom: 22,
           }}>
             <button
               onClick={function() { setMode('signin'); clearError(); }}
@@ -1940,17 +1949,17 @@
               className="mtx-tap"
               style={{
                 appearance: 'none', cursor: 'pointer',
-                flex: 1, padding: '9px 12px', borderRadius: 9,
+                flex: 1, padding: '10px 14px', borderRadius: 999,
                 border: 0,
                 background: isSignIn
-                  ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))'
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.06))'
                   : 'transparent',
                 color: isSignIn ? 'var(--neon)' : 'var(--ink-3)',
-                fontSize: 13, fontWeight: 600,
+                fontSize: 13, fontWeight: 700,
                 fontFamily: 'var(--ff-sans)',
                 letterSpacing: '-0.005em',
-                boxShadow: isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.30)' : 'none',
-                transition: 'background .25s, color .25s',
+                boxShadow: isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.34), 0 0 0 1px rgba(61,255,209,0.08)' : 'none',
+                transition: 'background .25s, color .25s, box-shadow .25s',
               }}>Iniciar sesión</button>
             <button
               onClick={function() { setMode('signup'); clearError(); }}
@@ -1958,133 +1967,83 @@
               className="mtx-tap"
               style={{
                 appearance: 'none', cursor: 'pointer',
-                flex: 1, padding: '9px 12px', borderRadius: 9,
+                flex: 1, padding: '10px 14px', borderRadius: 999,
                 border: 0,
                 background: !isSignIn
-                  ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))'
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.06))'
                   : 'transparent',
                 color: !isSignIn ? 'var(--neon)' : 'var(--ink-3)',
-                fontSize: 13, fontWeight: 600,
+                fontSize: 13, fontWeight: 700,
                 fontFamily: 'var(--ff-sans)',
                 letterSpacing: '-0.005em',
-                boxShadow: !isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.30)' : 'none',
-                transition: 'background .25s, color .25s',
+                boxShadow: !isSignIn ? 'inset 0 0 0 0.5px rgba(61,255,209,0.34), 0 0 0 1px rgba(61,255,209,0.08)' : 'none',
+                transition: 'background .25s, color .25s, box-shadow .25s',
               }}>Crear cuenta</button>
           </div>
 
-          {/* Apple + Google */}
-          <button
-            onClick={handleApple}
-            disabled={!!loading}
-            aria-label="Continuar con Apple"
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: loading ? 'wait' : 'pointer',
-              width: '100%', height: 48,
-              padding: '0 18px',
-              borderRadius: 12,
-              border: '0.5px solid rgba(255,255,255,0.10)',
-              background: '#000',
-              color: '#fff',
-              fontSize: 14, fontWeight: 600,
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              marginBottom: 8,
-              opacity: loading && loading !== 'apple' ? 0.5 : 1,
-            }}>
-            <svg width="14" height="18" viewBox="0 0 16 20" fill="currentColor">
-              <path d="M11.4 10.6c0-2.4 2-3.6 2.1-3.6-1.1-1.6-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8C1.6 5.3 0 6.3 0 8.7c0 1.6.5 3.4 1.4 4.8.7 1.3 1.6 2.6 2.6 2.6 1 0 1.4-.7 2.6-.7 1.3 0 1.6.7 2.7.6 1.1 0 1.8-1.3 2.5-2.5.4-.7.7-1.6 1-2.5-.1 0-2.4-.9-2.4-3.4M9.4 3.5c.5-.7.9-1.7.8-2.6-.8 0-1.7.5-2.3 1.2C7.4 2.7 6.9 3.7 7 4.6c.9.1 1.9-.4 2.4-1.1Z"/>
-            </svg>
-            {loading === 'apple' ? 'Conectando…' : (isSignIn ? 'Continuar con Apple' : 'Crear con Apple')}
-          </button>
-          <button
-            onClick={handleGoogle}
-            disabled={!!loading}
-            aria-label="Continuar con Google"
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: loading ? 'wait' : 'pointer',
-              width: '100%', height: 48,
-              padding: '0 18px',
-              borderRadius: 12,
-              border: '0.5px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.04)',
-              color: 'var(--ink-1)',
-              fontSize: 14, fontWeight: 600,
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              marginBottom: 18,
-              opacity: loading && loading !== 'google' ? 0.5 : 1,
-            }}>
-            <svg width="16" height="16" viewBox="0 0 18 18">
-              <path d="M17.6 9.2c0-.6-.1-1.2-.2-1.7H9v3.3h4.8c-.2 1.1-.8 2-1.8 2.6v2.2h2.9c1.7-1.5 2.7-3.8 2.7-6.4Z" fill="#4285f4"/>
-              <path d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3C2.4 16 5.4 18 9 18Z" fill="#34a853"/>
-              <path d="M3.9 10.7c-.2-.5-.3-1.1-.3-1.7s.1-1.2.3-1.7V5H.9C.3 6.2 0 7.6 0 9s.3 2.8.9 4l3-2.3Z" fill="#fbbc05"/>
-              <path d="M9 3.6c1.3 0 2.5.4 3.5 1.3l2.6-2.6C13.5.9 11.4 0 9 0 5.4 0 2.4 2 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6Z" fill="#ea4335"/>
-            </svg>
-            {loading === 'google' ? 'Conectando…' : (isSignIn ? 'Continuar con Google' : 'Crear con Google')}
-          </button>
-
-          {/* Separator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
+          {/* Email input — icono leading mail integrado al input */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
             <div style={{
-              fontSize: 10.5, color: 'var(--ink-4)',
-              letterSpacing: '0.08em',
-              fontFamily: 'var(--ff-sans)',
-              fontWeight: 600,
-            }}>O CON EMAIL</div>
-            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
+              position: 'absolute', left: 16, top: 0, bottom: 0,
+              display: 'flex', alignItems: 'center',
+              color: 'var(--ink-4)',
+              pointerEvents: 'none',
+            }}>
+              <IcMail size={16} stroke="currentColor" strokeWidth={1.6}/>
+            </div>
+            <input
+              ref={emailRef}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={function(e) { setEmail(e.target.value); clearError(); }}
+              placeholder="Tu email"
+              disabled={!!loading}
+              style={{
+                appearance: 'none', WebkitAppearance: 'none',
+                width: '100%', height: 54,
+                boxSizing: 'border-box',
+                padding: '0 16px 0 44px',
+                borderRadius: 14,
+                border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--ink-1)',
+                fontSize: 14.5, fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                outline: 'none', colorScheme: 'dark',
+              }}
+            />
           </div>
 
-          {/* Email */}
-          <input
-            ref={emailRef}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={function(e) { setEmail(e.target.value); clearError(); }}
-            placeholder="tu@email.com"
-            disabled={!!loading}
-            style={{
-              appearance: 'none', WebkitAppearance: 'none',
-              width: '100%', height: 48,
-              boxSizing: 'border-box',
-              padding: '0 16px',
-              borderRadius: 12,
-              border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
-              background: 'rgba(255,255,255,0.03)',
-              color: 'var(--ink-1)',
-              fontSize: 14, fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              outline: 'none', colorScheme: 'dark',
-              marginBottom: 8,
-            }}
-          />
-
-          {/* Password con toggle visibility */}
-          <div style={{ position: 'relative', marginBottom: 6 }}>
+          {/* Password input — icono leading lock + eye toggle trailing */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <div style={{
+              position: 'absolute', left: 16, top: 0, bottom: 0,
+              display: 'flex', alignItems: 'center',
+              color: 'var(--ink-4)',
+              pointerEvents: 'none',
+            }}>
+              <IcLock size={16} stroke="currentColor" strokeWidth={1.6}/>
+            </div>
             <input
               type={showPassword ? 'text' : 'password'}
               autoComplete={isSignIn ? 'current-password' : 'new-password'}
               value={password}
               onChange={function(e) { setPassword(e.target.value); clearError(); }}
               onKeyDown={onKeyDown}
-              placeholder={isSignIn ? 'Tu contraseña' : 'Crea una contraseña (6+)'}
+              placeholder={isSignIn ? 'Tu contraseña' : 'Mínimo 6 caracteres'}
               disabled={!!loading}
               style={{
                 appearance: 'none', WebkitAppearance: 'none',
-                width: '100%', height: 48,
+                width: '100%', height: 54,
                 boxSizing: 'border-box',
-                padding: '0 44px 0 16px',
-                borderRadius: 12,
+                padding: '0 48px 0 44px',
+                borderRadius: 14,
                 border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
                 background: 'rgba(255,255,255,0.03)',
                 color: 'var(--ink-1)',
-                fontSize: 14, fontFamily: 'var(--ff-sans)',
+                fontSize: 14.5, fontFamily: 'var(--ff-sans)',
                 letterSpacing: '-0.005em',
                 outline: 'none', colorScheme: 'dark',
               }}
@@ -2095,9 +2054,9 @@
               type="button"
               className="mtx-tap"
               style={{
-                position: 'absolute', right: 6, top: 6,
+                position: 'absolute', right: 8, top: 8,
                 appearance: 'none', cursor: 'pointer',
-                width: 36, height: 36, borderRadius: 8,
+                width: 38, height: 38, borderRadius: 10,
                 border: 0, background: 'transparent',
                 color: 'var(--ink-3)',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -2106,38 +2065,64 @@
             </button>
           </div>
 
-          {/* Forgot password — solo en sign-in */}
+          {/* Row: Recordarme (signin) + Olvidaste contraseña */}
           {isSignIn && (
-            <div style={{ textAlign: 'right', marginBottom: 14 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 18,
+            }}>
+              <button
+                onClick={function() { setRemember(!remember); }}
+                aria-pressed={remember}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  border: 0, background: 'transparent',
+                  color: 'var(--ink-2)',
+                  fontSize: 12.5, fontWeight: 500,
+                  fontFamily: 'var(--ff-sans)',
+                  padding: 0,
+                }}>
+                <span style={{
+                  width: 18, height: 18, borderRadius: 5,
+                  border: '0.5px solid ' + (remember ? 'rgba(61,255,209,0.50)' : 'rgba(255,255,255,0.18)'),
+                  background: remember ? 'rgba(61,255,209,0.18)' : 'transparent',
+                  color: remember ? 'var(--neon)' : 'transparent',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background .2s, border-color .2s, color .2s',
+                }}>{remember && <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>}</span>
+                Recordarme
+              </button>
               <button
                 onClick={props.onForgot}
                 className="mtx-tap"
                 style={{
                   appearance: 'none', cursor: 'pointer',
                   border: 0, background: 'transparent',
-                  color: 'var(--ink-3)',
-                  fontSize: 12, fontWeight: 500,
+                  color: 'var(--neon)',
+                  fontSize: 12.5, fontWeight: 600,
                   fontFamily: 'var(--ff-sans)',
-                  padding: '4px 0',
+                  padding: 0,
                 }}>¿Olvidaste tu contraseña?</button>
             </div>
           )}
-          {!isSignIn && <div style={{ height: 14 }}/>}
+          {!isSignIn && <div style={{ height: 18 }}/>}
 
           {/* Error inline */}
           {error && (
             <div style={{
               fontSize: 12, color: 'rgba(255,140,140,0.95)',
               fontFamily: 'var(--ff-sans)',
-              marginBottom: 12,
-              padding: '8px 12px',
-              borderRadius: 8,
+              marginBottom: 14,
+              padding: '10px 14px',
+              borderRadius: 10,
               background: 'rgba(255,107,107,0.06)',
               border: '0.5px solid rgba(255,107,107,0.20)',
             }}>{error}</div>
           )}
 
-          {/* CTA primario */}
+          {/* CTA primario — neon SÓLIDO grande, no gradient transparente */}
           <button
             onClick={handleSubmit}
             disabled={!!loading}
@@ -2145,17 +2130,19 @@
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: loading ? 'wait' : 'pointer',
-              width: '100%', height: 50,
+              width: '100%', height: 56,
               padding: '0 18px',
-              borderRadius: 12,
-              border: '0.5px solid rgba(61,255,209,0.40)',
-              background: 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))',
-              color: 'var(--neon)',
-              fontSize: 14.5, fontWeight: 700,
+              borderRadius: 999,
+              border: 0,
+              background: 'linear-gradient(180deg, #5cffd6 0%, #1ad9ad 100%)',
+              color: '#0a1410',
+              fontSize: 15, fontWeight: 800,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-              boxShadow: '0 0 0 1px rgba(61,255,209,0.16), inset 0 0 14px rgba(61,255,209,0.08)',
+              boxShadow: '0 0 0 0.5px rgba(61,255,209,0.30), 0 12px 32px -10px rgba(61,255,209,0.55), inset 0 -2px 0 rgba(0,0,0,0.10)',
               opacity: loading && loading !== 'email' ? 0.5 : 1,
+              animation: loading ? 'none' : 'mtx-cta-breath-soft 4s ease-in-out infinite',
+              willChange: 'box-shadow',
             }}>{loading === 'email'
               ? (isSignIn ? 'Ingresando…' : 'Creando cuenta…')
               : (isSignIn ? 'Iniciar sesión' : 'Crear cuenta')}</button>
@@ -2171,20 +2158,91 @@
             Demo: <span style={{ color: 'var(--neon)', fontWeight: 600 }}>existing@mentex.app</span> + <span style={{ color: 'var(--neon)', fontWeight: 600 }}>password123</span>
           </div>
 
-          <div style={{ flex: 1 }}/>
-          {/* Footer legal */}
+          {/* Separator "o continúa con" */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0 14px' }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
+            <div style={{
+              fontSize: 10.5, color: 'var(--ink-4)',
+              letterSpacing: '0.06em',
+              fontFamily: 'var(--ff-sans)',
+              fontWeight: 500,
+            }}>o continúa con</div>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}/>
+          </div>
+
+          {/* Apple + Google side-by-side 50/50 (icon-only style más limpio) */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={handleApple}
+              disabled={!!loading}
+              aria-label="Continuar con Apple"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: loading ? 'wait' : 'pointer',
+                flex: 1, height: 52,
+                borderRadius: 14,
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--ink-1)',
+                fontSize: 13.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                opacity: loading && loading !== 'apple' ? 0.5 : 1,
+              }}>
+              <svg width="14" height="18" viewBox="0 0 16 20" fill="currentColor">
+                <path d="M11.4 10.6c0-2.4 2-3.6 2.1-3.6-1.1-1.6-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8C1.6 5.3 0 6.3 0 8.7c0 1.6.5 3.4 1.4 4.8.7 1.3 1.6 2.6 2.6 2.6 1 0 1.4-.7 2.6-.7 1.3 0 1.6.7 2.7.6 1.1 0 1.8-1.3 2.5-2.5.4-.7.7-1.6 1-2.5-.1 0-2.4-.9-2.4-3.4M9.4 3.5c.5-.7.9-1.7.8-2.6-.8 0-1.7.5-2.3 1.2C7.4 2.7 6.9 3.7 7 4.6c.9.1 1.9-.4 2.4-1.1Z"/>
+              </svg>
+              {loading === 'apple' ? '…' : 'Apple'}
+            </button>
+            <button
+              onClick={handleGoogle}
+              disabled={!!loading}
+              aria-label="Continuar con Google"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: loading ? 'wait' : 'pointer',
+                flex: 1, height: 52,
+                borderRadius: 14,
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--ink-1)',
+                fontSize: 13.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                opacity: loading && loading !== 'google' ? 0.5 : 1,
+              }}>
+              <svg width="16" height="16" viewBox="0 0 18 18">
+                <path d="M17.6 9.2c0-.6-.1-1.2-.2-1.7H9v3.3h4.8c-.2 1.1-.8 2-1.8 2.6v2.2h2.9c1.7-1.5 2.7-3.8 2.7-6.4Z" fill="#4285f4"/>
+                <path d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3C2.4 16 5.4 18 9 18Z" fill="#34a853"/>
+                <path d="M3.9 10.7c-.2-.5-.3-1.1-.3-1.7s.1-1.2.3-1.7V5H.9C.3 6.2 0 7.6 0 9s.3 2.8.9 4l3-2.3Z" fill="#fbbc05"/>
+                <path d="M9 3.6c1.3 0 2.5.4 3.5 1.3l2.6-2.6C13.5.9 11.4 0 9 0 5.4 0 2.4 2 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6Z" fill="#ea4335"/>
+              </svg>
+              {loading === 'google' ? '…' : 'Google'}
+            </button>
+          </div>
+
+          <div style={{ flex: 1, minHeight: 18 }}/>
+
+          {/* Footer dinámico — switch al otro mode */}
           <div style={{
-            padding: '20px 0 8px',
             textAlign: 'center',
-            fontSize: 11, color: 'var(--ink-4)',
+            fontSize: 13, color: 'var(--ink-3)',
             fontFamily: 'var(--ff-sans)',
             letterSpacing: '-0.005em',
-            lineHeight: 1.6,
+            paddingBottom: 8,
           }}>
-            Al continuar aceptas nuestros{' '}
-            <a href="#" style={{ color: 'var(--ink-3)', textDecoration: 'underline' }}>Términos</a>
-            {' '}y la{' '}
-            <a href="#" style={{ color: 'var(--ink-3)', textDecoration: 'underline' }}>Política de privacidad</a>.
+            {isSignIn ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+            <button
+              onClick={function() { setMode(isSignIn ? 'signup' : 'signin'); clearError(); }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                border: 0, background: 'transparent',
+                color: 'var(--neon)',
+                fontSize: 13, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+                padding: 0,
+              }}>{isSignIn ? 'Crear cuenta' : 'Iniciar sesión'}</button>
           </div>
         </div>
       </div>
