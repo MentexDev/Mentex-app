@@ -495,10 +495,11 @@
     blockedApps: [],            // ['ig','tt','yt',...]
     // Step 5 — Energía / contenido preferido
     contentPrefs: [],           // ['books','meditations','biographies','talks','sounds']
-    // Step 6 — Hora dorada
+    // Step 6 — Duración de rutina diaria (en horas, no minutos — Mentex no
+    //          es Pomodoro, es rutina sostenida en el día)
+    routineHours: 2,            // 1|2|3|6|12
+    // Step 7 — Hora dorada (cuándo arranca la rutina)
     focusTime: null,            // 'morning'|'afternoon'|'evening'|'variable'
-    // Step 7 — Sesión inicial
-    sessionMin: 25,             // 15|25|45|60|90
     // Step 8 — Voz del coach
     coachVoice: null,           // 'warm'|'contemplative'|'energetic'|'wise'
     // Step 10 — Notificaciones (multi-select de 5 tipos, default todas ON)
@@ -513,6 +514,7 @@
     // por si algún consumer los lee — se quitan en cleanup futuro)
     goal: null, experience: null, timeMin: 15, timeOfDay: null,
     blockApps: null, commit7d: true, notificationsEnabled: null,
+    sessionMin: 25,             // legacy: antes era el "bloque" tipo Pomodoro
   };
 
   // Helper: merge answers garantizando shape de objetos anidados (ej: notifications)

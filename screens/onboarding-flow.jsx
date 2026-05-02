@@ -65,12 +65,14 @@
     { id: 'variable',  label: 'Variable', icon: '🔄', desc: 'Depende del día' },
   ];
 
-  var SESSION_DURATIONS = [
-    { value: 15, label: '15 min', tagline: 'Ritmo ágil' },
-    { value: 25, label: '25 min', tagline: 'Pomodoro clásico' },
-    { value: 45, label: '45 min', tagline: 'Foco sostenido' },
-    { value: 60, label: '60 min', tagline: 'Inmersión profunda' },
-    { value: 90, label: '90 min', tagline: 'Deep work' },
+  // Duración de la rutina diaria en HORAS — Mentex no es Pomodoro,
+  // es rutina sostenida en el día compuesta por contenido + sesiones.
+  var ROUTINE_DURATIONS = [
+    { value: 1,  label: '1 hora',   tagline: 'Para empezar simple' },
+    { value: 2,  label: '2 horas',  tagline: 'El equilibrio diario' },
+    { value: 3,  label: '3 horas',  tagline: 'Inversión seria' },
+    { value: 6,  label: '6 horas',  tagline: 'Modo hardcore' },
+    { value: 12, label: '12 horas', tagline: 'Los más enfocados' },
   ];
 
   var COACH_VOICES = [
@@ -644,16 +646,11 @@
           });
         })
       ),
-      React.createElement('div', {
-        style: {
-          padding: '14px 28px 0',
-          textAlign: 'center', fontSize: 12,
-          color: picked.length ? 'var(--neon)' : 'var(--ink-3)',
-          fontWeight: picked.length ? 600 : 500,
-          transition: 'color .2s',
-        },
-      }, picked.length === 0 ? 'Selecciona al menos uno' :
-          picked.length + (picked.length === 1 ? ' intención' : ' intenciones'))
+      React.createElement('div', { style: { padding: '14px 24px 0' } },
+        React.createElement(MentexTipBox, {
+          eyebrow: '✦ Mentex, tu mejor compañero',
+        }, 'Miles de personas como tú están reordenando su mente con Mentex — sea para crear, descansar, aprender o simplemente volver a sentirse dueños de su tiempo. No estás solo en esto.')
+      )
     );
   }
 
@@ -903,8 +900,8 @@
             picked.length + ' apps seleccionadas'),
 
         React.createElement(MentexTipBox, {
-          eyebrow: '💡 Cómo lo va a usar Mentex',
-        }, 'Estas apps se bloquean automáticamente al iniciar una sesión. Mentex también te avisa de forma sutil si las abres durante tus horas de foco — sin penalizarte, solo recordándote.')
+          eyebrow: '✦ Ladrones de tu energía',
+        }, 'Estas apps, sin que lo notes, te van quitando minutos que se vuelven horas, días, años. Tiempo que podrías invertir en tu familia, tus proyectos, tu crecimiento. Mentex no las prohíbe — te ayuda a decidir cuándo merecen tu atención.')
       )
     );
   }
@@ -960,22 +957,25 @@
 
       React.createElement('div', { style: { padding: '0 28px' } },
         React.createElement(MentexTipBox, {
-          eyebrow: '💡 Cómo lo va a usar Mentex',
-        }, 'Tu sección Explorar se cura con esto. Recibirás recomendaciones diarias del tipo de contenido que más te energiza — sin algoritmos manipuladores, solo lo que tú elegiste.')
+          eyebrow: '✦ Tiempo que sí te transforma',
+        }, 'Mentex tiene miles de piezas pensadas para devolverte algo cada vez que las consumes — claridad, calma, una idea que te mueva. Es tiempo invertido, no perdido.')
       )
     );
   }
 
 
-  // ── Step 6: Focus time ─────────────────────────────────────────────────────
+  // ── Step 7: Focus time (cuándo arranca la rutina) ─────────────────────────
+  // Después de definir cuántas horas (step 6), el user elige a partir de
+  // cuándo. Así Mentex sabe si debe sugerirte arrancar 5 AM, 12 PM o 8 PM.
   function StepFocusTime(props) {
     var ans = props.answers;
     var onChange = props.onChange;
+    var hrs = typeof ans.routineHours === 'number' ? ans.routineHours : 2;
     return React.createElement('div', null,
       React.createElement(StepHeader, {
-        eyebrow: 'Paso 6 · Hora dorada',
-        title: '¿Cuándo te enfocas mejor?',
-        subtitle: 'Tu coach programará rituales y recordatorios contigo.',
+        eyebrow: 'Paso 7 · Hora dorada',
+        title: '¿Cuándo arranca tu rutina?',
+        subtitle: 'Elige el momento del día para esas ' + hrs + (hrs === 1 ? ' hora' : ' horas') + ' que te dedicas a ti.',
       }),
       React.createElement('div', {
         style: { padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 },
@@ -994,37 +994,38 @@
       ),
       React.createElement('div', { style: { padding: '14px 24px 0' } },
         React.createElement(MentexTipBox, {
-          eyebrow: '💡 Cómo lo va a usar Mentex',
-        }, 'Tu coach IA programa recordatorios y rituales en esta franja. Si pasa demasiado tiempo sin que entres a una sesión, te sugerirá una corta — siempre sin presión.')
+          eyebrow: '✦ Aprovecha tu hora dorada',
+        }, 'Cada persona tiene una franja del día donde su mente está más limpia. Mentex la respeta y construye tu rutina alrededor de ella — no contra ella.')
       )
     );
   }
 
 
-  // ── Step 7: Session duration ───────────────────────────────────────────────
-  // El framing es "elige cuánto dura cada bloque de tu rutina". El día del
-  // user es una rutina compuesta de varios bloques de esta duración —
-  // intercalados con descansos. No una sola sesión de trabajo.
-  function StepSessionDuration(props) {
+  // ── Step 6: Routine duration (en HORAS) ───────────────────────────────────
+  // Mentex no es Pomodoro — es una rutina diaria compuesta de contenido
+  // (audiolibros, meditaciones) y sesiones de foco. La unidad es la HORA,
+  // no minutos. El user define cuántas horas al día va a invertir en sí
+  // mismo con Mentex.
+  function StepRoutineDuration(props) {
     var ans = props.answers;
     var onChange = props.onChange;
-    var current = typeof ans.sessionMin === 'number' ? ans.sessionMin : 25;
+    var current = typeof ans.routineHours === 'number' ? ans.routineHours : 2;
 
     return React.createElement('div', null,
       React.createElement(StepHeader, {
-        eyebrow: 'Paso 7 · Tu rutina',
-        title: '¿Cuánto dura cada bloque de foco?',
-        subtitle: 'Tu rutina diaria son varios bloques intercalados con descansos. Elige la duración de cada uno.',
+        eyebrow: 'Paso 6 · Tu rutina',
+        title: '¿Cuántas horas al día?',
+        subtitle: 'El tiempo que vas a invertir en ti — escuchando, meditando, enfocándote. La concentración es el recurso más valioso que tienes.',
       }),
       React.createElement('div', {
         style: { padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 8 },
       },
-        SESSION_DURATIONS.map(function(d) {
+        ROUTINE_DURATIONS.map(function(d) {
           var on = current === d.value;
           var bg = _bgForState(on);
           return React.createElement('button', {
             key: d.value,
-            onClick: function() { onChange({ sessionMin: d.value }); },
+            onClick: function() { onChange({ routineHours: d.value }); },
             className: 'mtx-tap',
             style: {
               width: '100%',
@@ -1067,8 +1068,8 @@
 
       React.createElement('div', { style: { margin: '16px 28px 0' } },
         React.createElement(MentexTipBox, {
-          eyebrow: '💡 Cómo lo va a usar Mentex',
-        }, 'Mentex programa varios bloques de esta duración a lo largo de tu día, con descansos cortos entre ellos. Empezar pequeño funciona — el ritmo se construye con consistencia, no con tamaño.')
+          eyebrow: '✦ Tu recurso más valioso',
+        }, 'Cada hora que entregas a Mentex es una hora que el feed no se lleva. El compuesto es real — quien sostiene esto seis meses ya no es la misma persona.')
       )
     );
   }
@@ -1149,6 +1150,11 @@
             }, React.createElement(window.IcCheck || 'span', { size: 13, stroke: 'currentColor', strokeWidth: 2.6 }))
           );
         })
+      ),
+      React.createElement('div', { style: { padding: '14px 24px 0' } },
+        React.createElement(MentexTipBox, {
+          eyebrow: '✦ Tu compañero en este camino',
+        }, 'En Mentex tienes un coach que está contigo en todo el proceso. Puedes hablarle cuando quieras — descargar lo que pesa, pedir un consejo, o simplemente reflexionar en voz alta. No juzga, no apura: acompaña.')
       )
     );
   }
@@ -1175,14 +1181,15 @@
         return v ? v.label.toLowerCase() : 'tu coach';
       })();
       var apps = (ans.blockedApps || []).length;
+      var hrs = ans.routineHours || 2;
       return [
         'Curando contenido para ' + goalLabel + '…',
         'Configurando tu coach con voz ' + voiceLabel + '…',
-        'Preparando tu primera sesión de ' + (ans.sessionMin || 25) + ' minutos…',
+        'Diseñando tu rutina de ' + hrs + (hrs === 1 ? ' hora' : ' horas') + ' al día…',
         'Activando bloqueo' + (apps ? ' para ' + apps + (apps === 1 ? ' app' : ' apps') : '') + '…',
         'Sincronizando tu universo Mentex…',
       ];
-    }, [ans.goals, ans.coachVoice, ans.sessionMin, ans.blockedApps]);
+    }, [ans.goals, ans.coachVoice, ans.routineHours, ans.blockedApps]);
 
     var doneCountState = React.useState(0);
     var doneCount = doneCountState[0];
@@ -1482,10 +1489,10 @@
       function(a) { return Array.isArray(a.blockedApps) && a.blockedApps.length > 0; },
       // 4: Content prefs — al menos 1
       function(a) { return Array.isArray(a.contentPrefs) && a.contentPrefs.length > 0; },
-      // 5: Focus time
+      // 5: Routine duration en horas (siempre válido — default 2)
+      function(a) { return typeof a.routineHours === 'number'; },
+      // 6: Focus time
       function(a) { return !!a.focusTime; },
-      // 6: Session duration (siempre válido — default 25)
-      function(a) { return typeof a.sessionMin === 'number'; },
       // 7: Coach voice
       function(a) { return !!a.coachVoice; },
       // 8: Fake-load (auto-advance, siempre válido)
@@ -1533,9 +1540,9 @@
     } else if (step === 4) {
       stepEl = React.createElement(StepContent, { answers: answers, onChange: handleChange });
     } else if (step === 5) {
-      stepEl = React.createElement(StepFocusTime, { answers: answers, onChange: handleChange });
+      stepEl = React.createElement(StepRoutineDuration, { answers: answers, onChange: handleChange });
     } else if (step === 6) {
-      stepEl = React.createElement(StepSessionDuration, { answers: answers, onChange: handleChange });
+      stepEl = React.createElement(StepFocusTime, { answers: answers, onChange: handleChange });
     } else if (step === 7) {
       stepEl = React.createElement(StepCoachVoice, { answers: answers, onChange: handleChange });
     } else if (step === 8) {
@@ -1577,7 +1584,7 @@
     ONBOARDING_GOAL_OPTIONS: GOAL_OPTIONS,
     ONBOARDING_CONTENT_OPTIONS: CONTENT_OPTIONS,
     ONBOARDING_FOCUS_TIME_OPTIONS: FOCUS_TIME_OPTIONS,
-    ONBOARDING_SESSION_DURATIONS: SESSION_DURATIONS,
+    ONBOARDING_ROUTINE_DURATIONS: ROUTINE_DURATIONS,
     ONBOARDING_COACH_VOICES: COACH_VOICES,
   });
 
