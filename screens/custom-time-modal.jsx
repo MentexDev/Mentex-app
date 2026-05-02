@@ -25,15 +25,15 @@ function CustomTimeModal({
   // Tiempo ya transcurrido en la sesión activa (para mostrar el subtítulo
   // "Llevas X min de enfoque" cuando aplica). 0 si no hay sesión activa.
   elapsedMinutes = 0,
+  // Callback opcional para abrir el AutoRoutineCreateSheet con el tiempo
+  // actual como punto de partida. El secondary button "Convertir en
+  // rutina automática" lo invoca y cierra este modal en el mismo flow.
+  onConvertToAuto = null,
 }) {
   const _initH = initialMinutes != null ? Math.floor(initialMinutes / 60) : 1;
   const _initM = initialMinutes != null ? (initialMinutes % 60) : 30;
   const [hours, setHours] = React.useState(_initH);
   const [mins, setMins] = React.useState(_initM);
-  const [repeat, setRepeat] = React.useState(['mon', 'tue', 'wed', 'thu', 'fri']);
-  const [makeRoutine, setMakeRoutine] = React.useState(false);
-  const [startTime, setStartTime] = React.useState('09:00');
-  const [endTime, setEndTime] = React.useState('17:00');
 
   // Re-hidratar al abrir (si el user lo abre con un nuevo initialMinutes
   // distinto al previo). Evita que el state quede pegado al primer mount.
@@ -44,11 +44,6 @@ function CustomTimeModal({
   }, [open, initialMinutes]);
 
   if (!open) return null;
-  const days = [
-    { id: 'mon', label: 'L' }, { id: 'tue', label: 'M' }, { id: 'wed', label: 'X' },
-    { id: 'thu', label: 'J' }, { id: 'fri', label: 'V' }, { id: 'sat', label: 'S' }, { id: 'sun', label: 'D' },
-  ];
-  const toggleDay = (d) => setRepeat(r => r.includes(d) ? r.filter(x => x !== d) : [...r, d]);
 
   const totalMinutes = hours * 60 + mins;
   const tooShort = totalMinutes < minMinutes;
@@ -160,54 +155,6 @@ function CustomTimeModal({
           </div>
         </div>
 
-        {/* Schedule */}
-        <div className="mtx-glass" style={{ padding: '14px 16px', marginBottom: 16, borderRadius: 20 }}>
-          <div className="mtx-eyebrow" style={{ marginBottom: 10, fontSize: 10 }}>Programación</div>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-            <TimeField label="Inicio" value={startTime} onChange={setStartTime}/>
-            <TimeField label="Final" value={endTime} onChange={setEndTime}/>
-          </div>
-          <div className="mtx-eyebrow" style={{ marginBottom: 10, fontSize: 10 }}>Repetir</div>
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
-            {days.map(d => {
-              const on = repeat.includes(d.id);
-              return (
-                <button key={d.id} onClick={() => toggleDay(d.id)} style={{
-                  flex: 1, height: 40, borderRadius: 12, border: 0,
-                  background: on ? 'rgba(61,255,209,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: on ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
-                  color: on ? 'var(--neon)' : 'var(--ink-2)',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: 'var(--ff-sans)',
-                }}>{d.label}</button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Make routine */}
-        <div className="mtx-glass" style={{
-          padding: 16, marginBottom: 22, borderRadius: 20,
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: 'rgba(61,255,209,0.1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--neon)',
-          }}><IcZap size={18} stroke="currentColor"/></div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>
-              Convertir en rutina automática
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
-              Inicia esta sesión sola los días seleccionados
-            </div>
-          </div>
-          <button className="mtx-switch" data-on={makeRoutine ? '1' : '0'}
-                  onClick={() => setMakeRoutine(v => !v)}><i/></button>
-        </div>
-
         {/* Apply — deshabilitado si totalMinutes < minMinutes (evita
             saltar a completed inmediato cuando se edita una sesión activa). */}
         <button className="mtx-btn-neon" style={{
@@ -223,6 +170,32 @@ function CustomTimeModal({
         }}>
           Aplicar · {hours > 0 ? `${hours}h ` : ''}{mins} min
         </button>
+
+        {/* Secondary CTA — convertir esta duración en rutina automática.
+            Cierra este modal y abre AutoRoutineCreateSheet, llevando la
+            duración elegida como semilla. Si el host no provee
+            onConvertToAuto, el botón no se renderiza (HomeActive lo
+            omite porque ya está en sesión activa — convertir mientras
+            corre la sesión no tiene sentido). */}
+        {onConvertToAuto && (
+          <button onClick={() => onConvertToAuto(totalMinutes)} className="mtx-tap" style={{
+            appearance: 'none', cursor: 'pointer',
+            width: '100%', marginTop: 14,
+            padding: '14px 16px', borderRadius: 18,
+            border: '0.5px solid rgba(61,255,209,0.30)',
+            background: 'linear-gradient(180deg, rgba(61,255,209,0.06), rgba(61,255,209,0.015))',
+            color: 'var(--neon)',
+            fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: 'inset 0 0 18px rgba(61,255,209,0.04)',
+            transition: 'background .25s, border-color .25s',
+          }}>
+            <IcZap size={14} stroke="currentColor" strokeWidth={1.8}/>
+            Convertir en rutina automática
+            <IcChevR size={14} stroke="currentColor" strokeWidth={1.8}/>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -257,6 +230,9 @@ function DurationDial({ label, value, max, step = 1, onChange }) {
   );
 }
 
+// TimeField — ahora usado SOLO por AutoRoutineCreateSheet (programación
+// horario start/end). Se eliminó del CustomTimeModal cuando se movió la
+// programación a la rutina automática.
 function TimeField({ label, value, onChange }) {
   return (
     <div style={{ flex: 1 }}>
@@ -273,4 +249,4 @@ function TimeField({ label, value, onChange }) {
   );
 }
 
-Object.assign(window, { CustomTimeModal });
+Object.assign(window, { CustomTimeModal, TimeField });

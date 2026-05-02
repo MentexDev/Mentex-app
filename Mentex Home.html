@@ -34,7 +34,8 @@
   <script type="text/babel" src="components/mentex-shared.jsx?v=6"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=27"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=32"></script>
-  <script type="text/babel" src="screens/custom-time-modal.jsx?v=6"></script>
+  <script type="text/babel" src="screens/custom-time-modal.jsx?v=7"></script>
+  <script type="text/babel" src="screens/auto-routines.jsx?v=1"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
   <script type="text/babel" src="screens/apps-editor.jsx?v=2"></script>
@@ -76,6 +77,12 @@
       // HomeActive ni HomeInactive.
       const [editTimeCtx, setEditTimeCtx] = React.useState(null);
       const setModalOpen = (v) => setEditTimeCtx(v ? {} : null); // back-compat helper
+      // autoRoutineCtx — abre AutoRoutineCreateSheet con el setup actual
+      // del HomeInactive (apps + rutinas + tiempo elegido). El user puede
+      // editar cada sección via los editores existentes (apps, routines,
+      // time) sin salir del flow — al volver, el setup tile se actualiza
+      // automáticamente vía re-render porque lee del state global.
+      const [autoRoutineCtx, setAutoRoutineCtx] = React.useState(null);
       const [view, setView] = React.useState('home'); // 'home' | 'challenges-all' | 'learning-all'
       const [selectedChallenge, setSelectedChallenge] = React.useState(null);
       const [selectedLearning, setSelectedLearning] = React.useState(null);
@@ -542,7 +549,60 @@
             initialMinutes={editTimeCtx?.initialMinutes ?? null}
             minMinutes={editTimeCtx?.minMinutes ?? 1}
             elapsedMinutes={editTimeCtx?.elapsedMinutes ?? 0}
+            // Solo desde HomeInactive (sin elapsed, sin fromAutoRoutine)
+            // ofrecemos convertir a rutina automática. Casos donde NO
+            // aparece el botón:
+            //   • elapsedMinutes > 0 → HomeActive (ya está en sesión)
+            //   • fromAutoRoutine    → ya estamos editando desde el
+            //     AutoRoutineCreateSheet (evita loop)
+            onConvertToAuto={
+              (editTimeCtx?.elapsedMinutes ?? 0) > 0 || editTimeCtx?.fromAutoRoutine
+                ? null
+                : (m) => {
+                    setEditTimeCtx(null);
+                    // Aplica el tiempo elegido al state global ANTES de
+                    // abrir el auto sheet, así el setup tile arranca con
+                    // el valor correcto.
+                    setState(s => ({ ...s, time: m }));
+                    // setTimeout para que la animación de cierre del
+                    // time modal termine antes de abrir el siguiente —
+                    // evita "flash" visual de dos modales superpuestos.
+                    setTimeout(() => setAutoRoutineCtx({}), 220);
+                  }
+            }
           />
+
+          {typeof AutoRoutineCreateSheet !== 'undefined' && (
+            <AutoRoutineCreateSheet
+              open={!!autoRoutineCtx}
+              onClose={() => setAutoRoutineCtx(null)}
+              onCreated={(r) => {
+                // dispatch evento mtx:toast — el ToastProvider del shell
+                // captura y muestra. Más limpio que pasar el hook desde
+                // el MentexApp (no es un componente con contexto del
+                // ToastProvider directamente).
+                window.dispatchEvent(new CustomEvent('mtx:toast', {
+                  detail: { message: `Rutina automática creada · ${r.schedule.days.length} días`, duration: 2200 },
+                }));
+              }}
+              // Siempre lee state.time global — si el user edita desde
+              // el sub-modal, este componente re-renderiza con el nuevo
+              // valor sin necesidad de propagar manualmente.
+              initialMinutes={state.time || 90}
+              blockedAppsIds={state.blockedApps}
+              selectedRoutineIds={state.routines}
+              appsCatalog={typeof APPS !== 'undefined' ? APPS : []}
+              routinesCatalog={routinesCatalog}
+              onEditTime={() => {
+                // fromAutoRoutine flag previene que el CustomTimeModal
+                // re-ofrezca el botón "Convertir en rutina automática"
+                // (evita loop de modales).
+                setEditTimeCtx({ initialMinutes: state.time || 90, fromAutoRoutine: true });
+              }}
+              onEditApps={() => setAppsEditorOpen(true)}
+              onEditRoutines={() => setRoutinesEditorOpen(true)}
+            />
+          )}
           </div>
 
           <TweaksPanel title="Mentex Tweaks">
