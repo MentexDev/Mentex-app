@@ -1194,6 +1194,12 @@ function IAScreen(props) {
   var historyOpen = !!props.historyOpen;
   var setHistoryOpen = props.setHistoryOpen || function() {};
 
+  // voiceOpen — overlay de transcripción de voz. Local al IAScreen porque
+  // solo aparece dentro del flow del chat (no necesita sobrevivir al cambio
+  // de tab). Auto-aplica al draft cuando el user confirma envío.
+  var voiceOpenState = React.useState(false);
+  var voiceOpen = voiceOpenState[0]; var setVoiceOpen = voiceOpenState[1];
+
   var draftState = React.useState('');
   var draft = draftState[0]; var setDraft = draftState[1];
   var textareaRef = React.useRef(null);
@@ -1311,8 +1317,23 @@ function IAScreen(props) {
   var handleUpload = function() {
     toast.show({ message: 'Adjuntar · Próximamente en Fase 2', duration: 1800 });
   };
+  // Voz: abre el overlay de transcripción. Cuando el user confirma enviar,
+  // el final transcribed text se aplica al draft. Si quiere enviarlo de
+  // inmediato puede tocar send después; o el user puede editar antes.
   var handleVoice = function() {
-    toast.show({ message: 'Voz · Próximamente en Fase 2', duration: 1800 });
+    setVoiceOpen(true);
+  };
+  var handleVoiceCommit = function(finalText) {
+    if (!finalText) return;
+    // Append al draft existente con espacio, o replace si está vacío
+    setDraft(function(prev) {
+      var trimmed = (prev || '').trim();
+      return trimmed ? trimmed + ' ' + finalText : finalText;
+    });
+    // Focus textarea para que el user pueda editar / enviar
+    setTimeout(function() {
+      if (textareaRef.current) textareaRef.current.focus();
+    }, 100);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -1378,6 +1399,16 @@ function IAScreen(props) {
         onVoice={handleVoice}
         textareaRef={textareaRef}
       />
+
+      {/* Voice transcription overlay — slide-up cuando el user tap el 🎙. */}
+      {typeof IAVoiceOverlay !== 'undefined' && (
+        <IAVoiceOverlay
+          open={voiceOpen}
+          onClose={function() { setVoiceOpen(false); }}
+          onCommit={handleVoiceCommit}
+        />
+      )}
+
       {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
     </div>
   );
