@@ -46,8 +46,9 @@
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
-  <script type="text/babel" src="screens/ia-settings.jsx?v=3"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=15"></script>
+  <script type="text/babel" src="screens/ia-settings.jsx?v=4"></script>
+  <script type="text/babel" src="screens/ia-agenda.jsx?v=1"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=16"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -128,6 +129,10 @@
       // queremos que el sheet de configuración renderice SOBRE el tab bar
       // (vive en mtx-bg con z=50). Sibling de los demás sheets → z=100 root.
       const [iaSettingsOpen, setIaSettingsOpen] = React.useState(false);
+      // iaAgendaOpen — Fase 4. Mismo patrón: bottom sheet con timeline del día,
+      // propuestas del coach (CTAs accionables) y recordatorios. Disparado
+      // desde el icon button 📅 del IAHubHeader.
+      const [iaAgendaOpen, setIaAgendaOpen] = React.useState(false);
       const [state, setState] = React.useState({
         // Sin preselecciones: el usuario decide qué activar.
         // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
@@ -422,6 +427,8 @@
                   setHistoryOpen={setIaHistoryOpen}
                   settingsOpen={iaSettingsOpen}
                   setSettingsOpen={setIaSettingsOpen}
+                  agendaOpen={iaAgendaOpen}
+                  setAgendaOpen={setIaAgendaOpen}
                 />
               </div>
             )}
@@ -453,6 +460,17 @@
               <AssistantConfigSheet
                 open={iaSettingsOpen}
                 onClose={() => setIaSettingsOpen(false)}
+              />
+            )}
+
+            {/* IA Agenda sheet — Fase 4. Bottom sheet con eventos del día +
+                propuestas del coach (focus_slot / conflict / day_close) +
+                recordatorios. Mismo nivel z=100 sobre el tab bar. Lee del
+                store __mtxIAAgenda con el hook useIAAgenda. */}
+            {tab === 'ai' && typeof AgendaSheet !== 'undefined' && (
+              <AgendaSheet
+                open={iaAgendaOpen}
+                onClose={() => setIaAgendaOpen(false)}
               />
             )}
 

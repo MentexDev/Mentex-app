@@ -298,25 +298,32 @@ function AssistantConfigSheet(props) {
   ];
 
   return (
-    // Full-screen page (no bottom sheet) — back button reemplaza el cerrar.
+    // Full-screen page (no bottom sheet). Wrapper empieza en top:60 para
+    // dejar visible el status bar del iPhone (z=10 dentro del IOSDevice).
+    // Antes con inset:0 el background del wrapper tapaba reloj/batería/señal.
     // Los submodales (memory add, connect modal, avatar picker, detail sheet)
     // anclan a este screen y dockean al iPhone bottom como bottom sheets.
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 100,
+      position: 'absolute',
+      top: 60, left: 0, right: 0, bottom: 0,
+      zIndex: 100,
       background: 'rgba(15,19,19,0.99)',
       display: 'flex', flexDirection: 'column',
       animation: 'mtx-fade-up .35s ease both',
     }}>
-      {/* Header sticky con back button + título */}
+      {/* Header con título centrado. paddingTop:18 + paddingBottom:14 dan
+          aire al título y al back button — antes se sentía pegado arriba. */}
       <div style={{
         flexShrink: 0,
-        paddingTop: 60,  // clearance status bar + dynamic island
         background: 'linear-gradient(180deg, rgba(10,13,12,0.98) 0%, rgba(10,13,12,0.85) 80%, rgba(10,13,12,0.6) 100%)',
         backdropFilter: 'blur(18px) saturate(140%)',
         WebkitBackdropFilter: 'blur(18px) saturate(140%)',
         borderBottom: '0.5px solid rgba(255,255,255,0.04)',
       }}>
-        <div style={{ padding: '0 12px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          padding: '18px 12px 14px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
           <button onClick={onClose} aria-label="Volver al chat IA"
             className="mtx-tap"
             style={{
@@ -328,19 +335,20 @@ function AssistantConfigSheet(props) {
             }}>
             <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
           </button>
-          <div style={{ flex: 1, minWidth: 0, padding: '0 4px' }}>
-            <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 1, color: 'var(--ink-3)' }}>Asistente</div>
-            <h1 style={{
-              margin: 0, fontSize: 17, fontWeight: 700,
-              color: 'var(--ink-1)', letterSpacing: '-0.02em',
-              fontFamily: 'var(--ff-sans)',
-            }}>Configuración</h1>
-          </div>
+          {/* Título centrado: flex:1 + textAlign:center, con spacer simétrico
+              a la derecha (mismo width que el back button) para balance visual. */}
+          <h1 style={{
+            flex: 1, textAlign: 'center', margin: 0,
+            fontSize: 16, fontWeight: 600,
+            color: 'var(--ink-1)', letterSpacing: '-0.015em',
+            fontFamily: 'var(--ff-sans)',
+          }}>Configuración</h1>
+          <div style={{ width: 36, height: 36, flexShrink: 0 }}/>
         </div>
 
         {/* Tab rail (horizontal scroll) */}
         <div className="mtx-scroll-x" style={{
-          padding: '4px 12px 12px',
+          padding: '0 12px 14px',
           display: 'flex', gap: 6,
         }}>
           {TABS.map(function(t) {

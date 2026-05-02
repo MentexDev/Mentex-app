@@ -1189,11 +1189,12 @@ function IAScreen(props) {
   var viewState = React.useState('hub');
   var view = viewState[0]; var setView = viewState[1];
 
-  // historyOpen + settingsOpen lifted to MentexApp via props (sheets
-  // renderizan al nivel del shell para verse SOBRE el tab bar — z-index).
+  // historyOpen + settingsOpen + agendaOpen lifted to MentexApp via props
+  // (sheets renderizan al nivel del shell para verse SOBRE el tab bar — z-index).
   var historyOpen = !!props.historyOpen;
   var setHistoryOpen = props.setHistoryOpen || function() {};
   var setSettingsOpen = props.setSettingsOpen || function() {};
+  var setAgendaOpen = props.setAgendaOpen || function() {};
 
   // voiceOpen — overlay de transcripción de voz. Local al IAScreen porque
   // solo aparece dentro del flow del chat (no necesita sobrevivir al cambio
@@ -1310,7 +1311,7 @@ function IAScreen(props) {
   };
 
   var handleAgenda = function() {
-    toast.show({ message: 'Agenda · Próximamente en Fase 5', duration: 1800 });
+    setAgendaOpen(true);
   };
   var handleSettings = function() {
     setSettingsOpen(true);
