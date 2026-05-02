@@ -46,7 +46,8 @@
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=14"></script>
+  <script type="text/babel" src="screens/ia-settings.jsx?v=1"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=15"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -123,6 +124,10 @@
       // y aparezca SOBRE el tab bar (que vive en mtx-bg con z=50). Si el
       // sheet vive dentro del IA wrapper (z=2), queda detrás del tab bar.
       const [iaHistoryOpen, setIaHistoryOpen] = React.useState(false);
+      // iaSettingsOpen — lifted al shell por la misma razón que history:
+      // queremos que el sheet de configuración renderice SOBRE el tab bar
+      // (vive en mtx-bg con z=50). Sibling de los demás sheets → z=100 root.
+      const [iaSettingsOpen, setIaSettingsOpen] = React.useState(false);
       const [state, setState] = React.useState({
         // Sin preselecciones: el usuario decide qué activar.
         // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
@@ -415,6 +420,8 @@
                   notifCount={notifCount}
                   historyOpen={iaHistoryOpen}
                   setHistoryOpen={setIaHistoryOpen}
+                  settingsOpen={iaSettingsOpen}
+                  setSettingsOpen={setIaSettingsOpen}
                 />
               </div>
             )}
@@ -435,6 +442,17 @@
                   // Dispara evento para que IAScreen entre a la vista chat
                   window.dispatchEvent(new CustomEvent('mtx:ia-enter-chat', { detail: { id } }));
                 }}
+              />
+            )}
+
+            {/* IA Settings sheet — Fase 3. Mismo nivel del shell que el
+                history sheet (sobre tab bar). Maneja personalidad, memoria,
+                conocimiento, canales (whatsapp/email/sms/push), integraciones
+                (calendar/notion/etc), privacidad. */}
+            {tab === 'ai' && typeof AssistantConfigSheet !== 'undefined' && (
+              <AssistantConfigSheet
+                open={iaSettingsOpen}
+                onClose={() => setIaSettingsOpen(false)}
               />
             )}
 
