@@ -479,6 +479,11 @@ function BannerCarousel({
 function HomeInactive({
   tweaks, state, setState,
   onCustom, onNotif = () => {}, notifCount = 0,
+  // Phase 5.1 — Acceso rápido al coach IA desde HomeInactive. El user puede
+  // pedirle al coach que le planifique la rutina antes de iniciar sesión —
+  // promesa core de Mentex (planificación automática). Reusa el patrón del
+  // botón ✦ de HomeActive: un button al lado del bell que cambia al tab IA.
+  onOpenCoach = () => {},
   onEditApps = () => {}, onEditRoutines = () => {},
   routinesCatalog = ROUTINES,
   // Props no-usadas pero mantenidas por compat con la firma anterior:
@@ -545,6 +550,29 @@ function HomeInactive({
           fullBleed
           contentPaddingTop={80}
         />
+        {/* Botón ✦ IA — al lado izquierdo del bell. Fondo glass con hint
+            neon para diferenciarlo del bell pero mantener cohesión visual.
+            Tap → cambia al tab IA donde el user puede planificar con su
+            coach (promesa core de Mentex). */}
+        <button
+          onClick={onOpenCoach}
+          aria-label="Abrir coach Mentex"
+          className="mtx-tap"
+          style={{
+            position:'absolute', top:78, right:70,
+            width:44, height:44, borderRadius:999,
+            background:'linear-gradient(135deg, rgba(61,255,209,0.18), rgba(61,255,209,0.06))',
+            border:'0.5px solid rgba(61,255,209,0.32)',
+            backdropFilter:'blur(20px) saturate(160%)',
+            WebkitBackdropFilter:'blur(20px) saturate(160%)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--neon)', cursor:'pointer', flexShrink:0,
+            boxShadow:'inset 0 1px 0 rgba(61,255,209,0.20), 0 4px 12px rgba(0,0,0,0.3)',
+            zIndex:5,
+          }}
+        >
+          <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>
+        </button>
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
           position:'absolute', top:78, right:18,
           width:44, height:44, borderRadius:999,
@@ -776,16 +804,29 @@ function HomeInactive({
         </div>
       </div>
 
+      {/* ── Recordatorios ──────────────────────────────────────────────────
+          Phase 5.1 — Mismos recordatorios que aparecen en HomeActive y
+          AgendaSheet, single-source desde __mtxIAAgenda. El user puede
+          arrancar el día con sus reminders pendientes ya visibles, y el
+          coach IA puede agendarle nuevos desde el chat. NO duplicamos el
+          componente — montamos el mismo HomeRemindersCard que vive en
+          screens/ia-agenda.jsx y se exporta a window. */}
+      {window.HomeRemindersCard && (
+        <div style={{ padding:'8px 0 0' }}>
+          <window.HomeRemindersCard/>
+        </div>
+      )}
+
       {/* ── Aviso contextual: falta el tiempo ────────────────────────────────
           Aparece SOLO cuando el user ha seleccionado al menos una app para
-          bloquear o una rutina, pero todavía no eligió un tiempo. Es la
-          situación de un user nuevo que tocó switches sin entender que el
-          gating real es el tiempo de enfoque. El tap scrollea al top, donde
-          vive el grid de tiempos rápidos + el botón de Personalizar — sin
-          forzar al user a un modal, dejando que decida con el contexto.
-          Tono ámbar (no rojo) porque no es error, es guía amistosa. */}
+          bloquear o una rutina, pero todavía no eligió un tiempo. Movido al
+          FINAL de la página (Phase 5.1) para que sea el último call-to-action
+          visible — el user lee toda su configuración (apps + rutinas +
+          recordatorios) y al final ve "para activar la sesión, falta el
+          tiempo". Tono ámbar (no rojo): es guía amistosa, no error.
+          Tap scrollea al top donde vive el grid de tiempos. */}
       {!hasTime && (blockedApps.length > 0 || routines.length > 0) && (
-        <div style={{ padding: '0 20px', marginTop: 24 }}>
+        <div style={{ padding: '20px 20px 0' }}>
           <button
             onClick={() => {
               if (typeof window !== 'undefined' && typeof window.scrollMtxBgToTop === 'function') {

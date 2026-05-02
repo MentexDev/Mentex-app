@@ -34,7 +34,7 @@
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
   <script type="text/babel" src="screens/auth-flow.jsx?v=16"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=32"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
@@ -135,14 +135,20 @@
       // propuestas del coach (CTAs accionables) y recordatorios. Disparado
       // desde el icon button 📅 del IAHubHeader.
       const [iaAgendaOpen, setIaAgendaOpen] = React.useState(false);
-      const [state, setState] = React.useState({
-        // Sin preselecciones: el usuario decide qué activar.
-        // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
-        // - routines: empty → grid de rutinas sin ninguna marcada
-        // - time: 0 → el CTA "Comenzar jornada" no aparece hasta que se elija
-        blockedApps: [],
-        routines: [],
-        time: 0,
+      const [state, setState] = React.useState(() => {
+        // Phase 5.1 — Pre-populate desde __mtxOnboarding.answers si existe.
+        // Si el user eligió IG/TikTok/YouTube en el onboarding, llegan aquí
+        // pre-marcados (toggles ON). Si no completó onboarding, fallback a
+        // empty arrays — comportamiento idéntico al previo.
+        // Lazy initializer: corre una sola vez al mount del MentexApp.
+        const ob = (typeof window !== 'undefined' && window.__mtxOnboarding)
+          ? window.__mtxOnboarding.get() : null;
+        const ans = (ob && ob.answers) || {};
+        return {
+          blockedApps: Array.isArray(ans.blockedApps) ? ans.blockedApps : [],
+          routines: [],
+          time: 0,
+        };
       });
 
       // Toggle join / leave from detail sheet
@@ -502,7 +508,8 @@
                                 onEditApps={() => setAppsEditorOpen(true)}
                                 onEditRoutines={() => setRoutinesEditorOpen(true)}
                                 onNotif={() => setNotifsOpen(true)}
-                                notifCount={notifCount}/>
+                                notifCount={notifCount}
+                                onOpenCoach={() => setTab('ai')}/>
                 ) : (
                   <HomeActive
                     tweaks={tweaks}
