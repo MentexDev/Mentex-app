@@ -45,7 +45,7 @@
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=53"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=12"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=13"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -117,6 +117,11 @@
       // el menú con los 5 íconos estorba al user que ya navegó hacia adentro
       // y tiene su propio back button. Vuelve cuando el flow regresa a home.
       const [tabBarHidden, setTabBarHidden] = React.useState(false);
+      // iaHistoryOpen — lifted del IAScreen para que el sheet renderice al
+      // nivel del shell (sibling de mtx-bg, sibling de los demás sheets)
+      // y aparezca SOBRE el tab bar (que vive en mtx-bg con z=50). Si el
+      // sheet vive dentro del IA wrapper (z=2), queda detrás del tab bar.
+      const [iaHistoryOpen, setIaHistoryOpen] = React.useState(false);
       const [state, setState] = React.useState({
         // Sin preselecciones: el usuario decide qué activar.
         // - blockedApps: empty → los 5 defaults aparecen en el Home con switch OFF
@@ -404,8 +409,32 @@
                 zIndex: 2,
                 display: 'flex', flexDirection: 'column',
               }}>
-                <IAScreen onNotif={() => setNotifsOpen(true)} notifCount={notifCount}/>
+                <IAScreen
+                  onNotif={() => setNotifsOpen(true)}
+                  notifCount={notifCount}
+                  historyOpen={iaHistoryOpen}
+                  setHistoryOpen={setIaHistoryOpen}
+                />
               </div>
+            )}
+
+            {/* IA History sheet — montado al nivel del shell para que renderice
+                SOBRE el tab bar (que está en mtx-bg con z=50). El sheet con
+                z=100 + ancla a IOSDevice (no se mueve con scroll) garantiza
+                visualmente que cubre todo el iPhone bottom area al abrirse.
+                IAHistorySheet lee conversations + currentId del store
+                directamente vía useIAChat (sin pasar props inflando render
+                del MentexApp). */}
+            {tab === 'ai' && typeof IAHistorySheet !== 'undefined' && (
+              <IAHistorySheet
+                open={iaHistoryOpen}
+                onClose={() => setIaHistoryOpen(false)}
+                onSelect={(id) => {
+                  if (window.__mtxIAChat) window.__mtxIAChat.setCurrent(id);
+                  // Dispara evento para que IAScreen entre a la vista chat
+                  window.dispatchEvent(new CustomEvent('mtx:ia-enter-chat', { detail: { id } }));
+                }}
+              />
             )}
 
             {/* Sheets — fuera de .mtx-bg para anclarse al viewport del iPhone (no al contenido scrollable) */}

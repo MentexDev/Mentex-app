@@ -1004,8 +1004,12 @@ function IAInputBar(props) {
 function IAHistorySheet(props) {
   var open = props.open;
   var onClose = props.onClose;
-  var conversations = props.conversations;
-  var currentId = props.currentId;
+  // Datos reactivos: si props.conversations llega, lo usamos. Si no, leemos
+  // del hook useIAChat (caso del mount al nivel del shell, donde MentexApp
+  // no subscribe al store de conversaciones para no inflar su render).
+  var nav = useIAChat();
+  var conversations = props.conversations != null ? props.conversations : nav.conversations;
+  var currentId = props.currentId != null ? props.currentId : nav.currentId;
   var onSelect = props.onSelect;
 
   // ESC para cerrar (consistencia con resto de modales)
@@ -1185,8 +1189,10 @@ function IAScreen(props) {
   var viewState = React.useState('hub');
   var view = viewState[0]; var setView = viewState[1];
 
-  var historyOpen = React.useState(false);
-  var setHistoryOpen = historyOpen[1]; historyOpen = historyOpen[0];
+  // historyOpen lifted to MentexApp via props (para que el sheet renderice
+  // al nivel del shell y se vea SOBRE el tab bar — fix de z-index).
+  var historyOpen = !!props.historyOpen;
+  var setHistoryOpen = props.setHistoryOpen || function() {};
 
   var draftState = React.useState('');
   var draft = draftState[0]; var setDraft = draftState[1];
@@ -1216,6 +1222,16 @@ function IAScreen(props) {
         window.__mtxNav.setInternal('ai', false);
       }
     };
+  }, []);
+
+  // Listener: cuando el user selecciona una conversación desde el history
+  // sheet (que vive al nivel del shell), MentexApp dispara este evento para
+  // que cambiemos a chat view. Sin esto, el user selecciona una conv pero
+  // se queda en el hub.
+  React.useEffect(function() {
+    var handler = function() { setView('chat'); };
+    window.addEventListener('mtx:ia-enter-chat', handler);
+    return function() { window.removeEventListener('mtx:ia-enter-chat', handler); };
   }, []);
 
   var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
@@ -1322,15 +1338,7 @@ function IAScreen(props) {
           onSettings={handleSettings}
         />
         <IAEmptyState onChipTap={function(chip) { enterChat(chip.prompt); }}/>
-
-        <IAHistorySheet
-          open={historyOpen}
-          onClose={function() { setHistoryOpen(false); }}
-          conversations={conversations}
-          currentId={currentId}
-          onSelect={handleSelectFromHistory}
-          onNew={handleNewConversationFromHub}
-        />
+        {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
       </div>
     );
   }
@@ -1348,9 +1356,7 @@ function IAScreen(props) {
         onBack={goHub}
         onNewChat={handleNewConversationFromChat}
         onSettings={handleSettings}
-        onHistory={function() { setHistoryOpen(true); }}
-        onRename={handleRename}
-        conversationCount={conversations.length}
+        onOpenHistory={function() { setHistoryOpen(true); }}
       />
 
       <div style={{
@@ -1372,15 +1378,7 @@ function IAScreen(props) {
         onVoice={handleVoice}
         textareaRef={textareaRef}
       />
-
-      <IAHistorySheet
-        open={historyOpen}
-        onClose={function() { setHistoryOpen(false); }}
-        conversations={conversations}
-        currentId={currentId}
-        onSelect={handleSelectFromHistory}
-        onNew={handleNewConversationFromChat}
-      />
+      {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
     </div>
   );
 }
@@ -1413,13 +1411,14 @@ function IAHubHeader(props) {
 
 
 // ── IAChatHeader — header del chat view ──────────────────────────────────
-// Layout izquierda→derecha: [← back] [+ new] [Título plano + dropdown ⌄]
-//                                                              [⚙️ settings]
-// • Back, new, y título clusterizados a la izquierda. Settings solo a la
-//   derecha (utility periférica).
-// • Título es texto plano (no pill) + chev de dropdown — el user puede
-//   tap para renombrar. minWidth:0 + ellipsis para títulos largos.
-// • Spacer flex:1 entre título y settings empuja settings a la derecha.
+// Layout izquierda→derecha: [← back] [Título plano + dropdown ⌄] [spacer]
+//                                                       [+ new] [⚙️ settings]
+// • Back y título a la izquierda; new chat y settings a la derecha (utility).
+// • Título es texto plano (sin pill background) + chev de dropdown. Tap
+//   en el chev/título → abre el history sheet (no rename — eso vivirá en
+//   el 3-dots de cada row del history en el futuro).
+// • flex:1 minWidth:0 + ellipsis en el span del título evita que títulos
+//   largos empujen los íconos derechos fuera del área.
 function IAChatHeader(props) {
   var current = props.current;
   return (
@@ -1436,17 +1435,12 @@ function IAChatHeader(props) {
           <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
         </IAIconButton>
 
-        <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
-          <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
-        </IAIconButton>
-
-        {/* Título plano + chev dropdown — sin background pill. Empieza pegado
-            al + new button con un pequeño gap. minWidth:0 + ellipsis evita
-            que títulos largos empujen settings fuera del área. */}
+        {/* Título plano + chev dropdown. Tap = abre history sheet (no
+            rename). El user puede explorar/cambiar conversaciones desde ahí. */}
         <button
-          onClick={props.onRename}
+          onClick={props.onOpenHistory}
           className="mtx-tap"
-          aria-label="Renombrar conversación"
+          aria-label="Ver historial de conversaciones"
           style={{
             appearance: 'none', cursor: 'pointer',
             background: 'transparent', border: 0,
@@ -1466,6 +1460,10 @@ function IAChatHeader(props) {
           }}>{current ? current.title : 'Nueva conversación'}</span>
           <IcChevD size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
         </button>
+
+        <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
+          <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
+        </IAIconButton>
 
         <IAIconButton aria-label="Configuración del asistente" onClick={props.onSettings}>
           <IcSettings size={15} stroke="currentColor" strokeWidth={1.6}/>
