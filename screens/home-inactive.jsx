@@ -672,11 +672,11 @@ function HomeInactive({
               const on = blockedApps.includes(app.id);
               return (
                 <div key={app.id} onClick={() => toggleApp(app.id)} className="mtx-tap" style={{
-                  display:'flex', alignItems:'center', gap:12,
-                  padding:'10px 12px', cursor:'pointer',
+                  display:'flex', alignItems:'center', gap:11,
+                  padding:'7px 12px', cursor:'pointer',
                   borderTop: i === 0 ? 0 : '0.5px solid rgba(255,255,255,0.05)'
                 }}>
-                  <app.Icon size={36}/>
+                  <app.Icon size={30}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:14, fontWeight:500, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>{app.name}</div>
                     <div style={{ fontSize:11, color:'var(--ink-3)' }}>{app.subtitle}</div>

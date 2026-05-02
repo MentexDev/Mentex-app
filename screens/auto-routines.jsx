@@ -361,4 +361,222 @@ function SetupTile({ Ic, accent, label, value, warning, onTap }) {
   );
 }
 
-Object.assign(window, { AutoRoutineCreateSheet, useAutoRoutines });
+// ─────────────────────────────────────────────────────────────────────────────
+// AutoRoutineCreatedSheet — resumen post-creación
+// ─────────────────────────────────────────────────────────────────────────────
+// El user pidió reemplazar el toast simple post-creación por un mini-sheet
+// que muestre el resumen de lo recién creado: días, horario, tiempo total,
+// apps y rutinas. Refuerza el feedback de que la rutina existe ya, y le
+// recuerda que vive en Configuraciones para edición/eliminación futura.
+//
+// Mismo lenguaje visual que AutoRoutineCreateSheet (glass cards, eyebrows,
+// day pills) para consistencia. Solo CTA primario "Entendido" — la edición
+// se delega al futuro tab de Configuraciones, no se duplica aquí.
+//
+// Props:
+//   open            — boolean
+//   routine         — el objeto creado por __mtxAutoRoutines.add()
+//   onClose         — () => void
+//   appsCatalog     — array global de apps para resolver labels
+//   routinesCatalog — array global de rutinas para resolver labels
+function AutoRoutineCreatedSheet({
+  open, routine, onClose,
+  appsCatalog = [],
+  routinesCatalog = [],
+}) {
+  if (!open || !routine) return null;
+
+  const totalH = Math.floor(routine.minutes / 60);
+  const totalM = routine.minutes % 60;
+  const timeStr = `${totalH > 0 ? `${totalH}h ` : ''}${totalM} min`;
+
+  const ALL_DAYS = [
+    { id: 'mon', label: 'L' }, { id: 'tue', label: 'M' }, { id: 'wed', label: 'X' },
+    { id: 'thu', label: 'J' }, { id: 'fri', label: 'V' }, { id: 'sat', label: 'S' }, { id: 'sun', label: 'D' },
+  ];
+  const selectedDays = routine.schedule?.days || [];
+  const startTime = routine.schedule?.startTime || '—';
+  const endTime = routine.schedule?.endTime || '—';
+
+  // Resumen humano: "lunes a viernes" / "todos los días" / "L M X" según
+  // la cantidad. Sin sobrecomplicar: si son 5 weekdays comunes, decirlo
+  // explícitamente; si no, listar las iniciales separadas.
+  const WEEKDAYS = ['mon','tue','wed','thu','fri'];
+  const WEEKEND  = ['sat','sun'];
+  const daysHuman = selectedDays.length === 7
+    ? 'todos los días'
+    : (selectedDays.length === 5 && WEEKDAYS.every(d => selectedDays.includes(d)))
+      ? 'de lunes a viernes'
+      : (selectedDays.length === 2 && WEEKEND.every(d => selectedDays.includes(d)))
+        ? 'fines de semana'
+        : selectedDays.length === 1
+          ? `los ${ALL_DAYS.find(d => d.id === selectedDays[0])?.label || ''}`
+          : `${selectedDays.length} días/semana`;
+
+  const blockedAppNames = (routine.blockedAppsIds || [])
+    .map(id => (appsCatalog.find(a => a.id === id) || {}).name)
+    .filter(Boolean);
+  const routineLabels = (routine.routineIds || [])
+    .map(id => (routinesCatalog.find(r => r.id === id) || {}).label)
+    .filter(Boolean);
+
+  // Helper: top-3 + "+N más" si hay más
+  const topN = (arr, n = 3) => {
+    if (arr.length <= n) return arr.join(' · ');
+    return `${arr.slice(0, n).join(' · ')} · +${arr.length - n} más`;
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 100,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      background: 'rgba(0,0,0,0.5)',
+      backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+      animation: 'mtx-fade-up .25s ease',
+    }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: 'rgba(15,19,19,0.92)',
+        backdropFilter: 'blur(28px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+        borderTop: '0.5px solid rgba(255,255,255,0.12)',
+        borderTopLeftRadius: 32, borderTopRightRadius: 32,
+        padding: '18px 20px 32px',
+        boxShadow: '0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
+        maxHeight: '88%', overflow: 'auto',
+        animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+      }} className="mtx-no-scrollbar">
+        <div style={{
+          width: 38, height: 4, borderRadius: 999, margin: '0 auto 18px',
+          background: 'rgba(255,255,255,0.18)',
+        }}/>
+
+        {/* Hero — check icon con halo neon + título centrado */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 22 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 999, marginBottom: 14,
+            background: 'radial-gradient(circle at 30% 30%, rgba(94,240,194,0.85), rgba(61,255,209,0.55))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#0a1410',
+            boxShadow: '0 0 0 1px rgba(61,255,209,0.32), 0 0 28px rgba(61,255,209,0.42), 0 0 60px rgba(61,255,209,0.22)',
+          }}>
+            <IcCheck size={28} stroke="currentColor" strokeWidth={2.6}/>
+          </div>
+          <div className="mtx-eyebrow" style={{ fontSize: 10, marginBottom: 6 }}>Creada</div>
+          <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)', letterSpacing: '-0.025em' }}>
+            Tu rutina automática está lista
+          </h2>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 8, lineHeight: 1.45, maxWidth: 320 }}>
+            Iniciará sola {daysHuman} entre <strong style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{startTime}</strong> y <strong style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{endTime}</strong>.
+          </div>
+        </div>
+
+        {/* Card 1 — Days pills (read-only highlight) */}
+        <div className="mtx-glass" style={{ padding: '14px 16px', marginBottom: 10, borderRadius: 20 }}>
+          <div className="mtx-eyebrow" style={{ marginBottom: 10, fontSize: 10 }}>Repetir</div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
+            {ALL_DAYS.map(d => {
+              const on = selectedDays.includes(d.id);
+              return (
+                <div key={d.id} style={{
+                  flex: 1, height: 36, borderRadius: 10,
+                  border: on ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.04)',
+                  background: on ? 'rgba(61,255,209,0.12)' : 'rgba(255,255,255,0.02)',
+                  color: on ? 'var(--neon)' : 'var(--ink-4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{d.label}</div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card 2 — Setup summary rows */}
+        <div className="mtx-glass" style={{ padding: '4px 4px', marginBottom: 14, borderRadius: 20 }}>
+          <SummaryRow Ic={IcClock} accent="#3dffd1"
+            label="Tiempo de enfoque diario"
+            value={timeStr}
+            isFirst/>
+          <SummaryRow Ic={IcShield} accent="#5dd3ff"
+            label="Apps a bloquear"
+            value={blockedAppNames.length === 0
+              ? 'Ninguna'
+              : `${blockedAppNames.length} · ${topN(blockedAppNames)}`}
+            muted={blockedAppNames.length === 0}/>
+          <SummaryRow Ic={IcSpark} accent="#9b8aff"
+            label="Rutinas del ritual"
+            value={routineLabels.length === 0
+              ? 'Ninguna'
+              : `${routineLabels.length} · ${topN(routineLabels)}`}
+            muted={routineLabels.length === 0}/>
+        </div>
+
+        {/* Nota Configuraciones */}
+        <div style={{
+          padding: '10px 14px', marginBottom: 14, borderRadius: 14,
+          background: 'rgba(255,255,255,0.03)',
+          border: '0.5px solid rgba(255,255,255,0.05)',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: 999, flexShrink: 0,
+            background: 'rgba(255,255,255,0.04)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            color: 'var(--ink-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700,
+            marginTop: 1,
+          }}>i</div>
+          <div style={{ flex: 1, fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.45 }}>
+            Disponible en <strong style={{ color: 'var(--ink-2)', fontWeight: 600 }}>Configuraciones</strong> para editar o eliminar.
+          </div>
+        </div>
+
+        {/* CTA — Entendido */}
+        <button className="mtx-btn-neon" style={{ width: '100%' }} onClick={onClose}>
+          <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/>
+          Entendido
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// SummaryRow — variante read-only del SetupTile (sin chev, sin tap).
+// Solo muestra icon · label · value. Reutiliza el lenguaje visual del
+// SetupTile pero como elemento informativo dentro de la card de resumen.
+function SummaryRow({ Ic, accent, label, value, isFirst, muted }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '10px 12px', borderRadius: 14,
+      borderTop: isFirst ? 0 : '0.5px solid rgba(255,255,255,0.04)',
+      fontFamily: 'var(--ff-sans)',
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+        background: `linear-gradient(135deg, ${accent}26, ${accent}06)`,
+        border: `0.5px solid ${accent}40`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: accent,
+        opacity: muted ? 0.55 : 1,
+      }}>
+        <Ic size={14} stroke="currentColor" strokeWidth={1.7}/>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 9.5, fontWeight: 700, color: 'var(--ink-3)',
+          letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 2,
+        }}>{label}</div>
+        <div style={{
+          fontSize: 12.5, fontWeight: 600,
+          color: muted ? 'var(--ink-4)' : 'var(--ink-1)',
+          letterSpacing: '-0.005em',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { AutoRoutineCreateSheet, AutoRoutineCreatedSheet, useAutoRoutines });

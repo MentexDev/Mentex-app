@@ -337,15 +337,15 @@ function AppRow({ app, blocked, onToggle, isFirst, variant = 'default' }) {
     <div className="mtx-tap"
       onClick={() => onToggle(app.id)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 12px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 11,
+        padding: '7px 12px', cursor: 'pointer',
         borderTop: isFirst ? 0 : '0.5px solid rgba(255,255,255,0.04)',
         borderRadius: 12,
         position: 'relative',
         transition: 'background .18s ease',
         background: blocked ? 'rgba(61,255,209,0.04)' : 'transparent',
       }}>
-      <app.Icon size={36}/>
+      <app.Icon size={30}/>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-1)', letterSpacing: '-0.01em',
           display: 'inline-flex', alignItems: 'center', gap: 6,
