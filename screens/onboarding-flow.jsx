@@ -153,6 +153,33 @@
   }
 
 
+  // MentexTipBox — caja contextual reutilizable con efecto verdoso brillante.
+  // Mismo lenguaje visual que la wow box del Step 3 (gradient neon + glow +
+  // inset rim). Aparece en steps 4-7 explicando cómo Mentex usa cada decisión.
+  // Es el "puente" entre la pregunta del step y el valor concreto que entrega.
+  function MentexTipBox(props) {
+    return React.createElement('div', {
+      style: Object.assign({
+        padding: '12px 14px',
+        background: 'linear-gradient(180deg, rgba(61,255,209,0.10), rgba(61,255,209,0.02))',
+        border: '0.5px solid rgba(61,255,209,0.28)',
+        borderRadius: 14,
+        boxShadow: '0 0 24px rgba(61,255,209,0.06), inset 0 1px 0 rgba(61,255,209,0.18)',
+      }, props.style || {}),
+    },
+      props.eyebrow && React.createElement('div', {
+        style: {
+          fontSize: 9.5, fontWeight: 700, color: 'var(--neon)',
+          letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6,
+        },
+      }, props.eyebrow),
+      React.createElement('div', {
+        style: { fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5 },
+      }, props.children)
+    );
+  }
+
+
   // Style helper: gradient + edge highlight para botones unselected. Da "vida"
   // sin filter:blur (que genera GPU bugs). Background con gradient sutil top→
   // bottom + box-shadow inset para edge highlight.
@@ -400,6 +427,22 @@
 
   // ── Reusable input ─────────────────────────────────────────────────────────
 
+  // Estilo unified para inputs — mismo gradient + edge highlight que los
+  // OptionCard unselected del step 6, así los inputs del step 1 no se sienten
+  // muertos comparados con las cards de los demás steps.
+  var INPUT_STYLE_BASE = {
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012))',
+    border: '0.5px solid rgba(255,255,255,0.10)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    outline: 'none',
+    boxSizing: 'border-box',
+    WebkitAppearance: 'none',
+    color: 'var(--ink-1)',
+    fontFamily: 'var(--ff-sans)',
+    transition: 'border-color .15s ease, box-shadow .15s ease',
+  };
+
   function MtxLabeledInput(props) {
     var IconComp = props.icon;
     var hasIcon = !!IconComp;
@@ -416,6 +459,7 @@
             position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
             color: 'var(--ink-3)', display: 'flex', alignItems: 'center',
             pointerEvents: 'none',
+            zIndex: 1,
           },
         }, React.createElement(IconComp, { size: 16, stroke: 'currentColor', strokeWidth: 1.6 })),
         props.multiline
@@ -425,20 +469,12 @@
               placeholder: props.placeholder || '',
               rows: props.rows || 3,
               maxLength: props.maxLength,
-              style: {
+              style: Object.assign({}, INPUT_STYLE_BASE, {
                 width: '100%',
                 padding: hasIcon ? '12px 14px 12px 40px' : '12px 14px',
-                fontFamily: 'var(--ff-sans)',
                 fontSize: 14, lineHeight: 1.5,
-                color: 'var(--ink-1)',
-                background: 'rgba(255,255,255,0.03)',
-                border: '0.5px solid rgba(255,255,255,0.10)',
-                borderRadius: 12,
-                outline: 'none',
                 resize: 'none',
-                boxSizing: 'border-box',
-                WebkitAppearance: 'none',
-              },
+              }),
             })
           : React.createElement('input', {
               type: props.type || 'text',
@@ -449,20 +485,12 @@
               autoCapitalize: props.autoCapitalize || 'off',
               autoCorrect: props.autoCorrect || 'off',
               spellCheck: props.spellCheck === false ? 'false' : undefined,
-              style: {
+              style: Object.assign({}, INPUT_STYLE_BASE, {
                 width: '100%',
                 height: 46,
                 padding: hasIcon ? '0 14px 0 40px' : '0 14px',
-                fontFamily: 'var(--ff-sans)',
                 fontSize: 14,
-                color: 'var(--ink-1)',
-                background: 'rgba(255,255,255,0.03)',
-                border: '0.5px solid rgba(255,255,255,0.10)',
-                borderRadius: 12,
-                outline: 'none',
-                boxSizing: 'border-box',
-                WebkitAppearance: 'none',
-              },
+              }),
             }),
         props.suffix && React.createElement('div', {
           style: {
@@ -531,14 +559,10 @@
             onChange: function(e) { onChange({ tagline: e.target.value }); },
             placeholder: 'Una frase que te describa',
             maxLength: 60,
-            style: {
+            style: Object.assign({}, INPUT_STYLE_BASE, {
               width: '100%', height: 46, padding: '0 14px',
-              fontFamily: 'var(--ff-sans)', fontSize: 14, color: 'var(--ink-1)',
-              background: 'rgba(255,255,255,0.03)',
-              border: '0.5px solid rgba(255,255,255,0.10)',
-              borderRadius: 12, outline: 'none',
-              boxSizing: 'border-box', WebkitAppearance: 'none',
-            },
+              fontSize: 14,
+            }),
           }),
           // Chips de sugerencia
           React.createElement('div', {
@@ -872,10 +896,15 @@
             fontSize: 12, color: picked.length ? 'var(--neon)' : 'var(--ink-3)',
             fontWeight: picked.length ? 600 : 500,
             transition: 'color .2s',
+            marginBottom: 14,
           },
         }, picked.length === 0 ? 'Selecciona al menos una' :
             picked.length === 1 ? '1 app seleccionada' :
-            picked.length + ' apps seleccionadas')
+            picked.length + ' apps seleccionadas'),
+
+        React.createElement(MentexTipBox, {
+          eyebrow: '💡 Cómo lo va a usar Mentex',
+        }, 'Estas apps se bloquean automáticamente al iniciar una sesión. Mentex también te avisa de forma sutil si las abres durante tus horas de foco — sin penalizarte, solo recordándote.')
       )
     );
   }
@@ -924,9 +953,16 @@
           textAlign: 'center', fontSize: 12,
           color: picked.length ? 'var(--neon)' : 'var(--ink-3)',
           fontWeight: picked.length ? 600 : 500,
+          marginBottom: 14,
         },
       }, picked.length === 0 ? 'Selecciona al menos uno' :
-          picked.length + (picked.length === 1 ? ' tipo seleccionado' : ' tipos seleccionados'))
+          picked.length + (picked.length === 1 ? ' tipo seleccionado' : ' tipos seleccionados')),
+
+      React.createElement('div', { style: { padding: '0 28px' } },
+        React.createElement(MentexTipBox, {
+          eyebrow: '💡 Cómo lo va a usar Mentex',
+        }, 'Tu sección Explorar se cura con esto. Recibirás recomendaciones diarias del tipo de contenido que más te energiza — sin algoritmos manipuladores, solo lo que tú elegiste.')
+      )
     );
   }
 
@@ -955,15 +991,20 @@
             onClick: function() { onChange({ focusTime: f.id }); },
           });
         })
+      ),
+      React.createElement('div', { style: { padding: '14px 24px 0' } },
+        React.createElement(MentexTipBox, {
+          eyebrow: '💡 Cómo lo va a usar Mentex',
+        }, 'Tu coach IA programa recordatorios y rituales en esta franja. Si pasa demasiado tiempo sin que entres a una sesión, te sugerirá una corta — siempre sin presión.')
       )
     );
   }
 
 
   // ── Step 7: Session duration ───────────────────────────────────────────────
-  // El framing aquí no es "elige cuánto enfocarte" sino "elige el átomo de tu
-  // ritual diario". Mentex va a planificar tu día alrededor de esto: rutinas,
-  // recordatorios, descansos. La duración es cómo Mentex respira contigo.
+  // El framing es "elige cuánto dura cada bloque de tu rutina". El día del
+  // user es una rutina compuesta de varios bloques de esta duración —
+  // intercalados con descansos. No una sola sesión de trabajo.
   function StepSessionDuration(props) {
     var ans = props.answers;
     var onChange = props.onChange;
@@ -971,9 +1012,9 @@
 
     return React.createElement('div', null,
       React.createElement(StepHeader, {
-        eyebrow: 'Paso 7 · Sesión inicial',
-        title: '¿Cuánto dura tu sesión base?',
-        subtitle: 'Esta es la unidad de tu ritual diario. Mentex programará rutinas, recordatorios y descansos alrededor de esto.',
+        eyebrow: 'Paso 7 · Tu rutina',
+        title: '¿Cuánto dura cada bloque de foco?',
+        subtitle: 'Tu rutina diaria son varios bloques intercalados con descansos. Elige la duración de cada uno.',
       }),
       React.createElement('div', {
         style: { padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 8 },
@@ -1024,25 +1065,10 @@
         })
       ),
 
-      // Tip box: framing de cómo va a funcionar el ritual
-      React.createElement('div', {
-        style: {
-          margin: '16px 28px 0',
-          padding: '12px 14px',
-          background: 'rgba(61,255,209,0.04)',
-          border: '0.5px solid rgba(61,255,209,0.16)',
-          borderRadius: 12,
-        },
-      },
-        React.createElement('div', {
-          style: {
-            fontSize: 11, fontWeight: 700, color: 'var(--neon)',
-            letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 4,
-          },
-        }, '💡 Cómo lo va a usar Mentex'),
-        React.createElement('div', {
-          style: { fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5 },
-        }, 'Tu día puede ser una sola sesión profunda o varias cortas intercaladas. Mentex se adapta — empezar pequeño es la regla, el ritmo se construye después.')
+      React.createElement('div', { style: { margin: '16px 28px 0' } },
+        React.createElement(MentexTipBox, {
+          eyebrow: '💡 Cómo lo va a usar Mentex',
+        }, 'Mentex programa varios bloques de esta duración a lo largo de tu día, con descansos cortos entre ellos. Empezar pequeño funciona — el ritmo se construye con consistencia, no con tamaño.')
       )
     );
   }
@@ -1263,9 +1289,10 @@
   ];
 
   // Toggle row pill: switch a la derecha, icon + label + desc a la izquierda.
+  // El fondo se mantiene neutral (no verde fuerte) cuando ON. El switch neon
+  // y un pequeño hint en el border son suficientes — más minimalista.
   function NotifToggleRow(props) {
     var on = !!props.on;
-    var bg = _bgForState(on);
     return React.createElement('button', {
       onClick: props.onClick,
       className: 'mtx-tap',
@@ -1275,19 +1302,20 @@
         textAlign: 'left',
         padding: '12px 14px',
         borderRadius: 14,
-        background: bg.background,
-        border: '0.5px solid ' + bg.borderColor,
-        boxShadow: bg.boxShadow,
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012))',
+        // Solo un hint sutil neon en el border cuando ON, sin glow agresivo
+        border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.18)' : 'rgba(255,255,255,0.10)'),
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
         display: 'flex', alignItems: 'center', gap: 12,
         fontFamily: 'var(--ff-sans)',
-        transition: 'all .18s ease',
+        transition: 'border-color .18s ease',
       },
     },
       React.createElement('div', {
         style: {
           width: 38, height: 38, borderRadius: 11,
-          background: on ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
-          border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.28)' : 'rgba(255,255,255,0.06)'),
+          background: 'rgba(255,255,255,0.04)',
+          border: '0.5px solid rgba(255,255,255,0.06)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 20, lineHeight: 1, flexShrink: 0,
         },
