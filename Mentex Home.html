@@ -918,6 +918,112 @@
           </div>
 
           <TweaksPanel title="Mentex Tweaks">
+            {/* Dev controls para auth/onboarding — permite testear el flow
+                completo (welcome → login → onboarding → app) sin tener que
+                limpiar localStorage manualmente cada vez. En producción este
+                section NO existirá; vive solo en el tweaks panel del dev. */}
+            <TweakSection label="Auth (dev)">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  onClick={() => {
+                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
+                    setAuthView('splash');
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '0.5px solid rgba(255,107,107,0.30)',
+                    background: 'rgba(255,107,107,0.06)',
+                    color: 'rgba(255,140,140,0.95)',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}>↺ Reset auth → Welcome</button>
+                <button
+                  onClick={() => {
+                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
+                    setAuthView('welcome');
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: 'var(--ink-1)',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}>→ Welcome (skip splash)</button>
+                <button
+                  onClick={() => {
+                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
+                    setAuthView('auth');
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: 'var(--ink-1)',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}>→ Login screen</button>
+                <button
+                  onClick={() => {
+                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
+                    // Crear user nuevo sin onboarding completado para forzar onboarding
+                    window.__mtxAuth.signUpWithPassword('newuser@mentex.app', 'password123').then(() => {
+                      setAuthView('onboarding');
+                    });
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '0.5px solid rgba(155,138,255,0.30)',
+                    background: 'rgba(155,138,255,0.06)',
+                    color: '#c4b8ff',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}>→ Onboarding (con user nuevo)</button>
+                <button
+                  onClick={() => {
+                    if (window.__mtxAuth) window.__mtxAuth._reset();
+                    if (window.__mtxOnboarding) window.__mtxOnboarding._reset();
+                    // Mock returning user con onboarding ya completado
+                    window.__mtxAuth.signInWithPassword('existing@mentex.app', 'password123');
+                  }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '0.5px solid rgba(61,255,209,0.30)',
+                    background: 'rgba(61,255,209,0.06)',
+                    color: 'var(--neon)',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}>→ App (returning user)</button>
+                {authState.user && (
+                  <div style={{
+                    padding: '6px 10px',
+                    fontSize: 10.5, color: 'var(--ink-4)',
+                    fontFamily: 'var(--ff-sans)',
+                    lineHeight: 1.4,
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: 6,
+                    marginTop: 4,
+                  }}>
+                    <div>📧 {authState.user.email}</div>
+                    <div>🔑 {authState.user.provider} · onboarding: {authState.user.onboardingCompleted ? '✓' : '·'}</div>
+                  </div>
+                )}
+              </div>
+            </TweakSection>
             <TweakSection label="Estado">
               <TweakRadio label="Home" value={tweaks.homeState}
                           options={[{value:'inactive', label:'Inactivo'}, {value:'active', label:'Activo'}]}
