@@ -1790,12 +1790,21 @@
     var modeState = React.useState(props.initialMode === 'signup' ? 'signup' : 'signin');
     var mode = modeState[0]; var setMode = modeState[1];
 
+    // Campos compartidos
     var emailState = React.useState('');
     var email = emailState[0]; var setEmail = emailState[1];
     var passwordState = React.useState('');
     var password = passwordState[0]; var setPassword = passwordState[1];
     var showPasswordState = React.useState(false);
     var showPassword = showPasswordState[0]; var setShowPassword = showPasswordState[1];
+
+    // Campos extra para signup (no se muestran en signin)
+    var nameState = React.useState('');
+    var name = nameState[0]; var setName = nameState[1];
+    var pwConfirmState = React.useState('');
+    var pwConfirm = pwConfirmState[0]; var setPwConfirm = pwConfirmState[1];
+    var acceptTermsState = React.useState(false);
+    var acceptTerms = acceptTermsState[0]; var setAcceptTerms = acceptTermsState[1];
 
     var loadingState = React.useState(null);
     var loading = loadingState[0]; var setLoading = loadingState[1];
@@ -1807,6 +1816,12 @@
     var clearError = function() { if (error) setError(null); };
 
     var handleSubmit = function() {
+      // En signup, validar campos extra primero
+      if (mode === 'signup') {
+        if (!name.trim()) { setError('Ingresa tu nombre'); return; }
+        if (name.trim().length < 2) { setError('El nombre es muy corto'); return; }
+      }
+
       var trimmedEmail = email.trim();
       if (!trimmedEmail) { setError('Ingresa tu email'); return; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
@@ -1815,6 +1830,13 @@
       }
       if (!password) { setError('Ingresa tu contraseña'); return; }
       if (password.length < 6) { setError('La contraseña necesita 6+ caracteres'); return; }
+
+      // Validaciones específicas de signup
+      if (mode === 'signup') {
+        if (!pwConfirm) { setError('Confirma tu contraseña'); return; }
+        if (password !== pwConfirm) { setError('Las contraseñas no coinciden'); return; }
+        if (!acceptTerms) { setError('Acepta los términos para continuar'); return; }
+      }
 
       setError(null);
       setLoading('email');
@@ -1829,7 +1851,10 @@
         if (res.error === 'wrong_password') return setError('Contraseña incorrecta');
         if (res.error === 'email_taken') return setError('Ese email ya está registrado. Inicia sesión.');
         if (res.error === 'network') return setError('Error de conexión. Reintenta.');
-        // Success → MentexApp routea automáticamente
+        // Success en signup: persistir el nombre tipeado (Mentex pre-onboarding)
+        if (res.ok && mode === 'signup' && name.trim()) {
+          window.__mtxAuth.updateUser({ name: name.trim().split(' ')[0] });
+        }
       });
     };
 
@@ -1900,18 +1925,24 @@
           </div>
         </div>
 
-        {/* Body — scrollable form */}
+        {/* Body — scrollable form. Top dinámico:
+            • signin (form corto) → top 156 para balance vertical
+            • signup (form largo) → top 110 para que quepa bien
+            Patrón: el form siempre se ve "centrado verticalmente" ante
+            el ojo, sin importar la cantidad de campos. */}
         <div style={{
           position: 'absolute',
-          top: 116, left: 0, right: 0, bottom: 24,
+          top: isSignIn ? 156 : 110,
+          left: 0, right: 0, bottom: 24,
           padding: '0 28px',
           zIndex: 3,
           display: 'flex', flexDirection: 'column',
           overflow: 'auto',
+          transition: 'top .3s ease',
         }} className="mtx-no-scrollbar">
 
-          {/* Hero title — más grande, más impactante */}
-          <div style={{ marginBottom: 22 }}>
+          {/* Hero title + subtitle — centrados horizontalmente */}
+          <div style={{ marginBottom: 22, textAlign: 'center' }}>
             <h1 style={{
               margin: 0,
               fontSize: 28, fontWeight: 700,
@@ -1925,10 +1956,11 @@
               <span>Crea tu <span style={{ color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 }}>cuenta</span>.</span>
             )}</h1>
             <p style={{
-              margin: '8px 0 0',
+              margin: '8px auto 0',
               fontSize: 13.5, color: 'var(--ink-3)',
               fontFamily: 'var(--ff-sans)',
               lineHeight: 1.55,
+              maxWidth: 280,
             }}>{isSignIn
               ? 'Ingresa para continuar tu camino.'
               : 'Únete y empieza tu mejor versión hoy.'}</p>
@@ -1980,6 +2012,42 @@
                 transition: 'background .25s, color .25s, box-shadow .25s',
               }}>Crear cuenta</button>
           </div>
+
+          {/* Nombre — solo en signup. Icono user leading. */}
+          {!isSignIn && (
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <div style={{
+                position: 'absolute', left: 16, top: 0, bottom: 0,
+                display: 'flex', alignItems: 'center',
+                color: 'var(--ink-4)',
+                pointerEvents: 'none',
+              }}>
+                <IcUser size={16} stroke="currentColor" strokeWidth={1.6}/>
+              </div>
+              <input
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={function(e) { setName(e.target.value); clearError(); }}
+                placeholder="Tu nombre"
+                disabled={!!loading}
+                maxLength={60}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  width: '100%', height: 54,
+                  boxSizing: 'border-box',
+                  padding: '0 16px 0 44px',
+                  borderRadius: 14,
+                  border: '0.5px solid ' + (error ? 'rgba(255,107,107,0.40)' : 'rgba(255,255,255,0.10)'),
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--ink-1)',
+                  fontSize: 14.5, fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  outline: 'none', colorScheme: 'dark',
+                }}
+              />
+            </div>
+          )}
 
           {/* Email input — icono leading mail integrado al input */}
           <div style={{ position: 'relative', marginBottom: 12 }}>
@@ -2065,6 +2133,60 @@
             </button>
           </div>
 
+          {/* Confirmar contraseña — solo en signup. Mismo patrón visual. */}
+          {!isSignIn && (
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <div style={{
+                position: 'absolute', left: 16, top: 0, bottom: 0,
+                display: 'flex', alignItems: 'center',
+                color: 'var(--ink-4)',
+                pointerEvents: 'none',
+              }}>
+                <IcLock size={16} stroke="currentColor" strokeWidth={1.6}/>
+              </div>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={pwConfirm}
+                onChange={function(e) { setPwConfirm(e.target.value); clearError(); }}
+                onKeyDown={onKeyDown}
+                placeholder="Confirma tu contraseña"
+                disabled={!!loading}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  width: '100%', height: 54,
+                  boxSizing: 'border-box',
+                  padding: '0 16px 0 44px',
+                  borderRadius: 14,
+                  border: '0.5px solid ' + (
+                    pwConfirm && pwConfirm !== password
+                      ? 'rgba(255,107,107,0.40)'
+                      : (pwConfirm && pwConfirm === password
+                          ? 'rgba(61,255,209,0.30)'
+                          : 'rgba(255,255,255,0.10)')
+                  ),
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--ink-1)',
+                  fontSize: 14.5, fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  outline: 'none', colorScheme: 'dark',
+                  transition: 'border-color .2s',
+                }}
+              />
+              {/* Checkmark sutil cuando coincide */}
+              {pwConfirm && pwConfirm === password && (
+                <div style={{
+                  position: 'absolute', right: 16, top: 0, bottom: 0,
+                  display: 'flex', alignItems: 'center',
+                  color: 'var(--neon)',
+                  pointerEvents: 'none',
+                }}>
+                  <IcCheck size={16} stroke="currentColor" strokeWidth={2.2}/>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Row: Recordarme (signin) + Olvidaste contraseña */}
           {isSignIn && (
             <div style={{
@@ -2107,7 +2229,42 @@
                 }}>¿Olvidaste tu contraseña?</button>
             </div>
           )}
-          {!isSignIn && <div style={{ height: 18 }}/>}
+
+          {/* Checkbox términos — solo signup. Obligatorio antes del CTA. */}
+          {!isSignIn && (
+            <button
+              onClick={function() { setAcceptTerms(!acceptTerms); clearError(); }}
+              aria-pressed={acceptTerms}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                border: 0, background: 'transparent',
+                color: 'var(--ink-2)',
+                fontSize: 12, fontWeight: 400,
+                fontFamily: 'var(--ff-sans)',
+                padding: '4px 0',
+                marginBottom: 18,
+                textAlign: 'left', lineHeight: 1.5,
+              }}>
+              <span style={{
+                width: 18, height: 18, borderRadius: 5,
+                border: '0.5px solid ' + (acceptTerms ? 'rgba(61,255,209,0.50)' : 'rgba(255,255,255,0.18)'),
+                background: acceptTerms ? 'rgba(61,255,209,0.18)' : 'transparent',
+                color: acceptTerms ? 'var(--neon)' : 'transparent',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, marginTop: 1,
+                transition: 'background .2s, border-color .2s, color .2s',
+              }}>{acceptTerms && <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>}</span>
+              <span>
+                Acepto los{' '}
+                <span style={{ color: 'var(--neon)', fontWeight: 600 }}>Términos</span>
+                {' '}y la{' '}
+                <span style={{ color: 'var(--neon)', fontWeight: 600 }}>Política de privacidad</span>
+                {' '}de Mentex.
+              </span>
+            </button>
+          )}
 
           {/* Error inline */}
           {error && (
