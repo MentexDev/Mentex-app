@@ -298,60 +298,50 @@ function AssistantConfigSheet(props) {
   ];
 
   return (
+    // Full-screen page (no bottom sheet) — back button reemplaza el cerrar.
+    // Los submodales (memory add, connect modal, avatar picker, detail sheet)
+    // anclan a este screen y dockean al iPhone bottom como bottom sheets.
     <div style={{
       position: 'absolute', inset: 0, zIndex: 100,
-      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-      background: 'rgba(0,0,0,0.5)',
-      backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-      animation: 'mtx-fade-up .25s ease',
-    }} onClick={onClose}>
-      <div onClick={function(e) { e.stopPropagation(); }} style={{
-        background: 'rgba(15,19,19,0.94)',
-        backdropFilter: 'blur(28px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-        borderTop: '0.5px solid rgba(255,255,255,0.10)',
-        borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        padding: '14px 0 24px',
-        boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
-        height: '92%',
-        display: 'flex', flexDirection: 'column',
-        animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+      background: 'rgba(15,19,19,0.99)',
+      display: 'flex', flexDirection: 'column',
+      animation: 'mtx-fade-up .35s ease both',
+    }}>
+      {/* Header sticky con back button + título */}
+      <div style={{
+        flexShrink: 0,
+        paddingTop: 60,  // clearance status bar + dynamic island
+        background: 'linear-gradient(180deg, rgba(10,13,12,0.98) 0%, rgba(10,13,12,0.85) 80%, rgba(10,13,12,0.6) 100%)',
+        backdropFilter: 'blur(18px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(140%)',
+        borderBottom: '0.5px solid rgba(255,255,255,0.04)',
       }}>
-        {/* Grabber */}
-        <div style={{
-          width: 36, height: 4, borderRadius: 999,
-          margin: '0 auto 12px', flexShrink: 0,
-          background: 'rgba(255,255,255,0.16)',
-        }}/>
-
-        {/* Header */}
-        <div style={{
-          padding: '0 20px 12px', flexShrink: 0,
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mtx-eyebrow" style={{ fontSize: 10, marginBottom: 2 }}>Asistente</div>
-            <h2 style={{
-              margin: 0, fontSize: 20, fontWeight: 600,
+        <div style={{ padding: '0 12px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onClose} aria-label="Volver al chat IA"
+            className="mtx-tap"
+            style={{
+              width: 36, height: 36, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              color: 'var(--ink-1)', cursor: 'pointer', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
+          </button>
+          <div style={{ flex: 1, minWidth: 0, padding: '0 4px' }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9.5, marginBottom: 1, color: 'var(--ink-3)' }}>Asistente</div>
+            <h1 style={{
+              margin: 0, fontSize: 17, fontWeight: 700,
               color: 'var(--ink-1)', letterSpacing: '-0.02em',
               fontFamily: 'var(--ff-sans)',
-            }}>Configuración</h2>
+            }}>Configuración</h1>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" style={{
-            width: 36, height: 36, borderRadius: 999,
-            background: 'rgba(255,255,255,0.06)',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            color: 'var(--ink-1)', cursor: 'pointer', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}><IcClose size={16} stroke="currentColor"/></button>
         </div>
 
         {/* Tab rail (horizontal scroll) */}
         <div className="mtx-scroll-x" style={{
-          padding: '4px 16px 12px',
-          flexShrink: 0,
+          padding: '4px 12px 12px',
           display: 'flex', gap: 6,
-          borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         }}>
           {TABS.map(function(t) {
             var isActive = activeTab === t.id;
@@ -377,23 +367,24 @@ function AssistantConfigSheet(props) {
             );
           })}
         </div>
-
-        {/* Tab content (scrolleable) */}
-        <div style={{
-          flex: 1, minHeight: 0,
-          overflowY: 'auto', overflowX: 'hidden',
-          padding: '14px 20px 20px',
-        }} className="mtx-no-scrollbar">
-          {activeTab === 'personality' && <PersonalityTab/>}
-          {activeTab === 'memory' && <MemoryTab/>}
-          {activeTab === 'knowledge' && <KnowledgeTab/>}
-          {activeTab === 'channels' && <ChannelsTab onConnect={setConnectCtx}/>}
-          {activeTab === 'integrations' && <IntegrationsTab onConnect={setConnectCtx}/>}
-          {activeTab === 'privacy' && <PrivacyTab/>}
-        </div>
       </div>
 
-      {/* Connect modal — superpuesto al config sheet */}
+      {/* Body scrolleable — flex:1 + overflow auto. El padding inferior 38
+          deja respiro al home indicator del iPhone (z=60, height 34). */}
+      <div style={{
+        flex: 1, minHeight: 0,
+        overflowY: 'auto', overflowX: 'hidden',
+        padding: '14px 20px 38px',
+      }} className="mtx-no-scrollbar">
+        {activeTab === 'personality' && <PersonalityTab/>}
+        {activeTab === 'memory' && <MemoryTab/>}
+        {activeTab === 'knowledge' && <KnowledgeTab/>}
+        {activeTab === 'channels' && <ChannelsTab onConnect={setConnectCtx}/>}
+        {activeTab === 'integrations' && <IntegrationsTab onConnect={setConnectCtx}/>}
+        {activeTab === 'privacy' && <PrivacyTab/>}
+      </div>
+
+      {/* Connect modal — superpuesto al config screen full-screen */}
       {connectCtx && (
         <ConnectModal
           ctx={connectCtx}
@@ -770,7 +761,7 @@ function MemoryTab() {
       {_MEMORY_TYPES.map(function(type) {
         var items = byType[type.id];
         return (
-          <div key={type.id} style={{ marginBottom: 16 }}>
+          <div key={type.id} style={{ marginBottom: 18 }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 4px 8px',
@@ -778,73 +769,96 @@ function MemoryTab() {
               <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: type.accent }}>
                 {type.label} {items.length > 0 ? '· ' + items.length : ''}
               </span>
-              <button onClick={function() { setAddCtx({ type: type.id }); }}
+            </div>
+
+            {/* Píldoras compactas: cada item = pill con label + X inline.
+                Tap pill body → abre detail sheet. Tap X → confirm + delete.
+                Wrap horizontal con flex-wrap: permite caber muchos items. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {items.map(function(m) {
+                var hasValue = factValue(m).length > 0;
+                return (
+                  <div key={m.id} style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    maxWidth: '100%',
+                    padding: '5px 4px 5px 10px',
+                    borderRadius: 999,
+                    background: type.accent + '14',
+                    border: '0.5px solid ' + type.accent + '32',
+                    transition: 'background .2s, border-color .2s',
+                  }}>
+                    <button
+                      onClick={function() { setDetailCtx(m); }}
+                      className="mtx-tap"
+                      aria-label={'Ver detalle: ' + factLabel(m)}
+                      style={{
+                        appearance: 'none', cursor: 'pointer',
+                        background: 'transparent', border: 0,
+                        padding: 0,
+                        color: 'var(--ink-1)',
+                        fontSize: 11.5, fontWeight: 500,
+                        fontFamily: 'var(--ff-sans)',
+                        letterSpacing: '-0.005em',
+                        maxWidth: 200,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                      }}>
+                      {factLabel(m)}
+                      {hasValue && (
+                        <span style={{
+                          width: 4, height: 4, borderRadius: 999,
+                          background: type.accent,
+                          flexShrink: 0, opacity: 0.8,
+                        }}/>
+                      )}
+                    </button>
+                    <button
+                      onClick={function(e) {
+                        e.stopPropagation();
+                        if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
+                          window.__mtxIAConfig.removeMemory(m.id);
+                        }
+                      }}
+                      aria-label="Eliminar recuerdo"
+                      className="mtx-tap"
+                      style={{
+                        appearance: 'none', cursor: 'pointer',
+                        marginLeft: 4,
+                        width: 18, height: 18, borderRadius: 999,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: 0,
+                        color: 'var(--ink-3)',
+                        flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                      <IcClose size={9} stroke="currentColor" strokeWidth={2.2}/>
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* "+ Agregar" pill al final de cada categoría */}
+              <button
+                onClick={function() { setAddCtx({ type: type.id }); }}
                 aria-label={'Agregar a ' + type.label}
                 className="mtx-tap"
                 style={{
                   appearance: 'none', cursor: 'pointer',
-                  width: 24, height: 24, borderRadius: 999,
-                  background: type.accent + '14',
-                  border: '0.5px solid ' + type.accent + '40',
+                  padding: '5px 12px',
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '0.5px dashed ' + type.accent + '50',
                   color: type.accent,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  transition: 'background .2s, border-color .2s',
                 }}>
-                <IcPlus size={11} stroke="currentColor" strokeWidth={2.4}/>
+                <IcPlus size={10} stroke="currentColor" strokeWidth={2.4}/>
+                {items.length === 0 ? type.label : 'Agregar'}
               </button>
             </div>
-            {items.length === 0 ? (
-              <div style={{
-                padding: '10px 14px', borderRadius: 12,
-                background: 'rgba(255,255,255,0.02)',
-                border: '0.5px dashed rgba(255,255,255,0.08)',
-                fontSize: 11.5, color: 'var(--ink-4)',
-                fontStyle: 'italic',
-              }}>{type.desc}. Toca + para agregar.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {items.map(function(m) {
-                  var hasValue = factValue(m).length > 0;
-                  return (
-                    <button key={m.id}
-                      onClick={function() { setDetailCtx(m); }}
-                      className="mtx-tap"
-                      style={{
-                        appearance: 'none', cursor: 'pointer', textAlign: 'left',
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 12px', borderRadius: 12,
-                        background: 'rgba(255,255,255,0.025)',
-                        border: '0.5px solid rgba(255,255,255,0.05)',
-                        fontFamily: 'var(--ff-sans)',
-                        transition: 'background .2s, border-color .2s',
-                      }}>
-                      <span style={{
-                        width: 3, height: 18, borderRadius: 2,
-                        background: type.accent, flexShrink: 0,
-                      }}/>
-                      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{
-                          fontSize: 12.5, fontWeight: 500, color: 'var(--ink-1)',
-                          letterSpacing: '-0.005em',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          flex: 1, minWidth: 0,
-                        }}>{factLabel(m)}</span>
-                        {hasValue && (
-                          <span style={{
-                            flexShrink: 0,
-                            fontSize: 9, fontWeight: 700,
-                            padding: '1.5px 6px', borderRadius: 999,
-                            background: 'rgba(255,255,255,0.04)',
-                            color: 'var(--ink-3)',
-                            letterSpacing: '0.04em', textTransform: 'uppercase',
-                          }}>+ detalle</span>
-                        )}
-                      </div>
-                      <IcChevR size={11} stroke="var(--ink-4)" strokeWidth={1.8}/>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         );
       })}
@@ -1100,14 +1114,17 @@ function MemoryAddModal(props) {
 }
 
 
-// MemoryDetailSheet — bottom sheet que muestra el fact completo con view/edit
-// in-place (label + value editables) + delete. Llamado al tap de un row.
+// MemoryDetailSheet — bottom sheet con view/edit in-place + 3-dot menu top-right.
+// Reemplaza los botones inferiores Editar/Eliminar por un menú de 3 puntos
+// que abre dropdown con Editar y Eliminar. UX más limpia, alineada al patrón
+// iOS Settings / WhatsApp chat options.
 function MemoryDetailSheet(props) {
   var type = _MEMORY_TYPES.find(function(t) { return t.id === props.fact.type; }) || _MEMORY_TYPES[0];
-  // Edit mode in-place (no separate modal). Initially false → solo view.
-  // Tap "Editar" → fields se vuelven editables.
   var editingState = React.useState(false);
   var editing = editingState[0]; var setEditing = editingState[1];
+  var menuOpenState = React.useState(false);
+  var menuOpen = menuOpenState[0]; var setMenuOpen = menuOpenState[1];
+  var menuRef = React.useRef(null);
 
   var initialLabel = props.fact.label || props.fact.content || '';
   var initialValue = props.fact.value || '';
@@ -1122,11 +1139,22 @@ function MemoryDetailSheet(props) {
       var t = e.target;
       var tag = (t && t.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (menuOpen) { setMenuOpen(false); return; }
       props.onClose();
     };
     window.addEventListener('keydown', onKey);
     return function() { window.removeEventListener('keydown', onKey); };
-  }, []);
+  }, [menuOpen]);
+
+  // Click outside del 3-dot menu lo cierra
+  React.useEffect(function() {
+    if (!menuOpen) return;
+    var handler = function(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return function() { document.removeEventListener('mousedown', handler); };
+  }, [menuOpen]);
 
   var dirty = label.trim() !== initialLabel || value.trim() !== initialValue;
 
@@ -1144,7 +1172,7 @@ function MemoryDetailSheet(props) {
         WebkitBackdropFilter: 'blur(28px) saturate(160%)',
         borderTop: '0.5px solid rgba(255,255,255,0.10)',
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        padding: '14px 20px 24px',
+        padding: '14px 20px 28px',
         boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
         maxHeight: '90%', overflow: 'auto',
         animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
@@ -1154,23 +1182,92 @@ function MemoryDetailSheet(props) {
           background: 'rgba(255,255,255,0.16)',
         }}/>
 
+        {/* Header con eyebrow + 3-dot menu + close X */}
         <div style={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          marginBottom: 16, gap: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 16, gap: 8,
         }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mtx-eyebrow" style={{
-              fontSize: 9.5, marginBottom: 4, color: type.accent,
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: 999,
-                background: type.accent,
-                boxShadow: '0 0 8px ' + type.accent + 'AA',
-              }}/>
-              {type.label}
-            </div>
+          <div className="mtx-eyebrow" style={{
+            fontSize: 9.5, color: type.accent,
+            display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0,
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: 999,
+              background: type.accent,
+              boxShadow: '0 0 8px ' + type.accent + 'AA',
+              flexShrink: 0,
+            }}/>
+            {type.label}
           </div>
+
+          {/* 3-dot menu (solo en view mode, oculto en edit mode para no confundir) */}
+          {!editing && (
+            <div ref={menuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={function() { setMenuOpen(function(v) { return !v; }); }}
+                aria-label="Más acciones"
+                className="mtx-tap"
+                style={{
+                  width: 32, height: 32, borderRadius: 999,
+                  background: menuOpen ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.06)',
+                  color: 'var(--ink-2)', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'background .15s',
+                }}>
+                <IcMoreH size={14} stroke="currentColor" strokeWidth={1.8}/>
+              </button>
+
+              {menuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)', right: 0,
+                  minWidth: 160,
+                  padding: 4,
+                  borderRadius: 12,
+                  background: 'rgba(20,24,24,0.98)',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+                  zIndex: 130,
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                  animation: 'mtx-fade-up .15s ease both',
+                }}>
+                  <button
+                    onClick={function() { setMenuOpen(false); setEditing(true); }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                      padding: '9px 12px', borderRadius: 8,
+                      background: 'transparent', border: 0,
+                      color: 'var(--ink-1)',
+                      fontSize: 12.5, fontWeight: 500,
+                      fontFamily: 'var(--ff-sans)',
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                    }}>
+                    <IcEdit size={12} stroke="currentColor" strokeWidth={1.7}/>
+                    Editar
+                  </button>
+                  <button
+                    onClick={function() { setMenuOpen(false); props.onDelete(); }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                      padding: '9px 12px', borderRadius: 8,
+                      background: 'transparent', border: 0,
+                      color: '#ff8b8b',
+                      fontSize: 12.5, fontWeight: 500,
+                      fontFamily: 'var(--ff-sans)',
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                    }}>
+                    <IcClose size={12} stroke="currentColor" strokeWidth={1.8}/>
+                    Eliminar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <button onClick={props.onClose} aria-label="Cerrar" style={{
             width: 32, height: 32, borderRadius: 999,
             background: 'rgba(255,255,255,0.04)',
@@ -1257,12 +1354,11 @@ function MemoryDetailSheet(props) {
           </div>
         ) : (
           <div>
-            {/* View mode */}
+            {/* View mode — solo card con label + value (acciones via 3-dot menu) */}
             <div style={{
               padding: '14px 16px', borderRadius: 16,
               background: 'rgba(255,255,255,0.025)',
               border: '0.5px solid ' + type.accent + '24',
-              marginBottom: 14,
             }}>
               <div style={{
                 fontSize: 16, fontWeight: 600, color: 'var(--ink-1)',
@@ -1278,37 +1374,6 @@ function MemoryDetailSheet(props) {
                   borderTop: '0.5px solid rgba(255,255,255,0.04)',
                 }}>{initialValue}</div>
               )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={function() { setEditing(true); }}
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  flex: 1, padding: '11px 14px', borderRadius: 14,
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '0.5px solid rgba(255,255,255,0.08)',
-                  color: 'var(--ink-1)',
-                  fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}>
-                <IcEdit size={13} stroke="currentColor" strokeWidth={1.7}/>
-                Editar
-              </button>
-              <button onClick={props.onDelete}
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  flex: 1, padding: '11px 14px', borderRadius: 14,
-                  background: 'rgba(255,107,107,0.06)',
-                  border: '0.5px solid rgba(255,107,107,0.20)',
-                  color: '#ff8b8b',
-                  fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}>
-                <IcClose size={13} stroke="currentColor" strokeWidth={1.7}/>
-                Eliminar
-              </button>
             </div>
           </div>
         )}
