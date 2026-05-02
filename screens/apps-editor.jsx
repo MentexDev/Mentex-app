@@ -250,7 +250,7 @@ function CategoryChip({ label, count, active, onClick }) {
       letterSpacing: '-0.005em',
       cursor: 'pointer',
       boxShadow: active ? '0 0 14px rgba(61,255,209,0.22), inset 0 0 12px rgba(61,255,209,0.08)' : 'none',
-      transition: 'all .25s cubic-bezier(.34,1.56,.64,1)',
+      transition: 'background .25s, border-color .25s, color .25s, box-shadow .25s',
       display: 'inline-flex', alignItems: 'center', gap: 6,
     }}>
       {label}
@@ -390,7 +390,7 @@ function Checkmark({ on }) {
       color: on ? '#0a0d0a' : 'transparent',
       flexShrink: 0,
       boxShadow: on ? '0 0 0 1px rgba(61,255,209,0.25), 0 0 16px rgba(61,255,209,0.5)' : 'none',
-      transition: 'all .25s cubic-bezier(.34,1.56,.64,1)',
+      transition: 'background .25s cubic-bezier(.34,1.56,.64,1), transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, color .25s',
       transform: on ? 'scale(1)' : 'scale(0.96)',
     }}>
       {on && <IcCheck size={13} stroke="currentColor" strokeWidth={2.6}/>}

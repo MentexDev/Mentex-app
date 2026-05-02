@@ -48,6 +48,24 @@ function CustomTimeModal({
     setMins(initialMinutes % 60);
   }, [open, initialMinutes]);
 
+  // ESC handler — consistencia con apps-editor / routines-editor que ya
+  // soportan Escape para cerrar. Guard isTypingInEditable: en este modal
+  // no hay inputs de texto editables (solo +/- buttons y pills), pero
+  // mantenemos el guard por consistencia y por si en el futuro se agrega
+  // un input numérico libre.
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target;
+      const tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      onClose && onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const totalMinutes = hours * 60 + mins;

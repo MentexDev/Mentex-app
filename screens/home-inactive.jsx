@@ -318,12 +318,15 @@ function BannerCarousel({
           }}/>
         )}
 
-        {/* Halo radial decorativo */}
+        {/* Halo radial decorativo. willChange + translateZ promueven a
+            GPU layer aislada → el blur no fuerza repaint del banner
+            entero en cada animación de hermanos. */}
         <div style={{
           position:'absolute', top:-40, right:-30, width:180, height:180,
           background: `radial-gradient(circle, ${slide.accent}55 0%, transparent 60%)`,
           filter:'blur(8px)',
           pointerEvents:'none',
+          transform:'translateZ(0)', willChange:'transform',
         }}/>
 
         {/* Glint diagonal sutil */}

@@ -65,6 +65,7 @@ function Waveform({ accent = 'var(--neon)', bars = 4, h = 14 }) {
           transformOrigin:'bottom',
           animation:`mtxWave${i % 3} ${0.7 + i * 0.12}s ease-in-out ${i * 0.1}s infinite alternate`,
           boxShadow:`0 0 4px ${accent}77`,
+          willChange:'transform',
         }}/>
       ))}
       <style>{`
@@ -177,10 +178,11 @@ function NowPlayingScreen({ activity, onClose }) {
           position:'relative',
         }}>
           <div style={{
-            position:'absolute', bottom:-50, left:'50%', transform:'translateX(-50%)',
+            position:'absolute', bottom:-50, left:'50%', transform:'translateX(-50%) translateZ(0)',
             width:160, height:50,
             background:'radial-gradient(50% 100% at 50% 0%, rgba(61,255,209,0.22), transparent)',
             filter:'blur(18px)', pointerEvents:'none',
+            willChange:'transform',
           }}/>
           <activity.Ic size={68} stroke="var(--neon)" strokeWidth={1.2}/>
         </div>
@@ -932,6 +934,7 @@ function DisableProtectionConfirmModal() {
             position:'absolute', inset:-30, borderRadius:'50%',
             background:'radial-gradient(50% 50% at 50% 50%, rgba(61,255,209,0.22), transparent 70%)',
             filter:'blur(20px)', pointerEvents:'none',
+            transform:'translateZ(0)', willChange:'transform',
           }}/>
           <svg width="180" height="180" viewBox="0 0 180 180" style={{ transform:'rotate(-90deg)', position:'relative' }}>
             <defs>
@@ -1120,6 +1123,7 @@ function HomeActive({
               width:6, height:6, borderRadius:999, background:'var(--neon)',
               boxShadow:'0 0 10px var(--neon-glow)',
               animation:'mtx-pulse 2s ease-in-out infinite', flexShrink:0,
+              willChange:'transform, opacity',
             }}/>
             Sesión activa
           </div>
@@ -1161,10 +1165,11 @@ function HomeActive({
           position:'relative', overflow:'hidden',
         }}>
           <div style={{
-            position:'absolute', top:-50, left:'50%', transform:'translateX(-50%)',
+            position:'absolute', top:-50, left:'50%', transform:'translateX(-50%) translateZ(0)',
             width:260, height:90, borderRadius:'50%',
             background:'radial-gradient(60% 100% at 50% 50%, rgba(61,255,209,0.16), transparent 70%)',
             pointerEvents:'none', filter:'blur(24px)',
+            willChange:'transform',
           }}/>
 
           {/* Editar tiempo — lápiz arriba a la derecha de la card. Abre

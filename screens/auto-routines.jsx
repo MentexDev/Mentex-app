@@ -103,6 +103,22 @@ function AutoRoutineCreateSheet({
     setConfirmEmpty(false);
   }, [open]);
 
+  // ESC handler — consistente con resto de modales. Guard
+  // isTypingInEditable por si el user está editando un TimeField en el
+  // futuro o cualquier input nuevo, no robarle el Escape.
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target;
+      const tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      onClose && onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const DAYS = [
@@ -384,6 +400,23 @@ function AutoRoutineCreatedSheet({
   appsCatalog = [],
   routinesCatalog = [],
 }) {
+  // ESC handler — antes del early return para no violar Hooks Rules.
+  // Si el user presiona Escape, dismiss el sheet sin afectar la routine
+  // ya persistida en __mtxAutoRoutines (la creación es irreversible
+  // desde aquí, solo se puede deshacer en Configuraciones).
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target;
+      const tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      onClose && onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open || !routine) return null;
 
   const totalH = Math.floor(routine.minutes / 60);
@@ -391,8 +424,13 @@ function AutoRoutineCreatedSheet({
   const timeStr = `${totalH > 0 ? `${totalH}h ` : ''}${totalM} min`;
 
   const ALL_DAYS = [
-    { id: 'mon', label: 'L' }, { id: 'tue', label: 'M' }, { id: 'wed', label: 'X' },
-    { id: 'thu', label: 'J' }, { id: 'fri', label: 'V' }, { id: 'sat', label: 'S' }, { id: 'sun', label: 'D' },
+    { id: 'mon', label: 'L', name: 'Lunes' },
+    { id: 'tue', label: 'M', name: 'Martes' },
+    { id: 'wed', label: 'X', name: 'Miércoles' },
+    { id: 'thu', label: 'J', name: 'Jueves' },
+    { id: 'fri', label: 'V', name: 'Viernes' },
+    { id: 'sat', label: 'S', name: 'Sábado' },
+    { id: 'sun', label: 'D', name: 'Domingo' },
   ];
   const selectedDays = routine.schedule?.days || [];
   const startTime = routine.schedule?.startTime || '—';
@@ -470,14 +508,24 @@ function AutoRoutineCreatedSheet({
           </div>
         </div>
 
-        {/* Card 1 — Days pills (read-only highlight) */}
+        {/* Card 1 — Days pills (read-only highlight). role=list + role=listitem
+            permite que screen readers anuncien la estructura. aria-label
+            del wrapper resume los días seleccionados; cada pill tiene
+            aria-label con nombre completo del día + estado (activo/inactivo). */}
         <div className="mtx-glass" style={{ padding: '14px 16px', marginBottom: 10, borderRadius: 20 }}>
           <div className="mtx-eyebrow" style={{ marginBottom: 10, fontSize: 10 }}>Repetir</div>
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
+          <div role="list"
+               aria-label={`Días activos: ${selectedDays.length === 0
+                 ? 'ninguno'
+                 : ALL_DAYS.filter(d => selectedDays.includes(d.id)).map(d => d.name).join(', ')}`}
+               style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
             {ALL_DAYS.map(d => {
               const on = selectedDays.includes(d.id);
               return (
-                <div key={d.id} style={{
+                <div key={d.id}
+                  role="listitem"
+                  aria-label={`${d.name}: ${on ? 'activo' : 'inactivo'}`}
+                  style={{
                   flex: 1, height: 36, borderRadius: 10,
                   border: on ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.04)',
                   background: on ? 'rgba(61,255,209,0.12)' : 'rgba(255,255,255,0.02)',
