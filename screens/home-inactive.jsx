@@ -776,9 +776,98 @@ function HomeInactive({
         </div>
       </div>
 
-      {/* Hint "Elige cuánto tiempo te vas a enfocar para empezar" eliminado:
-          el grid de tiempos al inicio del Home Inactive es lo suficientemente
-          claro y el texto duplicaba la guía visual. */}
+      {/* ── Aviso contextual: falta el tiempo ────────────────────────────────
+          Aparece SOLO cuando el user ha seleccionado al menos una app para
+          bloquear o una rutina, pero todavía no eligió un tiempo. Es la
+          situación de un user nuevo que tocó switches sin entender que el
+          gating real es el tiempo de enfoque. El tap scrollea al top, donde
+          vive el grid de tiempos rápidos + el botón de Personalizar — sin
+          forzar al user a un modal, dejando que decida con el contexto.
+          Tono ámbar (no rojo) porque no es error, es guía amistosa. */}
+      {!hasTime && (blockedApps.length > 0 || routines.length > 0) && (
+        <div style={{ padding: '0 20px', marginTop: 24 }}>
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined' && typeof window.scrollMtxBgToTop === 'function') {
+                window.scrollMtxBgToTop();
+              }
+            }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer', textAlign: 'left',
+              width: '100%', padding: '14px 16px', borderRadius: 18,
+              background: 'linear-gradient(135deg, rgba(255,200,80,0.08) 0%, rgba(255,200,80,0.02) 100%)',
+              border: '0.5px solid rgba(255,200,80,0.28)',
+              boxShadow: '0 0 0 0.5px rgba(255,200,80,0.06), 0 12px 28px -16px rgba(255,200,80,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
+              display: 'flex', alignItems: 'center', gap: 14,
+              fontFamily: 'var(--ff-sans)',
+              animation: 'mtx-fade-up .35s ease both',
+              transition: 'background .25s, border-color .25s, transform .25s',
+            }}
+          >
+            {/* Icon hexagon — clock with amber halo */}
+            <div style={{
+              width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+              position: 'relative',
+              background: 'linear-gradient(135deg, rgba(255,200,80,0.22), rgba(255,200,80,0.06))',
+              border: '0.5px solid rgba(255,200,80,0.32)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#ffc850',
+              boxShadow: 'inset 0 0 14px rgba(255,200,80,0.10)',
+            }}>
+              {/* Halo decorativo radial detrás del icon */}
+              <div style={{
+                position: 'absolute', inset: -8, borderRadius: 18,
+                background: 'radial-gradient(circle at 30% 30%, rgba(255,200,80,0.22), transparent 60%)',
+                filter: 'blur(8px)', pointerEvents: 'none',
+                transform: 'translateZ(0)', willChange: 'transform',
+              }}/>
+              <IcClock size={18} stroke="currentColor" strokeWidth={1.7} style={{ position: 'relative' }}/>
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
+                color: '#ffc850', textTransform: 'uppercase', marginBottom: 3,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: 999,
+                  background: '#ffc850',
+                  boxShadow: '0 0 6px rgba(255,200,80,0.7)',
+                  animation: 'mtx-pulse 2s ease-in-out infinite',
+                  willChange: 'transform, opacity',
+                }}/>
+                Falta un paso
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 700, color: 'var(--ink-1)',
+                letterSpacing: '-0.018em', lineHeight: 1.25, marginBottom: 3,
+              }}>
+                Elige un tiempo de enfoque
+              </div>
+              <div style={{
+                fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.4,
+                letterSpacing: '-0.005em',
+              }}>
+                Es lo único que falta para activar tu sesión.
+              </div>
+            </div>
+
+            {/* Chev en círculo con tinte ámbar — invita a la acción sin forzar */}
+            <div style={{
+              width: 32, height: 32, borderRadius: 999, flexShrink: 0,
+              background: 'rgba(255,200,80,0.14)',
+              border: '0.5px solid rgba(255,200,80,0.32)',
+              color: '#ffc850',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'inset 0 0 10px rgba(255,200,80,0.10)',
+            }}>
+              <IcChevR size={13} stroke="currentColor" strokeWidth={2.2}/>
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
