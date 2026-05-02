@@ -144,6 +144,18 @@
         });
         _emit();
       },
+      // Restaura un reminder con TODO su estado original (id, completed,
+      // recurrence). Distinto de addReminder que genera nuevo id y resetea
+      // completed=false. Lo usa el toast "Deshacer" tras un delete.
+      restoreReminder: function(reminder) {
+        if (!reminder || !reminder.id) return;
+        // Idempotente: no duplicar si por alguna razón ya está
+        if (_agendaState.reminders.find(function(r) { return r.id === reminder.id; })) return;
+        _agendaState = Object.assign({}, _agendaState, {
+          reminders: _agendaState.reminders.concat([Object.assign({}, reminder)]),
+        });
+        _emit();
+      },
       clearLastAction: function() {
         _agendaState = Object.assign({}, _agendaState, { lastAction: null });
         _emit();
@@ -360,12 +372,31 @@
 
 
   // ── ReminderRow ───────────────────────────────────────────────────────────
-  // Checkbox circular a la izquierda · texto · time · botón delete (X) al hover.
-  // Tap en checkbox toggle completed; tap en X elimina con confirm.
+  // Checkbox circular a la izquierda · texto · time · botón delete (X).
+  // Tap en checkbox toggle completed; tap en X elimina directo + toast con
+  // "Deshacer" (4s) — patrón iOS nativo, sin window.confirm bloqueante.
   function ReminderRow(props) {
     var r = props.reminder;
     var onToggle = props.onToggle;
     var onDelete = props.onDelete;
+    var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
+
+    var handleDelete = function() {
+      // Snapshot ANTES del delete para restaurar EXACTO en undo (id,
+      // completed, recurrence, time — todo intacto). Patrón iOS estándar:
+      // delete directo + toast no-bloqueante con Deshacer 4s, en vez del
+      // window.confirm nativo del browser que rompe la inmersión.
+      var snapshot = Object.assign({}, r);
+      onDelete(r.id);
+      toast.show({
+        message: 'Eliminado · ' + r.title,
+        action: 'Deshacer',
+        duration: 4000,
+        onAction: function() {
+          if (window.__mtxIAAgenda) window.__mtxIAAgenda.restoreReminder(snapshot);
+        },
+      });
+    };
 
     return (
       <div style={{
@@ -422,13 +453,9 @@
           </div>
         </div>
 
-        {/* Delete */}
+        {/* Delete — directo (sin confirm nativo) + toast con Deshacer */}
         <button
-          onClick={function() {
-            if (window.confirm('¿Eliminar "' + r.title + '"?')) {
-              onDelete(r.id);
-            }
-          }}
+          onClick={handleDelete}
           aria-label={'Eliminar ' + r.title}
           className="mtx-tap"
           style={{
@@ -836,9 +863,14 @@
             }}
           />
 
-          {/* Time picker + Daily toggle row */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-            <div style={{ flex: 1 }}>
+          {/* Time picker + Daily toggle row.
+              Ambas columnas con flex:1 (50/50) y altura fija 44px en los
+              controles para que input nativo de time y el button tengan la
+              misma altura visual (antes el input se veía más alto por el
+              padding interno + clock icon nativo). box-sizing:border-box
+              garantiza que el padding no agregue al height. */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 10, color: 'var(--ink-4)',
                 letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -851,8 +883,11 @@
                 onChange={function(e) { setTime(e.target.value); }}
                 style={{
                   appearance: 'none',
+                  WebkitAppearance: 'none',
                   width: '100%',
-                  padding: '10px 14px',
+                  height: 44,
+                  boxSizing: 'border-box',
+                  padding: '0 14px',
                   borderRadius: 12,
                   border: '0.5px solid rgba(255,255,255,0.10)',
                   background: 'rgba(255,255,255,0.03)',
@@ -865,7 +900,7 @@
                 }}
               />
             </div>
-            <div style={{ flexShrink: 0, minWidth: 110 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 10, color: 'var(--ink-4)',
                 letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -880,7 +915,9 @@
                 style={{
                   appearance: 'none', cursor: 'pointer',
                   width: '100%',
-                  padding: '10px 14px',
+                  height: 44,
+                  boxSizing: 'border-box',
+                  padding: '0 14px',
                   borderRadius: 12,
                   border: '0.5px solid ' + (daily ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.10)'),
                   background: daily
@@ -890,6 +927,7 @@
                   fontSize: 13, fontWeight: 600,
                   fontFamily: 'var(--ff-sans)',
                   letterSpacing: '-0.005em',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: daily ? '0 0 0 1px rgba(61,255,209,0.18), inset 0 0 12px rgba(61,255,209,0.06)' : 'none',
                   transition: 'background .2s, border-color .2s, color .2s',
                 }}>
