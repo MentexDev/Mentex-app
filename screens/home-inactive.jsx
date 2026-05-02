@@ -550,8 +550,9 @@ function HomeInactive({
           fullBleed
           contentPaddingTop={80}
         />
-        {/* Botón ✦ IA — al lado izquierdo del bell. Fondo glass con hint
-            neon para diferenciarlo del bell pero mantener cohesión visual.
+        {/* Botón ✦ IA — al lado izquierdo del bell. Mismo glass neutral que
+            el bell para mantener cohesión visual minimalista — solo el
+            icon ✦ en neon es el acento. Más limpio que background tinted.
             Tap → cambia al tab IA donde el user puede planificar con su
             coach (promesa core de Mentex). */}
         <button
@@ -561,13 +562,13 @@ function HomeInactive({
           style={{
             position:'absolute', top:78, right:70,
             width:44, height:44, borderRadius:999,
-            background:'linear-gradient(135deg, rgba(61,255,209,0.18), rgba(61,255,209,0.06))',
-            border:'0.5px solid rgba(61,255,209,0.32)',
+            background:'rgba(10,14,12,0.45)',
+            border:'0.5px solid rgba(255,255,255,0.18)',
             backdropFilter:'blur(20px) saturate(160%)',
             WebkitBackdropFilter:'blur(20px) saturate(160%)',
             display:'flex', alignItems:'center', justifyContent:'center',
             color:'var(--neon)', cursor:'pointer', flexShrink:0,
-            boxShadow:'inset 0 1px 0 rgba(61,255,209,0.20), 0 4px 12px rgba(0,0,0,0.3)',
+            boxShadow:'inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.3)',
             zIndex:5,
           }}
         >
@@ -810,9 +811,11 @@ function HomeInactive({
           arrancar el día con sus reminders pendientes ya visibles, y el
           coach IA puede agendarle nuevos desde el chat. NO duplicamos el
           componente — montamos el mismo HomeRemindersCard que vive en
-          screens/ia-agenda.jsx y se exporta a window. */}
+          screens/ia-agenda.jsx y se exporta a window.
+          marginTop:32 iguala el spacing entre secciones que tiene "Mejora
+          tu concentración" → "Apps a bloquear" arriba en la página. */}
       {window.HomeRemindersCard && (
-        <div style={{ padding:'8px 0 0' }}>
+        <div style={{ padding:'32px 0 0' }}>
           <window.HomeRemindersCard/>
         </div>
       )}
@@ -826,7 +829,7 @@ function HomeInactive({
           tiempo". Tono ámbar (no rojo): es guía amistosa, no error.
           Tap scrollea al top donde vive el grid de tiempos. */}
       {!hasTime && (blockedApps.length > 0 || routines.length > 0) && (
-        <div style={{ padding: '20px 20px 0' }}>
+        <div style={{ padding: '12px 20px 0' }}>
           <button
             onClick={() => {
               if (typeof window !== 'undefined' && typeof window.scrollMtxBgToTop === 'function') {
