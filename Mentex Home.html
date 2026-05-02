@@ -32,6 +32,7 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=1"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=30"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -365,14 +366,84 @@
         return `${m} min`;
       };
 
+      // ── Phase 0 · Smart routing auth + onboarding ─────────────────────────
+      // authView controla qué se renderiza en lugar del app cuando el user
+      // NO ha completado auth + onboarding. Estados:
+      //   'splash' → splash screen 800ms, auto-progresa a welcome
+      //   'welcome' → CTAs Apple/Google/email
+      //   'auth-email' → input email
+      //   'auth-otp' → 6-digit OTP
+      //   'auth-apple-mock' / 'auth-google-mock' → simulan system prompt
+      //   'onboarding' → 8-step flow
+      //   'app' → renderiza el shell normal del MentexApp
+      // En Phase 0 los placeholders permiten testear el routing end-to-end.
+      const authState = (typeof window.useAuth === 'function') ? window.useAuth() : { isAuthenticated: false, user: null };
+      const initialView = (typeof window.getInitialAuthView === 'function') ? window.getInitialAuthView() : 'app';
+      const [authView, setAuthView] = React.useState(initialView);
+
+      // Re-evaluar la vista cuando cambia el state de auth (login/logout).
+      // No solo respeta authState reactive — también permite que screens
+      // seteen authView manualmente para forward navigation (welcome → email).
+      React.useEffect(() => {
+        if (authState.isAuthenticated && authState.user) {
+          if (!authState.user.onboardingCompleted) {
+            setAuthView('onboarding');
+          } else {
+            setAuthView('app');
+          }
+        } else {
+          // Si está en splash y aún no es authenticated, dejarlo (auto-progresa).
+          // Si está en cualquier otra view auth, también dejarlo (es flow normal).
+          // Solo forzar a splash si está en 'app' sin user (post-logout).
+          if (authView === 'app') setAuthView('splash');
+        }
+      }, [authState.isAuthenticated, authState.user]);
+
+      // Touch lastActiveAt cuando el user está en el app (Phase 6 lo usará).
+      React.useEffect(() => {
+        if (authView === 'app' && typeof window.__mtxAuth !== 'undefined' && window.__mtxAuth) {
+          window.__mtxAuth.touchActivity();
+        }
+      }, [authView]);
+
       return (
         <div className="mtx" style={{ position: 'relative', display: 'flex', justifyContent: 'center', padding: 20 }}>
           <div style={{ position: 'relative', width: 402, height: 874, flexShrink: 0 }}>
           <IOSDevice width={402} height={874} dark={true}>
             <ToastProvider>
+            {/* Phase 0 · Auth/Onboarding overlays — cubren todo cuando
+                authView !== 'app' (zIndex:50, position:absolute inset:0).
+                Splash auto-progresa a welcome; welcome dispara mock auth;
+                onboarding placeholder permite completar para testear app. */}
+            {authView === 'splash' && typeof window.SplashScreen !== 'undefined' && (
+              <window.SplashScreen onNext={() => setAuthView('welcome')}/>
+            )}
+            {authView === 'welcome' && typeof window.WelcomeScreenPlaceholder !== 'undefined' && (
+              <window.WelcomeScreenPlaceholder
+                onMockAuth={({ email, isReturning }) => {
+                  // Phase 0 mock — Phase 1+ usa el flow real con OTP
+                  window.__mtxAuth.sendOTP(email).then((res) => {
+                    if (res.error) return;
+                    window.__mtxAuth.verifyOTP('123456').then((res2) => {
+                      // El effect de authState detecta el login y navega solo
+                    });
+                  });
+                }}
+              />
+            )}
+            {authView === 'onboarding' && typeof window.OnboardingScreenPlaceholder !== 'undefined' && (
+              <window.OnboardingScreenPlaceholder/>
+            )}
+
             <div className="mtx-bg" style={{
               width: '100%', minHeight: '100%', position: 'relative',
               paddingBottom: view !== 'home' ? 90 : (tab === 'home' ? 130 : 110),
+              // Visualmente ocultar el app shell cuando estamos en auth/onboarding
+              // — los overlays cubren con position:absolute pero el shell sigue
+              // computando layout para el iPhone frame correctamente.
+              opacity: authView === 'app' ? 1 : 0,
+              pointerEvents: authView === 'app' ? 'auto' : 'none',
+              transition: 'opacity .25s ease',
             }}>
               {/* Subtle grain (background) */}
               <div style={{
