@@ -1324,6 +1324,13 @@ function HomeActive({
         </div>
       </div>
 
+      {/* ── CARD 4 · Recordatorios (single source con la agenda IA) ─────
+          HomeRemindersCard vive en screens/ia-agenda.jsx. Lee/escribe del
+          mismo store __mtxIAAgenda.reminders que la agenda + el coach IA,
+          así un reminder agregado aquí aparece en la agenda y el coach
+          puede marcar auto-completed por eventos del día. */}
+      {window.HomeRemindersCard && <window.HomeRemindersCard/>}
+
       {/* AddContentScreen overlay para el ritual del día. Se monta a nivel
           del HomeActive (no global) — solo tiene sentido en la sesión activa
           del Home. La playlist sintética enlaza con window.__mtxRitual: los

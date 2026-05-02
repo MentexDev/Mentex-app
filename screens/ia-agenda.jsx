@@ -685,10 +685,433 @@
   }
 
 
+  // ── AddReminderSheet — mini-sheet simple para crear recordatorio ──────────
+  // Diseño deliberadamente minimalista: input título (autofocus) + input time
+  // nativo (HTML5, abre picker del SO en mobile) + toggle "Diario" + dos
+  // botones Cancelar/Crear. Reutilizable desde HomeActive y futuros entry
+  // points (ej. botón flotante en la agenda).
+  function AddReminderSheet(props) {
+    var open = props.open;
+    var onClose = props.onClose;
+    var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
+
+    var titleState = React.useState('');
+    var title = titleState[0]; var setTitle = titleState[1];
+    var timeState = React.useState('09:00');
+    var time = timeState[0]; var setTime = timeState[1];
+    var dailyState = React.useState(false);
+    var daily = dailyState[0]; var setDaily = dailyState[1];
+
+    var titleId = React.useId ? React.useId() : 'add-reminder-title';
+    var inputRef = React.useRef(null);
+    var sheetRef = React.useRef(null);
+
+    // onClose ref + ESC handler — mismo patrón que AgendaSheet (audit IMP-5)
+    var onCloseRef = React.useRef(onClose);
+    React.useEffect(function() { onCloseRef.current = onClose; });
+
+    React.useEffect(function() {
+      if (!open) return;
+      // Reset form al abrir
+      setTitle('');
+      setTime('09:00');
+      setDaily(false);
+      // Focus input título tras la animación
+      var t = setTimeout(function() {
+        if (inputRef.current) {
+          try { inputRef.current.focus(); } catch (_) {}
+        }
+      }, 280);
+      var onKey = function(e) {
+        if (e.key !== 'Escape') return;
+        var tgt = e.target;
+        var tag = (tgt && tgt.tagName) || '';
+        // Aquí SÍ permitimos ESC desde input (cerrar el modal completo es lo
+        // esperado). Es excepción al patrón de AgendaSheet — el user puede
+        // estar tipeando y querer cancelar, no es un editor de larga vida.
+        if (onCloseRef.current) onCloseRef.current();
+      };
+      window.addEventListener('keydown', onKey);
+      if (sheetRef.current) {
+        try { sheetRef.current.focus({ preventScroll: true }); } catch (_) {}
+      }
+      return function() {
+        clearTimeout(t);
+        window.removeEventListener('keydown', onKey);
+      };
+    }, [open]);
+
+    if (!open) return null;
+
+    var canCreate = title.trim().length > 0;
+
+    var handleCreate = function() {
+      if (!canCreate) return;
+      var reminder = {
+        title: title.trim(),
+        time: time,
+        recurrence: daily ? 'daily' : null,
+      };
+      if (window.__mtxIAAgenda) window.__mtxIAAgenda.addReminder(reminder);
+      toast.show({ message: '✓ Recordatorio creado · ' + reminder.title, duration: 2000 });
+      onClose && onClose();
+    };
+
+    return (
+      <div role="presentation" style={{
+        position: 'absolute', inset: 0, zIndex: 110,
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        background: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        animation: 'mtx-fade-in .25s ease',
+      }} onClick={onClose}>
+        <div
+          ref={sheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          onClick={function(e) { e.stopPropagation(); }}
+          style={{
+            background: 'rgba(15,19,19,0.96)',
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+            borderTop: '0.5px solid rgba(255,255,255,0.10)',
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            padding: '14px 20px 24px',
+            boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+            display: 'flex', flexDirection: 'column', gap: 14,
+            animation: 'mtx-fade-up .32s cubic-bezier(.4,1.4,.5,1)',
+            outline: 'none',
+          }}>
+          {/* Grabber */}
+          <div style={{
+            width: 36, height: 4, borderRadius: 999, margin: '0 auto 4px',
+            background: 'rgba(255,255,255,0.16)',
+            flexShrink: 0,
+          }}/>
+
+          {/* Título del modal */}
+          <div>
+            <div style={{
+              fontSize: 9.5, color: 'var(--ink-4)',
+              letterSpacing: '0.16em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 4,
+              fontFamily: 'var(--ff-sans)',
+            }}>NUEVO RECORDATORIO</div>
+            <h3 id={titleId} style={{
+              margin: 0, fontSize: 18, fontWeight: 600,
+              color: 'var(--ink-1)', letterSpacing: '-0.015em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+            }}>¿Qué te recuerdo?</h3>
+          </div>
+
+          {/* Input título */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={title}
+            onChange={function(e) { setTitle(e.target.value); }}
+            placeholder="Ej: Beber agua, llamar a..."
+            maxLength={80}
+            style={{
+              appearance: 'none',
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: '0.5px solid rgba(255,255,255,0.10)',
+              background: 'rgba(255,255,255,0.03)',
+              color: 'var(--ink-1)',
+              fontSize: 14, fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              outline: 'none',
+              transition: 'border-color .2s, background .2s',
+            }}
+            onFocus={function(e) {
+              e.target.style.borderColor = 'rgba(61,255,209,0.40)';
+              e.target.style.background = 'rgba(61,255,209,0.04)';
+            }}
+            onBlur={function(e) {
+              e.target.style.borderColor = 'rgba(255,255,255,0.10)';
+              e.target.style.background = 'rgba(255,255,255,0.03)';
+            }}
+          />
+
+          {/* Time picker + Daily toggle row */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: 10, color: 'var(--ink-4)',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                fontWeight: 600, marginBottom: 6,
+                fontFamily: 'var(--ff-sans)',
+              }}>HORA</div>
+              <input
+                type="time"
+                value={time}
+                onChange={function(e) { setTime(e.target.value); }}
+                style={{
+                  appearance: 'none',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--ink-1)',
+                  fontSize: 14, fontFamily: 'var(--ff-sans)',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.005em',
+                  outline: 'none',
+                  colorScheme: 'dark',
+                }}
+              />
+            </div>
+            <div style={{ flexShrink: 0, minWidth: 110 }}>
+              <div style={{
+                fontSize: 10, color: 'var(--ink-4)',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                fontWeight: 600, marginBottom: 6,
+                fontFamily: 'var(--ff-sans)',
+              }}>FRECUENCIA</div>
+              <button
+                onClick={function() { setDaily(function(d) { return !d; }); }}
+                aria-pressed={daily}
+                aria-label={daily ? 'Desactivar diario' : 'Repetir cada día'}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: '0.5px solid ' + (daily ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.10)'),
+                  background: daily
+                    ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.04))'
+                    : 'rgba(255,255,255,0.03)',
+                  color: daily ? 'var(--neon)' : 'var(--ink-2)',
+                  fontSize: 13, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  boxShadow: daily ? '0 0 0 1px rgba(61,255,209,0.18), inset 0 0 12px rgba(61,255,209,0.06)' : 'none',
+                  transition: 'background .2s, border-color .2s, color .2s',
+                }}>
+                {daily ? '✓ Diario' : 'Una vez'}
+              </button>
+            </div>
+          </div>
+
+          {/* Botones Cancelar / Crear — auto-width alineados a la derecha
+              (patrón iOS estándar). Antes con flex:1 ambos llenaban todo el
+              ancho del modal y se sentían macizos. */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 4,
+          }}>
+            <button
+              onClick={onClose}
+              aria-label="Cancelar nuevo recordatorio"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                padding: '10px 18px', borderRadius: 999,
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                background: 'transparent',
+                color: 'var(--ink-3)',
+                fontSize: 13.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>Cancelar</button>
+            <button
+              onClick={handleCreate}
+              disabled={!canCreate}
+              aria-label="Crear recordatorio"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: canCreate ? 'pointer' : 'not-allowed',
+                padding: '10px 22px', borderRadius: 999,
+                border: '0.5px solid ' + (canCreate ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.06)'),
+                background: canCreate
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.20), rgba(61,255,209,0.08))'
+                  : 'rgba(255,255,255,0.02)',
+                color: canCreate ? 'var(--neon)' : 'var(--ink-4)',
+                fontSize: 13.5, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                boxShadow: canCreate ? '0 0 0 1px rgba(61,255,209,0.20), inset 0 0 14px rgba(61,255,209,0.08)' : 'none',
+                opacity: canCreate ? 1 : 0.6,
+                transition: 'background .2s, border-color .2s, color .2s, opacity .2s',
+              }}>Crear</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── HomeRemindersCard — sección embebible para el HomeActive ──────────────
+  // Reutiliza ReminderRow + addReminderSheet. Lee directo del store global
+  // (single source — los mismos reminders que ve la agenda y el coach IA).
+  // Empty state amable cuando no hay ninguno; CTA "Agregar" que abre el sheet.
+  function HomeRemindersCard() {
+    var nav = useIAAgenda();
+    var reminders = nav.reminders || [];
+    var addOpenState = React.useState(false);
+    var addOpen = addOpenState[0]; var setAddOpen = addOpenState[1];
+    var pendingCount = reminders.filter(function(r) { return !r.completed; }).length;
+
+    // Portal del AddReminderSheet a #mtx-overlay-root — HomeRemindersCard
+    // vive dentro de HomeActive → .mtx-bg (scrollable). Si renderizamos el
+    // sheet inline aquí, position:absolute+inset:0 ancla al fondo del
+    // contenido scrolleable, no al viewport del iPhone — el sheet flota
+    // al medio de la pantalla en vez de dockear al menú inferior. Mismo
+    // bug que reportó Phase 2 CRIT-1 (sheets en explore-flow.jsx). El
+    // portal root es hermano de .mtx-bg, así que ancla al iPhone viewport.
+    var portalRoot = (typeof document !== 'undefined')
+      ? document.getElementById('mtx-overlay-root')
+      : null;
+    var sheetEl = addOpen
+      ? <AddReminderSheet open={true} onClose={function() { setAddOpen(false); }}/>
+      : null;
+    var portalledSheet = sheetEl
+      ? (portalRoot && window.ReactDOM ? window.ReactDOM.createPortal(sheetEl, portalRoot) : sheetEl)
+      : null;
+
+    var handleToggle = function(id) {
+      if (window.__mtxIAAgenda) window.__mtxIAAgenda.toggleReminder(id);
+    };
+    var handleDelete = function(id) {
+      if (window.__mtxIAAgenda) window.__mtxIAAgenda.deleteReminder(id);
+    };
+
+    return (
+      <div style={{ marginBottom: 24 }}>
+        {/* Header — usa MtxSectionHead si está disponible, fallback inline.
+            Mismo patrón visual que "Tu ritual de hoy" arriba. */}
+        {window.MtxSectionHead ? (
+          <window.MtxSectionHead
+            title="Recordatorios"
+            eyebrow={pendingCount + ' activo' + (pendingCount === 1 ? '' : 's')}
+          />
+        ) : (
+          <div style={{ padding: '0 20px 12px' }}>
+            <div style={{
+              fontSize: 9.5, color: 'var(--ink-4)',
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 4,
+              fontFamily: 'var(--ff-sans)',
+            }}>{pendingCount} ACTIVO{pendingCount === 1 ? '' : 'S'}</div>
+            <h2 style={{
+              margin: 0, fontSize: 22, fontWeight: 600,
+              color: 'var(--ink-1)', letterSpacing: '-0.02em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+            }}>Recordatorios</h2>
+          </div>
+        )}
+
+        <div style={{ padding: '0 20px' }}>
+          {reminders.length === 0 ? (
+            // Empty state amable — CTA principal en lugar de "+ Agregar" pequeño.
+            <div style={{
+              padding: '14px 18px',
+              borderRadius: 14,
+              border: '1px dashed rgba(61,255,209,0.30)',
+              background: 'rgba(61,255,209,0.03)',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 999,
+                background: 'rgba(61,255,209,0.12)',
+                border: '0.5px solid rgba(61,255,209,0.30)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--neon)', flexShrink: 0,
+              }}>
+                <IcBell size={14} stroke="currentColor" strokeWidth={1.8}/>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)',
+                  fontFamily: 'var(--ff-sans)', letterSpacing: '-0.005em',
+                }}>Aún sin recordatorios</div>
+                <div style={{
+                  fontSize: 12, color: 'var(--ink-3)',
+                  fontFamily: 'var(--ff-sans)', marginTop: 2,
+                }}>El coach Mentex hará seguimiento de los que agregues.</div>
+              </div>
+              <button
+                onClick={function() { setAddOpen(true); }}
+                aria-label="Agregar primer recordatorio"
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '8px 14px', borderRadius: 999,
+                  border: '0.5px solid rgba(61,255,209,0.40)',
+                  background: 'linear-gradient(180deg, rgba(61,255,209,0.18), rgba(61,255,209,0.06))',
+                  color: 'var(--neon)',
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  boxShadow: '0 0 0 1px rgba(61,255,209,0.16), inset 0 0 12px rgba(61,255,209,0.06)',
+                  flexShrink: 0,
+                }}>Agregar</button>
+            </div>
+          ) : (
+            <div style={{
+              padding: '4px 12px',
+              borderRadius: 16,
+              background: 'rgba(255,255,255,0.02)',
+              border: '0.5px solid rgba(255,255,255,0.04)',
+            }}>
+              {reminders.map(function(r) {
+                return (
+                  <ReminderRow key={r.id}
+                    reminder={r}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                  />
+                );
+              })}
+              {/* Botón inline "+ Agregar" debajo de la lista, full-width */}
+              <button
+                onClick={function() { setAddOpen(true); }}
+                aria-label="Agregar nuevo recordatorio"
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  width: '100%', marginTop: 4,
+                  padding: '11px 8px', borderRadius: 10,
+                  border: 0, background: 'transparent',
+                  color: 'var(--ink-3)',
+                  fontSize: 12.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'color .2s, background .2s',
+                }}
+                onMouseEnter={function(e) { e.currentTarget.style.color = 'var(--neon)'; }}
+                onMouseLeave={function(e) { e.currentTarget.style.color = 'var(--ink-3)'; }}
+              >
+                <IcPlus size={12} stroke="currentColor" strokeWidth={2}/>
+                <span>Agregar recordatorio</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {portalledSheet}
+      </div>
+    );
+  }
+
+
   // ── Export al window ──────────────────────────────────────────────────────
   Object.assign(window, {
     AgendaSheet: AgendaSheet,
     useIAAgenda: useIAAgenda,
+    AddReminderSheet: AddReminderSheet,
+    HomeRemindersCard: HomeRemindersCard,
+    // ReminderRow expuesto para reuso externo si se necesita en el futuro.
+    ReminderRow: ReminderRow,
   });
 
 })();
