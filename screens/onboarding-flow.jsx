@@ -1644,79 +1644,12 @@
     },
   ];
 
-  // Pill segmented toggle Mensual/Anual con sliding thumb neon.
-  function PlanCycleToggle(props) {
+  // PlanCard — combina toggle + price en UNA card glass sutil. El precio
+  // ya no compite con los benefits porque pierde el neon glow agresivo.
+  // Layout: trial pill arriba, toggle medio, precio compacto abajo.
+  function PlanCard(props) {
     var cycle = props.cycle;
     var onChange = props.onChange;
-    return React.createElement('div', {
-      style: { position: 'relative' },
-    },
-      // Badge "Ahorras 23%" arriba del lado anual
-      React.createElement('div', {
-        style: {
-          position: 'absolute', top: -10, right: 14,
-          padding: '3px 10px',
-          borderRadius: 999,
-          background: 'var(--neon)',
-          color: '#02110b',
-          fontSize: 10, fontWeight: 800,
-          letterSpacing: '0.04em',
-          boxShadow: '0 4px 14px rgba(61,255,209,0.30)',
-          fontFamily: 'var(--ff-sans)',
-          zIndex: 2,
-        },
-      }, 'AHORRAS 23%'),
-      React.createElement('div', {
-        style: {
-          display: 'flex',
-          padding: 4,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.04)',
-          border: '0.5px solid rgba(255,255,255,0.10)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-          position: 'relative',
-        },
-      },
-        // Sliding thumb
-        React.createElement('div', {
-          style: {
-            position: 'absolute',
-            top: 4, bottom: 4,
-            left: cycle === 'monthly' ? 4 : 'calc(50% + 0px)',
-            width: 'calc(50% - 4px)',
-            background: 'linear-gradient(180deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06))',
-            border: '0.5px solid rgba(61,255,209,0.50)',
-            borderRadius: 9,
-            boxShadow: '0 0 18px rgba(61,255,209,0.20), inset 0 1px 0 rgba(61,255,209,0.30)',
-            transition: 'left .22s cubic-bezier(.4,0,.2,1)',
-          },
-        }),
-        ['monthly', 'annual'].map(function(c) {
-          var on = cycle === c;
-          return React.createElement('button', {
-            key: c,
-            onClick: function() { onChange(c); },
-            className: 'mtx-tap',
-            style: {
-              flex: 1, position: 'relative', zIndex: 1,
-              appearance: 'none', cursor: 'pointer',
-              border: 'none', background: 'transparent',
-              padding: '10px 0',
-              fontFamily: 'var(--ff-sans)',
-              fontSize: 13, fontWeight: 700,
-              color: on ? 'var(--neon)' : 'var(--ink-3)',
-              transition: 'color .2s',
-              letterSpacing: '-0.005em',
-            },
-          }, c === 'monthly' ? 'Mensual' : 'Anual');
-        })
-      )
-    );
-  }
-
-  // Card de precio dinámica según el ciclo elegido
-  function PriceCard(props) {
-    var cycle = props.cycle;
     var isAnnual = cycle === 'annual';
     var pricePerMonth = isAnnual ? '9.99' : '12.99';
     var subline = isAnnual
@@ -1725,60 +1658,135 @@
 
     return React.createElement('div', {
       style: {
-        padding: '20px 18px',
+        padding: '18px 18px 20px',
         borderRadius: 18,
-        background: 'linear-gradient(180deg, rgba(61,255,209,0.12), rgba(61,255,209,0.02))',
-        border: '0.5px solid rgba(61,255,209,0.32)',
-        boxShadow: '0 0 32px rgba(61,255,209,0.10), inset 0 1px 0 rgba(61,255,209,0.22)',
-        textAlign: 'center',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012))',
+        border: '0.5px solid rgba(255,255,255,0.10)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
       },
     },
+      // Trial pill arriba (centered, prominent)
       React.createElement('div', {
-        style: {
-          display: 'inline-flex', alignItems: 'baseline', gap: 4,
-        },
+        style: { textAlign: 'center', marginBottom: 14 },
       },
         React.createElement('span', {
           style: {
-            fontSize: 16, fontWeight: 600, color: 'var(--ink-2)',
-            verticalAlign: 'top',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 11px',
+            borderRadius: 999,
+            background: 'rgba(61,255,209,0.12)',
+            border: '0.5px solid rgba(61,255,209,0.30)',
+            fontSize: 10.5, fontWeight: 700, color: 'var(--neon)',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
           },
-        }, '$'),
-        React.createElement('span', {
-          style: {
-            fontSize: 52, fontWeight: 700, color: 'var(--neon)',
-            letterSpacing: '-0.025em', lineHeight: 1,
-            fontFeatureSettings: '"tnum" on',
-          },
-        }, pricePerMonth),
-        React.createElement('span', {
-          style: {
-            fontSize: 14, fontWeight: 500, color: 'var(--ink-3)',
-            marginLeft: 4,
-          },
-        }, '/mes')
+        },
+          React.createElement('span', { style: { fontSize: 11 } }, '💚'),
+          React.createElement('span', null, '7 días gratis')
+        )
       ),
+
+      // Toggle Mensual/Anual con sliding thumb (neon más sutil que antes)
       React.createElement('div', {
-        style: {
-          marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)',
-          lineHeight: 1.4,
-        },
-      }, subline),
-      // Trial pill
-      React.createElement('div', {
-        style: {
-          marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '6px 12px',
-          borderRadius: 999,
-          background: 'rgba(61,255,209,0.14)',
-          border: '0.5px solid rgba(61,255,209,0.32)',
-          fontSize: 11.5, fontWeight: 700, color: 'var(--neon)',
-          letterSpacing: '-0.005em',
-          fontFamily: 'var(--ff-sans)',
-        },
+        style: { position: 'relative', marginBottom: 16 },
       },
-        React.createElement('span', { style: { fontSize: 12 } }, '💚'),
-        React.createElement('span', null, '7 días gratis · Sin compromiso')
+        // Badge "Ahorras 23%" — pequeño, sobrio
+        React.createElement('div', {
+          style: {
+            position: 'absolute', top: -8, right: 10,
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: 'var(--neon)',
+            color: '#02110b',
+            fontSize: 9.5, fontWeight: 800,
+            letterSpacing: '0.04em',
+            fontFamily: 'var(--ff-sans)',
+            zIndex: 2,
+          },
+        }, 'AHORRAS 23%'),
+        React.createElement('div', {
+          style: {
+            display: 'flex',
+            padding: 3,
+            borderRadius: 11,
+            background: 'rgba(0,0,0,0.20)',
+            border: '0.5px solid rgba(255,255,255,0.06)',
+            position: 'relative',
+          },
+        },
+          // Sliding thumb (más sutil — sin glow neon agresivo)
+          React.createElement('div', {
+            style: {
+              position: 'absolute',
+              top: 3, bottom: 3,
+              left: cycle === 'monthly' ? 3 : 'calc(50% + 0px)',
+              width: 'calc(50% - 3px)',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))',
+              border: '0.5px solid rgba(255,255,255,0.12)',
+              borderRadius: 9,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+              transition: 'left .22s cubic-bezier(.4,0,.2,1)',
+            },
+          }),
+          ['monthly', 'annual'].map(function(c) {
+            var on = cycle === c;
+            return React.createElement('button', {
+              key: c,
+              onClick: function() { onChange(c); },
+              className: 'mtx-tap',
+              style: {
+                flex: 1, position: 'relative', zIndex: 1,
+                appearance: 'none', cursor: 'pointer',
+                border: 'none', background: 'transparent',
+                padding: '8px 0',
+                fontFamily: 'var(--ff-sans)',
+                fontSize: 12.5, fontWeight: 700,
+                color: on ? 'var(--ink-1)' : 'var(--ink-3)',
+                transition: 'color .2s',
+                letterSpacing: '-0.005em',
+              },
+            }, c === 'monthly' ? 'Mensual' : 'Anual');
+          })
+        )
+      ),
+
+      // Precio — compacto, neon en el número pero el resto en ink-2/3.
+      // No es el protagonista, es la nota al pie elegante.
+      React.createElement('div', {
+        style: { textAlign: 'center' },
+      },
+        React.createElement('div', {
+          style: {
+            display: 'inline-flex', alignItems: 'baseline', gap: 3,
+          },
+        },
+          React.createElement('span', {
+            style: {
+              fontSize: 13, fontWeight: 600, color: 'var(--ink-3)',
+              verticalAlign: 'top',
+            },
+          }, '$'),
+          React.createElement('span', {
+            style: {
+              fontSize: 36, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.025em', lineHeight: 1,
+              fontFeatureSettings: '"tnum" on',
+            },
+          }, pricePerMonth),
+          React.createElement('span', {
+            style: {
+              fontSize: 13, fontWeight: 500, color: 'var(--ink-3)',
+              marginLeft: 3,
+            },
+          }, '/mes')
+        ),
+        React.createElement('div', {
+          style: {
+            marginTop: 5, fontSize: 11, color: 'var(--ink-4, rgba(255,255,255,0.45))',
+            lineHeight: 1.4,
+          },
+        }, subline)
       )
     );
   }
@@ -1793,10 +1801,9 @@
 
     function startTrial() {
       onChange({
-        selectedPlan: cycle, // 'monthly' | 'annual'
+        selectedPlan: cycle,
         trialStartedAt: Date.now(),
       });
-      // Defer complete a próximo tick para que el answer patch persista primero
       setTimeout(function() { if (onComplete) onComplete(); }, 0);
     }
 
@@ -1806,98 +1813,148 @@
     }
 
     return React.createElement('div', null,
-      // Hero
+      // ── HERO compacto e impactante ──────────────────────────────────────
       React.createElement('div', {
-        style: { padding: '4px 28px 20px', textAlign: 'center' },
+        style: { padding: '4px 28px 24px', textAlign: 'center' },
       },
         React.createElement('div', {
           style: {
-            fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.18em',
-            fontWeight: 700, textTransform: 'uppercase', marginBottom: 10,
+            fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.20em',
+            fontWeight: 700, textTransform: 'uppercase', marginBottom: 12,
           },
         }, '✦ Mentex Premium'),
         React.createElement('h1', {
           style: {
-            margin: 0, fontSize: 26, lineHeight: 1.16, fontWeight: 700,
-            color: 'var(--ink-1)', letterSpacing: '-0.015em',
+            margin: 0, fontSize: 30, lineHeight: 1.12, fontWeight: 700,
+            color: 'var(--ink-1)', letterSpacing: '-0.02em',
           },
-        }, 'Desbloquea tu',
+        }, 'Tu mente,',
           React.createElement('br'),
           React.createElement('span', {
             style: { color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 },
-          }, 'Mentex completo')
+          }, 'sin límites')
         ),
         React.createElement('p', {
           style: {
-            margin: '10px auto 0', maxWidth: 300,
+            margin: '10px auto 0', maxWidth: 280,
             fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)',
           },
-        }, 'Todo el catálogo, tu coach sin límites, foco profundo. Sin compromisos.')
+        }, 'Acceso completo. Coach ilimitado. Foco profundo.')
       ),
 
-      // Benefits
+      // ── SECTION HEADER ──────────────────────────────────────────────────
+      // Da peso editorial a la sección de benefits y eleva su jerarquía
+      React.createElement('div', {
+        style: {
+          padding: '0 28px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 10,
+        },
+      },
+        React.createElement('div', {
+          style: {
+            flex: 1, height: 1,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10))',
+          },
+        }),
+        React.createElement('div', {
+          style: {
+            fontSize: 9.5, fontWeight: 700, color: 'var(--ink-3)',
+            letterSpacing: '0.18em', textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+          },
+        }, 'Todo lo que desbloqueas'),
+        React.createElement('div', {
+          style: {
+            flex: 1, height: 1,
+            background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)',
+          },
+        })
+      ),
+
+      // ── BENEFITS — protagonistas, cards grandes y elegantes ────────────
       React.createElement('div', {
         style: {
           padding: '0 24px',
-          display: 'flex', flexDirection: 'column', gap: 8,
-          marginBottom: 22,
+          display: 'flex', flexDirection: 'column', gap: 10,
+          marginBottom: 24,
         },
       },
         PREMIUM_BENEFITS.map(function(b, i) {
           return React.createElement('div', {
             key: i,
             style: {
-              padding: '11px 14px',
-              borderRadius: 13,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012))',
+              padding: '15px 16px',
+              borderRadius: 16,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012))',
               border: '0.5px solid rgba(255,255,255,0.10)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-              display: 'flex', alignItems: 'center', gap: 12,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+              display: 'flex', alignItems: 'center', gap: 14,
               fontFamily: 'var(--ff-sans)',
             },
           },
             React.createElement('div', {
               style: {
-                width: 34, height: 34, borderRadius: 10,
-                background: 'rgba(61,255,209,0.10)',
-                border: '0.5px solid rgba(61,255,209,0.22)',
+                width: 44, height: 44, borderRadius: 13,
+                background: 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))',
+                border: '0.5px solid rgba(61,255,209,0.26)',
+                boxShadow: '0 0 16px rgba(61,255,209,0.10), inset 0 1px 0 rgba(61,255,209,0.20)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0,
+                fontSize: 22, flexShrink: 0,
               },
             }, b.icon),
             React.createElement('div', { style: { flex: 1, minWidth: 0 } },
               React.createElement('div', {
                 style: {
-                  fontSize: 13.5, fontWeight: 700, color: 'var(--ink-1)',
-                  letterSpacing: '-0.005em', marginBottom: 1,
+                  fontSize: 14.5, fontWeight: 700, color: 'var(--ink-1)',
+                  letterSpacing: '-0.005em', marginBottom: 3,
                 },
               }, b.title),
               React.createElement('div', {
-                style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.35 },
+                style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 },
               }, b.sub)
             )
           );
         })
       ),
 
-      // Toggle ciclo
+      // ── SOCIAL PROOF ───────────────────────────────────────────────────
+      // Pill discreto con rating + count — añade trust sin ruido
       React.createElement('div', {
-        style: { padding: '0 28px', marginBottom: 16 },
+        style: {
+          padding: '0 28px', marginBottom: 22,
+          display: 'flex', justifyContent: 'center',
+        },
       },
-        React.createElement(PlanCycleToggle, {
-          cycle: cycle,
-          onChange: selectCycle,
-        })
+        React.createElement('div', {
+          style: {
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '7px 14px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.03)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            fontSize: 11.5, color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            fontWeight: 500,
+          },
+        },
+          React.createElement('span', {
+            style: { color: '#FFD66B', letterSpacing: '0.05em' },
+          }, '★★★★★'),
+          React.createElement('span', { style: { color: 'var(--ink-1)', fontWeight: 700 } }, '4.8'),
+          React.createElement('span', {
+            style: { color: 'var(--ink-3)' },
+          }, '· +50,000 mentes despiertas')
+        )
       ),
 
-      // Price card
+      // ── PLAN CARD (toggle + precio) — elegante, no protagonista ────────
       React.createElement('div', {
-        style: { padding: '0 28px', marginBottom: 22 },
+        style: { padding: '0 28px', marginBottom: 24 },
       },
-        React.createElement(PriceCard, { cycle: cycle })
+        React.createElement(PlanCard, { cycle: cycle, onChange: selectCycle })
       ),
 
-      // CTAs (custom — el step usa hideFooter=true)
+      // ── CTAs ───────────────────────────────────────────────────────────
       React.createElement('div', {
         style: { padding: '0 28px 24px' },
       },
