@@ -850,6 +850,450 @@
   }
 
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 1 round 3 · Mini-mockups visuales de partes reales de la app
+  // ═══════════════════════════════════════════════════════════════════════════
+  // En lugar de glyphs abstractos, cada slide muestra un PREVIEW estilizado
+  // de una feature real de Mentex. El user ve EXACTAMENTE lo que va a usar.
+  // Cada mockup tiene un wrapper consistente: card glass de ~280×340px con
+  // contenido temático que evoca el feature real sin re-implementarlo entero.
+  //
+  // Animation pattern: cada mockup tiene un detalle "vivo" (timer pulsando,
+  // mensaje typing, chip rotating) para que se sienta dinámico, no estático.
+
+  // Hero card: contenedor glass común que TODOS los mockups usan
+  function HeroCard(props) {
+    return (
+      <div style={{
+        position: 'relative',
+        width: 280, height: 340,
+        borderRadius: 28,
+        background: 'linear-gradient(180deg, rgba(20,24,22,0.85), rgba(8,12,10,0.92))',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 24px 60px -20px rgba(0,0,0,0.6), inset 0 0 0 0.5px rgba(255,255,255,0.04)',
+        overflow: 'hidden',
+        padding: 18,
+        display: 'flex', flexDirection: 'column',
+        backdropFilter: 'blur(20px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+      }}>
+        {/* Halo radial sutil interior */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
+          background: 'radial-gradient(ellipse at 50% 0%, rgba(61,255,209,0.12), transparent 70%)',
+          pointerEvents: 'none',
+        }}/>
+        <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          {props.children}
+        </div>
+      </div>
+    );
+  }
+
+  // ── HeroMockup1: HomeActive — Timer + Apps protegidas ─────────────────────
+  function HeroMockupHome() {
+    return (
+      <HeroCard>
+        {/* Header del card mockup */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: 999,
+            background: 'var(--neon)',
+            boxShadow: '0 0 8px rgba(61,255,209,0.8)',
+            animation: 'mtx-pulse 2s ease-in-out infinite',
+          }}/>
+          <div style={{
+            fontSize: 9, color: 'var(--neon)',
+            letterSpacing: '0.16em', fontWeight: 700,
+            fontFamily: 'var(--ff-sans)',
+          }}>SESIÓN ACTIVA</div>
+        </div>
+        {/* Timer circular */}
+        <div style={{
+          display: 'flex', justifyContent: 'center',
+          marginBottom: 14,
+        }}>
+          <div style={{ position: 'relative', width: 140, height: 140 }}>
+            <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: 'rotate(-90deg)' }}>
+              <defs>
+                <linearGradient id="hm-t" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#6affd9"/>
+                  <stop offset="1" stopColor="#1ad9ad"/>
+                </linearGradient>
+              </defs>
+              <circle cx="70" cy="70" r="60" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3"/>
+              <circle cx="70" cy="70" r="60" fill="none"
+                stroke="url(#hm-t)" strokeWidth="3.5" strokeLinecap="round"
+                strokeDasharray={377} strokeDashoffset={377 * 0.35}
+                style={{ filter: 'drop-shadow(0 0 6px rgba(61,255,209,0.5))' }}/>
+            </svg>
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <div style={{
+                fontSize: 8, fontWeight: 700, color: 'var(--neon)',
+                letterSpacing: '0.16em', marginBottom: 2,
+                fontFamily: 'var(--ff-sans)',
+              }}>RECUPERASTE</div>
+              <div style={{
+                fontSize: 32, fontWeight: 700, color: 'var(--ink-1)',
+                letterSpacing: '-0.02em',
+                fontFamily: 'var(--ff-display, var(--ff-sans))',
+                fontVariantNumeric: 'tabular-nums',
+              }}>17:23</div>
+              <div style={{
+                fontSize: 9, color: 'var(--ink-4)',
+                fontFamily: 'var(--ff-sans)',
+                marginTop: 2,
+              }}>quedan 12:37</div>
+            </div>
+          </div>
+        </div>
+        {/* Apps bloqueadas chips */}
+        <div style={{
+          fontSize: 8.5, color: 'var(--ink-4)',
+          letterSpacing: '0.14em', fontWeight: 700,
+          fontFamily: 'var(--ff-sans)',
+          marginBottom: 6,
+        }}>APPS BLOQUEADAS</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {[
+            { name: 'Instagram', color: '#E1306C' },
+            { name: 'TikTok', color: '#000' },
+            { name: 'X', color: '#000' },
+          ].map((app, i) => (
+            <div key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px',
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              fontSize: 9.5, color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)', fontWeight: 500,
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: app.color }}/>
+              {app.name}
+              <IcLock size={8} stroke="var(--neon)" strokeWidth={1.8}/>
+            </div>
+          ))}
+        </div>
+      </HeroCard>
+    );
+  }
+
+  // ── HeroMockup2: Chat IA con coach + chips ────────────────────────────────
+  function HeroMockupChat() {
+    return (
+      <HeroCard>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 999,
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(155,138,255,0.10))',
+            border: '0.5px solid rgba(61,255,209,0.30)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14,
+          }}>🌿</div>
+          <div>
+            <div style={{
+              fontSize: 11, fontWeight: 600, color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>Coach Mentex</div>
+            <div style={{
+              fontSize: 9, color: 'var(--neon)',
+              fontFamily: 'var(--ff-sans)',
+            }}>· en línea</div>
+          </div>
+        </div>
+        {/* Mensaje user */}
+        <div style={{
+          alignSelf: 'flex-end',
+          maxWidth: '85%',
+          padding: '8px 12px', borderRadius: 14,
+          borderBottomRightRadius: 4,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.08), rgba(61,255,209,0.03))',
+          border: '0.5px solid rgba(61,255,209,0.16)',
+          color: 'var(--ink-1)',
+          fontSize: 11, lineHeight: 1.4,
+          fontFamily: 'var(--ff-sans)',
+          marginBottom: 8,
+        }}>Tengo dificultad para concentrarme</div>
+        {/* Mensaje assistant */}
+        <div style={{
+          alignSelf: 'flex-start',
+          maxWidth: '90%',
+          padding: '8px 12px', borderRadius: 14,
+          borderBottomLeftRadius: 4,
+          background: 'rgba(255,255,255,0.04)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          color: 'var(--ink-1)',
+          fontSize: 11, lineHeight: 1.45,
+          fontFamily: 'var(--ff-sans)',
+          marginBottom: 10,
+        }}>Empecemos con un paso pequeño. Cierra los ojos 30 segundos y escucha tu respiración.</div>
+        {/* Chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 'auto' }}>
+          {['Sugerir ritual', 'Extender tiempo'].map((c, i) => (
+            <div key={i} style={{
+              padding: '4px 10px', borderRadius: 999,
+              border: '0.5px solid rgba(61,255,209,0.22)',
+              background: 'rgba(61,255,209,0.04)',
+              color: 'var(--neon)',
+              fontSize: 9.5, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>{c}</div>
+          ))}
+        </div>
+      </HeroCard>
+    );
+  }
+
+  // ── HeroMockup3: Ritual del día ───────────────────────────────────────────
+  function HeroMockupRitual() {
+    var items = [
+      { eyebrow: 'MEDITACIÓN', title: 'Respira y vuelve a ti', dur: '10 min', icon: '🌿' },
+      { eyebrow: 'GRATITUD', title: 'Escribe tu gratitud', dur: '3 veces', icon: '💚' },
+      { eyebrow: 'CARDIO', title: 'Caminata del día', dur: '3 km', icon: '🎯' },
+      { eyebrow: 'HÁBITO', title: 'Tomé mis suplementos', dur: 'Hecho', icon: '☀' },
+    ];
+    return (
+      <HeroCard>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: 'var(--ink-1)',
+            letterSpacing: '-0.015em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+          }}>Tu ritual de hoy</div>
+          <div style={{
+            fontSize: 10, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)', marginTop: 2,
+          }}>1 de 4 completadas</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+          {items.map((it, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 9px',
+              borderRadius: 10,
+              background: i === 0 ? 'rgba(61,255,209,0.06)' : 'rgba(255,255,255,0.03)',
+              border: '0.5px solid ' + (i === 0 ? 'rgba(61,255,209,0.20)' : 'rgba(255,255,255,0.05)'),
+            }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 8,
+                background: 'rgba(255,255,255,0.04)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13,
+                flexShrink: 0,
+              }}>{it.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 7.5, color: 'var(--ink-4)',
+                  letterSpacing: '0.14em', fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{it.eyebrow}</div>
+                <div style={{
+                  fontSize: 10.5, color: 'var(--ink-1)', fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>{it.title}</div>
+                <div style={{
+                  fontSize: 9, color: 'var(--ink-4)',
+                  fontFamily: 'var(--ff-sans)',
+                }}>{it.dur}</div>
+              </div>
+              <div style={{
+                width: 22, height: 22, borderRadius: 999,
+                background: i === 0 ? 'var(--neon)' : 'rgba(255,255,255,0.05)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: i === 0 ? '#0a1410' : 'var(--ink-3)',
+                flexShrink: 0,
+              }}>
+                {i === 0 ? <IcCheck size={11} stroke="currentColor" strokeWidth={3}/> : <IcPlay size={9} stroke="currentColor" strokeWidth={2}/>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </HeroCard>
+    );
+  }
+
+  // ── HeroMockup4: Agenda — propuestas + recordatorios ──────────────────────
+  function HeroMockupAgenda() {
+    return (
+      <HeroCard>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{
+            fontSize: 8.5, color: 'var(--ink-4)',
+            letterSpacing: '0.14em', fontWeight: 700,
+            fontFamily: 'var(--ff-sans)',
+            marginBottom: 2,
+          }}>HOY · LUN 5 MAY</div>
+          <div style={{
+            fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
+            letterSpacing: '-0.02em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+          }}>Agenda</div>
+        </div>
+        {/* Propuesta */}
+        <div style={{
+          padding: 10,
+          borderRadius: 12,
+          border: '0.5px solid rgba(61,255,209,0.18)',
+          background: 'rgba(61,255,209,0.04)',
+          marginBottom: 8,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ fontSize: 12 }}>🎯</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 10.5, fontWeight: 600, color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                lineHeight: 1.3,
+              }}>90 min libres a las 14:00</div>
+              <div style={{
+                fontSize: 9, color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                marginTop: 2, lineHeight: 1.4,
+              }}>Tu mejor ventana de enfoque profundo.</div>
+            </div>
+          </div>
+          <div style={{
+            display: 'inline-block',
+            padding: '3px 10px', borderRadius: 999,
+            border: '0.5px solid rgba(61,255,209,0.40)',
+            background: 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))',
+            color: 'var(--neon)',
+            fontSize: 9.5, fontWeight: 700,
+            fontFamily: 'var(--ff-sans)',
+            marginTop: 8, marginLeft: 18,
+          }}>Reservar</div>
+        </div>
+        {/* Eventos timeline */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {[
+            { time: '09:00', name: 'Daily standup', color: '#9DB7FF' },
+            { time: '10:30', name: 'Sesión profunda', color: 'var(--neon)' },
+            { time: '15:00', name: 'Review PRs', color: '#9DB7FF' },
+          ].map((ev, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 0',
+            }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, color: 'var(--ink-3)',
+                fontVariantNumeric: 'tabular-nums',
+                fontFamily: 'var(--ff-sans)',
+                width: 30,
+              }}>{ev.time}</div>
+              <div style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: ev.color,
+                boxShadow: '0 0 6px ' + ev.color + 'aa',
+              }}/>
+              <div style={{
+                fontSize: 10, fontWeight: 500, color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{ev.name}</div>
+            </div>
+          ))}
+        </div>
+      </HeroCard>
+    );
+  }
+
+  // ── HeroMockup5: Progreso + Comunidad ─────────────────────────────────────
+  function HeroMockupProgress() {
+    return (
+      <HeroCard>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{
+            fontSize: 8.5, color: 'var(--ink-4)',
+            letterSpacing: '0.14em', fontWeight: 700,
+            fontFamily: 'var(--ff-sans)', marginBottom: 2,
+          }}>ESTA SEMANA</div>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: 'var(--ink-1)',
+            letterSpacing: '-0.015em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+          }}>Tu progreso</div>
+        </div>
+        {/* Big stat: minutos enfocados */}
+        <div style={{
+          padding: '12px 14px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.10), rgba(61,255,209,0.02))',
+          border: '0.5px solid rgba(61,255,209,0.18)',
+          marginBottom: 10,
+        }}>
+          <div style={{
+            fontSize: 9, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '0.06em',
+            marginBottom: 2,
+          }}>Minutos enfocados</div>
+          <div style={{
+            fontSize: 30, fontWeight: 700,
+            color: 'var(--neon)',
+            letterSpacing: '-0.025em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+            fontVariantNumeric: 'tabular-nums',
+            textShadow: '0 0 18px rgba(61,255,209,0.4)',
+            lineHeight: 1.05,
+          }}>847</div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            marginTop: 4,
+            fontSize: 10, color: '#3DFFD1',
+            fontFamily: 'var(--ff-sans)', fontWeight: 600,
+          }}>
+            <span>↑ 23%</span>
+            <span style={{ color: 'var(--ink-4)', fontWeight: 400 }}>vs semana pasada</span>
+          </div>
+        </div>
+        {/* Mini sparkline */}
+        <div style={{
+          height: 50,
+          background: 'rgba(255,255,255,0.02)',
+          borderRadius: 10,
+          padding: 8,
+          display: 'flex', alignItems: 'flex-end', gap: 4,
+        }}>
+          {[40, 65, 50, 80, 70, 90, 95].map((h, i) => (
+            <div key={i} style={{
+              flex: 1,
+              height: h + '%',
+              borderRadius: 3,
+              background: i === 6
+                ? 'linear-gradient(180deg, var(--neon), rgba(61,255,209,0.3))'
+                : 'rgba(255,255,255,0.10)',
+              boxShadow: i === 6 ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
+            }}/>
+          ))}
+        </div>
+        {/* Streak */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          marginTop: 'auto',
+          padding: '5px 10px',
+          borderRadius: 999,
+          background: 'rgba(255,107,107,0.08)',
+          border: '0.5px solid rgba(255,107,107,0.20)',
+          alignSelf: 'flex-start',
+        }}>
+          <span style={{ fontSize: 11 }}>🔥</span>
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: '#ff8b8b',
+            fontFamily: 'var(--ff-sans)',
+          }}>12 días seguidos</span>
+        </div>
+      </HeroCard>
+    );
+  }
+
+
   // ── FeatureGlyph — icono ilustrado para slides 2 y 3 ──────────────────────
   // Slide 2: shield + apps fading (bloqueo de distracciones)
   // Slide 3: chat bubble + sparkles (coach IA)
@@ -983,44 +1427,47 @@
   }
 
 
-  // ── WelcomeScreen — orquestador de los 5 slides + dots + CTA ──────────────
+  // ── WelcomeScreen — 5 slides con mockups visuales reales de la app ───────
+  // Layout (top→bottom):
+  //   1. Header con logo MENTEX + "Saltar" link top-right
+  //   2. Hero mockup card (60% pantalla) — preview real de cada feature
+  //   3. Title grande
+  //   4. Subtitle descriptivo
+  //   5. Dots indicator (pequeño, sutil) + botón circular flecha → bottom-right
+  // Pattern inspirado en best practices de apps premium 2026 (Food Scanning,
+  // Friends, Happyo references). Sustituye glyphs abstractos con previews
+  // que vendecen el valor real desde el primer scroll.
   function WelcomeScreen(props) {
-    function makeSubtitle(text) {
-      return (
-        <div style={{
-          fontSize: 14.5, fontWeight: 400,
-          color: 'var(--ink-3)', letterSpacing: '-0.005em',
-          fontFamily: 'var(--ff-sans)',
-          textAlign: 'center', lineHeight: 1.5,
-          maxWidth: 320,
-        }}>{text}</div>
-      );
-    }
     var slidesData = React.useMemo(function() { return [
       {
-        hero: <MentexZenIcon size={120}/>,
-        title: 'Mentex',
-        subtitle: <TaglineRotator/>,
+        hero: <HeroMockupHome/>,
+        title: 'Silencia el ruido',
+        accent: 'que te roba el foco.',
+        subtitle: 'Mentex bloquea las apps que más te distraen mientras estás presente.',
       },
       {
-        hero: <FeatureGlyphShield/>,
-        title: 'Silencia el ruido digital',
-        subtitle: makeSubtitle('Bloquea las apps que te roban el foco mientras estás presente.'),
+        hero: <HeroMockupChat/>,
+        title: 'Tu coach personal,',
+        accent: 'siempre contigo.',
+        subtitle: 'Pregúntale lo que sea. Mentex aprende y te guía día a día.',
       },
       {
-        hero: <FeatureGlyphCoach/>,
-        title: 'Tu coach personal',
-        subtitle: makeSubtitle('Mentex aprende contigo y te guía día a día. Pregúntale lo que sea.'),
+        hero: <HeroMockupRitual/>,
+        title: 'Construye tu ritual',
+        accent: 'diario.',
+        subtitle: 'Pequeños hábitos que se vuelven irrompibles con el tiempo.',
       },
       {
-        hero: <FeatureGlyphRitual/>,
-        title: 'Tu ritual diario',
-        subtitle: makeSubtitle('Construye hábitos pequeños que se vuelven irrompibles con el tiempo.'),
+        hero: <HeroMockupAgenda/>,
+        title: 'Tu día,',
+        accent: 'organizado por tu IA.',
+        subtitle: 'Recordatorios, eventos y propuestas de tu coach en un solo lugar.',
       },
       {
-        hero: <FeatureGlyphProgress/>,
-        title: 'Mide tu progreso',
-        subtitle: makeSubtitle('Visualiza cuánto has crecido y celebra cada paso del camino.'),
+        hero: <HeroMockupProgress/>,
+        title: 'Mide tu progreso,',
+        accent: 'celebra cada paso.',
+        subtitle: 'Visualiza cuánto has crecido y mantén tu racha viva.',
       },
     ]; }, []);
 
@@ -1075,6 +1522,9 @@
       setIdx(i);
     };
 
+    var current = slidesData[idx];
+    var isLast = idx === slidesData.length - 1;
+
     return (
       <div style={{
         position: 'absolute', inset: 0, zIndex: 50,
@@ -1082,93 +1532,166 @@
         animation: 'mtx-fade-in .4s ease',
       }}>
         <MeshGradientBackground/>
-        <ParticleField count={36}/>
+        <ParticleField count={28}/>
 
-        {/* Slides container — centrado vertical, ocupa la zona top→middle */}
+        {/* Header: logo MENTEX top-left + "Saltar" top-right */}
+        <div style={{
+          position: 'absolute',
+          top: 60, left: 0, right: 0,
+          padding: '0 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          zIndex: 4,
+        }}>
+          <MentexLogoMark size={12}/>
+          <button
+            onClick={props.onContinue}
+            aria-label="Saltar al inicio de sesión"
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              padding: '6px 12px',
+              border: 0, background: 'transparent',
+              color: 'var(--ink-3)',
+              fontSize: 13, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>Saltar</button>
+        </div>
+
+        {/* Hero mockup container — centrado horizontal, top 130, swipeable */}
         <div
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
           style={{
             position: 'absolute',
-            top: 60, left: 0, right: 0, bottom: 200,
+            top: 110, left: 0, right: 0,
+            display: 'flex', justifyContent: 'center',
             zIndex: 2,
           }}>
-          {slidesData.map(function(s, i) {
-            return <WelcomeSlide key={i} slide={s} visible={i === idx} direction={dir}/>;
-          })}
+          {/* Crossfade entre mockups — todos renderizados, solo el visible
+              tiene opacity:1 + transform:0. Mantiene transitions suaves. */}
+          <div style={{ position: 'relative', width: 280, height: 340 }}>
+            {slidesData.map(function(s, i) {
+              var visible = i === idx;
+              var offsetX = visible ? 0 : (i < idx ? -24 : 24);
+              return (
+                <div key={i} style={{
+                  position: 'absolute', inset: 0,
+                  opacity: visible ? 1 : 0,
+                  transform: 'translateX(' + offsetX + 'px)',
+                  transition: 'opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1)',
+                  pointerEvents: visible ? 'auto' : 'none',
+                  willChange: 'opacity, transform',
+                }}>{s.hero}</div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Dots indicator — más cerca del CTA, ahora que el menú inferior
-            no existe en welcome. Bottom 132 deja aire para el CTA + sign-in
-            link debajo, sin que se sienta perdido. */}
+        {/* Text + dots zone — sandwich entre hero y CTA */}
         <div style={{
           position: 'absolute',
           left: 0, right: 0, bottom: 132,
-          display: 'flex', justifyContent: 'center', gap: 8,
-          zIndex: 3,
-        }}>
-          {slidesData.map(function(_, i) {
-            var active = i === idx;
-            return (
-              <button
-                key={i}
-                onClick={function() { goToSlide(i); }}
-                aria-label={'Ir a slide ' + (i + 1)}
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  width: active ? 24 : 6, height: 6,
-                  borderRadius: 999, border: 0,
-                  background: active ? 'var(--neon)' : 'rgba(255,255,255,0.20)',
-                  boxShadow: active ? '0 0 8px rgba(61,255,209,0.45)' : 'none',
-                  transition: 'width .35s ease, background .35s, box-shadow .35s',
-                  padding: 0,
-                }}/>
-            );
-          })}
-        </div>
-
-        {/* CTA único + sign-in link. Bottom 32 (más abajo que antes 60).
-            Glow más sutil — antes el halo verde dominaba el bottom de la
-            pantalla. Ahora pulsation reducida + box-shadow menos intenso. */}
-        <div style={{
-          position: 'absolute',
-          left: 0, right: 0, bottom: 32,
           padding: '0 32px',
           zIndex: 3,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
-          <button
-            onClick={props.onContinue}
-            aria-label="Empezar"
-            className="mtx-tap"
-            style={{
-              appearance: 'none', cursor: 'pointer',
-              width: '100%',
-              padding: '14px 22px', borderRadius: 999,
-              border: '0.5px solid rgba(61,255,209,0.36)',
-              background: 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.05))',
+          {/* Dots indicator — discretos, justo arriba del título */}
+          <div style={{
+            display: 'flex', gap: 6,
+            marginBottom: 18,
+          }}>
+            {slidesData.map(function(_, i) {
+              var active = i === idx;
+              return (
+                <button
+                  key={i}
+                  onClick={function() { goToSlide(i); }}
+                  aria-label={'Ir a slide ' + (i + 1)}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    width: active ? 18 : 5, height: 5,
+                    borderRadius: 999, border: 0,
+                    background: active ? 'var(--neon)' : 'rgba(255,255,255,0.16)',
+                    boxShadow: active ? '0 0 6px rgba(61,255,209,0.4)' : 'none',
+                    transition: 'width .35s ease, background .35s, box-shadow .35s',
+                    padding: 0,
+                  }}/>
+              );
+            })}
+          </div>
+
+          {/* Title with accent — pattern inspirado en Friends app reference */}
+          <h1 style={{
+            margin: 0, marginBottom: 8,
+            fontSize: 26, fontWeight: 700,
+            color: 'var(--ink-1)',
+            letterSpacing: '-0.025em',
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+            textAlign: 'center', lineHeight: 1.15,
+            transition: 'opacity .35s ease',
+          }}>
+            {current.title}{' '}
+            <span style={{
               color: 'var(--neon)',
-              fontSize: 15, fontWeight: 700,
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              boxShadow: '0 0 0 0.5px rgba(61,255,209,0.14), 0 6px 18px -10px rgba(61,255,209,0.30), inset 0 0 10px rgba(61,255,209,0.05)',
-              animation: 'mtx-cta-breath-soft 4s ease-in-out infinite',
-              willChange: 'box-shadow',
-            }}>Empezar</button>
+              fontStyle: 'italic',
+              fontWeight: 600,
+            }}>{current.accent}</span>
+          </h1>
+          <div style={{
+            fontSize: 13.5, fontWeight: 400,
+            color: 'var(--ink-3)', letterSpacing: '-0.005em',
+            fontFamily: 'var(--ff-sans)',
+            textAlign: 'center', lineHeight: 1.55,
+            maxWidth: 320,
+          }}>{current.subtitle}</div>
+        </div>
+
+        {/* Bottom controls: "¿Ya tienes cuenta? Inicia sesión" izquierda +
+            botón circular flecha derecha. Pattern de la imagen Food Scanning. */}
+        <div style={{
+          position: 'absolute',
+          left: 0, right: 0, bottom: 38,
+          padding: '0 28px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          zIndex: 3,
+        }}>
           <button
             onClick={props.onSignIn}
             aria-label="Iniciar sesión con cuenta existente"
             className="mtx-tap"
             style={{
               appearance: 'none', cursor: 'pointer',
-              padding: '4px 14px',
+              padding: '8px 4px',
               border: 0, background: 'transparent',
               color: 'var(--ink-3)',
-              fontSize: 13, fontWeight: 500,
+              fontSize: 12.5, fontWeight: 500,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-            }}>¿Ya tienes cuenta? <span style={{ color: 'var(--neon)' }}>Inicia sesión</span></button>
+              textAlign: 'left',
+              maxWidth: 200,
+              lineHeight: 1.4,
+            }}>¿Ya tienes cuenta?<br/><span style={{ color: 'var(--neon)', fontWeight: 700 }}>Inicia sesión</span></button>
+
+          <button
+            onClick={props.onContinue}
+            aria-label={isLast ? 'Empezar' : 'Siguiente'}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: 60, height: 60, borderRadius: 999,
+              border: '0.5px solid rgba(61,255,209,0.40)',
+              background: 'linear-gradient(135deg, rgba(61,255,209,0.20), rgba(61,255,209,0.06))',
+              color: 'var(--neon)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 0 0 0.5px rgba(61,255,209,0.18), 0 8px 24px -10px rgba(61,255,209,0.45), inset 0 0 14px rgba(61,255,209,0.08)',
+              animation: 'mtx-cta-breath-soft 4s ease-in-out infinite',
+              willChange: 'box-shadow',
+            }}>
+            <IcChevR size={20} stroke="currentColor" strokeWidth={2.2}/>
+          </button>
         </div>
       </div>
     );
