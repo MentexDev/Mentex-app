@@ -1,1 +1,1 @@
-{"nodes": [{"id": "mentex_shared_mtxsectionhead", "label": "MtxSectionHead", "file_type": "code", "source_file": "components/mentex-shared.jsx", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
+{"nodes": [{"id": "component_mentex_shared", "label": "Mentex Shared Components", "file_type": "code", "source_file": "components/mentex-shared.jsx", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
