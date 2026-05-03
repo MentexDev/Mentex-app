@@ -134,7 +134,7 @@ const Sparkline = ({ data = [3, 5, 4, 6, 5, 7, 8], color = '#fff', width = 44, h
 };
 
 // Section header used across blocks
-const MtxSectionHead = ({ title, action, eyebrow, subtitle, onAction, actionIcon, actionLabel }) =>
+const MtxSectionHead = ({ title, action, eyebrow, subtitle, onAction, actionIcon, actionLabel, actionRadius = 999 }) =>
 <div style={{ padding: '0 20px', marginBottom: 14 }}>
     <div style={{
     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -152,7 +152,7 @@ const MtxSectionHead = ({ title, action, eyebrow, subtitle, onAction, actionIcon
             style={{
               background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)',
               padding: 0, cursor: 'pointer', color: 'var(--ink-1)',
-              width: 30, height: 30, borderRadius: 999,
+              width: 30, height: 30, borderRadius: actionRadius,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, alignSelf: 'center',
               // Margins negativos: el button (30px) NO debe extender la

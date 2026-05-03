@@ -1488,6 +1488,10 @@ function HomeActive({
             const total = visibleActivities.length;
             return total === 0 ? 'Sin rutinas — agrega las que quieres practicar' : `${done} de ${total} completadas`;
           })()}
+          actionIcon={<IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>}
+          actionRadius={9}
+          actionLabel="Configurar rutinas del ritual"
+          onAction={onEditRoutines}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {visibleActivities.map(a => (
@@ -1514,6 +1518,10 @@ function HomeActive({
           eyebrow={ritualExtras.length === 0
             ? 'Agrega contenido de Explorar para esta sesión'
             : `${ritualExtras.length} ${ritualExtras.length === 1 ? 'contenido' : 'contenidos'} · en sesión`}
+          actionIcon={<IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>}
+          actionRadius={9}
+          actionLabel="Agregar contenido al día"
+          onAction={() => setAddToRitualOpen(true)}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {ritualExtras.map(extra => (
