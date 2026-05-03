@@ -28,7 +28,7 @@
 
   <script type="text/babel" src="frames/ios-frame.jsx?v=3"></script>
   <script type="text/babel" src="frames/tweaks-panel.jsx?v=3"></script>
-  <script type="text/babel" src="components/mentex-icons.jsx?v=15"></script>
+  <script type="text/babel" src="components/mentex-icons.jsx?v=16"></script>
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
@@ -38,16 +38,16 @@
   <script type="text/babel" src="screens/home-inactive.jsx?v=38"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=37"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
-  <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
+  <script type="text/babel" src="screens/auto-routines.jsx?v=8"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
   <script type="text/babel" src="screens/learning-views.jsx?v=2"></script>
   <script type="text/babel" src="screens/apps-editor.jsx?v=5"></script>
   <script type="text/babel" src="screens/routines-editor.jsx?v=6"></script>
   <script type="text/babel" src="screens/notifications-sheet.jsx?v=6"></script>
-  <script type="text/babel" src="screens/profile.jsx?v=28"></script>
+  <script type="text/babel" src="screens/profile.jsx?v=30"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=7"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=57"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=58"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-settings.jsx?v=5"></script>
   <script type="text/babel" src="screens/ia-agenda.jsx?v=7"></script>
@@ -55,12 +55,14 @@
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
-  <script type="text/babel" src="screens/user-profile-flow.jsx?v=12"></script>
+  <script type="text/babel" src="screens/user-profile-flow.jsx?v=13"></script>
   <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
   <script type="text/babel" src="screens/global-player.jsx?v=2"></script>
   <script type="text/babel" src="screens/ritual-player.jsx?v=6"></script>
   <script type="text/babel" src="screens/activity-runner.jsx?v=26"></script>
+  <script type="text/babel" src="screens/settings-flow.jsx?v=30"></script>
+  <script type="text/babel" src="components/in-app-browser.jsx?v=1"></script>
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -115,6 +117,25 @@
         // sin necesitar prop drilling. Pattern idéntico al de useToast.
         window.__mtxOpenPremiumLock = (feature) => setPremiumLockFeature(feature || 'default');
         return () => { try { delete window.__mtxOpenPremiumLock; } catch (_) {} };
+      }, []);
+      // settingsOpen — lifted al shell para que SettingsScreen renderice SOBRE
+      // el tab bar (z=50). Mismo patrón que iaSettingsOpen/AssistantConfigSheet.
+      const [settingsOpen, setSettingsOpen] = React.useState(false);
+      React.useEffect(() => {
+        window.__mtxOpenSettings  = () => setSettingsOpen(true);
+        window.__mtxCloseSettings = () => setSettingsOpen(false);
+        return () => {
+          try { delete window.__mtxOpenSettings;  } catch (_) {}
+          try { delete window.__mtxCloseSettings; } catch (_) {}
+        };
+      }, []);
+      // inAppBrowserCtx — lifted al shell para que InAppBrowserSheet renderice SOBRE
+      // el tab bar. Se abre via window.__mtxOpenInAppBrowser(url, socialId, label, handle).
+      const [inAppBrowserCtx, setInAppBrowserCtx] = React.useState(null);
+      React.useEffect(() => {
+        window.__mtxOpenInAppBrowser = (url, socialId, socialLabel, handle) =>
+          setInAppBrowserCtx({ url, socialId, socialLabel, handle });
+        return () => { try { delete window.__mtxOpenInAppBrowser; } catch (_) {} };
       }, []);
       const [notifCount, setNotifCount] = React.useState(4);
       const [nowPlayingOpen, setNowPlayingOpen] = React.useState(false);
@@ -729,6 +750,21 @@
                 key={userProfileId}
                 userId={userProfileId}
                 onClose={() => setUserProfileId(null)}/>
+            )}
+
+            {/* Settings fullscreen — se abre via window.__mtxOpenSettings() desde
+                el botón ⚙️ de ProfileScreen. Sibling de los demás overlays para
+                que su position:absolute cubra el device viewport (z=100). */}
+            {typeof SettingsScreen !== 'undefined' && (
+              <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            )}
+
+            {/* In-app browser — portal-mounted en mtx-overlay-root, se abre via
+                window.__mtxOpenInAppBrowser() desde los íconos sociales del perfil. */}
+            {inAppBrowserCtx && typeof InAppBrowserSheet !== 'undefined' && (
+              <InAppBrowserSheet
+                {...inAppBrowserCtx}
+                onClose={() => setInAppBrowserCtx(null)}/>
             )}
 
             {/* Session-flow sheets — el descanso fullscreen se eliminó en Fase A.

@@ -8432,6 +8432,29 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   );
 }
 
+// ── window.__mtxPlayContent — bridge desde Ajustes (completados) → Explorar ──
+// settings-flow.jsx llama window.__mtxPlayContent(item) con forma
+// { id, type, title, author, duration, date } al tap "Escuchar de nuevo".
+// 1. Busca por título normalizado en EXPLORE_CONTENT.
+// 2. Cierra Settings (si está abierto) vía window.__mtxCloseSettings().
+// 3. Navega a Explorar con mtx:open-item-from-community.
+//    • Si se encontró el item → abre su VideoSheet.
+//    • Si no → aterriza en el hub (usuario puede buscar).
+if (typeof window !== 'undefined' && !window.__mtxPlayContent) {
+  var _normT = function(t) {
+    return String(t).toLowerCase().replace(/[·\-·]/g, ' ').replace(/\s+/g, ' ').trim();
+  };
+  window.__mtxPlayContent = function(item) {
+    if (!item) return;
+    var norm = _normT(item.title || '');
+    var found = EXPLORE_CONTENT.find(function(c) { return _normT(c.title) === norm; });
+    if (typeof window.__mtxCloseSettings === 'function') window.__mtxCloseSettings();
+    window.dispatchEvent(new CustomEvent('mtx:open-item-from-community', {
+      detail: { itemId: found ? found.id : '__explore_home__' },
+    }));
+  };
+}
+
 Object.assign(window, {
   ExploreScreen,
   EXPLORE_CONTENT, EXPLORE_PLAYLISTS, EXPLORE_CATEGORIES, CONTENT_TYPES,
