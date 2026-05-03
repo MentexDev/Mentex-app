@@ -68,9 +68,6 @@ function _openSocialUrl(id, handle) {
 
   // _blank + noopener: nueva pestaña, sin acceso al window padre.
   // En iOS/Android con app instalada, universal links la abren automáticamente.
-  if (typeof window !== 'undefined' && window.open) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
   return url;
 }
 
@@ -2664,13 +2661,21 @@ function ProfileScreen() {
   const handleShareTap = (entity) => setShareEntity(entity);
   const handleSocialTap = (s) => {
     const url = _openSocialUrl(s.id, s.handle);
-    if (url) {
-      toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+    if (url && typeof window.__mtxOpenInAppBrowser === 'function') {
+      window.__mtxOpenInAppBrowser(url, s.id, s.label, s.handle);
+    } else if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     } else {
       toast.show({ message: `Sin perfil de ${s.label} configurado`, duration: 1600 });
     }
   };
-  const handleSettings = () => toast.show({ message: 'Configuraciones — próxima fase', duration: 1600 });
+  const handleSettings = () => {
+    if (typeof window.__mtxOpenSettings === 'function') {
+      window.__mtxOpenSettings();
+    } else {
+      toast.show({ message: 'Configuraciones — próxima fase', duration: 1600 });
+    }
+  };
   const handleShareProfile = () => {
     setShareEntity({
       id: profile.id,

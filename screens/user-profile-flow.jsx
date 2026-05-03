@@ -223,8 +223,10 @@ function UserProfileScreen({ userId, onClose }) {
   const handleShareTap = (entity) => setShareEntity(entity);
   const handleSocialTap = (s) => {
     const url = window._openSocialUrl ? window._openSocialUrl(s.id, s.handle) : null;
-    if (url) {
-      toast.show({ message: `Abriendo ${s.label}…`, duration: 1400 });
+    if (url && typeof window.__mtxOpenInAppBrowser === 'function') {
+      window.__mtxOpenInAppBrowser(url, s.id, s.label, s.handle);
+    } else if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     } else {
       toast.show({ message: `Sin perfil de ${s.label} configurado`, duration: 1600 });
     }

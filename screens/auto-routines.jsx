@@ -27,7 +27,7 @@
     list: () => _data.slice(),
     get:  (id) => _data.find(r => r.id === id) || null,
     add: (entry) => {
-      const id = entry.id || `auto-${Date.now().toString(36)}`;
+      const id = entry.id || `auto-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
       const next = { ...entry, id, createdAt: entry.createdAt || Date.now() };
       _data = [..._data, next];
       _emit();
@@ -88,18 +88,27 @@ function AutoRoutineCreateSheet({
   onEditTime = () => {},
   onEditApps = () => {},
   onEditRoutines = () => {},
+  // Edit mode props
+  editMode = false,
+  routineId = null,
+  initialDays = null,
+  initialStartTime = null,
+  initialEndTime = null,
+  onSaved = () => {},
+  onDelete = () => {},
+  baseZIndex = 90,
 }) {
   const [days, setDays] = React.useState(['mon', 'tue', 'wed', 'thu', 'fri']);
   const [startTime, setStartTime] = React.useState('09:00');
   const [endTime, setEndTime] = React.useState('17:00');
   const [confirmEmpty, setConfirmEmpty] = React.useState(false);
 
-  // Re-set defaults al abrir (no persistir entre opens)
+  // Re-set al abrir — usa valores iniciales si los hay (edit mode)
   React.useEffect(() => {
     if (!open) return;
-    setDays(['mon', 'tue', 'wed', 'thu', 'fri']);
-    setStartTime('09:00');
-    setEndTime('17:00');
+    setDays(initialDays || ['mon', 'tue', 'wed', 'thu', 'fri']);
+    setStartTime(initialStartTime || '09:00');
+    setEndTime(initialEndTime || '17:00');
     setConfirmEmpty(false);
   }, [open]);
 
@@ -146,18 +155,29 @@ function AutoRoutineCreateSheet({
   const timeStr = `${totalH > 0 ? `${totalH}h ` : ''}${totalM} min`;
 
   const isEmptySetup = blockedAppsCount === 0 && routinesCount === 0;
-  const canCreate = days.length > 0 && (!isEmptySetup || confirmEmpty);
+  const canCreate = days.length > 0 && (editMode || !isEmptySetup || confirmEmpty);
 
   const handleCreate = () => {
     if (!canCreate) return;
-    const created = window.__mtxAutoRoutines?.add({
-      minutes: initialMinutes,
-      blockedAppsIds: [...blockedAppsIds],
-      routineIds: [...selectedRoutineIds],
-      schedule: { startTime, endTime, days: [...days] },
-    });
-    onCreated?.(created);
-    onClose?.();
+    if (editMode) {
+      window.__mtxAutoRoutines?.update(routineId, {
+        minutes: initialMinutes,
+        blockedAppsIds: [...blockedAppsIds],
+        routineIds: [...selectedRoutineIds],
+        schedule: { startTime, endTime, days: [...days] },
+      });
+      onSaved?.();
+      onClose?.();
+    } else {
+      const created = window.__mtxAutoRoutines?.add({
+        minutes: initialMinutes,
+        blockedAppsIds: [...blockedAppsIds],
+        routineIds: [...selectedRoutineIds],
+        schedule: { startTime, endTime, days: [...days] },
+      });
+      onCreated?.(created);
+      onClose?.();
+    }
   };
 
   return (
@@ -168,7 +188,7 @@ function AutoRoutineCreateSheet({
     // renderizar POR ENCIMA de este sheet, no por detrás. Mantener este
     // por debajo evita que el user pierda visibilidad del sub-editor.
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 90,
+      position: 'absolute', inset: 0, zIndex: baseZIndex,
       display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
       background: 'rgba(0,0,0,0.5)',
       backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
@@ -192,12 +212,12 @@ function AutoRoutineCreateSheet({
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mtx-eyebrow" style={{ marginBottom: 4, fontSize: 10 }}>Personalizar</div>
+            <div className="mtx-eyebrow" style={{ marginBottom: 4, fontSize: 10 }}>{editMode ? 'Editar' : 'Personalizar'}</div>
             <h2 className="mtx-h-1" style={{ margin: 0, fontSize: 22, color: 'var(--ink-1)', letterSpacing: '-0.025em' }}>
-              Rutina automática
+              {editMode ? 'Editar rutina' : 'Rutina automática'}
             </h2>
             <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.4 }}>
-              Inicia sola los días que elijas con tu setup actual.
+              {editMode ? 'Modifica horario, días, apps o tareas del ritual.' : 'Inicia sola los días que elijas con tu setup actual.'}
             </div>
           </div>
           <button onClick={onClose} aria-label="Cerrar" style={{
@@ -318,17 +338,43 @@ function AutoRoutineCreateSheet({
           </div>
         )}
 
-        {/* Crear button */}
-        <button className="mtx-btn-neon" style={{
-          width: '100%',
-          opacity: canCreate ? 1 : 0.5,
-          cursor: canCreate ? 'pointer' : 'not-allowed',
-        }}
-        disabled={!canCreate}
-        onClick={handleCreate}>
-          <IcZap size={14} stroke="currentColor" strokeWidth={2.2}/>
-          Crear rutina automática
-        </button>
+        {editMode ? (
+          <>
+            <button className="mtx-btn-neon" style={{
+              width: '100%',
+              opacity: canCreate ? 1 : 0.5,
+              cursor: canCreate ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!canCreate}
+            onClick={handleCreate}>
+              <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/>
+              Guardar cambios
+            </button>
+            <button onClick={() => onDelete?.()} className="mtx-tap" tabIndex={0}
+              style={{
+                width: '100%', marginTop: 10, height: 56, borderRadius: 'var(--r-pill)',
+                cursor: 'pointer', appearance: 'none',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                background: 'rgba(255,74,110,0.08)', border: '0.5px solid rgba(255,74,110,0.22)',
+                color: '#FF4A6E', fontSize: 16, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)', letterSpacing: '-0.01em',
+              }}>
+              <IcTrash size={15} stroke="#FF4A6E" strokeWidth={1.9}/>
+              Eliminar rutina
+            </button>
+          </>
+        ) : (
+          <button className="mtx-btn-neon" style={{
+            width: '100%',
+            opacity: canCreate ? 1 : 0.5,
+            cursor: canCreate ? 'pointer' : 'not-allowed',
+          }}
+          disabled={!canCreate}
+          onClick={handleCreate}>
+            <IcZap size={14} stroke="currentColor" strokeWidth={2.2}/>
+            Crear rutina automática
+          </button>
+        )}
       </div>
     </div>
   );

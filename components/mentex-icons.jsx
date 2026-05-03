@@ -175,6 +175,21 @@ const IcXBrand = ({ size = 20, stroke = 'currentColor' }) => (
   </svg>
 );
 
+const IcCreditCard = (p) => <Icon {...p}>
+  <rect x="2" y="6" width="20" height="13" rx="2"/>
+  <path d="M2 10h20M7 15h3M14 15h3"/>
+</Icon>;
+const IcLogOut = (p) => <Icon {...p}>
+  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+  <path d="M16 17l5-5-5-5"/>
+  <line x1="21" y1="12" x2="9" y2="12"/>
+</Icon>;
+const IcTrash = (p) => <Icon {...p}>
+  <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+  <line x1="10" y1="11" x2="10" y2="17"/>
+  <line x1="14" y1="11" x2="14" y2="17"/>
+</Icon>;
+
 Object.assign(window, {
   Icon, IcHome, IcCompass, IcSpark, IcUsers, IcUser, IcBell, IcPlay, IcPause,
   IcCheck, IcPlus, IcChevR, IcChevL, IcChevD, IcClose, IcLock, IcUnlock, IcShield, IcClock,
@@ -189,4 +204,5 @@ Object.assign(window, {
   IcSliders, IcUserPlus, IcUserCheck,
   IcTikTok, IcYoutube, IcLinkedIn, IcGithub,
   IcInstagramBrand, IcSpotifyBrand, IcXBrand,
+  IcCreditCard, IcLogOut, IcTrash,
 });
