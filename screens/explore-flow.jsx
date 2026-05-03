@@ -468,31 +468,50 @@ function ExploreHero({ items, onItemClick }) {
 
 
 // ── ExploreContentCard — card consistente con MtxLearningCard + extensiones ──
-function ExploreContentCard({ item, onClick, variant = 'default' }) {
+function ExploreContentCard({ item, onClick, variant = 'default', locked = false }) {
   const isComingSoon = item.status === 'coming-soon';
   const hasProgress  = item.playPct != null && !isComingSoon;
   const isSeries     = item.type === 'series';
   const isGrid       = variant === 'grid';
 
+  // Phase 5.3.C — Premium gate. Si locked y user free, tap → lock sheet
+  // (no abre el item). Coming-soon tiene precedencia visual sobre locked
+  // (un item próximamente pero locked sigue mostrando próximamente).
+  const isLocked = locked && !isComingSoon;
+  const handleTap = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isLocked) {
+      if (typeof window !== 'undefined' && window.__mtxOpenPremiumLock) {
+        window.__mtxOpenPremiumLock('content');
+      }
+      return;
+    }
+    onClick(item);
+  };
+
   return (
     <div
-      onClick={() => onClick(item)}
+      onClick={handleTap}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(item); } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleTap(e); } }}
       className="mtx-glass mtx-tap"
       style={{
         width: isGrid ? '100%' : 200, flexShrink:0,
         borderRadius:18, overflow:'hidden', cursor:'pointer',
         border: isComingSoon
           ? '0.5px solid rgba(255,214,107,0.35)'
-          : `0.5px solid var(--glass-stroke)`,
+          : isLocked
+            ? '0.5px solid rgba(61,255,209,0.20)'
+            : `0.5px solid var(--glass-stroke)`,
         background:'var(--glass-1)',
         boxShadow: isComingSoon
           ? '0 0 0 1px rgba(255,214,107,0.15), 0 12px 32px -14px rgba(255,214,107,0.4)'
-          : 'var(--shadow-card)',
+          : isLocked
+            ? '0 0 0 1px rgba(61,255,209,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)'
+            : 'var(--shadow-card)',
         position:'relative',
-        opacity: isComingSoon ? 0.92 : 1,
+        opacity: isComingSoon ? 0.92 : (isLocked ? 0.82 : 1),
       }}
     >
       {/* Cover */}
@@ -506,8 +525,17 @@ function ExploreContentCard({ item, onClick, variant = 'default' }) {
           <img src={item.cover} alt="" loading="lazy" style={{
             position:'absolute', inset:0,
             width:'100%', height:'100%', objectFit:'cover',
-            opacity: isComingSoon ? 0.35 : 0.78,
-            filter:'saturate(0.9) contrast(1.05)',
+            opacity: isComingSoon ? 0.35 : (isLocked ? 0.42 : 0.78),
+            filter: isLocked ? 'saturate(0.55) contrast(0.95) blur(0.5px)' : 'saturate(0.9) contrast(1.05)',
+          }}/>
+        )}
+        {/* Lock overlay tint — sombra extra dark sobre el cover cuando locked */}
+        {isLocked && (
+          <div style={{
+            position:'absolute', inset:0,
+            background:'linear-gradient(180deg, rgba(5,7,6,0.45) 0%, rgba(5,7,6,0.78) 100%)',
+            pointerEvents:'none',
+            zIndex:1,
           }}/>
         )}
         {/* Vignette */}
@@ -535,7 +563,7 @@ function ExploreContentCard({ item, onClick, variant = 'default' }) {
           {CONTENT_TYPES.find(t => t.id === item.type)?.label || item.type}
         </div>
 
-        {/* Top-right: status pin */}
+        {/* Top-right: status pin (priority: coming-soon > locked > series > play) */}
         {isComingSoon ? (
           <div style={{
             position:'absolute', top:10, right:10, zIndex:3,
@@ -547,6 +575,19 @@ function ExploreContentCard({ item, onClick, variant = 'default' }) {
             color:'#0a1410',
           }}>
             Próximamente
+          </div>
+        ) : isLocked ? (
+          // Phase 5.3.C — candado pin top-right + glow neon sutil
+          <div style={{
+            position:'absolute', top:10, right:10, zIndex:3,
+            width:30, height:30, borderRadius:999,
+            background:'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.08))',
+            border:'0.5px solid rgba(61,255,209,0.42)',
+            boxShadow:'0 0 14px rgba(61,255,209,0.30), inset 0 1px 0 rgba(61,255,209,0.30)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--neon)',
+          }}>
+            <IcLock size={13} stroke="currentColor" strokeWidth={2.2}/>
           </div>
         ) : isSeries ? (
           <div style={{
@@ -774,8 +815,14 @@ function TopTenRow({ category, items, onItemClick, onViewAll }) {
 
 
 // ── ContentRow — fila scroll-x con header + cards ────────────────────────────
+// Phase 5.3.C — Premium gate: si user free, primer item de cada row queda
+// FREE preview (i === 0), resto LOCKED. Esto da ~10-15% del catálogo
+// accesible para preview, el resto requiere premium. El user free puede
+// "probar el sabor" pero ve claramente que hay mucho más detrás del paywall.
 function ContentRow({ category, items, onItemClick, onViewAll }) {
   if (!items.length) return null;
+  const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+    ? window.__mtxIsPremium() : true;
   return (
     <div style={{ marginBottom:24 }}>
       <MtxSectionHead
@@ -785,8 +832,13 @@ function ContentRow({ category, items, onItemClick, onViewAll }) {
         onAction={() => onViewAll(category)}
       />
       <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-        {items.map(it => (
-          <ExploreContentCard key={it.id} item={it} onClick={onItemClick}/>
+        {items.map((it, i) => (
+          <ExploreContentCard
+            key={it.id}
+            item={it}
+            onClick={onItemClick}
+            locked={!isPremium && i > 0}
+          />
         ))}
       </div>
     </div>
@@ -1316,9 +1368,21 @@ function CategoryFullView({ category, sourceItems, onBack, onItemClick }) {
           display:'grid', gridTemplateColumns:'1fr 1fr',
           gap:10, padding:'0 20px',
         }}>
-          {finalItems.map(item => (
-            <ExploreContentCard key={item.id} item={item} onClick={onItemClick} variant="grid"/>
-          ))}
+          {(() => {
+            // Phase 5.3.C — Premium gate. En grid de categoría completa,
+            // primera FILA (2 items) free, resto locked. ~10-15% accesible.
+            const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+              ? window.__mtxIsPremium() : true;
+            return finalItems.map((item, i) => (
+              <ExploreContentCard
+                key={item.id}
+                item={item}
+                onClick={onItemClick}
+                variant="grid"
+                locked={!isPremium && i >= 2}
+              />
+            ));
+          })()}
         </div>
       )}
 
