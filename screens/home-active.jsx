@@ -1,5 +1,26 @@
 // home-active.jsx — Sesión de enfoque activa (v5)
 
+// ── Session Whisper — bubble del coach IA al inicio de sesión ──────────────
+// Mensajes contextuales según coachVoice + cantidad de complementos activos.
+// Anti-spam: sessionStorage → aparece una sola vez por sesión (se resetea
+// al recargar o iniciar nueva sesión desde HomeInactive).
+const _ACTIVE_WHISPER_MAP = {
+  warm:          (n, c) => ({ msg: `${n ? n + ', tu' : 'Tu'} sesión acaba de empezar.${c > 0 ? ` Tienes ${c} ${c === 1 ? 'complemento' : 'complementos'} en tu ritual de hoy.` : ''} ¿Te ayudo a organizarlos para aprovechar bien el tiempo?`, cta: 'Ayúdame a organizarlos' }),
+  energetic:     (n, c) => ({ msg: `¡Sesión activa${n ? ', ' + n : ''}! ${c > 0 ? `${c} ${c === 1 ? 'complemento' : 'complementos'} esperan.` : ''} ¿Coordinamos para no dejar nada fuera?`, cta: 'Coordinar mi ritual' }),
+  contemplative: (n, c) => ({ msg: `Tu sesión ya empezó${n ? ', ' + n : ''}. ${c > 0 ? `Tienes ${c} ${c === 1 ? 'complemento' : 'complementos'} para distribuir.` : ''} ¿Los organizamos con intención?`, cta: 'Distribuir con intención' }),
+  wise:          (n, c) => ({ msg: `Cada minuto aquí es una elección${n ? ', ' + n : ''}. ${c > 0 ? `${c} ${c === 1 ? 'complemento' : 'complementos'} en tu ritual.` : ''} ¿Te ayudo a agendar un espacio para cada uno?`, cta: 'Agendar mis complementos' }),
+};
+function _coachActiveWhisperMessage(coachVoice, firstName, ritualCount) {
+  const fn = _ACTIVE_WHISPER_MAP[coachVoice] || _ACTIVE_WHISPER_MAP.warm;
+  return fn(firstName || '', ritualCount || 0);
+}
+function _shouldShowActiveWhisper() {
+  try { return !sessionStorage.getItem('__mtx_active_whisper_shown'); } catch (_) { return false; }
+}
+function _markActiveWhisperShown() {
+  try { sessionStorage.setItem('__mtx_active_whisper_shown', '1'); } catch (_) {}
+}
+
 // Cada activity declara cómo se reproduce:
 //   - exploreId  : abre VideoSheet → VideoPlayerFullscreen del global player.
 //   - runnerType : 'timer' → abre ActivityRunner (Fase C, sin contenido,
@@ -1135,6 +1156,40 @@ function HomeActive({
   const [elapsedSec, setElapsedSec] = React.useState(13 * 60);
   const ritualExtras = (window.useRitualItems ? window.useRitualItems() : []);
 
+  // ── Session Whisper ───────────────────────────────────────────────────────
+  const onboardingAnswers = React.useMemo(
+    () => (window.__mtxOnboarding ? window.__mtxOnboarding.get().answers : null),
+    []
+  );
+  const [sessionWhisperOpen, setSessionWhisperOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) return;
+    if (!_shouldShowActiveWhisper()) return;
+    const t = setTimeout(() => setSessionWhisperOpen(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+  const dismissSessionWhisper = React.useCallback(() => {
+    setSessionWhisperOpen(false);
+    _markActiveWhisperShown();
+  }, []);
+  const openSessionWhisperChat = React.useCallback(() => {
+    setSessionWhisperOpen(false);
+    _markActiveWhisperShown();
+    const ritualTotal = visibleActivities.length + ritualExtras.length;
+    const ans = onboardingAnswers || {};
+    onOpenSessionChat({
+      blockedAppsCount: blockedApps.length,
+      plannedMinutes: totalMin,
+      elapsedMinutes: 0,
+      minutesLeft: totalMin,
+      ritualTotal,
+      ritualDone: 0,
+      remindersPending: (window.__mtxIAAgenda ? window.__mtxIAAgenda.get().reminders.filter(r => !r.completed).length : 0),
+      fromWhisper: true,
+      mode: 'session-start',
+    });
+  }, [visibleActivities, ritualExtras, onboardingAnswers, blockedApps, totalMin, onOpenSessionChat]);
+
   // AddContentScreen del ritual del día — se monta a fullscreen overlay
   // cuando el usuario tap el CTA "Agregar al ritual de hoy" debajo de la
   // lista. Reutiliza el mismo AddContentScreen del Explorar via una
@@ -1180,7 +1235,7 @@ function HomeActive({
     <div style={{ paddingTop:60, paddingBottom:160, animation:'mtx-fade-up .4s ease both' }}>
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div style={{ padding:'8px 20px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+      <div style={{ padding:'8px 20px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', position:'relative' }}>
         <div style={{ flex:1 }}>
           <div className="mtx-eyebrow" style={{ marginBottom:6, color:'var(--neon)', display:'flex', alignItems:'center', gap:6 }}>
             <span style={{
@@ -1263,6 +1318,27 @@ function HomeActive({
               }}>{notifCount > 9 ? '9+' : notifCount}</span>
             )}
           </button>
+
+          {/* Session Whisper Bubble — sale del botón ✦ al iniciar la sesión.
+              Invita al usuario a que el coach organice sus complementos del
+              ritual. Aparece una sola vez por sesión (sessionStorage anti-spam).
+              Reutiliza CoachWhisperBubble de home-inactive con msg/cta propios. */}
+          {sessionWhisperOpen && typeof window.CoachWhisperBubble !== 'undefined' && (() => {
+            const ans = onboardingAnswers || {};
+            const ritualCount = visibleActivities.length + ritualExtras.length;
+            const firstName = (ans.name || '').trim().split(' ')[0] || '';
+            const { msg, cta } = _coachActiveWhisperMessage(ans.coachVoice, firstName, ritualCount);
+            return (
+              <window.CoachWhisperBubble
+                coachVoice={ans.coachVoice}
+                firstName={firstName}
+                msg={msg}
+                cta={cta}
+                onOpen={openSessionWhisperChat}
+                onDismiss={dismissSessionWhisper}
+              />
+            );
+          })()}
         </div>
       </div>
 

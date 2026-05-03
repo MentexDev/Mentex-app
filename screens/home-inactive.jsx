@@ -195,8 +195,10 @@ function _markCoachWhisperShown() {
 // Diseño tranquilo, no spam: glass más translucent, border neutro (no neon
 // agresivo), CTA inline tipográfico (no fill button shouty). Animación
 // fade pura larga (slide-up suave, no abrupto). Auto-dismiss a 14s.
-function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss }) {
-  const { msg, cta } = _coachWhisperMessage(coachVoice, firstName);
+function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msgProp, cta: ctaProp }) {
+  const { msg: _msg, cta: _cta } = _coachWhisperMessage(coachVoice, firstName);
+  const msg = msgProp || _msg;
+  const cta = ctaProp || _cta;
 
   React.useEffect(() => {
     const t = setTimeout(() => onDismiss(), 14000);
@@ -1204,4 +1206,4 @@ function HomeInactive({
   );
 }
 
-Object.assign(window, { HomeInactive, DEFAULT_ROUTINES, ROUTINES, RoutineIc, BannerCarousel, _HERO_BANNERS });
+Object.assign(window, { HomeInactive, DEFAULT_ROUTINES, ROUTINES, RoutineIc, BannerCarousel, _HERO_BANNERS, CoachWhisperBubble });
