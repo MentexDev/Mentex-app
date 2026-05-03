@@ -178,7 +178,7 @@ const CATEGORIES_BY_TYPE = {
 // ── Mock content (variety, including coming-soon) ─────────────────────────────
 const EXPLORE_CONTENT = [
   // Audiolibros
-  { id: 'c-habitos',     title: 'Hábitos Atómicos',          author: 'James Clear',       type: 'audiobook', dur: '4h 32m', accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=600&q=80', plays: '124k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Mentex AI', desc: 'Cómo cambios pequeños y consistentes producen resultados extraordinarios.', playPct: 0.38 },
+  { id: 'c-habitos',     title: 'Hábitos Atómicos',          author: 'James Clear',       type: 'audiobook', dur: '4h 32m', accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=600&q=80', plays: '124k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Mentex AI', desc: 'Cómo cambios pequeños y consistentes producen resultados extraordinarios.', playPct: 0.38, premium: false },
   { id: 'c-sapiens',     title: 'Sapiens',                    author: 'Yuval Harari',      type: 'audiobook', dur: '6h 12m', accent: '#6ab8ff', bg: 'linear-gradient(135deg,#1f2a3a,#0f1520)', cover: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=80', plays: '156k', rating: 4.7, status: 'available', tags: ['Historia'],         category: 'aprendizaje', narrator: 'Voz · Mentex AI', desc: 'La historia de cómo una especie irrelevante terminó dominando el planeta.', playPct: 0.62 },
   { id: 'c-deepwork',    title: 'Deep Work',                  author: 'Cal Newport',       type: 'audiobook', dur: '5h 18m', accent: '#c8a8ff', bg: 'linear-gradient(135deg,#2a1a3a,#1a0f25)', cover: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=80', plays: '178k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Daniel',     desc: 'La capacidad de hacer trabajo profundo es la habilidad más rara y valiosa.', playPct: 0.15 },
   { id: 'c-poder-ahora', title: 'El poder del ahora',         author: 'Eckhart Tolle',     type: 'audiobook', dur: '5h 40m', accent: '#7dffe0', bg: 'linear-gradient(135deg,#1a2540,#0f1a2a)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '98k',  rating: 4.8, status: 'available', tags: ['Mindfulness'],   category: 'mindfulness', narrator: 'Voz · Lucía',      desc: 'Tu vida solo ocurre ahora. Aprender a habitar este instante lo cambia todo.' },
@@ -186,7 +186,7 @@ const EXPLORE_CONTENT = [
 
   // Meditaciones
   { id: 'c-respira',     title: 'Respira y vuelve a ti',     author: 'Mentex',            type: 'meditation', dur: '12 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1545389336-cf090694435e?w=600&q=80', plays: '89k',  rating: 4.8, status: 'available', tags: ['Mindfulness'], category: 'mindfulness', narrator: 'Voz · Lucía', desc: 'Doce minutos para reconectar con tu cuerpo y devolverle silencio a tu mente.' },
-  { id: 'c-dormir',      title: 'Meditación para dormir',    author: 'Mentex',            type: 'meditation', dur: '20 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1511295742362-92c96b1cf484?w=600&q=80', plays: '324k', rating: 4.9, status: 'available', tags: ['Sueño'],       category: 'sueno',       narrator: 'Voz · Lucía', desc: 'Sumérgete en un sueño reparador. Libera el estrés del día.' },
+  { id: 'c-dormir',      title: 'Meditación para dormir',    author: 'Mentex',            type: 'meditation', dur: '20 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1511295742362-92c96b1cf484?w=600&q=80', plays: '324k', rating: 4.9, status: 'available', tags: ['Sueño'],       category: 'sueno',       narrator: 'Voz · Lucía', desc: 'Sumérgete en un sueño reparador. Libera el estrés del día.', premium: false },
   { id: 'c-gratitud',    title: 'Meditación de gratitud',    author: 'Mentex',            type: 'meditation', dur: '8 min',  accent: '#FFD66B', bg: 'linear-gradient(135deg,#2a2515,#1a1610)', cover: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80', plays: '67k',  rating: 4.7, status: 'available', tags: ['Gratitud'],    category: 'bienestar',   narrator: 'Voz · Daniel', desc: 'Reentrena tu mente para notar lo bueno que ya está en tu vida.' },
 
   // Series
@@ -194,7 +194,7 @@ const EXPLORE_CONTENT = [
   { id: 'c-foco',        title: 'La mente del enfoque',      author: 'Mentex Originals',  type: 'series',     dur: '4 eps',  accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '78k',  rating: 4.8, status: 'available', tags: ['Foco'],          category: 'enfoque',     narrator: 'Voz · Daniel',  desc: 'Entiende y entrena los mecanismos de la atención profunda.', episodeCount: 4 },
 
   // Charlas
-  { id: 'c-jobs',        title: 'Steve Jobs · Stanford 2005', author: 'Charla legendaria', type: 'talk',       dur: '15 min', accent: '#ffd47a', bg: 'linear-gradient(135deg,#2a2a2a,#151515)', cover: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80', plays: '892k', rating: 5.0, status: 'available', tags: ['Inspiración'], category: 'inspiracion',     narrator: 'Voz original',     desc: 'Tres historias sobre conectar puntos, amor y muerte.' },
+  { id: 'c-jobs',        title: 'Steve Jobs · Stanford 2005', author: 'Charla legendaria', type: 'talk',       dur: '15 min', accent: '#ffd47a', bg: 'linear-gradient(135deg,#2a2a2a,#151515)', cover: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80', plays: '892k', rating: 5.0, status: 'available', tags: ['Inspiración'], category: 'inspiracion',     narrator: 'Voz original',     desc: 'Tres historias sobre conectar puntos, amor y muerte.', premium: false },
   { id: 'c-rams',        title: 'Dieter Rams · Menos pero mejor', author: 'Diseño industrial', type: 'talk',  dur: '24 min', accent: '#e8e8e8', bg: 'linear-gradient(135deg,#1a1a1a,#0f0f0f)', cover: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=600&q=80', plays: '67k',  rating: 4.9, status: 'available', tags: ['Diseño'],      category: 'diseno',      narrator: 'Voz · Mentex AI', desc: 'Los 10 principios que redefinieron la disciplina del diseño.' },
   { id: 'c-watts',       title: 'Alan Watts · El silencio',  author: 'Filosofía oriental',type: 'talk',       dur: '18 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=600&q=80', plays: '142k', rating: 4.9, status: 'available', tags: ['Filosofía'],   category: 'filosofia',   narrator: 'Voz original',     desc: 'Descubre el silencio que está debajo del ruido del pensamiento.' },
 
@@ -474,10 +474,9 @@ function ExploreHeroCard({ item, onClick, locked = false }) {
 
 
 // ── ExploreHero — carrusel cinematográfico de destacados ──────────────────────
-// Phase 5.3.C — Premium gate: si free, primeros 2 hero cards libres como
-// preview, resto lockeados. Da más espacio que ContentRow porque los hero
-// son el "showcase" — el user free debe poder explorar al menos 1-2 sin ver
-// solo bloqueos.
+// Phase 5.3.C — Premium gate: data-driven — cada item lleva premium:false si
+// es libre, el resto requieren plan activo. Solo items con premium===false
+// se muestran desbloqueados a usuarios free.
 function ExploreHero({ items, onItemClick }) {
   if (!items.length) return null;
   const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
@@ -500,12 +499,12 @@ function ExploreHero({ items, onItemClick }) {
         scrollPaddingLeft:20,
         WebkitOverflowScrolling:'touch',
       }}>
-        {items.map((it, i) => (
+        {items.map((it) => (
           <ExploreHeroCard
             key={it.id}
             item={it}
             onClick={onItemClick}
-            locked={!isPremium && i >= 2}
+            locked={it.premium !== false && !isPremium}
           />
         ))}
       </div>
@@ -879,7 +878,7 @@ function TopTenCard({ item, rank, onClick, locked = false }) {
 // ── TopTenRow — fila scroll-x del Top 10 con cards Netflix-style ─────────────
 function TopTenRow({ category, items, onItemClick, onViewAll }) {
   if (!items.length) return null;
-  // Phase 5.3.C — Top 3 free como teaser, top 4-10 lockeados.
+  // Phase 5.3.C — data-driven: locked si item.premium !== false y user free.
   const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
     ? window.__mtxIsPremium() : true;
   return (
@@ -897,7 +896,7 @@ function TopTenRow({ category, items, onItemClick, onViewAll }) {
             item={it}
             rank={i + 1}
             onClick={onItemClick}
-            locked={!isPremium && i >= 3}
+            locked={it.premium !== false && !isPremium}
           />
         ))}
       </div>
@@ -907,10 +906,9 @@ function TopTenRow({ category, items, onItemClick, onViewAll }) {
 
 
 // ── ContentRow — fila scroll-x con header + cards ────────────────────────────
-// Phase 5.3.C — Premium gate: si user free, primer item de cada row queda
-// FREE preview (i === 0), resto LOCKED. Esto da ~10-15% del catálogo
-// accesible para preview, el resto requiere premium. El user free puede
-// "probar el sabor" pero ve claramente que hay mucho más detrás del paywall.
+// Phase 5.3.C — Premium gate data-driven: locked si item.premium !== false
+// y user free. Los ítems con premium:false son siempre accesibles,
+// independientemente de en qué row aparezcan o en qué posición.
 function ContentRow({ category, items, onItemClick, onViewAll }) {
   if (!items.length) return null;
   const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
@@ -924,12 +922,12 @@ function ContentRow({ category, items, onItemClick, onViewAll }) {
         onAction={() => onViewAll(category)}
       />
       <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-        {items.map((it, i) => (
+        {items.map((it) => (
           <ExploreContentCard
             key={it.id}
             item={it}
             onClick={onItemClick}
-            locked={!isPremium && i > 0}
+            locked={it.premium !== false && !isPremium}
           />
         ))}
       </div>
@@ -1461,17 +1459,16 @@ function CategoryFullView({ category, sourceItems, onBack, onItemClick }) {
           gap:10, padding:'0 20px',
         }}>
           {(() => {
-            // Phase 5.3.C — Premium gate. En grid de categoría completa,
-            // primera FILA (2 items) free, resto locked. ~10-15% accesible.
+            // Phase 5.3.C — data-driven: locked si item.premium !== false y free.
             const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
               ? window.__mtxIsPremium() : true;
-            return finalItems.map((item, i) => (
+            return finalItems.map((item) => (
               <ExploreContentCard
                 key={item.id}
                 item={item}
                 onClick={onItemClick}
                 variant="grid"
-                locked={!isPremium && i >= 2}
+                locked={item.premium !== false && !isPremium}
               />
             ));
           })()}
@@ -7324,6 +7321,7 @@ function DividerBanner({ subtitle = 'Profundiza en los temas que más te mueven.
 // ── CategorySection — fila scroll-x para una categoría con accent propio ─────
 function CategorySection({ category, items, onItemClick, onViewAll }) {
   if (!items.length) return null;
+  const isPremium = typeof window.__mtxIsPremium === 'function' ? window.__mtxIsPremium() : true;
   return (
     <div style={{ marginBottom:24 }}>
       <div style={{ padding:'0 20px', marginBottom:14 }}>
@@ -7362,7 +7360,12 @@ function CategorySection({ category, items, onItemClick, onViewAll }) {
       </div>
       <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
         {items.map(it => (
-          <ExploreContentCard key={it.id} item={it} onClick={onItemClick}/>
+          <ExploreContentCard
+            key={it.id}
+            item={it}
+            onClick={onItemClick}
+            locked={it.premium !== false && !isPremium}
+          />
         ))}
       </div>
     </div>
@@ -7373,12 +7376,23 @@ function CategorySection({ category, items, onItemClick, onViewAll }) {
 // ── SearchResultRow — fila compacta para resultados de búsqueda ──────────────
 function SearchResultRow({ item, onClick }) {
   const accent = item.accent || '#3dffd1';
+  const isPremium = typeof window.__mtxIsPremium === 'function' ? window.__mtxIsPremium() : true;
+  const isLocked = item.premium !== false && !isPremium && item.status !== 'coming-soon';
+
+  const handleTap = () => {
+    if (isLocked) {
+      if (typeof window.__mtxOpenPremiumLock === 'function') window.__mtxOpenPremiumLock('content');
+      return;
+    }
+    onClick(item);
+  };
+
   return (
     <div
-      onClick={() => onClick(item)}
+      onClick={handleTap}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(item); } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTap(); } }}
       className="mtx-tap"
       style={{
         display:'flex', alignItems:'center', gap:12,
@@ -7386,6 +7400,7 @@ function SearchResultRow({ item, onClick }) {
         background:'transparent',
         border:0, borderRadius:0,
         transition:'background .2s',
+        opacity: isLocked ? 0.80 : 1,
       }}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -7394,18 +7409,29 @@ function SearchResultRow({ item, onClick }) {
         width:48, height:48, borderRadius:11, flexShrink:0,
         position:'relative', overflow:'hidden',
         background: item.bg || 'var(--glass-2)',
-        border:`0.5px solid ${accent}28`,
+        border:`0.5px solid ${isLocked ? 'rgba(61,255,209,0.22)' : accent + '28'}`,
       }}>
         {(item.cover || item.thumbnail) && (
           <img src={item.cover || item.thumbnail} alt="" loading="lazy" style={{
-            position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.78,
+            position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover',
+            opacity: isLocked ? 0.35 : 0.78,
+            filter: isLocked ? 'saturate(0.5)' : 'none',
           }}/>
         )}
         <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg, ${accent}22, transparent 60%)` }}/>
+        {isLocked && (
+          <div style={{
+            position:'absolute', inset:0,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--neon)',
+          }}>
+            <IcLock size={16} stroke="currentColor" strokeWidth={2.2}/>
+          </div>
+        )}
       </div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.1em', color:accent, textTransform:'uppercase', marginBottom:2 }}>
-          {item._kind || (CONTENT_TYPES.find(t => t.id === item.type)?.label || 'Item')}
+        <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.1em', color: isLocked ? 'var(--neon)' : accent, textTransform:'uppercase', marginBottom:2 }}>
+          {isLocked ? 'Premium' : (item._kind || (CONTENT_TYPES.find(t => t.id === item.type)?.label || 'Item'))}
         </div>
         <div style={{ fontSize:14, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
           {item.title}
@@ -7414,7 +7440,10 @@ function SearchResultRow({ item, onClick }) {
           {item.author?.name || item.author || ''}{item.dur ? ` · ${item.dur}` : (item.totalDuration ? ` · ${item.totalDuration}` : '')}
         </div>
       </div>
-      <IcChevR size={16} stroke="var(--ink-3)" strokeWidth={1.6}/>
+      {isLocked
+        ? <IcLock size={14} stroke="var(--neon)" strokeWidth={2}/>
+        : <IcChevR size={16} stroke="var(--ink-3)" strokeWidth={1.6}/>
+      }
     </div>
   );
 }
@@ -7930,6 +7959,10 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   const handleItemClick = (item) => {
     if (item.status === 'coming-soon') {
       setComingSoonItem(item);
+    } else if (item.premium !== false && typeof window.__mtxIsPremium === 'function' && !window.__mtxIsPremium()) {
+      // Defense-in-depth: gate premium items regardless of which surface they come from
+      // (search results, library, any card that didn't apply the locked prop)
+      if (typeof window.__mtxOpenPremiumLock === 'function') window.__mtxOpenPremiumLock('content');
     } else {
       setVideoSheetItem(item);
     }
