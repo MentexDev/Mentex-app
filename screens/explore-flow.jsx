@@ -6211,6 +6211,7 @@ function MtxAddMoreCard({
   onClick,
   title = 'Agregar más contenido',
   subtitle = 'Explora y suma items a tu cola',
+  neutral = false,
 }) {
   return (
     <button onClick={onClick} className="mtx-tap" style={{
@@ -6218,30 +6219,42 @@ function MtxAddMoreCard({
       width:'100%', minWidth:0, boxSizing:'border-box',
       marginTop:4, padding:'13px 14px',
       borderRadius:14,
-      border:'1px dashed rgba(61,255,209,0.34)',
-      background:'linear-gradient(165deg, rgba(61,255,209,0.05) 0%, rgba(61,255,209,0.012) 70%)',
-      boxShadow:'inset 0 0 22px rgba(61,255,209,0.05)',
+      border: neutral
+        ? '1px dashed rgba(255,255,255,0.11)'
+        : '1px dashed rgba(61,255,209,0.34)',
+      background: neutral
+        ? 'rgba(255,255,255,0.028)'
+        : 'linear-gradient(165deg, rgba(61,255,209,0.05) 0%, rgba(61,255,209,0.012) 70%)',
+      boxShadow: neutral ? 'none' : 'inset 0 0 22px rgba(61,255,209,0.05)',
       display:'flex', alignItems:'center', gap:11,
       fontFamily:'var(--ff-sans)',
       position:'relative', overflow:'hidden',
       transition:'background .25s, border-color .25s, transform .15s',
     }}>
-      {/* Decorative halo */}
-      <div style={{
-        position:'absolute', top:-22, right:-22,
-        width:78, height:78, borderRadius:'50%',
-        background:'radial-gradient(circle, rgba(61,255,209,0.22) 0%, transparent 65%)',
-        pointerEvents:'none',
-      }}/>
+      {/* Decorative halo — solo en variante neon */}
+      {!neutral && (
+        <div style={{
+          position:'absolute', top:-22, right:-22,
+          width:78, height:78, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(61,255,209,0.22) 0%, transparent 65%)',
+          pointerEvents:'none',
+        }}/>
+      )}
 
       {/* Plus tile */}
       <div style={{
         width:40, height:40, borderRadius:11, flexShrink:0,
-        background:'linear-gradient(135deg, rgba(61,255,209,0.26), rgba(61,255,209,0.06))',
-        border:'0.5px solid rgba(61,255,209,0.45)',
+        background: neutral
+          ? 'rgba(255,255,255,0.08)'
+          : 'linear-gradient(135deg, rgba(61,255,209,0.26), rgba(61,255,209,0.06))',
+        border: neutral
+          ? '0.5px solid rgba(255,255,255,0.18)'
+          : '0.5px solid rgba(61,255,209,0.45)',
         display:'flex', alignItems:'center', justifyContent:'center',
-        color:'var(--neon)',
-        boxShadow:'0 0 16px rgba(61,255,209,0.22), inset 0 1px 0 rgba(255,255,255,0.12)',
+        color: neutral ? 'var(--ink-1)' : 'var(--neon)',
+        boxShadow: neutral
+          ? 'inset 0 1px 0 rgba(255,255,255,0.10)'
+          : '0 0 16px rgba(61,255,209,0.22), inset 0 1px 0 rgba(255,255,255,0.12)',
         position:'relative', zIndex:1,
       }}>
         <IcPlus size={16} stroke="currentColor" strokeWidth={2.4}/>
@@ -6249,7 +6262,8 @@ function MtxAddMoreCard({
 
       <div style={{ flex:1, minWidth:0, position:'relative', zIndex:1 }}>
         <div style={{
-          fontSize:13, fontWeight:700, color:'var(--neon)',
+          fontSize:13, fontWeight:600,
+          color: neutral ? 'var(--ink-2)' : 'var(--neon)',
           letterSpacing:'-0.01em', lineHeight:1.2, marginBottom:2,
         }}>
           {title}

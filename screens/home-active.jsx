@@ -283,6 +283,18 @@ function NowPlayingScreen({ activity, onClose }) {
   );
 }
 
+// ── ActivityRow helpers ───────────────────────────────────────────────────────
+function _formatScheduledTime(time) {
+  if (!time) return null;
+  var parts = time.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var period = h >= 12 ? 'pm' : 'am';
+  var h12 = h % 12 || 12;
+  var mStr = m < 10 ? '0' + m : '' + m;
+  return 'Hoy a las ' + h12 + ':' + mStr + ' ' + period;
+}
+
 // ── ActivityRow ───────────────────────────────────────────────────────────────
 // Tap en cualquier activity NO completada abre el reproductor:
 //   - Si la activity está en reproducción ("ahora") → atajo directo al
@@ -295,6 +307,10 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
     e.stopPropagation();
     onRemove();
   } : null;
+
+  // Hora asignada por el agente IA — null si no hay hora programada
+  const _useScheduledTime = (typeof window !== 'undefined' && window.useScheduledTime) || (() => null);
+  const scheduledTime = _useScheduledTime(a.id);
 
   // Progreso parcial del runner — la bola del play en el botón derecho
   // se va llenando con accent según completionPct. Si el user salió del
@@ -320,6 +336,10 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
   // tap reabre el runner para que el usuario pueda corregir errores.
   const isClickable = true;
   const handleActivate = () => {
+    // Si había notificación programada, cancelarla — el usuario inicia ahora.
+    if (scheduledTime && typeof window !== 'undefined' && window.__mtxScheduler) {
+      window.__mtxScheduler.cancel(a.id);
+    }
     if (a.playing && typeof window !== 'undefined') {
       // Atajo: si está en reproducción, salta directo al fullscreen.
       const item = window._resolveActivityToExploreItem
@@ -399,7 +419,15 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
                       whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
           {a.title}
         </div>
-        <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>{a.dur}</div>
+        <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
+          <span>{a.dur}</span>
+          {scheduledTime && <span style={{ opacity:0.35 }}>·</span>}
+          {scheduledTime && (
+            <span style={{ fontVariantNumeric:'tabular-nums' }}>
+              {_formatScheduledTime(scheduledTime)}
+            </span>
+          )}
+        </div>
       </div>
 
       {a.playing ? (
@@ -1166,6 +1194,13 @@ function HomeActive({
   const [elapsedSec, setElapsedSec] = React.useState(13 * 60);
   const ritualExtras = (window.useRitualItems ? window.useRitualItems() : []);
 
+  // Expone los ítems de sesión activa para que el chip "Organizar mi horario"
+  // del chat IA pueda leerlos y asignarles horas vía __mtxScheduler.
+  // Sin cleanup: persiste aunque el user navegue al tab IA durante la sesión.
+  React.useEffect(() => {
+    window.__mtxSessionItems = { rituals: visibleActivities, content: ritualExtras };
+  }, [visibleActivities, ritualExtras]);
+
   // ── Session Whisper ───────────────────────────────────────────────────────
   const onboardingAnswers = React.useMemo(
     () => (window.__mtxOnboarding ? window.__mtxOnboarding.get().answers : null),
@@ -1488,20 +1523,23 @@ function HomeActive({
             const total = visibleActivities.length;
             return total === 0 ? 'Sin rutinas — agrega las que quieres practicar' : `${done} de ${total} completadas`;
           })()}
-          actionIcon={<IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>}
-          actionRadius={9}
-          actionLabel="Configurar rutinas del ritual"
-          onAction={onEditRoutines}
+          {...(visibleActivities.length > 0 ? {
+            actionIcon: <IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>,
+            actionRadius: 9,
+            actionLabel: 'Configurar rutinas del ritual',
+            onAction: onEditRoutines,
+          } : {})}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {visibleActivities.map(a => (
             <ActivityRow key={a.id} a={a} onOpenPlayer={onOpenPlayer}/>
           ))}
-          {window.MtxAddMoreCard && (
+          {window.MtxAddMoreCard && visibleActivities.length === 0 && (
             <window.MtxAddMoreCard
               onClick={onEditRoutines}
               title="Configurar rutinas del ritual"
               subtitle="Meditación, respiración, movimiento y más"
+              neutral
             />
           )}
         </div>
@@ -1518,10 +1556,12 @@ function HomeActive({
           eyebrow={ritualExtras.length === 0
             ? 'Agrega contenido de Explorar para esta sesión'
             : `${ritualExtras.length} ${ritualExtras.length === 1 ? 'contenido' : 'contenidos'} · en sesión`}
-          actionIcon={<IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>}
-          actionRadius={9}
-          actionLabel="Agregar contenido al día"
-          onAction={() => setAddToRitualOpen(true)}
+          {...(ritualExtras.length > 0 ? {
+            actionIcon: <IcPlus size={13} stroke="currentColor" strokeWidth={2.4}/>,
+            actionRadius: 9,
+            actionLabel: 'Agregar contenido al día',
+            onAction: () => setAddToRitualOpen(true),
+          } : {})}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {ritualExtras.map(extra => (
@@ -1532,11 +1572,12 @@ function HomeActive({
               onRemove={() => window.__mtxRitual?.remove(extra.id)}
             />
           ))}
-          {window.MtxAddMoreCard && (
+          {window.MtxAddMoreCard && ritualExtras.length === 0 && (
             <window.MtxAddMoreCard
               onClick={() => setAddToRitualOpen(true)}
               title="Agregar contenido al día"
               subtitle="Audiolibros, charlas y meditaciones de Explorar"
+              neutral
             />
           )}
         </div>

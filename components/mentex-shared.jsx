@@ -135,56 +135,47 @@ const Sparkline = ({ data = [3, 5, 4, 6, 5, 7, 8], color = '#fff', width = 44, h
 
 // Section header used across blocks
 const MtxSectionHead = ({ title, action, eyebrow, subtitle, onAction, actionIcon, actionLabel, actionRadius = 999 }) =>
-<div style={{ padding: '0 20px', marginBottom: 14 }}>
-    <div style={{
-    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-    gap: 12
-  }}>
-      <h2 className="mtx-h-2" style={{
+<div style={{ padding: '0 20px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+  <div style={{ minWidth: 0, flex: 1 }}>
+    <h2 className="mtx-h-2" style={{
       margin: 0, color: 'var(--ink-1)',
       fontWeight: 700, letterSpacing: '-0.025em',
       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      flexShrink: 1, minWidth: 0
     }}>{title}</h2>
-      {actionIcon
-        ? <button onClick={onAction} className="mtx-tap"
-            aria-label={actionLabel || 'Acción'}
-            style={{
-              background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)',
-              padding: 0, cursor: 'pointer', color: 'var(--ink-1)',
-              width: 30, height: 30, borderRadius: actionRadius,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, alignSelf: 'center',
-              // Margins negativos: el button (30px) NO debe extender la
-              // altura del row del header (h2 es ~22px). Sin esto, el row
-              // crece a 30px y el subtitle queda 8px más separado del
-              // título cuando hay actionIcon vs cuando no — inconsistente.
-              marginTop: -4, marginBottom: -4,
-              transition: 'background .2s, border-color .2s',
-            }}>
-            {actionIcon}
-          </button>
-        : action &&
-          <button onClick={onAction} className="mtx-tap" style={{
-            background: 'transparent', border: 0, padding: 0, cursor: 'pointer',
-            color: 'var(--neon)', fontSize: 13, fontWeight: 500,
-            display: 'flex', alignItems: 'center', gap: 4,
-            flexShrink: 0, whiteSpace: 'nowrap',
-            fontFamily: 'var(--ff-sans)'
-          }}>
-            {action} <IcChevR size={14} stroke="currentColor" />
-          </button>
-      }
-    </div>
     {(subtitle || eyebrow) &&
-  <div style={{
-    marginTop: 3, fontSize: 13, fontWeight: 400,
-    color: 'var(--ink-3)', letterSpacing: '-0.005em',
-    fontFamily: 'var(--ff-sans)',
-    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-  }}>{subtitle || eyebrow}</div>
+      <div style={{
+        marginTop: 3, fontSize: 13, fontWeight: 400,
+        color: 'var(--ink-3)', letterSpacing: '-0.005em',
+        fontFamily: 'var(--ff-sans)',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+      }}>{subtitle || eyebrow}</div>
+    }
+  </div>
+  {actionIcon
+    ? <button onClick={onAction} className="mtx-tap"
+        aria-label={actionLabel || 'Acción'}
+        style={{
+          background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)',
+          padding: 0, cursor: 'pointer', color: 'var(--ink-1)',
+          width: 30, height: 30, borderRadius: actionRadius,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, marginTop: -2,
+          transition: 'background .2s, border-color .2s',
+        }}>
+        {actionIcon}
+      </button>
+    : action &&
+      <button onClick={onAction} className="mtx-tap" style={{
+        background: 'transparent', border: 0, padding: 0, cursor: 'pointer',
+        color: 'var(--neon)', fontSize: 13, fontWeight: 500,
+        display: 'flex', alignItems: 'center', gap: 4,
+        flexShrink: 0, whiteSpace: 'nowrap',
+        fontFamily: 'var(--ff-sans)'
+      }}>
+        {action} <IcChevR size={14} stroke="currentColor" />
+      </button>
   }
-  </div>;
+</div>;
 
 
 // ── MtxScoreHero — hero card de Puntuación Mentex semanal ──────────────────────

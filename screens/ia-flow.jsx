@@ -1457,10 +1457,10 @@ function IAScreen(props) {
               'Sugerir rutina',
             ]
           : [
+              'Organizar mi horario',
               'Añadir recordatorio',
               'Sugerir ritual',
               'Recomendar apps',
-              'Extender tiempo',
             ];
         window.__mtxIAChat.addMessage(conv.id, {
           role: 'assistant',
@@ -1501,6 +1501,50 @@ function IAScreen(props) {
         if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('ia-quick');
         return;
       }
+
+      // ── Chip especial: Organizar mi horario ──────────────────────────────
+      // Asigna horas distribuidas a todos los ítems de la sesión activa
+      // directamente vía __mtxScheduler — sin esperar que el user redacte.
+      if (label === 'Organizar mi horario' && window.__mtxScheduler) {
+        var session = window.__mtxSessionItems || { rituals: [], content: [] };
+        var allItems = (session.rituals || []).concat(session.content || []);
+        // Fallback: si no hay ítems de sesión, usar las primeras 3 de ACTIVITIES
+        if (allItems.length === 0 && window.ACTIVITIES && window.ACTIVITIES.length) {
+          allItems = window.ACTIVITIES.slice(0, 3);
+        }
+        if (allItems.length === 0) {
+          setDraft('Organiza el horario de mi ritual y aprendizaje del día');
+          return;
+        }
+        // Distribuir horas desde ahora + 5 min, separadas por ~30 min
+        var now = new Date();
+        var startMin = now.getHours() * 60 + now.getMinutes() + 5;
+        var lines = [];
+        allItems.forEach(function(item, i) {
+          var totalMin = startMin + i * 30;
+          var h = Math.floor(totalMin / 60) % 24;
+          var m = totalMin % 60;
+          var time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+          window.__mtxScheduler.schedule(item.id, time, item.title);
+          lines.push(time + ' — ' + item.title);
+        });
+        // Añade también recordatorios pendientes
+        if (window.__mtxIAAgenda) {
+          var reminders = window.__mtxIAAgenda.get().reminders || [];
+          reminders.forEach(function(r) {
+            if (!r.completed && /^\d{1,2}:\d{2}$/.test(r.time) && !window.__mtxScheduler.getTime(r.id)) {
+              window.__mtxScheduler.schedule(r.id, r.time, r.title);
+            }
+          });
+        }
+        // Muestra la confirmación en el chat vía evento para que el componente
+        // tenga el conv.id correcto
+        window.dispatchEvent(new CustomEvent('mtx:ia-schedule-done', {
+          detail: { lines: lines }
+        }));
+        return;
+      }
+
       var prompt = CHIP_PROMPTS[label] || label;
       setDraft(prompt);
       // Focus textarea para que el user pueda editar
@@ -1510,6 +1554,28 @@ function IAScreen(props) {
     };
     window.addEventListener('mtx:ia-chip-tap', handler);
     return function() { window.removeEventListener('mtx:ia-chip-tap', handler); };
+  }, []);
+
+  // ── Listener: respuesta del agente tras organizar horario ──────────────
+  // El chip-tap handler despacha 'mtx:ia-schedule-done' con las líneas del
+  // horario. Aquí tenemos acceso al conv.id actual para inyectar el mensaje.
+  React.useEffect(function() {
+    var handler = function(e) {
+      var lines = e && e.detail && e.detail.lines;
+      if (!lines || !lines.length) return;
+      var store = window.__mtxIAChat;
+      if (!store) return;
+      var conv = store.getCurrent();
+      if (!conv) return;
+      var schedule = lines.map(function(l) { return '• ' + l; }).join('\n');
+      store.addMessage(conv.id, {
+        role: 'assistant',
+        content: '¡Listo! Organicé tu sesión de hoy:\n\n' + schedule + '\n\nRecibirás una notificación antes de cada momento. Puedes ajustar cualquier hora cuando quieras. 🎯',
+        state: 'done',
+      });
+    };
+    window.addEventListener('mtx:ia-schedule-done', handler);
+    return function() { window.removeEventListener('mtx:ia-schedule-done', handler); };
   }, []);
 
   var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
