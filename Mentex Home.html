@@ -36,7 +36,7 @@
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
   <script type="text/babel" src="screens/premium-gate.jsx?v=2"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=43"></script>
-  <script type="text/babel" src="screens/home-active.jsx?v=40"></script>
+  <script type="text/babel" src="screens/home-active.jsx?v=41"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=8"></script>
   <script type="text/babel" src="screens/challenge-views.jsx?v=3"></script>
@@ -86,6 +86,7 @@
       // HomeActive ni HomeInactive.
       const [editTimeCtx, setEditTimeCtx] = React.useState(null);
       const setModalOpen = (v) => setEditTimeCtx(v ? {} : null); // back-compat helper
+      const [sessionStartedAt, setSessionStartedAt] = React.useState(0);
       // autoRoutineCtx — abre AutoRoutineCreateSheet con el setup actual
       // del HomeInactive (apps + rutinas + tiempo elegido). El user puede
       // editar cada sección via los editores existentes (apps, routines,
@@ -573,6 +574,7 @@
                     onEditRoutines={() => setRoutinesEditorOpen(true)}
                     onEditTime={({ initialMinutes, elapsedMinutes, minMinutes }) =>
                       setEditTimeCtx({ initialMinutes, elapsedMinutes, minMinutes })}
+                    sessionStartedAt={sessionStartedAt}
                     onOpenSessionChat={(ctx) => {
                       // Cambia al tab IA + dispara evento con contexto de
                       // sesión. El timeout 60ms da tiempo a que IAScreen
@@ -874,6 +876,7 @@
                           if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('apps');
                           return;
                         }
+                        setSessionStartedAt(Date.now());
                         setTweak('homeState', 'active');
                       }}>
                 {isPremium

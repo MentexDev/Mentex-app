@@ -1,24 +1,31 @@
 // home-active.jsx — Sesión de enfoque activa (v5)
 
 // ── Session Whisper — bubble del coach IA al inicio de sesión ──────────────
-// Mensajes contextuales según coachVoice + cantidad de complementos activos.
-// Anti-spam: sessionStorage → aparece una sola vez por sesión (se resetea
-// al recargar o iniciar nueva sesión desde HomeInactive).
+// Dos variantes por voz: empty (sin ritual/recordatorios) y with (con contenido).
+// Anti-spam via prop sessionStartedAt: cada click en "Comenzar" genera un nuevo
+// timestamp → el useEffect se dispara, sin depender de sessionStorage.
 const _ACTIVE_WHISPER_MAP = {
-  warm:          (n, c) => ({ msg: `${n ? n + ', tu' : 'Tu'} sesión acaba de empezar.${c > 0 ? ` Tienes ${c} ${c === 1 ? 'complemento' : 'complementos'} en tu ritual de hoy.` : ''} ¿Te ayudo a organizarlos para aprovechar bien el tiempo?`, cta: 'Ayúdame a organizarlos' }),
-  energetic:     (n, c) => ({ msg: `¡Sesión activa${n ? ', ' + n : ''}! ${c > 0 ? `${c} ${c === 1 ? 'complemento' : 'complementos'} esperan.` : ''} ¿Coordinamos para no dejar nada fuera?`, cta: 'Coordinar mi ritual' }),
-  contemplative: (n, c) => ({ msg: `Tu sesión ya empezó${n ? ', ' + n : ''}. ${c > 0 ? `Tienes ${c} ${c === 1 ? 'complemento' : 'complementos'} para distribuir.` : ''} ¿Los organizamos con intención?`, cta: 'Distribuir con intención' }),
-  wise:          (n, c) => ({ msg: `Cada minuto aquí es una elección${n ? ', ' + n : ''}. ${c > 0 ? `${c} ${c === 1 ? 'complemento' : 'complementos'} en tu ritual.` : ''} ¿Te ayudo a agendar un espacio para cada uno?`, cta: 'Agendar mis complementos' }),
+  warm: {
+    empty: (n)    => ({ msg: `${n ? n + ', tu' : 'Tu'} sesión acaba de empezar sin complementos ni recordatorios. ¿Quieres que te ayude a configurar tu ritual del día para sacar el máximo de este tiempo?`, cta: 'Configurar mi ritual' }),
+    with:  (n, c) => ({ msg: `${n ? n + ', tienes' : 'Tienes'} ${c} ${c === 1 ? 'elemento' : 'elementos'} en tu ritual de hoy. ¿Te ayudo a repartirlos durante la sesión para aprovecharlos bien?`, cta: 'Organizar mi ritual' }),
+  },
+  energetic: {
+    empty: (n)    => ({ msg: `¡Sesión activa${n ? ', ' + n : ''}! Sin complementos todavía — ¿sumamos algunos para hacerla épica?`, cta: 'Armar mi ritual' }),
+    with:  (n, c) => ({ msg: `¡${c} ${c === 1 ? 'elemento' : 'elementos'} en tu ritual${n ? ', ' + n : ''}! ¿Coordinamos cómo distribuirlos para que no quede nada fuera?`, cta: 'Coordinar mi ritual' }),
+  },
+  contemplative: {
+    empty: (n)    => ({ msg: `Tu sesión ya empezó${n ? ', ' + n : ''}. Sin complementos todavía — ¿agendamos algunos para darle más profundidad a este tiempo?`, cta: 'Configurar con intención' }),
+    with:  (n, c) => ({ msg: `Tienes ${c} ${c === 1 ? 'elemento' : 'elementos'} esperando${n ? ', ' + n : ''}. ¿Los distribuimos con intención a lo largo de la sesión?`, cta: 'Distribuir con intención' }),
+  },
+  wise: {
+    empty: (n)    => ({ msg: `Cada minuto tiene potencial${n ? ', ' + n : ''}. Aún no tienes complementos — ¿agendamos algunos para este tiempo?`, cta: 'Agendar mi ritual' }),
+    with:  (n, c) => ({ msg: `${c} ${c === 1 ? 'elemento' : 'elementos'} en tu ritual${n ? ', ' + n : ''}. ¿Te ayudo a agendar un espacio para cada uno durante la sesión?`, cta: 'Agendar mis elementos' }),
+  },
 };
-function _coachActiveWhisperMessage(coachVoice, firstName, ritualCount) {
-  const fn = _ACTIVE_WHISPER_MAP[coachVoice] || _ACTIVE_WHISPER_MAP.warm;
-  return fn(firstName || '', ritualCount || 0);
-}
-function _shouldShowActiveWhisper() {
-  try { return !sessionStorage.getItem('__mtx_active_whisper_shown'); } catch (_) { return false; }
-}
-function _markActiveWhisperShown() {
-  try { sessionStorage.setItem('__mtx_active_whisper_shown', '1'); } catch (_) {}
+function _coachActiveWhisperMessage(coachVoice, firstName, ritualCount, remindersPending) {
+  const voice = _ACTIVE_WHISPER_MAP[coachVoice] || _ACTIVE_WHISPER_MAP.warm;
+  const total = (ritualCount || 0) + (remindersPending || 0);
+  return total > 0 ? voice.with(firstName || '', total) : voice.empty(firstName || '');
 }
 
 // Cada activity declara cómo se reproduce:
@@ -1133,6 +1140,9 @@ function HomeActive({
   // con contexto (apps, tiempo, ritual). Acceso rápido al coach desde la
   // sesión activa — saluda contextualizado y ofrece quick actions.
   onOpenSessionChat = () => {},
+  // Timestamp del momento en que el usuario presionó "Comenzar jornada".
+  // Cada nuevo valor dispara el whisper bubble — sin depender de sessionStorage.
+  sessionStartedAt = 0,
 }) {
   // Filtrar ACTIVITIES por las rutinas que el usuario activó en HomeInactive
   // (state.routines). Antes se mostraban todas las defaults siempre, ignorando
@@ -1163,18 +1173,17 @@ function HomeActive({
   );
   const [sessionWhisperOpen, setSessionWhisperOpen] = React.useState(false);
   React.useEffect(() => {
+    if (!sessionStartedAt) return;
     if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) return;
-    if (!_shouldShowActiveWhisper()) return;
+    setSessionWhisperOpen(false);
     const t = setTimeout(() => setSessionWhisperOpen(true), 1500);
     return () => clearTimeout(t);
-  }, []);
+  }, [sessionStartedAt]);
   const dismissSessionWhisper = React.useCallback(() => {
     setSessionWhisperOpen(false);
-    _markActiveWhisperShown();
   }, []);
   const openSessionWhisperChat = React.useCallback(() => {
     setSessionWhisperOpen(false);
-    _markActiveWhisperShown();
     const ritualTotal = visibleActivities.length + ritualExtras.length;
     const ans = onboardingAnswers || {};
     onOpenSessionChat({
@@ -1316,14 +1325,14 @@ function HomeActive({
           </button>
 
           {/* Session Whisper Bubble — sale del botón ✦ al iniciar la sesión.
-              Invita al usuario a que el coach organice sus complementos del
-              ritual. Aparece una sola vez por sesión (sessionStorage anti-spam).
-              Reutiliza CoachWhisperBubble de home-inactive con msg/cta propios. */}
+              Dos mensajes: empty (invita a configurar ritual) o with (organizar
+              los que hay). Disparo por sessionStartedAt prop — sin sessionStorage. */}
           {sessionWhisperOpen && typeof window.CoachWhisperBubble !== 'undefined' && (() => {
             const ans = onboardingAnswers || {};
             const ritualCount = visibleActivities.length + ritualExtras.length;
+            const remindersPending = (window.__mtxIAAgenda ? window.__mtxIAAgenda.get().reminders.filter(r => !r.completed).length : 0);
             const firstName = (ans.name || '').trim().split(' ')[0] || '';
-            const { msg, cta } = _coachActiveWhisperMessage(ans.coachVoice, firstName, ritualCount);
+            const { msg, cta } = _coachActiveWhisperMessage(ans.coachVoice, firstName, ritualCount, remindersPending);
             return (
               <window.CoachWhisperBubble
                 coachVoice={ans.coachVoice}
