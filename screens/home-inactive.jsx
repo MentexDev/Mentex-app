@@ -296,12 +296,16 @@ function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss }) {
 }
 
 const TIME_OPTIONS = [
-{ v:15,  label:'15 min' },
-{ v:30,  label:'30 min' },
-{ v:45,  label:'45 min' },
-{ v:60,  label:'1 h'    },
-{ v:120, label:'2 h'    },
-{ v:180, label:'3 h'    }];
+{ v:15,  label:'15 min'  },
+{ v:30,  label:'30 min'  },
+{ v:45,  label:'45 min'  },
+{ v:60,  label:'1 hora'  },
+{ v:120, label:'2 horas' },
+{ v:180, label:'3 horas' },
+{ v:240, label:'4 horas' },
+{ v:360, label:'6 horas' },
+{ v:480, label:'8 horas' },
+{ v:720, label:'12 horas'}];
 
 // ── BANNERS PUBLICITARIOS — 5 slides para el carousel rotatorio ─────────────
 // Cada slide tiene: título, sub, gradient hero, accent, kind (visual style),
@@ -884,7 +888,7 @@ function HomeInactive({
           Eliminé "● Ritual diario" porque con el hero a pantalla completa
           el eyebrow se sentía redundante con el contexto que el banner ya
           establece. */}
-      <div style={{ padding:'22px 20px 14px' }}>
+      <div style={{ padding:'14px 20px 10px' }}>
         <h1 className="mtx-h-1" style={{
           margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
           letterSpacing:'-0.03em', lineHeight:1.1,
@@ -900,11 +904,11 @@ function HomeInactive({
       {/* ── Pills de tiempo (sin título arriba — el subtítulo de arriba ya
           introduce la elección). Primera pill = botón "Personalizar" con
           icono edit; le siguen las opciones predefinidas. */}
-      <div style={{ marginBottom:24 }}>
+      <div style={{ marginBottom:12 }}>
         <div className="mtx-no-scrollbar" style={{
           // padding vertical para que el translateY(-1px) + box-shadow del pill activo
           // no quede recortado por el clipping del overflow-x del scroll horizontal.
-          padding:'4px 20px 12px',
+          padding:'4px 20px 10px',
           display:'flex', gap:9, overflowX:'auto', WebkitOverflowScrolling:'touch',
         }}>
           {/* Personalizar — pill cuadrada al inicio, abre el modal existente */}
@@ -914,7 +918,7 @@ function HomeInactive({
             className="mtx-tap"
             style={{
               flexShrink:0,
-              width:48, height:48, borderRadius:14,
+              width:42, height:42, borderRadius:13,
               border:'0.5px solid var(--glass-stroke)',
               background:'var(--glass-2)',
               backdropFilter:'blur(20px)',
@@ -924,7 +928,7 @@ function HomeInactive({
               transition:'background .2s, color .2s, border-color .2s',
             }}
           >
-            <IcEdit size={16} stroke="currentColor" strokeWidth={1.8}/>
+            <IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>
           </button>
           {TIME_OPTIONS.map(t => {
             const isActive = time === t.v;
@@ -933,17 +937,17 @@ function HomeInactive({
             return (
               <button key={t.v} onClick={() => setTime(isActive ? 0 : t.v)} className={(isActive ? 'mtx-pill-active ' : '') + 'mtx-tap'} style={{
                 flexShrink:0,
-                height:48, padding:'0 22px', borderRadius:14,
+                height:42, padding:'0 18px', borderRadius:13,
                 border: isActive ? '0.5px solid rgba(61,255,209,0.55)' : '0.5px solid var(--glass-stroke)',
                 background: isActive ? 'linear-gradient(180deg,rgba(61,255,209,0.16),rgba(61,255,209,0.06))' : 'var(--glass-2)',
                 backdropFilter:'blur(20px)',
                 color: isActive ? 'var(--neon)' : 'var(--ink-1)',
-                fontSize:14, fontWeight:600, cursor:'pointer',
+                fontSize:13, fontWeight:600, cursor:'pointer',
                 whiteSpace:'nowrap', display:'flex', alignItems:'center', justifyContent:'center',
                 boxShadow: isActive ? '0 0 0 1px rgba(61,255,209,0.18),0 8px 22px -8px rgba(61,255,209,0.55),inset 0 0 22px rgba(61,255,209,0.14)' : 'none',
                 transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
                 transition:'transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .3s,background .25s,border-color .25s',
-                fontFamily:'var(--ff-sans)', minWidth:78,
+                fontFamily:'var(--ff-sans)', minWidth:62,
               }}>
                 {t.label}
               </button>
@@ -1016,7 +1020,7 @@ function HomeInactive({
       </div>
 
       {/* ── 3. Rutinas para hoy (Complementos del ritual) ──────────────── */}
-      <div style={{ marginBottom: canStart ? 24 : 0 }}>
+      <div style={{ marginBottom:24 }}>
         <div style={{ padding:'0 20px 12px', display:'flex', alignItems:'baseline', justifyContent:'space-between' }}>
           <div style={{ flex:1, minWidth:0 }}>
             <h3 style={{
@@ -1099,7 +1103,7 @@ function HomeInactive({
           marginTop:32 iguala el spacing entre secciones que tiene "Mejora
           tu concentración" → "Apps a bloquear" arriba en la página. */}
       {window.HomeRemindersCard && (
-        <div style={{ padding:'32px 0 0' }}>
+        <div>
           <window.HomeRemindersCard/>
         </div>
       )}
@@ -1113,7 +1117,7 @@ function HomeInactive({
           tiempo". Tono ámbar (no rojo): es guía amistosa, no error.
           Tap scrollea al top donde vive el grid de tiempos. */}
       {!hasTime && (blockedApps.length > 0 || routines.length > 0) && (
-        <div style={{ padding: '12px 20px 0' }}>
+        <div style={{ padding: '8px 20px 0' }}>
           <button
             onClick={() => {
               if (typeof window !== 'undefined' && typeof window.scrollMtxBgToTop === 'function') {
