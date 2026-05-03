@@ -1288,11 +1288,7 @@ function HomeActive({
             className="mtx-tap"
             style={{
               position:'relative', width:44, height:44, borderRadius:999,
-              background:'rgba(10,14,12,0.45)',
-              border:'0.5px solid rgba(255,255,255,0.18)',
-              backdropFilter:'blur(20px) saturate(160%)',
-              WebkitBackdropFilter:'blur(20px) saturate(160%)',
-              boxShadow:'inset 0 1px 0 rgba(255,255,255,0.12)',
+              background:'var(--glass-2)', border:'0.5px solid var(--glass-stroke)',
               display:'flex', alignItems:'center', justifyContent:'center',
               color:'var(--neon)', cursor:'pointer', flexShrink:0,
             }}
@@ -1334,6 +1330,8 @@ function HomeActive({
                 firstName={firstName}
                 msg={msg}
                 cta={cta}
+                posTop={62}
+                posRight={32}
                 onOpen={openSessionWhisperChat}
                 onDismiss={dismissSessionWhisper}
               />

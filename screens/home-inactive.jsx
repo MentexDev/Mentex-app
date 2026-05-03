@@ -195,7 +195,7 @@ function _markCoachWhisperShown() {
 // Diseño tranquilo, no spam: glass más translucent, border neutro (no neon
 // agresivo), CTA inline tipográfico (no fill button shouty). Animación
 // fade pura larga (slide-up suave, no abrupto). Auto-dismiss a 14s.
-function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msgProp, cta: ctaProp }) {
+function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msgProp, cta: ctaProp, posTop = 130, posRight = 14 }) {
   const { msg: _msg, cta: _cta } = _coachWhisperMessage(coachVoice, firstName);
   const msg = msgProp || _msg;
   const cta = ctaProp || _cta;
@@ -207,7 +207,7 @@ function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msg
 
   return (
     <div style={{
-      position:'absolute', top:130, right:14,
+      position:'absolute', top:posTop, right:posRight,
       width:268,
       animation:'mtx-whisper-in .55s cubic-bezier(.22,.9,.32,1) both',
       zIndex:6,
@@ -218,7 +218,7 @@ function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msg
       <div style={{
         position:'absolute', top:-5, right:62,
         width:11, height:11,
-        background:'rgba(20,24,22,0.72)',
+        background:'rgba(12,16,14,0.94)',
         backdropFilter:'blur(28px) saturate(180%)',
         WebkitBackdropFilter:'blur(28px) saturate(180%)',
         borderTop:'0.5px solid rgba(255,255,255,0.08)',
@@ -226,10 +226,10 @@ function CoachWhisperBubble({ coachVoice, firstName, onOpen, onDismiss, msg: msg
         transform:'rotate(45deg)',
         zIndex:0,
       }}/>
-      {/* Bubble — translucent glass, border neutro, sin neon outline */}
+      {/* Bubble — solid glass, border neutro, sin neon outline */}
       <div style={{
         position:'relative',
-        background:'rgba(20,24,22,0.72)',
+        background:'rgba(12,16,14,0.94)',
         border:'0.5px solid rgba(255,255,255,0.10)',
         borderRadius:20,
         padding:'14px 16px 12px',
