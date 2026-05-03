@@ -333,23 +333,36 @@ function ContentTypeFilters({ value, onChange, items = EXPLORE_CONTENT }) {
 
 
 // ── ExploreHeroCard — card cinematográfica del carrusel destacados ────────────
-function ExploreHeroCard({ item, onClick }) {
+function ExploreHeroCard({ item, onClick, locked = false }) {
   const isComingSoon = item.status === 'coming-soon';
+  const isLocked = locked && !isComingSoon;
+  const handleTap = () => {
+    if (isLocked) {
+      if (typeof window !== 'undefined' && window.__mtxOpenPremiumLock) {
+        window.__mtxOpenPremiumLock('content');
+      }
+      return;
+    }
+    onClick(item);
+  };
   return (
     <div
-      onClick={() => onClick(item)}
+      onClick={handleTap}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(item); } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTap(); } }}
       className="mtx-glass mtx-tap"
       style={{
         width:300, height:210, flexShrink:0,
         scrollSnapAlign:'start',
         borderRadius:22, overflow:'hidden',
-        border: `0.5px solid ${item.accent}33`,
-        boxShadow: `0 0 0 0.5px ${item.accent}1a, 0 16px 40px -16px ${item.accent}55`,
+        border: `0.5px solid ${isLocked ? 'rgba(61,255,209,0.28)' : item.accent + '33'}`,
+        boxShadow: isLocked
+          ? '0 0 0 0.5px rgba(61,255,209,0.10), 0 16px 40px -16px rgba(0,0,0,0.6)'
+          : `0 0 0 0.5px ${item.accent}1a, 0 16px 40px -16px ${item.accent}55`,
         position:'relative', cursor:'pointer',
         background: item.bg,
+        opacity: isLocked ? 0.85 : 1,
       }}
     >
       {/* Cover image */}
@@ -357,9 +370,32 @@ function ExploreHeroCard({ item, onClick }) {
         <img src={item.cover} alt="" loading="lazy" style={{
           position:'absolute', inset:0,
           width:'100%', height:'100%', objectFit:'cover',
-          opacity: isComingSoon ? 0.35 : 0.55,
-          filter:'saturate(0.95) contrast(1.05)',
+          opacity: isComingSoon ? 0.35 : (isLocked ? 0.30 : 0.55),
+          filter: isLocked ? 'saturate(0.55) contrast(0.95) blur(0.5px)' : 'saturate(0.95) contrast(1.05)',
         }}/>
+      )}
+      {/* Lock overlay tint */}
+      {isLocked && (
+        <div style={{
+          position:'absolute', inset:0,
+          background:'linear-gradient(180deg, rgba(5,7,6,0.50) 0%, rgba(5,7,6,0.78) 100%)',
+          pointerEvents:'none',
+          zIndex:1,
+        }}/>
+      )}
+      {/* Lock pin top-right (priority over play icon when locked) */}
+      {isLocked && (
+        <div style={{
+          position:'absolute', top:14, right:14, zIndex:3,
+          width:34, height:34, borderRadius:999,
+          background:'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.08))',
+          border:'0.5px solid rgba(61,255,209,0.42)',
+          boxShadow:'0 0 14px rgba(61,255,209,0.30), inset 0 1px 0 rgba(61,255,209,0.30)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--neon)',
+        }}>
+          <IcLock size={15} stroke="currentColor" strokeWidth={2.2}/>
+        </div>
       )}
 
       {/* Bottom-up dark gradient + accent tint */}
@@ -438,8 +474,14 @@ function ExploreHeroCard({ item, onClick }) {
 
 
 // ── ExploreHero — carrusel cinematográfico de destacados ──────────────────────
+// Phase 5.3.C — Premium gate: si free, primeros 2 hero cards libres como
+// preview, resto lockeados. Da más espacio que ContentRow porque los hero
+// son el "showcase" — el user free debe poder explorar al menos 1-2 sin ver
+// solo bloqueos.
 function ExploreHero({ items, onItemClick }) {
   if (!items.length) return null;
+  const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+    ? window.__mtxIsPremium() : true;
   return (
     <div style={{ marginBottom:22 }}>
       <div style={{ padding:'0 20px 10px' }}>
@@ -458,8 +500,13 @@ function ExploreHero({ items, onItemClick }) {
         scrollPaddingLeft:20,
         WebkitOverflowScrolling:'touch',
       }}>
-        {items.map(it => (
-          <ExploreHeroCard key={it.id} item={it} onClick={onItemClick}/>
+        {items.map((it, i) => (
+          <ExploreHeroCard
+            key={it.id}
+            item={it}
+            onClick={onItemClick}
+            locked={!isPremium && i >= 2}
+          />
         ))}
       </div>
     </div>
@@ -676,13 +723,22 @@ function ExploreContentCard({ item, onClick, variant = 'default', locked = false
 
 
 // ── TopTenCard — card del top 10 con número Netflix-style mitad in/out ──────
-function TopTenCard({ item, rank, onClick }) {
+function TopTenCard({ item, rank, onClick, locked = false }) {
+  const handleTap = () => {
+    if (locked) {
+      if (typeof window !== 'undefined' && window.__mtxOpenPremiumLock) {
+        window.__mtxOpenPremiumLock('content');
+      }
+      return;
+    }
+    onClick(item);
+  };
   return (
     <div
-      onClick={() => onClick(item)}
+      onClick={handleTap}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(item); } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTap(); } }}
       style={{
         position:'relative', flexShrink:0,
         width:215, paddingLeft:15,
@@ -729,15 +785,42 @@ function TopTenCard({ item, rank, onClick }) {
         borderRadius:18, overflow:'hidden',
         position:'relative',
         background: item.bg,
-        border: `0.5px solid ${item.accent}28`,
-        boxShadow:`0 0 0 0.5px ${item.accent}1a, 0 14px 32px -14px ${item.accent}55`,
+        border: `0.5px solid ${locked ? 'rgba(61,255,209,0.28)' : item.accent + '28'}`,
+        boxShadow: locked
+          ? '0 0 0 0.5px rgba(61,255,209,0.10), 0 14px 32px -14px rgba(0,0,0,0.6)'
+          : `0 0 0 0.5px ${item.accent}1a, 0 14px 32px -14px ${item.accent}55`,
+        opacity: locked ? 0.85 : 1,
       }}>
         {item.cover && (
           <img src={item.cover} alt="" loading="lazy" style={{
             position:'absolute', inset:0,
             width:'100%', height:'100%', objectFit:'cover',
-            opacity:0.82, filter:'saturate(0.95) contrast(1.05)',
+            opacity: locked ? 0.30 : 0.82,
+            filter: locked ? 'saturate(0.55) contrast(0.95) blur(0.5px)' : 'saturate(0.95) contrast(1.05)',
           }}/>
+        )}
+        {/* Lock overlay tint */}
+        {locked && (
+          <div style={{
+            position:'absolute', inset:0,
+            background:'linear-gradient(180deg, rgba(5,7,6,0.50) 0%, rgba(5,7,6,0.78) 100%)',
+            pointerEvents:'none',
+            zIndex:1,
+          }}/>
+        )}
+        {/* Lock pin top-right */}
+        {locked && (
+          <div style={{
+            position:'absolute', top:10, right:10, zIndex:3,
+            width:30, height:30, borderRadius:999,
+            background:'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.08))',
+            border:'0.5px solid rgba(61,255,209,0.42)',
+            boxShadow:'0 0 14px rgba(61,255,209,0.30), inset 0 1px 0 rgba(61,255,209,0.30)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--neon)',
+          }}>
+            <IcLock size={13} stroke="currentColor" strokeWidth={2.2}/>
+          </div>
         )}
         {/* Vignette + accent tint */}
         <div style={{
@@ -796,6 +879,9 @@ function TopTenCard({ item, rank, onClick }) {
 // ── TopTenRow — fila scroll-x del Top 10 con cards Netflix-style ─────────────
 function TopTenRow({ category, items, onItemClick, onViewAll }) {
   if (!items.length) return null;
+  // Phase 5.3.C — Top 3 free como teaser, top 4-10 lockeados.
+  const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+    ? window.__mtxIsPremium() : true;
   return (
     <div style={{ marginBottom:24 }}>
       <MtxSectionHead
@@ -806,7 +892,13 @@ function TopTenRow({ category, items, onItemClick, onViewAll }) {
       />
       <div className="mtx-scroll-x" style={{ paddingLeft:17, paddingRight:20, gap:6 }}>
         {items.map((it, i) => (
-          <TopTenCard key={it.id} item={it} rank={i + 1} onClick={onItemClick}/>
+          <TopTenCard
+            key={it.id}
+            item={it}
+            rank={i + 1}
+            onClick={onItemClick}
+            locked={!isPremium && i >= 3}
+          />
         ))}
       </div>
     </div>
@@ -3678,12 +3770,19 @@ function VideoPlayerFullscreen({
       animation:'mtxNowSlide .4s cubic-bezier(.25,.8,.25,1) both',
       display:'flex', flexDirection:'column',
       willChange:'transform',
+      // Phase 5.3 fix — paddingTop:44 (safe area iOS) baja todo el contenido
+      // por debajo del status bar simulado (z-index:150). Sin esto, el
+      // chevron close del header queda CUBIERTO por la layer "9:41" + notch
+      // y los taps no llegan al botón. El user reportó "ya no funciona el
+      // botón de cerrar" — era esto.
+      paddingTop:44,
+      boxSizing:'border-box',
     }}>
       <style>{`@keyframes mtxNowSlide { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
 
       {/* Drag handle — only the bar captures pointer (buttons stay clickable) */}
       <div
-        style={{ paddingTop:14, paddingBottom:10, display:'flex', justifyContent:'center', cursor:'grab', touchAction:'none' }}
+        style={{ paddingTop:8, paddingBottom:10, display:'flex', justifyContent:'center', cursor:'grab', touchAction:'none' }}
         onPointerDown={onHandleDown}
         onPointerMove={onHandleMove}
         onPointerUp={onHandleUp}

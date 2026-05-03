@@ -649,17 +649,26 @@
   // dupliquen la regla del trial de 7 días.
   var TRIAL_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-  // True si el user tiene plan activo (monthly|annual) y trial dentro de los
-  // 7 días. Backend real reemplazará esta lógica en Phase 9+ con la verdad
-  // del servidor (subscription status).
+  // Reglas de premium (mock — backend real en Phase 9+):
+  //   • Sin onboarding completado → DEFAULT PREMIUM. Garantiza que paths
+  //     de entrada como "App (returning user)", refresh, dev shortcut o
+  //     cualquier flujo que NO pase por paywall NO active gates.
+  //   • Onboarding completado + selectedPlan === 'free' → BLOCKED.
+  //     Único caso que activa gates — el user concientemente eligió no
+  //     pagar después de ver el paywall.
+  //   • selectedPlan ∈ {monthly, annual} con trial dentro de 7 días → PREMIUM.
+  //   • Cualquier otro caso → premium (optimist default).
   if (typeof window !== 'undefined') {
     window.__mtxIsPremium = function() {
       var ob = window.__mtxOnboarding ? window.__mtxOnboarding.get() : null;
-      if (!ob || !ob.completed) return false;
+      if (!ob || !ob.completed) return true; // default premium pre-paywall
       var ans = ob.answers || {};
-      if (ans.selectedPlan !== 'monthly' && ans.selectedPlan !== 'annual') return false;
-      if (!ans.trialStartedAt) return false;
-      return (Date.now() - ans.trialStartedAt) < TRIAL_DAYS_MS;
+      if (ans.selectedPlan === 'free') return false;
+      if (ans.selectedPlan === 'monthly' || ans.selectedPlan === 'annual') {
+        if (!ans.trialStartedAt) return true; // benefit-of-doubt
+        return (Date.now() - ans.trialStartedAt) < TRIAL_DAYS_MS;
+      }
+      return true; // default optimista (caso edge sin selectedPlan)
     };
 
     // Activar trial mock (usado por PremiumLockSheet "Empezar 7 días gratis").
