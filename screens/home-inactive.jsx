@@ -664,10 +664,24 @@ function HomeInactive({
         : [...s.blockedApps, id]
     }));
   };
-  const toggleRoutine = (id) => setState(s => ({
-    ...s, routines: s.routines.includes(id) ? s.routines.filter(x => x !== id) : [...s.routines, id]
-  }));
-  const setTime = (v) => setState(s => ({ ...s, time: v }));
+  // Phase 5.3 — gates en routines (complementos del ritual) y time selection.
+  // Free user puede ver las opciones pero al tap → premium lock.
+  const toggleRoutine = (id) => {
+    if (!isPremium) {
+      if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('content');
+      return;
+    }
+    setState(s => ({
+      ...s, routines: s.routines.includes(id) ? s.routines.filter(x => x !== id) : [...s.routines, id]
+    }));
+  };
+  const setTime = (v) => {
+    // El timer base SÍ está disponible para free users (puede arrancar
+    // sesión sin bloqueo de apps). NO gateamos selección de tiempo.
+    // Pero el CTA "Comenzar jornada" pasará por el flow normal — y como
+    // las apps están en [], la sesión arrancará sin protección real.
+    setState(s => ({ ...s, time: v }));
+  };
 
   const cardStyle = tweaks.cardStyle;
   const glassFor = (extra = {}) => {
@@ -737,9 +751,29 @@ function HomeInactive({
     onOpenCoach(buildCoachCtx({ fromWhisper: true }));
   }, [onOpenCoach, buildCoachCtx]);
 
-  // Banner tap handler (mock — abre toast por ahora)
+  // Banner tap handler.
+  // Phase 5.3 — Cableado de CTAs del header hero:
+  //   • Slide tipo 'plan' (Mentex Premium) → abre el premium lock sheet
+  //     directamente (mismo flow que cualquier feature gateada).
+  //   • Slide tipo 'content' (charla/audiolibro) → si free, premium lock
+  //     con feature='content'. Si premium, abre el contenido (toast por
+  //     ahora — Phase 8 Explorar manejará el routing real).
+  //   • Otros slides → toast genérico (mock).
   const toast = window.useToast ? window.useToast() : { show: () => {} };
   const handleBannerTap = (slide) => {
+    // El slide del plan premium (Probar 7 días gratis) → siempre abre el lock
+    // (incluso premium puede tap para ver el detalle del plan en Settings — pero
+    // Phase 7 manejará eso. Por ahora open-lock siempre).
+    const isPlanSlide = slide && (slide.kind === 'plan' || /premium|plan|gratis|7 días/i.test(slide.title || ''));
+    if (isPlanSlide) {
+      if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('default');
+      return;
+    }
+    // Cualquier slide de contenido (charla, audiolibro, etc.) gateado para free
+    if (!isPremium) {
+      if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('content');
+      return;
+    }
     toast.show({ message: `Abriendo ${slide.title}…`, duration: 1600 });
   };
 

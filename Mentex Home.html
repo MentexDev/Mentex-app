@@ -34,8 +34,8 @@
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
   <script type="text/babel" src="screens/auth-flow.jsx?v=17"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
-  <script type="text/babel" src="screens/premium-gate.jsx?v=1"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=37"></script>
+  <script type="text/babel" src="screens/premium-gate.jsx?v=2"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=38"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=37"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
@@ -149,16 +149,18 @@
       // desde el icon button 📅 del IAHubHeader.
       const [iaAgendaOpen, setIaAgendaOpen] = React.useState(false);
       const [state, setState] = React.useState(() => {
-        // Phase 5.1 — Pre-populate desde __mtxOnboarding.answers si existe.
-        // Si el user eligió IG/TikTok/YouTube en el onboarding, llegan aquí
-        // pre-marcados (toggles ON). Si no completó onboarding, fallback a
-        // empty arrays — comportamiento idéntico al previo.
+        // Phase 5.1 — Pre-populate desde __mtxOnboarding.answers si el user
+        // es PREMIUM. Phase 5.3 — si el user es FREE, los apps llegan
+        // todos OFF (no podemos pre-popularlos porque el bloqueo es premium).
+        // Cuando active trial, puede prender los toggles desde el HomeInactive.
         // Lazy initializer: corre una sola vez al mount del MentexApp.
         const ob = (typeof window !== 'undefined' && window.__mtxOnboarding)
           ? window.__mtxOnboarding.get() : null;
         const ans = (ob && ob.answers) || {};
+        const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+          ? window.__mtxIsPremium() : true;
         return {
-          blockedApps: Array.isArray(ans.blockedApps) ? ans.blockedApps : [],
+          blockedApps: (isPremium && Array.isArray(ans.blockedApps)) ? ans.blockedApps : [],
           routines: [],
           time: 0,
         };
@@ -819,18 +821,34 @@
               un timer si así lo decide; no lo obligamos a curar redes ni rituales. */}
           {tab === 'home' && !isActive && view === 'home' &&
            !selectedChallenge && !selectedLearning && !appsEditorOpen && !routinesEditorOpen &&
-           state.time > 0 && (
-            <button className="mtx-cta-float mtx-tap"
-                    style={{
-                      animation: 'mtx-cta-emerge .45s cubic-bezier(.2,.9,.3,1.2) both, mtx-breathe 3.5s ease-in-out 0.5s infinite',
-                      bottom: hasMiniPlayer ? 158 : 84,
-                      transition: 'bottom .35s cubic-bezier(.25,.8,.25,1)',
-                    }}
-                    onClick={() => setTweak('homeState', 'active')}>
-              <IcShield size={18} stroke="currentColor" strokeWidth={2}/>
-              Comenzar jornada · {fmtTime(state.time)}
-            </button>
-          )}
+           state.time > 0 && (() => {
+            // Phase 5.3 — el CTA "Comenzar jornada" requiere premium (la
+            // sesión sin bloqueo de apps no entrega valor real). Si free,
+            // copy cambia a "Desbloquea para comenzar" y tap → premium lock.
+            const isPremium = window.__mtxIsPremium ? window.__mtxIsPremium() : true;
+            return (
+              <button className="mtx-cta-float mtx-tap"
+                      style={{
+                        animation: 'mtx-cta-emerge .45s cubic-bezier(.2,.9,.3,1.2) both, mtx-breathe 3.5s ease-in-out 0.5s infinite',
+                        bottom: hasMiniPlayer ? 158 : 84,
+                        transition: 'bottom .35s cubic-bezier(.25,.8,.25,1)',
+                      }}
+                      onClick={() => {
+                        if (!isPremium) {
+                          if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('apps');
+                          return;
+                        }
+                        setTweak('homeState', 'active');
+                      }}>
+                {isPremium
+                  ? <IcShield size={18} stroke="currentColor" strokeWidth={2}/>
+                  : <IcLock size={16} stroke="currentColor" strokeWidth={2}/>}
+                {isPremium
+                  ? `Comenzar jornada · ${fmtTime(state.time)}`
+                  : `Desbloquea para comenzar · ${fmtTime(state.time)}`}
+              </button>
+            );
+          })()}
           <style>{`
             @keyframes mtx-cta-emerge {
               0% { transform: translateY(28px) scale(0.94); opacity: 0; }
