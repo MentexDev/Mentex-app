@@ -1474,27 +1474,48 @@ function HomeActive({
       {/* ── CARD 2 · Apps protegidas (con descanso contextual) ─────────── */}
       <AppsProtectionCard blockedApps={blockedApps} onEditApps={onEditApps}/>
 
-      {/* ── CARD 3 · Ritual de hoy (actividades) ───────────────────────── */}
+      {/* ── CARD 3 · Tu ritual de hoy — solo prácticas y hábitos ─────────
+          visibleActivities (rutinas seleccionadas en HomeInactive). El pencil
+          del header se reemplaza por una card "Configurar rutinas" abajo para
+          coherencia visual con la sección de aprendizaje. */}
       <div style={{ marginBottom:24 }}>
         <MtxSectionHead
           title="Tu ritual de hoy"
           eyebrow={(() => {
-            const total = visibleActivities.length + ritualExtras.length;
-            // Cuenta tanto las hardcoded como done como las completadas
-            // hoy en __mtxRunnerCompleted (al alcanzar 100% en el runner).
             const completedSet = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
               ? new Set(window.__mtxRunnerCompleted.list()) : new Set();
             const done = visibleActivities.filter(a => a.done || completedSet.has(a.id)).length;
-            return `${done} de ${total} completadas`;
+            const total = visibleActivities.length;
+            return total === 0 ? 'Sin rutinas — agrega las que quieres practicar' : `${done} de ${total} completadas`;
           })()}
-          actionIcon={<IcEdit size={14} stroke="currentColor" strokeWidth={1.8}/>}
-          actionLabel="Editar rutinas del ritual"
-          onAction={onEditRoutines}
         />
         <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {visibleActivities.map(a => (
             <ActivityRow key={a.id} a={a} onOpenPlayer={onOpenPlayer}/>
           ))}
+          {window.MtxAddMoreCard && (
+            <window.MtxAddMoreCard
+              onClick={onEditRoutines}
+              title="Configurar rutinas del ritual"
+              subtitle="Meditación, respiración, movimiento y más"
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ── CARD 4 · Mi aprendizaje del día — contenido de Explorar ─────────
+          ritualExtras: items agregados desde Explorar (audiolibros, charlas,
+          meditaciones). Sección propia para no mezclar práctica con contenido.
+          "Aprendizaje del día" enfatiza la intención activa de consumir y
+          retener, vs. el ritual que es práctica corporal/mental. */}
+      <div style={{ marginBottom:24 }}>
+        <MtxSectionHead
+          title="Mi aprendizaje del día"
+          eyebrow={ritualExtras.length === 0
+            ? 'Agrega contenido de Explorar para esta sesión'
+            : `${ritualExtras.length} ${ritualExtras.length === 1 ? 'contenido' : 'contenidos'} · en sesión`}
+        />
+        <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 20px' }}>
           {ritualExtras.map(extra => (
             <ActivityRow
               key={extra.id}
@@ -1503,14 +1524,11 @@ function HomeActive({
               onRemove={() => window.__mtxRitual?.remove(extra.id)}
             />
           ))}
-
-          {/* CTA "Agregar al ritual de hoy" — reusa MtxAddMoreCard con copy
-              ajustado. Tap → abre AddContentScreen con playlist sintética. */}
           {window.MtxAddMoreCard && (
             <window.MtxAddMoreCard
               onClick={() => setAddToRitualOpen(true)}
-              title="Agregar al ritual de hoy"
-              subtitle="Suma items desde Explorar"
+              title="Agregar contenido al día"
+              subtitle="Audiolibros, charlas y meditaciones de Explorar"
             />
           )}
         </div>
