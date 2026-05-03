@@ -1201,9 +1201,17 @@ function HomeActive({
         <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
           {/* Acceso rápido al coach IA — abre chat con saludo contextualizado
               en función de apps bloqueadas, ritual pendiente, recordatorios y
-              tiempo restante. Reutiliza ia-flow.jsx + nueva conv efímera. */}
+              tiempo restante. Reutiliza ia-flow.jsx + nueva conv efímera.
+              Phase 5.1.1 — mismo glass neutral que el bell para cohesión
+              visual. Solo el icon ✦ en neon es el acento. Single source con
+              HomeInactive (mismo botón, misma ruta).
+              Phase 5.3 — gate: si free, tap → premium lock en lugar de chat. */}
           <button
             onClick={() => {
+              if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) {
+                if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('ia-chat');
+                return;
+              }
               const completedSet = (typeof window !== 'undefined' && window.__mtxRunnerCompleted)
                 ? new Set(window.__mtxRunnerCompleted.list()) : new Set();
               const ritualTotal = visibleActivities.length + ritualExtras.length;
@@ -1225,11 +1233,13 @@ function HomeActive({
             className="mtx-tap"
             style={{
               position:'relative', width:44, height:44, borderRadius:999,
-              background:'linear-gradient(135deg, rgba(61,255,209,0.12), rgba(61,255,209,0.04))',
-              border:'0.5px solid rgba(61,255,209,0.28)',
+              background:'rgba(10,14,12,0.45)',
+              border:'0.5px solid rgba(255,255,255,0.18)',
+              backdropFilter:'blur(20px) saturate(160%)',
+              WebkitBackdropFilter:'blur(20px) saturate(160%)',
+              boxShadow:'inset 0 1px 0 rgba(255,255,255,0.12)',
               display:'flex', alignItems:'center', justifyContent:'center',
               color:'var(--neon)', cursor:'pointer', flexShrink:0,
-              boxShadow:'0 0 0 1px rgba(61,255,209,0.10), inset 0 0 12px rgba(61,255,209,0.06)',
             }}
           >
             <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>

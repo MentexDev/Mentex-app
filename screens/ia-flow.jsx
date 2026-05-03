@@ -1409,6 +1409,13 @@ function IAScreen(props) {
   // Quick action chips invitan a las 4 acciones más probables.
   React.useEffect(function() {
     var handler = function(e) {
+      // Gate defense-in-depth: aunque HomeActive y HomeInactive ya gatean
+      // el button ✦, también gateamos el listener por si futuras phases
+      // disparan el evento desde otro path sin checkear premium.
+      if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) {
+        if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('ia-chat');
+        return;
+      }
       var ctx = (e && e.detail) || {};
       // __mtxIAChat.list() retorna array de conversations (no .get() — ese
       // toma un id y retorna 1 sola).
@@ -1489,6 +1496,11 @@ function IAScreen(props) {
     var handler = function(e) {
       var label = e && e.detail && e.detail.label;
       if (!label) return;
+      // Gate: chips dentro de un mensaje del assistant son acciones del coach
+      if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) {
+        if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('ia-quick');
+        return;
+      }
       var prompt = CHIP_PROMPTS[label] || label;
       setDraft(prompt);
       // Focus textarea para que el user pueda editar
@@ -1502,8 +1514,24 @@ function IAScreen(props) {
 
   var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
 
+  // ── Premium gate helper (Phase 5.3.B) ──────────────────────────────────
+  // Cualquier acción que dispare comportamiento del coach IA (send, chip
+  // tap, nueva conv, abrir session chat) debe gatear. Hub navigable libre,
+  // pero acciones que llaman al coach → lock. Retorna true si está gated
+  // (consumer hace early return).
+  function _gatePremium(feature) {
+    if (typeof window === 'undefined') return false;
+    if (window.__mtxIsPremium && !window.__mtxIsPremium()) {
+      if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock(feature || 'ia-chat');
+      return true;
+    }
+    return false;
+  }
+
   // ── Handlers ────────────────────────────────────────────────────────────
   var enterChat = function(seedPrompt) {
+    // Gate: chips de quick-start del hub IA disparan acción del coach
+    if (seedPrompt && _gatePremium('ia-quick')) return;
     setView('chat');
     if (seedPrompt) {
       // Crear conv + enviar mensaje seed (chip clicked)
@@ -1538,6 +1566,8 @@ function IAScreen(props) {
   var handleSendFromInput = function() {
     var content = draft.trim();
     if (!content) return;
+    // Gate: send mensaje al coach es feature premium core
+    if (_gatePremium('ia-chat')) return;
     var cid = currentId;
     if (!cid) {
       var conv = window.__mtxIAChat.create();
@@ -1552,10 +1582,14 @@ function IAScreen(props) {
   };
 
   var handleNewConversationFromHub = function() {
+    // Gate: nueva conv requiere coach activo
+    if (_gatePremium('ia-chat')) return;
     enterChat(null);  // create empty + enter chat
   };
 
   var handleNewConversationFromChat = function() {
+    // Gate: nueva conv requiere coach activo
+    if (_gatePremium('ia-chat')) return;
     // Already in chat — just create a new empty conv, stay in chat view
     window.__mtxIAChat.create();
     setDraft('');
