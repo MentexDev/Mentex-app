@@ -1226,44 +1226,103 @@ function IAHistoryRow(props) {
 }
 
 
+// ── Saludo del coach por voice (Phase 5.2.1) ──────────────────────────────
+// Mapea cada voz del onboarding a una línea de apertura tono-consistente.
+// Usado por _buildSessionGreeting cuando ctx.mode === 'home-inactive'.
+// El coach debe sonar igual en el whisper bubble y en el chat — coherencia.
+function _coachOpeningByVoice(coachVoice, firstName) {
+  var name = (firstName || '').trim() || 'amig@';
+  var map = {
+    warm:          'Hola, ' + name + '. Qué bueno verte.',
+    contemplative: 'Buen día, ' + name + '. Aquí estoy.',
+    energetic:     '¡' + name + '! Listo para hacer hoy un gran día.',
+    wise:          'Bienvenido, ' + name + '. Empezamos cuando quieras.',
+  };
+  return map[coachVoice] || map.warm;
+}
+
+
 // ── _buildSessionGreeting — saludo contextualizado del coach ───────────────
-// Usa el state actual de la sesión activa (apps, tiempo, ritual, recordatorios)
-// para componer un mensaje del assistant que refleje DÓNDE está el user en
-// este momento. No fluff genérico — info accionable. Llamado solo desde el
-// listener 'mtx:ia-open-session-chat' al abrir el chat desde HomeActive.
+// Dos modos:
+//   • mode === 'home-inactive' (Phase 5.2.1): saludo desde HomeInactive.
+//     Sin minutos restantes, foco en planificar el día. Voice-aware del
+//     onboarding. Si fromWhisper:true, el saludo encadena el del bubble.
+//   • mode default (HomeActive ✦ session-active): refleja state de sesión
+//     activa con apps, tiempo, ritual, recordatorios.
 function _buildSessionGreeting(ctx) {
+  // ── HomeInactive coach chat (5.2.1) ────────────────────────────────────
+  if (ctx && ctx.mode === 'home-inactive') {
+    var firstName = ctx.firstName || '';
+    var coachVoice = ctx.coachVoice || 'warm';
+    var apps = ctx.blockedAppsCount || 0;
+    var reminders = ctx.remindersPending || 0;
+    var routinesActive = ctx.routinesActive || 0;
+    var hrs = ctx.routineHours || 0;
+
+    var lines = [];
+    lines.push(_coachOpeningByVoice(coachVoice, firstName));
+    lines.push('');
+
+    // Si fromWhisper, encadenamos con la frase del bubble — se siente
+    // continuo (el user ya leyó "¿Te ayudo a programar tu día?").
+    if (ctx.fromWhisper) {
+      lines.push('¿Empezamos por programar tu día?');
+    } else {
+      lines.push('¿En qué te ayudo a empezar el día?');
+    }
+
+    var bullets = [];
+    if (apps > 0) {
+      bullets.push('• ' + apps + ' app' + (apps === 1 ? '' : 's') + ' lista' + (apps === 1 ? '' : 's') + ' para bloquear');
+    }
+    if (reminders > 0) {
+      bullets.push('• ' + reminders + ' recordatorio' + (reminders === 1 ? '' : 's') + ' activo' + (reminders === 1 ? '' : 's'));
+    }
+    if (routinesActive > 0) {
+      bullets.push('• ' + routinesActive + ' rutina' + (routinesActive === 1 ? '' : 's') + ' seleccionada' + (routinesActive === 1 ? '' : 's'));
+    }
+    if (hrs > 0) {
+      bullets.push('• ' + hrs + (hrs === 1 ? ' hora' : ' horas') + ' al día configurada' + (hrs === 1 ? '' : 's') + ' en tu rutina');
+    }
+
+    if (bullets.length > 0) {
+      lines.push('');
+      lines.push(bullets.join('\n'));
+    }
+    return lines.join('\n');
+  }
+
+  // ── HomeActive session-active (mode default) ──────────────────────────
   var blocked = ctx.blockedAppsCount || 0;
   var minutesLeft = ctx.minutesLeft || 0;
   var ritualPending = Math.max(0, (ctx.ritualTotal || 0) - (ctx.ritualDone || 0));
   var remindersPending = ctx.remindersPending || 0;
 
-  var lines = [];
-  lines.push('Estoy contigo en tu sesión activa.');
-  lines.push('');
+  var defaultLines = [];
+  defaultLines.push('Estoy contigo en tu sesión activa.');
+  defaultLines.push('');
 
-  // Línea de status — solo menciona las dimensiones que tienen contenido,
-  // así el saludo se adapta al state real (no dice "0 apps bloqueadas").
-  var bullets = [];
+  var defaultBullets = [];
   if (minutesLeft > 0) {
-    bullets.push('• ' + minutesLeft + ' min restantes de tu sesión');
+    defaultBullets.push('• ' + minutesLeft + ' min restantes de tu sesión');
   }
   if (blocked > 0) {
-    bullets.push('• ' + blocked + ' app' + (blocked === 1 ? '' : 's') + ' fuera de tu mente');
+    defaultBullets.push('• ' + blocked + ' app' + (blocked === 1 ? '' : 's') + ' fuera de tu mente');
   }
   if (ritualPending > 0) {
-    bullets.push('• ' + ritualPending + ' item' + (ritualPending === 1 ? '' : 's') + ' pendiente' + (ritualPending === 1 ? '' : 's') + ' en tu ritual');
+    defaultBullets.push('• ' + ritualPending + ' item' + (ritualPending === 1 ? '' : 's') + ' pendiente' + (ritualPending === 1 ? '' : 's') + ' en tu ritual');
   }
   if (remindersPending > 0) {
-    bullets.push('• ' + remindersPending + ' recordatorio' + (remindersPending === 1 ? '' : 's') + ' activo' + (remindersPending === 1 ? '' : 's'));
+    defaultBullets.push('• ' + remindersPending + ' recordatorio' + (remindersPending === 1 ? '' : 's') + ' activo' + (remindersPending === 1 ? '' : 's'));
   }
 
-  if (bullets.length > 0) {
-    lines.push(bullets.join('\n'));
-    lines.push('');
+  if (defaultBullets.length > 0) {
+    defaultLines.push(defaultBullets.join('\n'));
+    defaultLines.push('');
   }
 
-  lines.push('¿En qué te ayudo ahora? Puedo agregar recordatorios, sumar items a tu ritual, recomendarte apps a bloquear o extender tu tiempo.');
-  return lines.join('\n');
+  defaultLines.push('¿En qué te ayudo ahora? Puedo agregar recordatorios, sumar items a tu ritual, recomendarte apps a bloquear o extender tu tiempo.');
+  return defaultLines.join('\n');
 }
 
 
@@ -1375,21 +1434,32 @@ function IAScreen(props) {
         // Marcar scope para diferenciarla de chats normales — el effect
         // del MentexApp limpia conv con scope='session-active' al fin
         // de sesión (audit CRIT-1) para evitar reuso con datos stale.
+        var isInactive = ctx && ctx.mode === 'home-inactive';
         window.__mtxIAChat.update(conv.id, {
-          title: 'Tu sesión activa',
+          title: isInactive ? 'Coach Mentex' : 'Tu sesión activa',
           scope: 'session-active',
         });
         var greeting = _buildSessionGreeting(ctx);
+        // Chips adaptados al mode: HomeInactive sugiere planificación,
+        // HomeActive sugiere acciones in-flight.
+        var chips = isInactive
+          ? [
+              'Programar mi día',
+              'Sumar recordatorio',
+              'Recomendar contenido',
+              'Sugerir rutina',
+            ]
+          : [
+              'Añadir recordatorio',
+              'Sugerir ritual',
+              'Recomendar apps',
+              'Extender tiempo',
+            ];
         window.__mtxIAChat.addMessage(conv.id, {
           role: 'assistant',
           content: greeting,
           state: 'done',
-          chips: [
-            'Añadir recordatorio',
-            'Sugerir ritual',
-            'Recomendar apps',
-            'Extender tiempo',
-          ],
+          chips: chips,
         });
       }
       setView('chat');
@@ -1405,10 +1475,16 @@ function IAScreen(props) {
   // usamos el label tal cual como prompt fallback.
   React.useEffect(function() {
     var CHIP_PROMPTS = {
+      // HomeActive (sesión activa) chips
       'Añadir recordatorio': '¿Puedes ayudarme a crear un recordatorio nuevo?',
-      'Sugerir ritual': '¿Qué item recomendarías agregar a mi ritual de hoy?',
-      'Recomendar apps': '¿Qué apps debería bloquear ahora?',
-      'Extender tiempo': 'Quiero extender mi sesión. ¿Cuánto tiempo me sugieres?',
+      'Sugerir ritual':      '¿Qué item recomendarías agregar a mi ritual de hoy?',
+      'Recomendar apps':     '¿Qué apps debería bloquear ahora?',
+      'Extender tiempo':     'Quiero extender mi sesión. ¿Cuánto tiempo me sugieres?',
+      // HomeInactive (planificación, Phase 5.2.1) chips
+      'Programar mi día':     '¿Cómo me sugieres organizar mi día hoy?',
+      'Sumar recordatorio':   '¿Me ayudas a crear un nuevo recordatorio para hoy?',
+      'Recomendar contenido': '¿Qué contenido del catálogo me recomiendas para hoy?',
+      'Sugerir rutina':       '¿Qué rutina me sugieres activar hoy?',
     };
     var handler = function(e) {
       var label = e && e.detail && e.detail.label;

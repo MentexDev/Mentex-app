@@ -34,7 +34,7 @@
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
   <script type="text/babel" src="screens/auth-flow.jsx?v=16"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=35"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=36"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
@@ -50,7 +50,7 @@
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-settings.jsx?v=5"></script>
   <script type="text/babel" src="screens/ia-agenda.jsx?v=7"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=22"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=23"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
@@ -509,7 +509,20 @@
                                 onEditRoutines={() => setRoutinesEditorOpen(true)}
                                 onNotif={() => setNotifsOpen(true)}
                                 notifCount={notifCount}
-                                onOpenCoach={() => setTab('ai')}/>
+                                onOpenCoach={(ctx) => {
+                                  // Patrón idéntico a HomeActive ✦: cambia al tab IA
+                                  // y dispara mtx:ia-open-session-chat con ctx.
+                                  // Listener en ia-flow.jsx crea/reusa conv con scope
+                                  // 'session-active', greeting personalizado al state.
+                                  // Al cerrar el chat (back) → mtx:ia-leave-session-chat
+                                  // → MentexApp setTab('home') vuelve al HomeInactive.
+                                  setTab('ai');
+                                  setTimeout(() => {
+                                    window.dispatchEvent(new CustomEvent('mtx:ia-open-session-chat', {
+                                      detail: ctx || {},
+                                    }));
+                                  }, 60);
+                                }}/>
                 ) : (
                   <HomeActive
                     tweaks={tweaks}

@@ -678,15 +678,39 @@ function HomeInactive({
     const t = setTimeout(() => setWhisperOpen(true), 700);
     return () => clearTimeout(t);
   }, []);
+
+  // Helper: construye el ctx que pasa al chat IA cuando se abre desde
+  // HomeInactive (sea desde el botón ✦ del header o desde el whisper CTA).
+  // Ese ctx alimenta _buildSessionGreeting en ia-flow.jsx para personalizar
+  // el saludo con coachVoice, firstName y stats reales (apps, reminders).
+  const buildCoachCtx = React.useCallback((extras) => {
+    const remindersPending = (typeof window !== 'undefined' && window.__mtxIAAgenda)
+      ? window.__mtxIAAgenda.get().reminders.filter(r => !r.completed).length
+      : 0;
+    const ans = onboardingAnswers || {};
+    return Object.assign({
+      mode: 'home-inactive',
+      blockedAppsCount: blockedApps.length,
+      remindersPending,
+      routinesActive: routines.length,
+      coachVoice: ans.coachVoice || null,
+      firstName: (ans.name || '').trim().split(' ')[0] || '',
+      routineHours: ans.routineHours || null,
+      focusTime: ans.focusTime || null,
+    }, extras || {});
+  }, [blockedApps, routines, onboardingAnswers]);
+
   const dismissWhisper = React.useCallback(() => {
     setWhisperOpen(false);
     _markCoachWhisperShown();
   }, []);
+
   const openWhisperChat = React.useCallback(() => {
     setWhisperOpen(false);
     _markCoachWhisperShown();
-    onOpenCoach();
-  }, [onOpenCoach]);
+    // fromWhisper:true → el saludo del coach encadena la frase del whisper
+    onOpenCoach(buildCoachCtx({ fromWhisper: true }));
+  }, [onOpenCoach, buildCoachCtx]);
 
   // Banner tap handler (mock — abre toast por ahora)
   const toast = window.useToast ? window.useToast() : { show: () => {} };
@@ -725,10 +749,12 @@ function HomeInactive({
         {/* Botón ✦ IA — al lado izquierdo del bell. Mismo glass neutral que
             el bell para mantener cohesión visual minimalista — solo el
             icon ✦ en neon es el acento. Más limpio que background tinted.
-            Tap → cambia al tab IA donde el user puede planificar con su
-            coach (promesa core de Mentex). */}
+            Tap → abre chat IA con saludo encadenado al state actual del
+            HomeInactive (apps + reminders + onboarding voice/name).
+            Patrón idéntico al ✦ de HomeActive — el chat se abre encima
+            del home y al cerrarlo vuelve al home (mtx:ia-leave-session-chat). */}
         <button
-          onClick={onOpenCoach}
+          onClick={() => onOpenCoach(buildCoachCtx())}
           aria-label="Abrir coach Mentex"
           className="mtx-tap"
           style={{
