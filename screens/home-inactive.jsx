@@ -639,11 +639,31 @@ function HomeInactive({
 }) {
   const { blockedApps, routines, time } = state;
 
-  const toggleApp = (id) => setState(s => ({
-    ...s, blockedApps: s.blockedApps.includes(id)
-      ? s.blockedApps.filter(x => x !== id)
-      : [...s.blockedApps, id]
-  }));
+  // Phase 5.3 — Premium gate. El bloqueo de apps es feature core premium.
+  // Si el user es free, los toggles abren el lock sheet en vez de toggle.
+  // Reactive — recomputa cuando se activa trial via __mtxActivateTrial.
+  const [, _forcePremiumCheck] = React.useReducer(x => x + 1, 0);
+  const isPremium = (typeof window !== 'undefined' && window.__mtxIsPremium)
+    ? window.__mtxIsPremium() : true;
+  React.useEffect(() => {
+    // Re-render cuando cambian las answers del onboarding (selectedPlan,
+    // trialStartedAt). Patrón usado por useOnboarding.
+    const handler = () => _forcePremiumCheck();
+    window.addEventListener('mtx:onboarding-changed', handler);
+    return () => window.removeEventListener('mtx:onboarding-changed', handler);
+  }, []);
+
+  const toggleApp = (id) => {
+    if (!isPremium) {
+      if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('apps');
+      return;
+    }
+    setState(s => ({
+      ...s, blockedApps: s.blockedApps.includes(id)
+        ? s.blockedApps.filter(x => x !== id)
+        : [...s.blockedApps, id]
+    }));
+  };
   const toggleRoutine = (id) => setState(s => ({
     ...s, routines: s.routines.includes(id) ? s.routines.filter(x => x !== id) : [...s.routines, id]
   }));
@@ -674,10 +694,15 @@ function HomeInactive({
     []
   );
   React.useEffect(() => {
+    // Phase 5.3 — el whisper bubble NO se muestra si el user es free.
+    // Sería frustrante: bubble invita a hablar con coach que está locked.
+    // El user free puede tap ✦ y ver el premium lock — pero el whisper
+    // proactivo solo aparece cuando puede usarse.
     if (!_shouldShowCoachWhisper()) return;
+    if (typeof window !== 'undefined' && window.__mtxIsPremium && !window.__mtxIsPremium()) return;
     const t = setTimeout(() => setWhisperOpen(true), 700);
     return () => clearTimeout(t);
-  }, []);
+  }, [isPremium]);
 
   // Helper: construye el ctx que pasa al chat IA cuando se abre desde
   // HomeInactive (sea desde el botón ✦ del header o desde el whisper CTA).
@@ -754,7 +779,14 @@ function HomeInactive({
             Patrón idéntico al ✦ de HomeActive — el chat se abre encima
             del home y al cerrarlo vuelve al home (mtx:ia-leave-session-chat). */}
         <button
-          onClick={() => onOpenCoach(buildCoachCtx())}
+          onClick={() => {
+            // Phase 5.3 — gate: free user → premium lock en lugar de chat.
+            if (!isPremium) {
+              if (window.__mtxOpenPremiumLock) window.__mtxOpenPremiumLock('ia-chat');
+              return;
+            }
+            onOpenCoach(buildCoachCtx());
+          }}
           aria-label="Abrir coach Mentex"
           className="mtx-tap"
           style={{
@@ -888,16 +920,25 @@ function HomeInactive({
 
       {/* ── 2. Apps a bloquear (Mejora tu concentración) ────────────────── */}
       <div style={{ marginBottom:24 }}>
-        <div style={{ padding:'0 20px 12px' }}>
-          <h3 style={{
-            margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
-            letterSpacing:'-0.018em', lineHeight:1.2,
-          }}>
-            Mejora tu concentración
-          </h3>
-          <p style={{ margin:'4px 0 0', fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
-            Estas apps no te interrumpirán durante el enfoque
-          </p>
+        <div style={{ padding:'0 20px 12px', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+              <h3 style={{
+                margin:0, fontSize:17, fontWeight:700, color:'var(--ink-1)',
+                letterSpacing:'-0.018em', lineHeight:1.2,
+              }}>
+                Mejora tu concentración
+              </h3>
+              {!isPremium && window.PremiumLockChip && (
+                <window.PremiumLockChip size="sm"/>
+              )}
+            </div>
+            <p style={{ margin:0, fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4 }}>
+              {isPremium
+                ? 'Estas apps no te interrumpirán durante el enfoque'
+                : 'Activa Premium para bloquear apps durante tus sesiones'}
+            </p>
+          </div>
         </div>
         <div className="mtx-glass" style={{ margin:'0 20px', padding:6, borderRadius:18, ...glassFor() }}>
           {/* Apps a mostrar = unión de los 5 defaults + cualquier extra que el user

@@ -642,6 +642,56 @@
   }
 
 
+  // ── Premium helpers (Phase 5.3) ────────────────────────────────────────────
+  // El plan del user vive en __mtxOnboarding.answers.selectedPlan (set en el
+  // paywall del Step 12). Estos helpers centralizan la lógica de "¿es premium?"
+  // para que los consumers (HomeInactive, IA chat, Explorar, etc.) no
+  // dupliquen la regla del trial de 7 días.
+  var TRIAL_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // True si el user tiene plan activo (monthly|annual) y trial dentro de los
+  // 7 días. Backend real reemplazará esta lógica en Phase 9+ con la verdad
+  // del servidor (subscription status).
+  if (typeof window !== 'undefined') {
+    window.__mtxIsPremium = function() {
+      var ob = window.__mtxOnboarding ? window.__mtxOnboarding.get() : null;
+      if (!ob || !ob.completed) return false;
+      var ans = ob.answers || {};
+      if (ans.selectedPlan !== 'monthly' && ans.selectedPlan !== 'annual') return false;
+      if (!ans.trialStartedAt) return false;
+      return (Date.now() - ans.trialStartedAt) < TRIAL_DAYS_MS;
+    };
+
+    // Activar trial mock (usado por PremiumLockSheet "Empezar 7 días gratis").
+    // Setea selectedPlan a 'annual' por default (best value que ya estaba como
+    // billingCycle default en paywall) + trialStartedAt = now. En backend real
+    // esto pasaría por Apple/Google IAP.
+    window.__mtxActivateTrial = function(plan) {
+      var p = plan === 'monthly' ? 'monthly' : 'annual';
+      if (window.__mtxOnboarding && typeof window.__mtxOnboarding.updateAnswers === 'function') {
+        window.__mtxOnboarding.updateAnswers({
+          selectedPlan: p,
+          billingCycle: p,
+          trialStartedAt: Date.now(),
+        });
+      }
+    };
+
+    // Días restantes del trial (para mostrar "Trial: 5 días" en UI).
+    // Retorna 0 si no hay trial activo o ya expiró.
+    window.__mtxTrialDaysLeft = function() {
+      var ob = window.__mtxOnboarding ? window.__mtxOnboarding.get() : null;
+      if (!ob) return 0;
+      var ans = ob.answers || {};
+      if (!ans.trialStartedAt) return 0;
+      var elapsed = Date.now() - ans.trialStartedAt;
+      var remaining = TRIAL_DAYS_MS - elapsed;
+      if (remaining <= 0) return 0;
+      return Math.ceil(remaining / (24 * 60 * 60 * 1000));
+    };
+  }
+
+
   // ── Hooks ──────────────────────────────────────────────────────────────────
   // useAuth: reactive snapshot del store __mtxAuth. Same pattern que useIAChat,
   // useIAAgenda, useIAConfig — subscribe a evento custom + setState forzado.

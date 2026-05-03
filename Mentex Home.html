@@ -32,9 +32,10 @@
   <script type="text/babel" src="components/app-icons.jsx?v=2"></script>
   <script type="text/babel" src="components/mtx-toast.jsx?v=2"></script>
   <script type="text/babel" src="components/mentex-shared.jsx?v=7"></script>
-  <script type="text/babel" src="screens/auth-flow.jsx?v=16"></script>
+  <script type="text/babel" src="screens/auth-flow.jsx?v=17"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
-  <script type="text/babel" src="screens/home-inactive.jsx?v=36"></script>
+  <script type="text/babel" src="screens/premium-gate.jsx?v=1"></script>
+  <script type="text/babel" src="screens/home-inactive.jsx?v=37"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=36"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
   <script type="text/babel" src="screens/auto-routines.jsx?v=4"></script>
@@ -103,6 +104,18 @@
       const [appsEditorOpen, setAppsEditorOpen] = React.useState(false);
       const [routinesEditorOpen, setRoutinesEditorOpen] = React.useState(false);
       const [notifsOpen, setNotifsOpen] = React.useState(false);
+
+      // Phase 5.3 — Premium lock state. Cualquier consumer puede abrir el
+      // sheet llamando window.__mtxOpenPremiumLock(feature). El feature
+      // string mapea a un mensaje contextualizado en premium-gate.jsx
+      // (apps, ia-chat, ia-quick, content, default).
+      const [premiumLockFeature, setPremiumLockFeature] = React.useState(null);
+      React.useEffect(() => {
+        // Expone helper global al window para que cualquier consumer lo dispare
+        // sin necesitar prop drilling. Pattern idéntico al de useToast.
+        window.__mtxOpenPremiumLock = (feature) => setPremiumLockFeature(feature || 'default');
+        return () => { try { delete window.__mtxOpenPremiumLock; } catch (_) {} };
+      }, []);
       const [notifCount, setNotifCount] = React.useState(4);
       const [nowPlayingOpen, setNowPlayingOpen] = React.useState(false);
       // breakPickerOpen/breakActive/breakCount eliminados en Fase A — el descanso
@@ -657,6 +670,17 @@
                 onChange={setRoutinesCatalog}
                 onActiveChange={(ids) => setState(s => ({ ...s, routines: ids }))}
                 onClose={() => setRoutinesEditorOpen(false)}/>
+            )}
+
+            {/* Phase 5.3 — Premium lock sheet global. Cualquier feature
+                gateada llama window.__mtxOpenPremiumLock(feature) para abrirlo.
+                onActivate dispara __mtxActivateTrial mock. */}
+            {window.PremiumLockSheet && (
+              <window.PremiumLockSheet
+                open={!!premiumLockFeature}
+                feature={premiumLockFeature}
+                onClose={() => setPremiumLockFeature(null)}
+                onActivate={() => setPremiumLockFeature(null)}/>
             )}
 
             {notifsOpen && (
