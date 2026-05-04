@@ -4372,6 +4372,7 @@ function SettingsScreen({ open, onClose }) {
   const back = () => setView('main');
   if (view === 'cuenta')         return <div style={W}><CuentaSubScreen         profile={profile} email={email} onBack={back}/></div>;
   if (view === 'progresos')      return <div style={W}><ProgresosSubScreen       onBack={back}/></div>;
+  if (view === 'mi-progreso')   return <div style={W}><ProgressReportGallery    onClose={back}/></div>;
   if (view === 'mi-plan')        return <div style={W}><MiPlanSubScreen          onBack={back} isPremium={computedIsPremium} planCycle={planCycle} daysLeft={daysLeft} onCycleChange={setPlanCycle} onOpenCancel={() => setView('cancel-plan')} onUpgrade={handleUpgrade}/></div>;
   if (view === 'cancel-plan')    return <div style={W}><CancelPlanSubScreen      onBack={() => setView('mi-plan')} onCancelled={() => { setIsPlanCancelled(true); setView('main'); }}/></div>;
   if (view === 'seguridad')      return <div style={W}><SeguridadSubScreen      onBack={back} twoFaEnabled={twoFaEnabled} twoFaMethod={twoFaMethod} onOpen2FASetup={() => setView('2fa-setup')} onDisable2FA={() => { setTwoFaEnabled(false); setTwoFaMethod(null); }}/></div>;
@@ -4446,6 +4447,7 @@ function SettingsScreen({ open, onClose }) {
           {/* En la app */}
           <SectionLabel label="En la app" topSpacing={28}/>
           <CardList>
+            <CategoryRow icon="📊" label="Mi Progreso"        subtitle="Reportes semanales de tu avance"       onTap={() => setView('mi-progreso')}/>
             <CategoryRow icon="🏆" label="Mi aprendizaje"     subtitle="Todo el contenido que has completado"  onTap={() => setView('progresos')}/>
             <CategoryRow icon="⏱️" label="Rutinas y bloqueos" subtitle="Automatismos y enfoque profundo"       onTap={() => setView('rutinas')}/>
           </CardList>
