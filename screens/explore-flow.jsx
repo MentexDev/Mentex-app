@@ -180,36 +180,161 @@ const CATEGORIES_BY_TYPE = {
 const EXPLORE_CONTENT = [
   // Audiolibros
   { id: 'c-habitos',     title: 'Hábitos Atómicos',          author: 'James Clear',       type: 'audiobook', dur: '4h 32m', accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?w=600&q=80', plays: '124k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Mentex AI', desc: 'Cómo cambios pequeños y consistentes producen resultados extraordinarios.', playPct: 0.38, premium: false },
-  { id: 'c-sapiens',     title: 'Sapiens',                    author: 'Yuval Harari',      type: 'audiobook', dur: '6h 12m', accent: '#6ab8ff', bg: 'linear-gradient(135deg,#1f2a3a,#0f1520)', cover: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=80', plays: '156k', rating: 4.7, status: 'available', tags: ['Historia'],         category: 'aprendizaje', narrator: 'Voz · Mentex AI', desc: 'La historia de cómo una especie irrelevante terminó dominando el planeta.', playPct: 0.62 },
-  { id: 'c-deepwork',    title: 'Deep Work',                  author: 'Cal Newport',       type: 'audiobook', dur: '5h 18m', accent: '#c8a8ff', bg: 'linear-gradient(135deg,#2a1a3a,#1a0f25)', cover: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=80', plays: '178k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Daniel',     desc: 'La capacidad de hacer trabajo profundo es la habilidad más rara y valiosa.', playPct: 0.15 },
-  { id: 'c-poder-ahora', title: 'El poder del ahora',         author: 'Eckhart Tolle',     type: 'audiobook', dur: '5h 40m', accent: '#7dffe0', bg: 'linear-gradient(135deg,#1a2540,#0f1a2a)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '98k',  rating: 4.8, status: 'available', tags: ['Mindfulness'],   category: 'mindfulness', narrator: 'Voz · Lucía',      desc: 'Tu vida solo ocurre ahora. Aprender a habitar este instante lo cambia todo.', isNew: true },
-  { id: 'c-mvp',         title: 'Cómo construir un MVP',     author: 'Y Combinator',      type: 'audiobook', dur: '38 min', accent: '#ffb47a', bg: 'linear-gradient(135deg,#2a1f15,#1a120a)', cover: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&q=80', plays: '156k', rating: 4.8, status: 'available', tags: ['Startup'],         category: 'aprendizaje', narrator: 'Voz · Michael Seibel', desc: 'El framework para validar una idea sin morir intentándolo.', playPct: 0.74 },
+  { id: 'c-sapiens',     title: 'Sapiens',                    author: 'Yuval Harari',      type: 'audiobook', dur: '6h 12m', accent: '#6ab8ff', bg: 'linear-gradient(135deg,#1f2a3a,#0f1520)', cover: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=80', plays: '156k', rating: 4.7, status: 'available', tags: ['Historia'],         category: 'aprendizaje', narrator: 'Voz · Mentex AI', desc: 'La historia de cómo una especie irrelevante terminó dominando el planeta.', playPct: 0.62, authorId: 'yuval-harari' },
+  { id: 'c-deepwork',    title: 'Deep Work',                  author: 'Cal Newport',       type: 'audiobook', dur: '5h 18m', accent: '#c8a8ff', bg: 'linear-gradient(135deg,#2a1a3a,#1a0f25)', cover: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=80', plays: '178k', rating: 4.9, status: 'available', tags: ['Productividad'], category: 'productividad', narrator: 'Voz · Daniel',     desc: 'La capacidad de hacer trabajo profundo es la habilidad más rara y valiosa.', playPct: 0.15, authorId: 'cal-newport' },
+  { id: 'c-poder-ahora', title: 'El poder del ahora',         author: 'Eckhart Tolle',     type: 'audiobook', dur: '5h 40m', accent: '#7dffe0', bg: 'linear-gradient(135deg,#1a2540,#0f1a2a)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '98k',  rating: 4.8, status: 'available', tags: ['Mindfulness'],   category: 'mindfulness', narrator: 'Voz · Lucía',      desc: 'Tu vida solo ocurre ahora. Aprender a habitar este instante lo cambia todo.', isNew: true, authorId: 'eckhart-tolle' },
+  { id: 'c-mvp',         title: 'Cómo construir un MVP',     author: 'Y Combinator',      type: 'audiobook', dur: '38 min', accent: '#ffb47a', bg: 'linear-gradient(135deg,#2a1f15,#1a120a)', cover: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&q=80', plays: '156k', rating: 4.8, status: 'available', tags: ['Startup'],         category: 'aprendizaje', narrator: 'Voz · Michael Seibel', desc: 'El framework para validar una idea sin morir intentándolo.', playPct: 0.74, authorId: 'mentex' },
 
   // Meditaciones
-  { id: 'c-respira',     title: 'Respira y vuelve a ti',     author: 'Mentex',            type: 'meditation', dur: '12 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1545389336-cf090694435e?w=600&q=80', plays: '89k',  rating: 4.8, status: 'available', tags: ['Mindfulness'], category: 'mindfulness', narrator: 'Voz · Lucía', desc: 'Doce minutos para reconectar con tu cuerpo y devolverle silencio a tu mente.', isNew: true },
-  { id: 'c-dormir',      title: 'Meditación para dormir',    author: 'Mentex',            type: 'meditation', dur: '20 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1511295742362-92c96b1cf484?w=600&q=80', plays: '324k', rating: 4.9, status: 'available', tags: ['Sueño'],       category: 'sueno',       narrator: 'Voz · Lucía', desc: 'Sumérgete en un sueño reparador. Libera el estrés del día.', premium: false },
-  { id: 'c-gratitud',    title: 'Meditación de gratitud',    author: 'Mentex',            type: 'meditation', dur: '8 min',  accent: '#FFD66B', bg: 'linear-gradient(135deg,#2a2515,#1a1610)', cover: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80', plays: '67k',  rating: 4.7, status: 'available', tags: ['Gratitud'],    category: 'bienestar',   narrator: 'Voz · Daniel', desc: 'Reentrena tu mente para notar lo bueno que ya está en tu vida.', isNew: true },
+  { id: 'c-respira',     title: 'Respira y vuelve a ti',     author: 'Mentex',            type: 'meditation', dur: '12 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1545389336-cf090694435e?w=600&q=80', plays: '89k',  rating: 4.8, status: 'available', tags: ['Mindfulness'], category: 'mindfulness', narrator: 'Voz · Lucía', desc: 'Doce minutos para reconectar con tu cuerpo y devolverle silencio a tu mente.', isNew: true, authorId: 'mentex' },
+  { id: 'c-dormir',      title: 'Meditación para dormir',    author: 'Mentex',            type: 'meditation', dur: '20 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1511295742362-92c96b1cf484?w=600&q=80', plays: '324k', rating: 4.9, status: 'available', tags: ['Sueño'],       category: 'sueno',       narrator: 'Voz · Lucía', desc: 'Sumérgete en un sueño reparador. Libera el estrés del día.', premium: false, authorId: 'mentex' },
+  { id: 'c-gratitud',    title: 'Meditación de gratitud',    author: 'Mentex',            type: 'meditation', dur: '8 min',  accent: '#FFD66B', bg: 'linear-gradient(135deg,#2a2515,#1a1610)', cover: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80', plays: '67k',  rating: 4.7, status: 'available', tags: ['Gratitud'],    category: 'bienestar',   narrator: 'Voz · Daniel', desc: 'Reentrena tu mente para notar lo bueno que ya está en tu vida.', isNew: true, authorId: 'mentex' },
 
   // Series
-  { id: 'c-disciplina',  title: 'Disciplina mental · Serie', author: 'Mentex Originals',  type: 'series',     dur: '6 eps',  accent: '#ff8b6a', bg: 'linear-gradient(135deg,#3a1a1a,#200f0f)', cover: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80', plays: '45k',  rating: 4.6, status: 'available', tags: ['Disciplina'],    category: 'disciplina',  narrator: 'Voz · Mentex AI', desc: 'Seis episodios para construir disciplina inquebrantable.', episodeCount: 6, isNew: true },
-  { id: 'c-foco',        title: 'La mente del enfoque',      author: 'Mentex Originals',  type: 'series',     dur: '4 eps',  accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '78k',  rating: 4.8, status: 'available', tags: ['Foco'],          category: 'enfoque',     narrator: 'Voz · Daniel',  desc: 'Entiende y entrena los mecanismos de la atención profunda.', episodeCount: 4 },
+  { id: 'c-disciplina',  title: 'Disciplina mental · Serie', author: 'Mentex Originals',  type: 'series',     dur: '6 eps',  accent: '#ff8b6a', bg: 'linear-gradient(135deg,#3a1a1a,#200f0f)', cover: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80', plays: '45k',  rating: 4.6, status: 'available', tags: ['Disciplina'],    category: 'disciplina',  narrator: 'Voz · Mentex AI', desc: 'Seis episodios para construir disciplina inquebrantable.', episodeCount: 6, isNew: true, authorId: 'mentex' },
+  { id: 'c-foco',        title: 'La mente del enfoque',      author: 'Mentex Originals',  type: 'series',     dur: '4 eps',  accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '78k',  rating: 4.8, status: 'available', tags: ['Foco'],          category: 'enfoque',     narrator: 'Voz · Daniel',  desc: 'Entiende y entrena los mecanismos de la atención profunda.', episodeCount: 4, authorId: 'mentex' },
 
   // Charlas
-  { id: 'c-jobs',        title: 'Steve Jobs · Stanford 2005', author: 'Charla legendaria', type: 'talk',       dur: '15 min', accent: '#ffd47a', bg: 'linear-gradient(135deg,#2a2a2a,#151515)', cover: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80', plays: '892k', rating: 5.0, status: 'available', tags: ['Inspiración'], category: 'inspiracion',     narrator: 'Voz original',     desc: 'Tres historias sobre conectar puntos, amor y muerte.', premium: false },
-  { id: 'c-rams',        title: 'Dieter Rams · Menos pero mejor', author: 'Diseño industrial', type: 'talk',  dur: '24 min', accent: '#e8e8e8', bg: 'linear-gradient(135deg,#1a1a1a,#0f0f0f)', cover: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=600&q=80', plays: '67k',  rating: 4.9, status: 'available', tags: ['Diseño'],      category: 'diseno',      narrator: 'Voz · Mentex AI', desc: 'Los 10 principios que redefinieron la disciplina del diseño.', isNew: true },
-  { id: 'c-watts',       title: 'Alan Watts · El silencio',  author: 'Filosofía oriental',type: 'talk',       dur: '18 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=600&q=80', plays: '142k', rating: 4.9, status: 'available', tags: ['Filosofía'],   category: 'filosofia',   narrator: 'Voz original',     desc: 'Descubre el silencio que está debajo del ruido del pensamiento.', isNew: true },
+  { id: 'c-jobs',        title: 'Steve Jobs · Stanford 2005', author: 'Charla legendaria', type: 'talk',       dur: '15 min', accent: '#ffd47a', bg: 'linear-gradient(135deg,#2a2a2a,#151515)', cover: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80', plays: '892k', rating: 5.0, status: 'available', tags: ['Inspiración'], category: 'inspiracion',     narrator: 'Voz original',     desc: 'Tres historias sobre conectar puntos, amor y muerte.', premium: false, authorId: 'steve-jobs' },
+  { id: 'c-rams',        title: 'Dieter Rams · Menos pero mejor', author: 'Diseño industrial', type: 'talk',  dur: '24 min', accent: '#e8e8e8', bg: 'linear-gradient(135deg,#1a1a1a,#0f0f0f)', cover: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=600&q=80', plays: '67k',  rating: 4.9, status: 'available', tags: ['Diseño'],      category: 'diseno',      narrator: 'Voz · Mentex AI', desc: 'Los 10 principios que redefinieron la disciplina del diseño.', isNew: true, authorId: 'dieter-rams' },
+  { id: 'c-watts',       title: 'Alan Watts · El silencio',  author: 'Filosofía oriental',type: 'talk',       dur: '18 min', accent: '#9b8aff', bg: 'linear-gradient(135deg,#2a2540,#15102a)', cover: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=600&q=80', plays: '142k', rating: 4.9, status: 'available', tags: ['Filosofía'],   category: 'filosofia',   narrator: 'Voz original',     desc: 'Descubre el silencio que está debajo del ruido del pensamiento.', isNew: true, authorId: 'alan-watts' },
 
   // Sonidos
-  { id: 'c-lluvia',      title: 'Lluvia profunda',           author: 'Mentex Sound',      type: 'sound',      dur: '60 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1438449805896-28a666819a20?w=600&q=80', plays: '342k', rating: 4.9, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · 60fps', desc: 'Una hora de lluvia constante grabada en el bosque amazónico.' },
-  { id: 'c-bosque',      title: 'Bosque al amanecer',        author: 'Mentex Sound',      type: 'sound',      dur: '45 min', accent: '#9bd45e', bg: 'linear-gradient(135deg,#1f2a1a,#101810)', cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&q=80', plays: '218k', rating: 4.8, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · binaural', desc: 'Pájaros y viento entre los árboles antes de que el sol toque el suelo.', isNew: true },
-  { id: 'c-fuego',       title: 'Fuego y crepitar',          author: 'Mentex Sound',      type: 'sound',      dur: '55 min', accent: '#ff8b6a', bg: 'linear-gradient(135deg,#2a1f15,#1a120a)', cover: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=600&q=80', plays: '156k', rating: 4.7, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · 60fps', desc: 'El crepitar hipnótico de una fogata que abraza el silencio.', isNew: true },
+  { id: 'c-lluvia',      title: 'Lluvia profunda',           author: 'Mentex Sound',      type: 'sound',      dur: '60 min', accent: '#5dd3ff', bg: 'linear-gradient(135deg,#15252a,#0a1518)', cover: 'https://images.unsplash.com/photo-1438449805896-28a666819a20?w=600&q=80', plays: '342k', rating: 4.9, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · 60fps', desc: 'Una hora de lluvia constante grabada en el bosque amazónico.', authorId: 'mentex-sound' },
+  { id: 'c-bosque',      title: 'Bosque al amanecer',        author: 'Mentex Sound',      type: 'sound',      dur: '45 min', accent: '#9bd45e', bg: 'linear-gradient(135deg,#1f2a1a,#101810)', cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&q=80', plays: '218k', rating: 4.8, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · binaural', desc: 'Pájaros y viento entre los árboles antes de que el sol toque el suelo.', isNew: true, authorId: 'mentex-sound' },
+  { id: 'c-fuego',       title: 'Fuego y crepitar',          author: 'Mentex Sound',      type: 'sound',      dur: '55 min', accent: '#ff8b6a', bg: 'linear-gradient(135deg,#2a1f15,#1a120a)', cover: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=600&q=80', plays: '156k', rating: 4.7, status: 'available', tags: ['Naturaleza'],  category: 'naturaleza',      narrator: 'Naturaleza · 60fps', desc: 'El crepitar hipnótico de una fogata que abraza el silencio.', isNew: true, authorId: 'mentex-sound' },
 
   // Coming soon
-  { id: 'c-cs-stoic',    title: 'Estoicismo para hoy',       author: 'Mentex Originals',  type: 'series',     dur: '8 eps',  accent: '#FFD66B', bg: 'linear-gradient(135deg,#2a2515,#1a1610)', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '15 may 2026', tags: ['Filosofía'], category: 'filosofia', narrator: '—', desc: 'Marco Aurelio, Séneca y Epicteto para una vida con menos ruido y más virtud.', episodeCount: 8 },
-  { id: 'c-cs-mindset',  title: 'Mentalidad de élite',       author: 'Carlos Ruiz',       type: 'audiobook',  dur: '6h 20m', accent: '#c8a8ff', bg: 'linear-gradient(135deg,#2a1a3a,#1a0f25)', cover: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '02 jun 2026', tags: ['Mindset'],   category: 'productividad', narrator: '—', desc: 'Los hábitos mentales de los más altos performers en deportes, ciencia y arte.' },
-  { id: 'c-cs-respiracion', title: 'Respiración consciente · Curso', author: 'Mentex',  type: 'series',     dur: '5 eps',  accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '10 may 2026', tags: ['Mindfulness'], category: 'mindfulness', narrator: '—', desc: 'Cinco semanas para reentrenar tu sistema nervioso a través de la respiración.', episodeCount: 5 },
+  { id: 'c-cs-stoic',    title: 'Estoicismo para hoy',       author: 'Mentex Originals',  type: 'series',     dur: '8 eps',  accent: '#FFD66B', bg: 'linear-gradient(135deg,#2a2515,#1a1610)', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '15 may 2026', tags: ['Filosofía'], category: 'filosofia', narrator: '—', desc: 'Marco Aurelio, Séneca y Epicteto para una vida con menos ruido y más virtud.', episodeCount: 8, authorId: 'mentex' },
+  { id: 'c-cs-mindset',  title: 'Mentalidad de élite',       author: 'Carlos Ruiz',       type: 'audiobook',  dur: '6h 20m', accent: '#c8a8ff', bg: 'linear-gradient(135deg,#2a1a3a,#1a0f25)', cover: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '02 jun 2026', tags: ['Mindset'],   category: 'productividad', narrator: '—', desc: 'Los hábitos mentales de los más altos performers en deportes, ciencia y arte.', authorId: 'mentex' },
+  { id: 'c-cs-respiracion', title: 'Respiración consciente · Curso', author: 'Mentex',  type: 'series',     dur: '5 eps',  accent: '#3dffd1', bg: 'linear-gradient(135deg,#1a3a35,#0f2520)', cover: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=600&q=80', plays: '—',    rating: 0,    status: 'coming-soon', releaseDate: '10 may 2026', tags: ['Mindfulness'], category: 'mindfulness', narrator: '—', desc: 'Cinco semanas para reentrenar tu sistema nervioso a través de la respiración.', episodeCount: 5, authorId: 'mentex' },
 ];
 
+
+// ── EXPLORE_AUTHORS — perfiles de autores y creadores ────────────────────────
+// type: 'tribute'   → autor real, perfil homenaje de Mentex
+// type: 'originals' → contenido propio de Mentex
+const EXPLORE_AUTHORS = {
+  'eckhart-tolle': {
+    type: 'tribute',
+    name: 'Eckhart Tolle',
+    role: 'Autor espiritual · Maestro de consciencia',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=240&q=80',
+    accentColor: '#9b8aff',
+    bio: 'Eckhart Tolle es considerado uno de los maestros espirituales más influyentes de nuestro tiempo. Nacido en Alemania, a los 29 años vivió una profunda transformación interior que lo llevó a abandonar su carrera académica en Cambridge. Su libro "El Poder del Ahora" es un clásico moderno traducido a más de 50 idiomas que ha transformado millones de vidas en todo el mundo.',
+    links: [
+      { id:'web',       label:'Sitio Web Oficial', url:'https://eckharttolle.com',                    icon:'web', display:'eckharttolle.com', fullWidth:true },
+      { id:'twitter',   label:'Twitter',            url:'https://twitter.com/EckhartTolle',            icon:'x'  },
+      { id:'instagram', label:'Instagram',          url:'https://instagram.com/eckharttolle',          icon:'ig' },
+      { id:'facebook',  label:'Facebook',            url:'https://facebook.com/EckhartTolle',          icon:'fb' },
+      { id:'youtube',   label:'YouTube',             url:'https://youtube.com/@EckhartTolle',          icon:'yt' },
+    ],
+    amazonUrl: 'https://www.amazon.com/Eckhart-Tolle/e/B001ILKFQK',
+    amazonLabel: 'Ver libros de Eckhart Tolle en Amazon',
+  },
+  'alan-watts': {
+    type: 'tribute',
+    name: 'Alan Watts',
+    role: 'Filósofo · Intérprete del Zen y el Taoísmo',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&q=80',
+    accentColor: '#9b8aff',
+    bio: 'Alan Wilson Watts (1915–1973) fue un filósofo y escritor británico que dedicó su vida a interpretar las filosofías orientales para el mundo occidental. Autor de más de 25 libros, su obra sobre Budismo Zen, Taoísmo e Hinduismo sigue siendo profundamente relevante décadas después de su muerte.',
+    links: [
+      { id:'web',     label:'Sitio Web Oficial', url:'https://alanwatts.org',            icon:'web', display:'alanwatts.org', fullWidth:true },
+      { id:'youtube', label:'YouTube',            url:'https://youtube.com/@AlanWattsOrg', icon:'yt' },
+    ],
+    amazonUrl: 'https://www.amazon.com/Alan-Watts/e/B000AQ3EBW',
+    amazonLabel: 'Ver libros de Alan Watts en Amazon',
+  },
+  'dieter-rams': {
+    type: 'tribute',
+    name: 'Dieter Rams',
+    role: 'Diseñador industrial · Leyenda del diseño alemán',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&q=80',
+    accentColor: '#e8e8e8',
+    bio: 'Dieter Rams (1932) es uno de los diseñadores industriales más influyentes del siglo XX. Sus 10 principios del buen diseño — incluyendo la famosa máxima "menos pero mejor" — han moldeado generaciones de diseñadores y empresas, entre ellas Apple. Dirigió el departamento de diseño de Braun durante más de 30 años.',
+    links: [
+      { id:'web', label:'Vitsœ · Sus diseños', url:'https://www.vitsoe.com/us/about/dieter-rams', icon:'web', display:'vitsoe.com', fullWidth:true },
+    ],
+    amazonUrl: 'https://www.amazon.com/s?k=dieter+rams+book',
+    amazonLabel: 'Ver libros sobre Dieter Rams en Amazon',
+  },
+  'yuval-harari': {
+    type: 'tribute',
+    name: 'Yuval Noah Harari',
+    role: 'Historiador · Autor de Sapiens y Homo Deus',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240&q=80',
+    accentColor: '#6ab8ff',
+    bio: 'Yuval Noah Harari es historiador, filósofo y escritor israelí, profesor en la Universidad Hebrea de Jerusalén. Su trilogía Sapiens, Homo Deus y 21 lecciones para el siglo XXI han vendido millones de copias en todo el mundo y redefinido la forma en que entendemos la historia y el futuro de la humanidad.',
+    links: [
+      { id:'web',       label:'Sitio Web Oficial', url:'https://www.ynharari.com',          icon:'web', display:'ynharari.com', fullWidth:true },
+      { id:'twitter',   label:'Twitter',            url:'https://twitter.com/harari_yuval',  icon:'x'  },
+      { id:'instagram', label:'Instagram',          url:'https://instagram.com/yuval_noah_harari', icon:'ig' },
+      { id:'facebook',  label:'Facebook',            url:'https://facebook.com/harari.yuval', icon:'fb' },
+    ],
+    amazonUrl: 'https://www.amazon.com/Yuval-Noah-Harari/e/B00J21APDY',
+    amazonLabel: 'Ver libros de Yuval Harari en Amazon',
+  },
+  'cal-newport': {
+    type: 'tribute',
+    name: 'Cal Newport',
+    role: 'Autor · Profesor en Georgetown University',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=240&q=80',
+    accentColor: '#c8a8ff',
+    bio: 'Cal Newport es profesor asociado de Ciencias de la Computación en Georgetown University y autor de varios bestsellers sobre productividad, enfoque y la relación entre el trabajo profundo y la vida bien vivida. Es conocido por su postura crítica hacia las redes sociales y su defensa del trabajo sin distracciones.',
+    links: [
+      { id:'web', label:'Sitio Web Oficial', url:'https://calnewport.com', icon:'web', display:'calnewport.com', fullWidth:true },
+    ],
+    amazonUrl: 'https://www.amazon.com/Cal-Newport/e/B001IGUTOC',
+    amazonLabel: 'Ver libros de Cal Newport en Amazon',
+  },
+  'steve-jobs': {
+    type: 'tribute',
+    name: 'Steve Jobs',
+    role: 'Co-fundador de Apple · Visionario tecnológico',
+    avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=240&q=80',
+    accentColor: '#ffd47a',
+    bio: 'Steve Jobs (1955–2011) fue co-fundador y CEO de Apple, cofundador de Pixar y una de las figuras más influyentes de la historia tecnológica. Su discurso en Stanford en 2005 — "Conectar los puntos, el amor y la muerte" — es considerado uno de los discursos de graduación más inspiradores de todos los tiempos.',
+    links: [
+      { id:'web', label:'Apple · Su legado', url:'https://www.apple.com/stevejobs/', icon:'web', display:'apple.com/stevejobs', fullWidth:true },
+      { id:'youtube', label:'Discurso Stanford', url:'https://youtu.be/UF8uR6Z6KLc', icon:'yt' },
+    ],
+    amazonUrl: 'https://www.amazon.com/Steve-Jobs-Walter-Isaacson/dp/1451648537',
+    amazonLabel: 'Ver la biografía oficial de Steve Jobs en Amazon',
+  },
+  'mentex': {
+    type: 'originals',
+    name: 'Mentex Originals',
+    role: 'Contenido original · Creado con IA y expertos',
+    avatar: null,
+    accentColor: '#3dffd1',
+    bio: 'Mentex Originals es nuestro sello de contenido propio. Cada meditación guiada, serie educativa y experiencia de audio que publicamos está diseñada junto a psicólogos, coaches certificados y tecnología de IA de última generación. No resumimos obras ajenas — creamos desde cero para maximizar tu transformación personal.',
+    links: [
+      { id:'web',       label:'mentex.app',   url:'https://mentex.app',                   icon:'web', display:'mentex.app', fullWidth:true },
+      { id:'instagram', label:'Instagram',     url:'https://instagram.com/mentex.app',     icon:'ig' },
+      { id:'twitter',   label:'Twitter / X',   url:'https://twitter.com/mentexapp',        icon:'x'  },
+    ],
+    amazonUrl: null,
+  },
+  'mentex-sound': {
+    type: 'originals',
+    name: 'Mentex Sound',
+    role: 'Sonidos ambientales · Diseño de audio inmersivo',
+    avatar: null,
+    accentColor: '#9bd45e',
+    bio: 'Mentex Sound crea paisajes sonoros inmersivos para el bienestar mental. Nuestros ingenieros de audio combinan grabaciones en campo de alta fidelidad con técnicas de audio binaural y frecuencias de relajación para producir experiencias únicas de enfoque, meditación y descanso profundo.',
+    links: [
+      { id:'web',       label:'mentex.app/sonidos', url:'https://mentex.app',              icon:'web', display:'mentex.app', fullWidth:true },
+      { id:'instagram', label:'Instagram',           url:'https://instagram.com/mentex.app', icon:'ig' },
+    ],
+    amazonUrl: null,
+  },
+};
+
+function _getAuthor(item) {
+  if (!item || !item.authorId) return EXPLORE_AUTHORS['mentex'];
+  return EXPLORE_AUTHORS[item.authorId] || EXPLORE_AUTHORS['mentex'];
+}
 
 // ── Mock playlists ────────────────────────────────────────────────────────────
 const EXPLORE_PLAYLISTS = [
@@ -5453,6 +5578,383 @@ function SeriesEpisodeRow({ episode, index, completed, onClick }) {
 }
 
 
+// ── AuthorStrip — franja de autor debajo del hero en ContentDetailScreen ──────
+function AuthorStrip({ author, scheduled, onOpenTribute, onSchedule, onSave }) {
+  if (!author) return null;
+  const ac = author.accentColor || '#3dffd1';
+  const isMentex = author.type === 'originals';
+
+  return (
+    <div style={{ padding:'0 20px', marginBottom:16, display:'flex', alignItems:'center', gap:12 }}>
+      {/* Avatar tappable */}
+      <div
+        onClick={onOpenTribute}
+        role="button" tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenTribute(); } }}
+        className="mtx-tap"
+        style={{ flexShrink:0, cursor:'pointer', position:'relative' }}
+      >
+        <div style={{
+          width:48, height:48, borderRadius:999, overflow:'hidden',
+          background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${ac}33, ${ac}11)`,
+          border:`1.5px solid ${ac}50`,
+          boxShadow:`0 0 0 1px ${ac}20, 0 4px 14px -4px ${ac}40`,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          flexShrink:0,
+        }}>
+          {author.avatar ? (
+            <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+          ) : (
+            <span style={{ fontSize:18, fontWeight:800, color:ac, fontFamily:'var(--ff-display)', letterSpacing:'-0.03em' }}>
+              {author.name.charAt(0)}
+            </span>
+          )}
+        </div>
+        {/* Badge indicator */}
+        <div style={{
+          position:'absolute', bottom:-2, right:-2,
+          width:16, height:16, borderRadius:999,
+          background: isMentex ? `linear-gradient(135deg, ${ac}, ${ac}aa)` : 'linear-gradient(135deg, #FFD66B, #FFA94D)',
+          border:'1.5px solid #050706',
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          <IcSparkles size={8} stroke="none" fill={isMentex ? '#050706' : '#3a2000'} strokeWidth={0}/>
+        </div>
+      </div>
+
+      {/* Name + role */}
+      <div style={{ flex:1, minWidth:0, cursor:'pointer' }} onClick={onOpenTribute}>
+        <div style={{ fontSize:13, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          {author.name}
+        </div>
+        <div style={{ fontSize:11, color:'var(--ink-3)', fontWeight:500, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+          {author.role}
+        </div>
+      </div>
+
+      {/* CTAs — Guardar (icon) + Agendar (icon+text) */}
+      <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
+        {/* Guardar — solo icono */}
+        <button onClick={onSave} aria-label="Guardar en playlist" className="mtx-tap" style={{
+          width:38, height:38, borderRadius:999, border:'0.5px solid var(--glass-stroke)',
+          background:'var(--glass-2)', color:'var(--ink-2)', cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          flexShrink:0,
+          transition:'background .2s, color .2s',
+        }}>
+          <IcBookmark size={15} stroke="currentColor"/>
+        </button>
+
+        {/* Agendar para hoy — icono + texto */}
+        <button
+          onClick={scheduled ? undefined : onSchedule}
+          disabled={scheduled}
+          aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
+          className="mtx-tap"
+          style={{
+            height:38, borderRadius:999, cursor: scheduled ? 'default' : 'pointer',
+            border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
+            background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
+            color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
+            fontSize:12, fontWeight: scheduled ? 700 : 600, fontFamily:'var(--ff-sans)',
+            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
+            padding:'0 14px', flexShrink:0,
+            transition:'background .25s, color .25s, border-color .25s, box-shadow .25s',
+            boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
+          }}>
+          {scheduled
+            ? <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/>
+            : <IcCalendar size={13} stroke="currentColor"/>}
+          {scheduled ? 'Agendado' : 'Agendar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── TributeProfileScreen — perfil homenaje o Mentex Originals ────────────────
+// Portalled dentro de ContentDetailScreen (position:absolute;inset:0).
+// type='tribute'   → perfil homenaje de autor real con disclaimer + Amazon
+// type='originals' → perfil informativo de Mentex sin disclaimer ni Amazon
+function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onItemPlay, onItemSchedule, onItemSave }) {
+  const [innerItem, setInnerItem] = React.useState(null);
+  const isOriginals = author.type === 'originals';
+  const ac = author.accentColor || '#3dffd1';
+
+  const badgeBg     = isOriginals
+    ? `linear-gradient(135deg, ${ac}25, ${ac}10)`
+    : 'linear-gradient(135deg, rgba(255,210,80,0.22), rgba(255,160,50,0.12))';
+  const badgeColor  = isOriginals ? ac : '#FFD66B';
+  const badgeBorder = isOriginals ? `0.5px solid ${ac}40` : '0.5px solid rgba(255,210,80,0.35)';
+  const badgeText   = isOriginals ? `${author.name}` : 'Perfil Homenaje de Mentex';
+
+  const heroBg = isOriginals
+    ? `linear-gradient(180deg, ${ac}18 0%, rgba(5,7,6,0.95) 100%), #050706`
+    : `linear-gradient(180deg, ${ac}14 0%, rgba(5,7,6,0.97) 100%), #050706`;
+
+  // Link icon resolver
+  const _linkIcon = (iconKey) => {
+    const s = { size:16, stroke:'currentColor' };
+    switch(iconKey) {
+      case 'x':  return <IcTwitterX {...s}/>;
+      case 'ig': return <IcInstagram {...s}/>;
+      case 'yt': return <IcPlay size={14} stroke="currentColor"/>;
+      case 'fb': return <IcGlobe size={14} stroke="currentColor"/>;
+      default:   return <IcGlobe {...s}/>;
+    }
+  };
+
+  // If user tapped a related item, show ContentDetailScreen-like view (no further tribute nesting)
+  if (innerItem) {
+    const innerAuthor = _getAuthor(innerItem);
+    const innerScheduled = window.__mtxScheduler ? !!window.__mtxScheduler.getTime(innerItem.id) : false;
+    return (
+      <div style={{ position:'absolute', inset:0, background:'#050706', display:'flex', flexDirection:'column', overflow:'hidden', animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both' }}>
+        {/* Mini nav for inner item */}
+        <div style={{ flexShrink:0, paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10, display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
+          <button onClick={() => setInnerItem(null)} aria-label="Volver" className="mtx-tap" style={{ width:40, height:40, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-1)', cursor:'pointer' }}>
+            <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
+          </button>
+          <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%, calc(-50% + 19px))', fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)', pointerEvents:'none' }}>
+            {(window.CONTENT_TYPES || []).find(t => t.id === innerItem.type)?.label || innerItem.type}
+          </div>
+          <div style={{ width:40 }}/>
+        </div>
+        {/* Scrollable inner content */}
+        <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+          {/* Hero */}
+          <div style={{ padding:'8px 20px 16px' }}>
+            <div style={{ position:'relative', height:200, borderRadius:24, overflow:'hidden', background:innerItem.bg, border:`0.5px solid ${innerItem.accent || '#3dffd1'}33` }}>
+              {innerItem.cover && <img src={innerItem.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
+              <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%)' }}/>
+              <div style={{ position:'absolute', left:18, right:18, bottom:16 }}>
+                <div style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2, fontFamily:'var(--ff-display)', textShadow:'0 2px 12px rgba(0,0,0,0.6)' }}>{innerItem.title}</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500, marginTop:4 }}>{innerItem.author}</div>
+              </div>
+            </div>
+          </div>
+          {/* Desc */}
+          {innerItem.desc && <div style={{ padding:'0 20px 20px', fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{innerItem.desc}</div>}
+        </div>
+        {/* CTA */}
+        <div style={{ flexShrink:0, padding:'12px 20px 36px', background:'linear-gradient(180deg, rgba(5,7,6,0), rgba(5,7,6,0.96) 22%, #050706)' }}>
+          <button onClick={() => onItemPlay(innerItem)} className="mtx-tap" style={{ width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer', background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))', color:'#0a1410', fontSize:15, fontWeight:700, fontFamily:'var(--ff-sans)', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
+            <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
+            Reproducir
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Full-width link renderer
+  const renderLink = (link) => {
+    const iconEl = _linkIcon(link.icon);
+    if (link.fullWidth) {
+      return (
+        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', borderRadius:16, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', textDecoration:'none', color:'inherit', marginBottom:8 }}>
+          <div style={{ width:36, height:36, borderRadius:999, background:`${ac}18`, display:'flex', alignItems:'center', justifyContent:'center', color:ac, flexShrink:0 }}>
+            {iconEl}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)' }}>{link.label}</div>
+            {link.display && <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:1 }}>{link.display}</div>}
+          </div>
+          <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
+        </a>
+      );
+    }
+    return null; // grid links handled separately
+  };
+
+  const fullWidthLinks = (author.links || []).filter(l => l.fullWidth);
+  const gridLinks      = (author.links || []).filter(l => !l.fullWidth);
+
+  return (
+    <div style={{
+      position:'absolute', inset:0,
+      background: heroBg,
+      display:'flex', flexDirection:'column', overflow:'hidden',
+      animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
+    }}>
+      {/* Nav */}
+      <div style={{ flexShrink:0, paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:0, display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
+        <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{ width:40, height:40, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-1)', cursor:'pointer' }}>
+          <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
+        </button>
+        <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%, calc(-50% + 19px))', fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)', pointerEvents:'none' }}>
+          Perfil
+        </div>
+        <div style={{ width:40 }}/>
+      </div>
+
+      {/* Scrollable */}
+      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+
+        {/* Hero: gradient bg + avatar + badge + name */}
+        <div style={{ padding:'24px 20px 28px', display:'flex', flexDirection:'column', alignItems:'center', gap:14, position:'relative', overflow:'hidden' }}>
+          {/* Ambient glow */}
+          <div style={{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%)', width:260, height:200, borderRadius:999, background:`radial-gradient(ellipse, ${ac}18 0%, transparent 70%)`, pointerEvents:'none' }}/>
+
+          {/* Avatar */}
+          <div style={{
+            width:96, height:96, borderRadius:999, overflow:'hidden',
+            background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${ac}33, ${ac}11)`,
+            border:`2px solid ${ac}60`,
+            boxShadow:`0 0 0 4px ${ac}14, 0 0 28px -8px ${ac}70`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            flexShrink:0, position:'relative', zIndex:1,
+          }}>
+            {author.avatar ? (
+              <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+            ) : (
+              <span style={{ fontSize:36, fontWeight:800, color:ac, fontFamily:'var(--ff-display)', letterSpacing:'-0.03em' }}>
+                {isOriginals ? '✦' : author.name.charAt(0)}
+              </span>
+            )}
+          </div>
+
+          {/* Badge */}
+          <div style={{
+            padding:'6px 16px', borderRadius:999,
+            background: badgeBg, border: badgeBorder,
+            display:'inline-flex', alignItems:'center', gap:7,
+            boxShadow:`0 2px 12px -4px ${isOriginals ? ac : '#FFD66B'}30`,
+            position:'relative', zIndex:1,
+          }}>
+            {isOriginals
+              ? <IcSparkles size={12} stroke={badgeColor}/>
+              : <IcHeart size={12} stroke={badgeColor} fill={badgeColor}/>
+            }
+            <span style={{ fontSize:12, fontWeight:700, color:badgeColor, letterSpacing:'0.01em' }}>{badgeText}</span>
+            {!isOriginals && <IcSparkles size={11} stroke={badgeColor}/>}
+          </div>
+
+          {/* Name + role */}
+          <div style={{ textAlign:'center', position:'relative', zIndex:1 }}>
+            <div style={{ fontSize:24, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.025em', fontFamily:'var(--ff-display)', lineHeight:1.15 }}>
+              {author.name}
+            </div>
+            <div style={{ fontSize:13, color:'var(--ink-3)', fontWeight:500, marginTop:5 }}>
+              {author.role}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding:'0 20px', paddingBottom:32 }}>
+
+          {/* Disclaimer (tribute only) */}
+          {!isOriginals && (
+            <div style={{ padding:'14px 16px', borderRadius:16, background:'rgba(155,138,255,0.07)', border:'0.5px solid rgba(155,138,255,0.18)', marginBottom:24, display:'flex', gap:12, alignItems:'flex-start' }}>
+              <IcHeart size={15} stroke="#9b8aff" fill="#9b8aff" style={{ flexShrink:0, marginTop:1 }}/>
+              <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.5 }}>
+                Este perfil es un{' '}
+                <strong style={{ color:'var(--ink-1)' }}>homenaje creado por Mentex</strong>
+                {' '}para celebrar la obra de {author.name}. Los resúmenes en nuestra plataforma son de autoría propia.{' '}
+                <strong style={{ color:'#FFD66B' }}>No es un perfil oficial del autor.</strong>
+              </div>
+            </div>
+          )}
+
+          {/* Sobre el Autor/Creador */}
+          <div style={{ marginBottom:24 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+              <IcBook size={18} stroke={ac}/>
+              <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                {isOriginals ? 'Sobre Mentex' : 'Sobre el Autor'}
+              </span>
+            </div>
+            <div style={{ fontSize:14, color:'var(--ink-2)', lineHeight:1.6, textWrap:'pretty' }}>
+              {author.bio}
+            </div>
+          </div>
+
+          {/* Enlaces Oficiales */}
+          {author.links && author.links.length > 0 && (
+            <div style={{ marginBottom:24 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                <IcGlobe size={18} stroke={ac}/>
+                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                  {isOriginals ? 'Encuéntranos en' : 'Enlaces Oficiales'}
+                </span>
+              </div>
+              {/* Full-width links */}
+              {fullWidthLinks.map(renderLink)}
+              {/* Grid links */}
+              {gridLinks.length > 0 && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {gridLinks.map(link => (
+                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', textDecoration:'none', color:'inherit' }}>
+                      <div style={{ width:28, height:28, borderRadius:999, background:`${ac}18`, display:'flex', alignItems:'center', justifyContent:'center', color:ac, flexShrink:0 }}>
+                        {_linkIcon(link.icon)}
+                      </div>
+                      <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{link.label}</span>
+                      <IcChevR size={12} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Más contenido en Mentex */}
+          {relatedItems && relatedItems.length > 0 && (
+            <div style={{ marginBottom:24 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                <IcSparkles size={18} stroke={ac}/>
+                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                  {isOriginals ? `Más contenido de ${author.name}` : `Más resúmenes en Mentex`}
+                </span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {relatedItems.map(ri => (
+                  <div key={ri.id} onClick={() => setInnerItem(ri)} role="button" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInnerItem(ri); } }}
+                    className="mtx-tap"
+                    style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:16, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.06)', cursor:'pointer', transition:'background .2s' }}>
+                    <div style={{ width:52, height:52, borderRadius:12, overflow:'hidden', background:ri.bg, flexShrink:0, position:'relative' }}>
+                      {ri.cover && <img src={ri.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ri.title}</div>
+                      <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>{ri.dur}</div>
+                    </div>
+                    <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Amazon CTA (tribute only) */}
+          {!isOriginals && author.amazonUrl && (
+            <div style={{ marginBottom:8 }}>
+              <a href={author.amazonUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration:'none', display:'block' }}>
+                <div className="mtx-tap" style={{
+                  width:'100%', height:54, borderRadius:18,
+                  background:'linear-gradient(135deg, #FF9F43, #FF6B35)',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                  boxShadow:'0 0 0 1px rgba(255,160,70,0.4), 0 12px 32px -8px rgba(255,120,40,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
+                  cursor:'pointer',
+                }}>
+                  <IcBookmark size={18} stroke="#fff" fill="none"/>
+                  <span style={{ fontSize:14, fontWeight:700, color:'#fff', fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em' }}>
+                    {author.amazonLabel || 'Ver en Amazon'}
+                  </span>
+                  <IcChevR size={14} stroke="#fff" strokeWidth={2}/>
+                </div>
+              </a>
+              <div style={{ textAlign:'center', fontSize:11, color:'var(--ink-3)', marginTop:8 }}>
+                Apoya al autor comprando sus obras originales ❤️
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ContentDetailScreen — full screen view de detalle de contenido ─────────────
 // Reemplaza el VideoSheet (bottom-sheet) para la navegación desde tarjetas.
 // Misma lógica de tabs que VideoSheet pero full-screen con CTAs siempre visibles.
@@ -5463,6 +5965,12 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
   if (!item) return null;
   const accent = item.accent || '#3dffd1';
   const hasChapters = item.type === 'audiobook';
+  const author = _getAuthor(item);
+  const relatedItems = React.useMemo(() =>
+    EXPLORE_CONTENT.filter(c => c.authorId === item.authorId && c.id !== item.id && c.status === 'available').slice(0, 4),
+    [item.authorId, item.id]
+  );
+  const [tributeOpen, setTributeOpen] = React.useState(false);
   const chapters = React.useMemo(
     () => hasChapters ? _generateChapters(item) : [],
     [item.id, hasChapters]
@@ -5557,6 +6065,15 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
           </div>
         </div>
 
+        {/* Author strip */}
+        <AuthorStrip
+          author={author}
+          scheduled={scheduled}
+          onOpenTribute={() => setTributeOpen(true)}
+          onSchedule={handleSchedule}
+          onSave={handleSave}
+        />
+
         {/* Stats row */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, padding:'0 20px', marginBottom:16 }}>
           {[
@@ -5649,12 +6166,11 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
         </div>
       </div>
 
-      {/* Sticky CTA footer */}
+      {/* Sticky CTA footer — solo Reproducir (Agendar/Guardar viven en AuthorStrip) */}
       <div style={{
         flexShrink:0,
         background:'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.96) 22%, #050706 100%)',
         padding:'16px 20px 40px',
-        display:'flex', flexDirection:'column', gap:10,
       }}>
         <button onClick={() => onPlay(item)} className="mtx-tap" style={{
           width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
@@ -5667,37 +6183,20 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
           <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
           Reproducir
         </button>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <button
-            onClick={scheduled ? undefined : handleSchedule}
-            disabled={scheduled}
-            aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
-            className="mtx-tap" style={{
-              height:50, borderRadius:14, cursor: scheduled ? 'default' : 'pointer',
-              border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
-              background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
-              color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
-              fontSize:13, fontWeight: scheduled ? 700 : 600, fontFamily:'var(--ff-sans)',
-              display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-              transition:'background .25s, color .25s, box-shadow .25s, border-color .25s',
-              boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
-            }}>
-            {scheduled ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={14} stroke="currentColor"/>}
-            {scheduled ? 'Agendado' : 'Agendar para hoy'}
-          </button>
-          <button onClick={handleSave} className="mtx-tap" style={{
-            height:50, borderRadius:14, cursor:'pointer',
-            border:'0.5px solid var(--glass-stroke)',
-            background:'var(--glass-2)', color:'var(--ink-1)',
-            fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
-            transition:'background .2s, color .2s, border-color .2s',
-          }}>
-            <IcBookmark size={14} stroke="currentColor"/>
-            Guardar
-          </button>
-        </div>
       </div>
+
+      {/* Author tribute modal — rendered inside ContentDetailScreen */}
+      {tributeOpen && (
+        <TributeProfileScreen
+          author={author}
+          currentItem={item}
+          relatedItems={relatedItems}
+          onBack={() => setTributeOpen(false)}
+          onItemPlay={(it) => { setTributeOpen(false); setTimeout(() => onPlay(it), 200); }}
+          onItemSchedule={(it) => onScheduleForToday?.(it)}
+          onItemSave={(it) => onSaveToPlaylist?.(it)}
+        />
+      )}
     </div>
   );
 }
@@ -9161,6 +9660,7 @@ Object.assign(window, {
   PlaylistCard, PlaylistsRow, PlaylistItemRow,
   PlaylistOverviewScreen, PlaylistQueueSheet,
   SeriesOverviewScreen, SeriesEpisodeRow, ContentDetailScreen,
+  AuthorStrip, TributeProfileScreen,
   LibraryScreen, LibraryStatsBar, LibraryTabs, NewPlaylistCard, HistoryRow,
   ALL_CATEGORIES, CATEGORIES_BY_TYPE, DividerBanner, CategorySection,
   TopTenCard, TopTenRow, FilterPanel, SearchScreen, SearchResultRow,
