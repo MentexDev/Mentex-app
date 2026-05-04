@@ -142,7 +142,7 @@ const CONTENT_TYPES = [
 // ── Categorías del hub (rows fijas) ───────────────────────────────────────────
 const EXPLORE_CATEGORIES = [
   { id: 'continue',     title: 'Continúa donde lo dejaste', sub: 'Retoma tu progreso',                  filter: i => i.playPct != null },
-  { id: 'top10',        title: 'Top 10 esta semana',         sub: 'Lo que la comunidad está escuchando', filter: () => true,             tag: 'top10' },
+  { id: 'top10',        title: 'Top 10 esta semana',         sub: 'Lo que la comunidad está escuchando', filter: () => true,             tag: 'top10', allowedTypes: ['all', 'audiobook', 'meditation'] },
   { id: 'coming-soon',  title: 'Próximamente',                sub: 'Lo que viene en camino',             filter: i => i.status === 'coming-soon' },
   { id: 'audiobooks',   title: 'Audiolibros recomendados',   sub: 'Selección curada para ti',           filter: i => i.type === 'audiobook' },
   { id: 'meditations',  title: 'Meditaciones del día',       sub: 'Encuentra tu centro',                filter: i => i.type === 'meditation' },
@@ -483,10 +483,7 @@ function ExploreHero({ items, onItemClick }) {
     ? window.__mtxIsPremium() : true;
   return (
     <div style={{ marginBottom:22 }}>
-      <div style={{ padding:'0 20px 10px' }}>
-        <div className="mtx-eyebrow" style={{ fontSize:9, color:'var(--neon)', letterSpacing:'0.16em', marginBottom:3 }}>
-          Destacados
-        </div>
+      <div style={{ padding:'0 20px 8px' }}>
         <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em' }}>
           Imperdibles para ti
         </h2>
@@ -966,6 +963,35 @@ const _generateChapters = (item) => {
     { t: 'Profundización',   d: `${slice} min` },
     { t: 'Cierre y reflexión', d: `${Math.max(1, totalMin - slice * 3)} min` },
   ];
+};
+
+// ── Series episode generator ─────────────────────────────────────────────────
+const _EP_TITLES = [
+  'Introducción', 'Los fundamentos', 'El sistema', 'Práctica profunda',
+  'Obstáculos internos', 'Construyendo el hábito', 'El método avanzado', 'Integración y cierre',
+  'Profundización', 'La síntesis',
+];
+const _generateSeriesEpisodes = (series) => {
+  const count = series.episodeCount || 3;
+  const totalMin = Math.floor(_parseDuration(series.dur) / 60) || (count * 20);
+  const avgMin = Math.max(8, Math.floor(totalMin / count));
+  return Array.from({ length: count }, (_, i) => ({
+    id: `${series.id}-ep-${i + 1}`,
+    title: _EP_TITLES[i] || `Episodio ${i + 1}`,
+    author: series.author,
+    type: series.type,
+    dur: `${avgMin + (i % 3 === 1 ? 5 : 0)} min`,
+    accent: series.accent,
+    bg: series.bg,
+    cover: series.cover,
+    status: 'available',
+    plays: series.plays,
+    category: series.category,
+    premium: series.premium,
+    desc: series.desc,
+    seriesId: series.id,
+    episodeIndex: i,
+  }));
 };
 
 // ── Mock search data ─────────────────────────────────────────────────────────
@@ -5053,6 +5079,296 @@ function PlaylistOverviewScreen({ playlist, onBack, onPlayAll, onShuffle, onItem
 }
 
 
+// ── SeriesOverviewScreen — full screen view de una serie (≈PlaylistOverview) ─
+function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodePlay }) {
+  const episodes = React.useMemo(() => _generateSeriesEpisodes(series), [series?.id]);
+  const toast = window.useToast ? window.useToast() : { show: () => {} };
+  const [saved, setSaved] = React.useState(false);
+
+  if (!series) return null;
+  const accent = series.accent || '#3dffd1';
+  const totalMin = episodes.reduce((sum, ep) => {
+    const m = (String(ep.dur).match(/(\d+)\s*m/) || [])[1];
+    return sum + (parseInt(m || '0'));
+  }, 0);
+  const totalDur = totalMin >= 60
+    ? `${Math.floor(totalMin / 60)}h ${totalMin % 60}min`
+    : `${totalMin} min`;
+
+  const handleSave = () => {
+    setSaved(s => !s);
+    toast.show({ message: saved ? 'Removida de tu biblioteca' : 'Guardada en tu biblioteca', duration: 1800 });
+  };
+
+  return (
+    <div style={{
+      paddingBottom:120,
+      animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
+    }}>
+      {/* Nav bar */}
+      <div style={{
+        paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        flexShrink:0, position:'relative',
+      }}>
+        <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{
+          width:40, height:40, borderRadius:999, border:0,
+          background:'rgba(255,255,255,0.06)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', cursor:'pointer', position:'relative', zIndex:2,
+        }}>
+          <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
+        </button>
+        <div style={{
+          position:'absolute', left:'50%', top:'50%',
+          transform:'translate(-50%, calc(-50% + 19px))',
+          fontSize:11, fontWeight:700, color:'var(--ink-3)',
+          letterSpacing:'0.14em', textTransform:'uppercase',
+          fontFamily:'var(--ff-sans)', pointerEvents:'none',
+        }}>
+          Serie
+        </div>
+        <button
+          onClick={handleSave}
+          aria-label={saved ? 'Quitar de biblioteca' : 'Guardar en biblioteca'}
+          className="mtx-tap"
+          style={{
+            width:40, height:40, borderRadius:999, border:0, cursor:'pointer',
+            background: saved ? `rgba(${accent === '#3dffd1' ? '61,255,209' : '155,138,255'},0.12)` : 'rgba(255,255,255,0.06)',
+            color: saved ? accent : 'var(--ink-1)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            position:'relative', zIndex:2,
+            transition:'background .2s, color .2s',
+          }}
+        >
+          <IcBookmark size={18} stroke="currentColor" strokeWidth={saved ? 2.4 : 1.8}
+            fill={saved ? 'currentColor' : 'none'}/>
+        </button>
+      </div>
+
+      {/* Hero — cover + title + author */}
+      <div style={{ padding:'8px 20px 16px' }}>
+        <div style={{
+          position:'relative', height:200,
+          borderRadius:24, overflow:'hidden',
+          background: series.bg,
+          border:`0.5px solid ${accent}33`,
+          boxShadow:`0 16px 44px -16px ${accent}55, 0 0 0 0.5px ${accent}1a`,
+        }}>
+          {series.cover && (
+            <img src={series.cover} alt="" style={{
+              position:'absolute', inset:0,
+              width:'100%', height:'100%', objectFit:'cover',
+              opacity:0.75, filter:'saturate(0.95) contrast(1.05)',
+            }}/>
+          )}
+          <div style={{
+            position:'absolute', inset:0,
+            background:`linear-gradient(180deg, rgba(0,0,0,0.15) 30%, rgba(0,0,0,0.88) 100%), radial-gradient(circle at 80% 20%, ${accent}30, transparent 55%)`,
+          }}/>
+
+          {/* Series badge */}
+          <div style={{
+            position:'absolute', top:14, left:14,
+            fontSize:9, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase',
+            color:accent,
+            padding:'4px 9px', borderRadius:999,
+            background:'rgba(0,0,0,0.55)',
+            backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
+            border:`0.5px solid ${accent}45`,
+            display:'inline-flex', alignItems:'center', gap:5,
+          }}>
+            <IcTarget size={9} stroke="currentColor" strokeWidth={2}/>
+            Serie · {series.episodeCount} episodios
+          </div>
+
+          {/* Bottom: title + author */}
+          <div style={{
+            position:'absolute', left:18, right:18, bottom:16,
+            display:'flex', flexDirection:'column', gap:5,
+          }}>
+            <div style={{
+              fontSize:22, fontWeight:700, color:'#fff',
+              letterSpacing:'-0.02em', lineHeight:1.18,
+              textShadow:'0 2px 12px rgba(0,0,0,0.65)',
+              fontFamily:'var(--ff-display)',
+            }}>
+              {series.title}
+            </div>
+            <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500 }}>
+              {series.author}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ padding:'0 20px', marginBottom:18, display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+        {[
+          { label: 'Episodios', value: series.episodeCount ?? episodes.length },
+          { label: 'Duración',  value: totalDur },
+          { label: 'Plays',     value: series.plays && series.plays !== '—' ? series.plays : '—' },
+        ].map(stat => (
+          <div key={stat.label} className="mtx-glass" style={{
+            padding:'12px', borderRadius:12, textAlign:'center',
+            background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)',
+          }}>
+            <div style={{
+              fontSize:9, fontWeight:700, letterSpacing:'0.12em',
+              textTransform:'uppercase', color:'var(--ink-3)', marginBottom:3,
+            }}>
+              {stat.label}
+            </div>
+            <div style={{
+              fontSize: stat.label === 'Duración' ? 14 : 18,
+              fontWeight:700, color:'var(--ink-1)',
+              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.02em',
+              fontFamily:'var(--ff-display)',
+              marginTop: stat.label === 'Duración' ? 3 : 0,
+            }}>
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTAs */}
+      <div style={{ padding:'0 20px', marginBottom:14, display:'grid', gridTemplateColumns:'2fr 1fr', gap:10 }}>
+        <button onClick={onPlayAll} className="mtx-tap" style={{
+          height:50, borderRadius:14, border:0, cursor:'pointer',
+          background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+          color:'#0a1410', fontSize:14, fontWeight:700,
+          fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+          boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 10px 28px -8px rgba(61,255,209,0.5), inset 0 1px 0 rgba(255,255,255,0.4)',
+        }}>
+          <IcPlay size={14} stroke="currentColor" strokeWidth={2.4}/>
+          Reproducir todo
+        </button>
+        <button onClick={onShuffle} className="mtx-tap" style={{
+          height:50, borderRadius:14, cursor:'pointer',
+          border:'0.5px solid var(--glass-stroke)',
+          background:'var(--glass-2)', color:'var(--ink-1)',
+          fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+          display:'inline-flex', alignItems:'center', justifyContent:'center', gap:5,
+        }}>
+          <IcZap size={13} stroke="currentColor"/>
+          Aleatorio
+        </button>
+      </div>
+
+      {/* Description */}
+      {series.desc && (
+        <div style={{ padding:'10px 20px 18px' }}>
+          <div style={{ fontSize:13, color:'var(--ink-3)', lineHeight:1.5, textWrap:'pretty' }}>
+            {series.desc}
+          </div>
+        </div>
+      )}
+
+      {/* Episodes list */}
+      <div style={{ padding:'0 20px' }}>
+        <div style={{
+          fontSize:10, fontWeight:700, letterSpacing:'0.14em',
+          textTransform:'uppercase', color:'var(--ink-3)',
+          marginBottom:10, paddingLeft:4,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+        }}>
+          <span>Cola de reproducción</span>
+          <span style={{ fontVariantNumeric:'tabular-nums' }}>{episodes.length}</span>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {episodes.map((ep, i) => (
+            <SeriesEpisodeRow key={ep.id} episode={ep} index={i} onClick={onEpisodePlay}/>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SeriesEpisodeRow — fila de episodio en SeriesOverviewScreen ───────────────
+function SeriesEpisodeRow({ episode, index, onClick }) {
+  if (!episode) return null;
+  const accent = episode.accent || '#3dffd1';
+
+  return (
+    <div
+      onClick={() => onClick(episode)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(episode); } }}
+      className="mtx-glass mtx-tap"
+      style={{
+        display:'flex', alignItems:'center', gap:12,
+        padding:'10px 12px', borderRadius:14, cursor:'pointer',
+        background:'rgba(255,255,255,0.025)',
+        border:'0.5px solid rgba(255,255,255,0.05)',
+        position:'relative', overflow:'hidden',
+        transition:'transform .25s, box-shadow .3s',
+      }}
+    >
+      {/* Episode number */}
+      <div style={{
+        width:24, flexShrink:0, textAlign:'center',
+        fontSize:11, fontWeight:700, color:'var(--ink-3)',
+        fontVariantNumeric:'tabular-nums',
+      }}>
+        {String(index + 1).padStart(2, '0')}
+      </div>
+
+      {/* Cover */}
+      <div style={{
+        width:48, height:48, borderRadius:10, flexShrink:0,
+        position:'relative', overflow:'hidden',
+        background: episode.bg,
+        border:`0.5px solid ${accent}28`,
+      }}>
+        {episode.cover && (
+          <img src={episode.cover} alt="" loading="lazy" style={{
+            position:'absolute', inset:0,
+            width:'100%', height:'100%', objectFit:'cover',
+            opacity:0.72,
+          }}/>
+        )}
+        <div style={{
+          position:'absolute', inset:0,
+          background:`linear-gradient(135deg, ${accent}22, transparent 60%)`,
+        }}/>
+      </div>
+
+      {/* Text */}
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{
+          fontSize:9, fontWeight:700, letterSpacing:'0.1em',
+          color: accent, textTransform:'uppercase',
+          marginBottom:2, opacity:0.7,
+        }}>
+          EP {index + 1}
+        </div>
+        <div style={{
+          fontSize:13, fontWeight:600, color:'var(--ink-1)',
+          letterSpacing:'-0.01em',
+          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+        }}>
+          {episode.title}
+        </div>
+      </div>
+
+      {/* Duration */}
+      <div style={{
+        fontSize:11, color:'var(--ink-3)', flexShrink:0,
+        fontVariantNumeric:'tabular-nums',
+        display:'inline-flex', alignItems:'center', gap:4,
+      }}>
+        <IcClock size={10} stroke="currentColor"/>
+        {episode.dur}
+      </div>
+    </div>
+  );
+}
+
+
 // ── PlaylistOptionsSheet — menú "···" sobre una playlist ──────────────────────
 function PlaylistOptionsSheet({ playlist, onClose, onPlayAll, onShuffle, onShare, onAddContent, onEdit, onRemove }) {
   if (!playlist) return null;
@@ -7957,6 +8273,7 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   // Categories filtered & with items (top10 special-case: sort by plays, top 10)
   const visibleCategories = React.useMemo(() => {
     return EXPLORE_CATEGORIES
+      .filter(c => !c.allowedTypes || c.allowedTypes.includes(filterType))
       .map(c => {
         let _items = visibleItems.filter(c.filter);
         if (c.tag === 'top10') {
@@ -7968,15 +8285,15 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
         return { ...c, _items };
       })
       .filter(c => c._items.length > 0);
-  }, [visibleItems]);
+  }, [visibleItems, filterType]);
 
   const handleItemClick = (item) => {
     if (item.status === 'coming-soon') {
       setComingSoonItem(item);
     } else if (item.premium !== false && typeof window.__mtxIsPremium === 'function' && !window.__mtxIsPremium()) {
-      // Defense-in-depth: gate premium items regardless of which surface they come from
-      // (search results, library, any card that didn't apply the locked prop)
       if (typeof window.__mtxOpenPremiumLock === 'function') window.__mtxOpenPremiumLock('content');
+    } else if (item.type === 'series') {
+      nav.push({ view: 'series-overview', seriesId: item.id });
     } else {
       setVideoSheetItem(item);
     }
@@ -8428,10 +8745,33 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     return <AddContentScreen playlist={playlist} onBack={nav.back}/>;
   };
 
+  const renderSeriesOverview = () => {
+    const series = EXPLORE_CONTENT.find(c => c.id === nav.state.seriesId && c.type === 'series');
+    if (!series) return renderHome();
+    const episodes = _generateSeriesEpisodes(series);
+    return (
+      <SeriesOverviewScreen
+        series={series}
+        onBack={nav.back}
+        onPlayAll={() => {
+          const first = episodes[0];
+          if (first) setVideoSheetItem(first);
+        }}
+        onShuffle={() => {
+          const idx = Math.floor(Math.random() * episodes.length);
+          const ep = episodes[idx];
+          if (ep) setVideoSheetItem(ep);
+        }}
+        onEpisodePlay={(ep) => setVideoSheetItem(ep)}
+      />
+    );
+  };
+
   const renderCurrentView = () => {
     switch (nav.state.view) {
       case 'category-full':     return renderCategoryFull();
       case 'playlist-overview': return renderPlaylistOverview();
+      case 'series-overview':   return renderSeriesOverview();
       case 'library':           return renderLibrary();
       case 'add-content':       return renderAddContent();
       default:                  return renderHome();
@@ -8478,6 +8818,7 @@ Object.assign(window, {
   VideoSheet, VideoPlayerFullscreen, VideoCompletionSheet,
   PlaylistCard, PlaylistsRow, PlaylistItemRow,
   PlaylistOverviewScreen, PlaylistQueueSheet,
+  SeriesOverviewScreen, SeriesEpisodeRow,
   LibraryScreen, LibraryStatsBar, LibraryTabs, NewPlaylistCard, HistoryRow,
   ALL_CATEGORIES, CATEGORIES_BY_TYPE, DividerBanner, CategorySection,
   TopTenCard, TopTenRow, FilterPanel, SearchScreen, SearchResultRow,
