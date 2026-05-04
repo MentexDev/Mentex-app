@@ -5708,6 +5708,12 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
   const badgeText   = isOriginals ? author.name : 'Perfil Homenaje de Mentex';
   const allLinks    = author.links || [];
 
+  // Todos los items del autor disponibles en Mentex (incluye el item actual)
+  const authorItems = React.useMemo(() =>
+    EXPLORE_CONTENT.filter(c => c.authorId === currentItem.authorId && c.status === 'available'),
+    [currentItem.authorId]
+  );
+
   // Inner item view — reemplaza el contenido del sheet sin anidar otro modal
   const renderInnerItem = () => (
     <>
@@ -5862,17 +5868,17 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
             </div>
           </div>
 
-          {/* Más contenido del autor — scroll horizontal estilo ContentRow */}
-          {relatedItems && relatedItems.length > 0 && (
+          {/* Más contenido del autor — scroll horizontal, incluye el item actual */}
+          {authorItems.length > 0 && (
             <div style={{ marginBottom:8 }}>
               <div style={{ padding:'0 20px', display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
                 <IcSparkles size={18} stroke={ac}/>
                 <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                  {isOriginals ? `Más de ${author.name}` : 'Más en Mentex'}
+                  {isOriginals ? `Más de ${author.name}` : 'En Mentex'}
                 </span>
               </div>
               <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-                {relatedItems.map(ri => (
+                {authorItems.map(ri => (
                   <ExploreContentCard key={ri.id} item={ri} onClick={(it) => setInnerItem(it)}/>
                 ))}
               </div>
@@ -5892,13 +5898,13 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
                 }}>
                   <IcBookmark size={18} stroke="#fff" fill="none"/>
                   <span style={{ fontSize:14, fontWeight:700, color:'#fff', fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em' }}>
-                    {author.amazonLabel || 'Ver en Amazon'}
+                    Ver en Amazon
                   </span>
                   <IcChevR size={14} stroke="#fff" strokeWidth={2}/>
                 </div>
               </a>
               <div style={{ textAlign:'center', fontSize:11, color:'var(--ink-3)', marginTop:8, lineHeight:1.4 }}>
-                Apoya al autor comprando sus obras originales ❤️
+                {author.amazonLabel || 'Apoya al autor comprando sus obras originales ❤️'}
               </div>
             </div>
           )}
