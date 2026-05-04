@@ -442,6 +442,7 @@ function BannerCarousel({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onClick={(e) => { if (Math.abs(dragX) < 5) onTap?.(slide); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap?.(slide); } }}
         role="button"
         tabIndex={0}
         aria-label={`Banner: ${slide.title}`}
@@ -895,7 +896,7 @@ function HomeInactive({
           margin:0, color:'var(--ink-1)', fontSize:26, fontWeight:800,
           letterSpacing:'-0.03em', lineHeight:1.1,
         }}>
-          {greeting}, Juan,<br/>
+          {greeting}, {(onboardingAnswers && onboardingAnswers.name ? onboardingAnswers.name.trim().split(' ')[0] : 'tú')},<br/>
           ¿Listo para tu ritual de hoy?
         </h1>
         <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--ink-3)', lineHeight:1.5 }}>
@@ -993,11 +994,14 @@ function HomeInactive({
             return items.map((app, i) => {
               const on = blockedApps.includes(app.id);
               return (
-                <div key={app.id} onClick={() => toggleApp(app.id)} className="mtx-tap" style={{
-                  display:'flex', alignItems:'center', gap:11,
-                  padding:'7px 12px', cursor:'pointer',
-                  borderTop: i === 0 ? 0 : '0.5px solid rgba(255,255,255,0.05)'
-                }}>
+                <div key={app.id} onClick={() => toggleApp(app.id)} className="mtx-tap"
+                  role="button" tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleApp(app.id); } }}
+                  style={{
+                    display:'flex', alignItems:'center', gap:11,
+                    padding:'7px 12px', cursor:'pointer',
+                    borderTop: i === 0 ? 0 : '0.5px solid rgba(255,255,255,0.05)'
+                  }}>
                   <app.Icon size={30}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:14, fontWeight:500, color:'var(--ink-1)', letterSpacing:'-0.01em' }}>{app.name}</div>

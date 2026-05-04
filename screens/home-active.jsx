@@ -334,7 +334,6 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
   // Siempre clickeable — incluyendo activities done. El styling visual
   // (opacity, chulito ✓) sigue reflejando el estado completado, pero el
   // tap reabre el runner para que el usuario pueda corregir errores.
-  const isClickable = true;
   const handleActivate = () => {
     // Si había notificación programada, cancelarla — el usuario inicia ahora.
     if (scheduledTime && typeof window !== 'undefined' && window.__mtxScheduler) {
@@ -362,7 +361,7 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
       borderRadius:18, position:'relative', overflow:'hidden',
       opacity: effectiveDone ? 0.5 : 1,
       transition:'transform .25s ease, box-shadow .3s ease',
-      cursor: isClickable ? 'pointer' : 'default',
+      cursor: 'pointer',
       ...(a.playing ? {
         borderColor:'rgba(61,255,209,0.35)',
         background:'linear-gradient(180deg,rgba(61,255,209,0.08),rgba(61,255,209,0.01))',
@@ -374,13 +373,13 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
         background:`linear-gradient(180deg, ${a.accent}0c, ${a.accent}02)`,
       } : {}),
     }}
-    onClick={isClickable ? handleActivate : undefined}
-    role={isClickable ? 'button' : undefined}
-    tabIndex={isClickable ? 0 : undefined}
-    aria-label={isClickable ? `Abrir ${a.title}` : undefined}
-    onKeyDown={isClickable ? (e) => {
+    onClick={handleActivate}
+    role="button"
+    tabIndex={0}
+    aria-label={`Abrir ${a.title}`}
+    onKeyDown={(e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActivate(); }
-    } : undefined}
+    }}
     >
       {a.playing && (
         <div style={{
@@ -997,14 +996,15 @@ function DisableProtectionConfirmModal() {
     if (!confirmDisableOpen) return;
     setSeconds(COUNTDOWN_TOTAL);
     let autoCancelTimer = null;
-    const id = setInterval(() => setSeconds(s => {
-      if (s <= 1) {
+    let remaining = COUNTDOWN_TOTAL;
+    const id = setInterval(() => {
+      remaining -= 1;
+      setSeconds(remaining);
+      if (remaining <= 0) {
         clearInterval(id);
         autoCancelTimer = setTimeout(() => onCancelRef.current?.(), 200);
-        return 0;
       }
-      return s - 1;
-    }), 1000);
+    }, 1000);
     return () => {
       clearInterval(id);
       if (autoCancelTimer) clearTimeout(autoCancelTimer);
@@ -1583,7 +1583,7 @@ function HomeActive({
         </div>
       </div>
 
-      {/* ── CARD 4 · Recordatorios (single source con la agenda IA) ─────
+      {/* ── CARD 5 · Recordatorios (single source con la agenda IA) ─────
           HomeRemindersCard vive en screens/ia-agenda.jsx. Lee/escribe del
           mismo store __mtxIAAgenda.reminders que la agenda + el coach IA,
           así un reminder agregado aquí aparece en la agenda y el coach
