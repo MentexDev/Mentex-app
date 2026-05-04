@@ -5673,262 +5673,226 @@ function AuthorStrip({ author, scheduled, onOpenTribute, onSchedule, onSave }) {
 }
 
 // ── TributeProfileScreen — perfil homenaje o Mentex Originals ────────────────
-// Portalled dentro de ContentDetailScreen (position:absolute;inset:0).
-// type='tribute'   → perfil homenaje de autor real con disclaimer + Amazon
-// type='originals' → perfil informativo de Mentex sin disclaimer ni Amazon
+// Bottom sheet modal (88% height) con drag-to-close.
+// type='tribute'   → autor real, disclaimer + Amazon CTA sticky al fondo
+// type='originals' → perfil Mentex sin disclaimer ni Amazon
 function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onItemPlay, onItemSchedule, onItemSave }) {
   const [innerItem, setInnerItem] = React.useState(null);
+  const [dragY, setDragY] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragStart = React.useRef(0);
+  const dragActive = React.useRef(false);
   const isOriginals = author.type === 'originals';
   const ac = author.accentColor || '#3dffd1';
 
-  const badgeBg     = isOriginals
+  const onDragDown = (e) => { e.currentTarget.setPointerCapture(e.pointerId); dragStart.current = e.clientY; dragActive.current = true; setIsDragging(true); };
+  const onDragMove = (e) => { if (!dragActive.current) return; setDragY(Math.max(0, e.clientY - dragStart.current)); };
+  const onDragUp   = () => { dragActive.current = false; setIsDragging(false); if (dragY > 80) onBack(); else setDragY(0); };
+
+  // Brand colors para links sociales (mismo estilo que profile.jsx)
+  const _socialBrand = (iconKey) => {
+    switch (iconKey) {
+      case 'ig': return { bg:'linear-gradient(45deg,#f09433,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888)', glow:'rgba(220,39,67,0.5)', border:0, Ic:IcInstagramBrand };
+      case 'x':  return { bg:'#000000', glow:'rgba(255,255,255,0.18)', border:'0.5px solid rgba(255,255,255,0.22)', Ic:IcXBrand };
+      case 'yt': return { bg:'#FF0000', glow:'rgba(255,0,0,0.5)', border:0, Ic:IcYoutube };
+      case 'fb': return { bg:'#1877F2', glow:'rgba(24,119,242,0.5)', border:0, Ic:IcGlobe };
+      default:   return { bg:`${ac}22`, glow:`${ac}55`, border:`0.5px solid ${ac}50`, Ic:IcGlobe };
+    }
+  };
+
+  const badgeBg    = isOriginals
     ? `linear-gradient(135deg, ${ac}25, ${ac}10)`
     : 'linear-gradient(135deg, rgba(255,210,80,0.22), rgba(255,160,50,0.12))';
   const badgeColor  = isOriginals ? ac : '#FFD66B';
   const badgeBorder = isOriginals ? `0.5px solid ${ac}40` : '0.5px solid rgba(255,210,80,0.35)';
-  const badgeText   = isOriginals ? `${author.name}` : 'Perfil Homenaje de Mentex';
+  const badgeText   = isOriginals ? author.name : 'Perfil Homenaje de Mentex';
+  const allLinks    = author.links || [];
 
-  const heroBg = isOriginals
-    ? `linear-gradient(180deg, ${ac}18 0%, rgba(5,7,6,0.95) 100%), #050706`
-    : `linear-gradient(180deg, ${ac}14 0%, rgba(5,7,6,0.97) 100%), #050706`;
-
-  // Link icon resolver
-  const _linkIcon = (iconKey) => {
-    const s = { size:16, stroke:'currentColor' };
-    switch(iconKey) {
-      case 'x':  return <IcTwitterX {...s}/>;
-      case 'ig': return <IcInstagram {...s}/>;
-      case 'yt': return <IcPlay size={14} stroke="currentColor"/>;
-      case 'fb': return <IcGlobe size={14} stroke="currentColor"/>;
-      default:   return <IcGlobe {...s}/>;
-    }
-  };
-
-  // If user tapped a related item, show ContentDetailScreen-like view (no further tribute nesting)
-  if (innerItem) {
-    const innerAuthor = _getAuthor(innerItem);
-    const innerScheduled = window.__mtxScheduler ? !!window.__mtxScheduler.getTime(innerItem.id) : false;
-    return (
-      <div style={{ position:'absolute', inset:0, background:'#050706', display:'flex', flexDirection:'column', overflow:'hidden', animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both' }}>
-        {/* Mini nav for inner item */}
-        <div style={{ flexShrink:0, paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10, display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
-          <button onClick={() => setInnerItem(null)} aria-label="Volver" className="mtx-tap" style={{ width:40, height:40, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-1)', cursor:'pointer' }}>
-            <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
-          </button>
-          <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%, calc(-50% + 19px))', fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)', pointerEvents:'none' }}>
-            {(window.CONTENT_TYPES || []).find(t => t.id === innerItem.type)?.label || innerItem.type}
-          </div>
-          <div style={{ width:40 }}/>
-        </div>
-        {/* Scrollable inner content */}
-        <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
-          {/* Hero */}
-          <div style={{ padding:'8px 20px 16px' }}>
-            <div style={{ position:'relative', height:200, borderRadius:24, overflow:'hidden', background:innerItem.bg, border:`0.5px solid ${innerItem.accent || '#3dffd1'}33` }}>
-              {innerItem.cover && <img src={innerItem.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
-              <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%)' }}/>
-              <div style={{ position:'absolute', left:18, right:18, bottom:16 }}>
-                <div style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2, fontFamily:'var(--ff-display)', textShadow:'0 2px 12px rgba(0,0,0,0.6)' }}>{innerItem.title}</div>
-                <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500, marginTop:4 }}>{innerItem.author}</div>
-              </div>
-            </div>
-          </div>
-          {/* Desc */}
-          {innerItem.desc && <div style={{ padding:'0 20px 20px', fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{innerItem.desc}</div>}
-        </div>
-        {/* CTA */}
-        <div style={{ flexShrink:0, padding:'12px 20px 36px', background:'linear-gradient(180deg, rgba(5,7,6,0), rgba(5,7,6,0.96) 22%, #050706)' }}>
-          <button onClick={() => onItemPlay(innerItem)} className="mtx-tap" style={{ width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer', background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))', color:'#0a1410', fontSize:15, fontWeight:700, fontFamily:'var(--ff-sans)', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
-            <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
-            Reproducir
-          </button>
+  // Inner item view — reemplaza el contenido del sheet sin anidar otro modal
+  const renderInnerItem = () => (
+    <>
+      <div style={{ flexShrink:0, padding:'0 16px 8px', display:'flex', alignItems:'center', gap:12 }}>
+        <button onClick={() => setInnerItem(null)} aria-label="Volver" className="mtx-tap"
+          style={{ width:36, height:36, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-1)', cursor:'pointer', flexShrink:0 }}>
+          <IcChevL size={18} stroke="currentColor" strokeWidth={2}/>
+        </button>
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)' }}>
+          {(CONTENT_TYPES.find(t => t.id === innerItem.type) || {}).label || innerItem.type}
         </div>
       </div>
-    );
-  }
-
-  // Full-width link renderer
-  const renderLink = (link) => {
-    const iconEl = _linkIcon(link.icon);
-    if (link.fullWidth) {
-      return (
-        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', borderRadius:16, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', textDecoration:'none', color:'inherit', marginBottom:8 }}>
-          <div style={{ width:36, height:36, borderRadius:999, background:`${ac}18`, display:'flex', alignItems:'center', justifyContent:'center', color:ac, flexShrink:0 }}>
-            {iconEl}
+      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+        <div style={{ padding:'8px 20px 16px' }}>
+          <div style={{ position:'relative', height:200, borderRadius:24, overflow:'hidden', background:innerItem.bg, border:`0.5px solid ${innerItem.accent || '#3dffd1'}33` }}>
+            {innerItem.cover && <img src={innerItem.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
+            <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%)' }}/>
+            <div style={{ position:'absolute', left:18, right:18, bottom:16 }}>
+              <div style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2, fontFamily:'var(--ff-display)', textShadow:'0 2px 12px rgba(0,0,0,0.6)' }}>{innerItem.title}</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500, marginTop:4 }}>{innerItem.author}</div>
+            </div>
           </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)' }}>{link.label}</div>
-            {link.display && <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:1 }}>{link.display}</div>}
-          </div>
-          <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
-        </a>
-      );
-    }
-    return null; // grid links handled separately
-  };
-
-  const fullWidthLinks = (author.links || []).filter(l => l.fullWidth);
-  const gridLinks      = (author.links || []).filter(l => !l.fullWidth);
+        </div>
+        {innerItem.desc && <div style={{ padding:'0 20px 20px', fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{innerItem.desc}</div>}
+      </div>
+      <div style={{ flexShrink:0, padding:'12px 20px 28px', borderTop:'0.5px solid rgba(255,255,255,0.06)', background:'rgba(12,16,15,0.98)' }}>
+        <button onClick={() => onItemPlay(innerItem)} className="mtx-tap"
+          style={{ width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer', background:'linear-gradient(180deg, rgba(61,255,209,0.85), #1ad9ad)', color:'#0a1410', fontSize:15, fontWeight:700, fontFamily:'var(--ff-sans)', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
+          <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
+          Reproducir
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div style={{
-      position:'absolute', inset:0,
-      background: heroBg,
-      display:'flex', flexDirection:'column', overflow:'hidden',
-      animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
-    }}>
-      {/* Nav */}
-      <div style={{ flexShrink:0, paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:0, display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
-        <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{ width:40, height:40, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-1)', cursor:'pointer' }}>
-          <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
-        </button>
-        <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%, calc(-50% + 19px))', fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)', pointerEvents:'none' }}>
-          Perfil
-        </div>
-        <div style={{ width:40 }}/>
-      </div>
-
-      {/* Scrollable */}
-      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
-
-        {/* Hero: gradient bg + avatar + badge + name */}
-        <div style={{ padding:'24px 20px 28px', display:'flex', flexDirection:'column', alignItems:'center', gap:14, position:'relative', overflow:'hidden' }}>
-          {/* Ambient glow */}
-          <div style={{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%)', width:260, height:200, borderRadius:999, background:`radial-gradient(ellipse, ${ac}18 0%, transparent 70%)`, pointerEvents:'none' }}/>
-
-          {/* Avatar */}
-          <div style={{
-            width:96, height:96, borderRadius:999, overflow:'hidden',
-            background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${ac}33, ${ac}11)`,
-            border:`2px solid ${ac}60`,
-            boxShadow:`0 0 0 4px ${ac}14, 0 0 28px -8px ${ac}70`,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            flexShrink:0, position:'relative', zIndex:1,
-          }}>
-            {author.avatar ? (
-              <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-            ) : (
-              <span style={{ fontSize:36, fontWeight:800, color:ac, fontFamily:'var(--ff-display)', letterSpacing:'-0.03em' }}>
-                {isOriginals ? '✦' : author.name.charAt(0)}
-              </span>
-            )}
-          </div>
-
-          {/* Badge */}
-          <div style={{
-            padding:'6px 16px', borderRadius:999,
-            background: badgeBg, border: badgeBorder,
-            display:'inline-flex', alignItems:'center', gap:7,
-            boxShadow:`0 2px 12px -4px ${isOriginals ? ac : '#FFD66B'}30`,
-            position:'relative', zIndex:1,
-          }}>
-            {isOriginals
-              ? <IcSparkles size={12} stroke={badgeColor}/>
-              : <IcHeart size={12} stroke={badgeColor} fill={badgeColor}/>
-            }
-            <span style={{ fontSize:12, fontWeight:700, color:badgeColor, letterSpacing:'0.01em' }}>{badgeText}</span>
-            {!isOriginals && <IcSparkles size={11} stroke={badgeColor}/>}
-          </div>
-
-          {/* Name + role */}
-          <div style={{ textAlign:'center', position:'relative', zIndex:1 }}>
-            <div style={{ fontSize:24, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.025em', fontFamily:'var(--ff-display)', lineHeight:1.15 }}>
-              {author.name}
-            </div>
-            <div style={{ fontSize:13, color:'var(--ink-3)', fontWeight:500, marginTop:5 }}>
-              {author.role}
-            </div>
-          </div>
+      position:'absolute', inset:0, zIndex:120,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.55)',
+      backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+    }} onClick={onBack}>
+      <style>{`@keyframes mtxTributeUp { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
+      <div onClick={e => e.stopPropagation()} style={{
+        width:'100%', height:'88%',
+        background:'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(12,16,15,0.99))',
+        backdropFilter:'blur(28px)', WebkitBackdropFilter:'blur(28px)',
+        border:'0.5px solid rgba(255,255,255,0.08)',
+        borderBottom:0,
+        borderTopLeftRadius:28, borderTopRightRadius:28,
+        display:'flex', flexDirection:'column', overflow:'hidden',
+        boxShadow:'0 -20px 60px -12px rgba(0,0,0,0.7)',
+        transform:`translateY(${dragY}px)`,
+        transition: isDragging ? 'none' : 'transform .35s cubic-bezier(.25,.8,.25,1)',
+        animation:'mtxTributeUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+      }}>
+        {/* Drag handle */}
+        <div onPointerDown={onDragDown} onPointerMove={onDragMove} onPointerUp={onDragUp} onPointerCancel={onDragUp}
+          style={{ flexShrink:0, display:'flex', justifyContent:'center', paddingTop:14, paddingBottom:6, cursor:'grab', touchAction:'none' }}>
+          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
         </div>
 
-        <div style={{ padding:'0 20px', paddingBottom:32 }}>
-
-          {/* Disclaimer (tribute only) */}
-          {!isOriginals && (
-            <div style={{ padding:'14px 16px', borderRadius:16, background:'rgba(155,138,255,0.07)', border:'0.5px solid rgba(155,138,255,0.18)', marginBottom:24, display:'flex', gap:12, alignItems:'flex-start' }}>
-              <IcHeart size={15} stroke="#9b8aff" fill="#9b8aff" style={{ flexShrink:0, marginTop:1 }}/>
-              <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.5 }}>
-                Este perfil es un{' '}
-                <strong style={{ color:'var(--ink-1)' }}>homenaje creado por Mentex</strong>
-                {' '}para celebrar la obra de {author.name}. Los resúmenes en nuestra plataforma son de autoría propia.{' '}
-                <strong style={{ color:'#FFD66B' }}>No es un perfil oficial del autor.</strong>
-              </div>
-            </div>
-          )}
-
-          {/* Sobre el Autor/Creador */}
-          <div style={{ marginBottom:24 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-              <IcBook size={18} stroke={ac}/>
-              <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                {isOriginals ? 'Sobre Mentex' : 'Sobre el Autor'}
-              </span>
-            </div>
-            <div style={{ fontSize:14, color:'var(--ink-2)', lineHeight:1.6, textWrap:'pretty' }}>
-              {author.bio}
-            </div>
+        {innerItem ? renderInnerItem() : (<>
+          {/* Nav: título centrado + botón cerrar */}
+          <div style={{ flexShrink:0, padding:'0 16px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ width:36 }}/>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.14em', textTransform:'uppercase', fontFamily:'var(--ff-sans)' }}>Perfil</div>
+            <button onClick={onBack} aria-label="Cerrar" className="mtx-tap"
+              style={{ width:36, height:36, borderRadius:999, border:0, background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-2)', cursor:'pointer' }}>
+              <IcClose size={16} stroke="currentColor" strokeWidth={2}/>
+            </button>
           </div>
 
-          {/* Enlaces Oficiales */}
-          {author.links && author.links.length > 0 && (
-            <div style={{ marginBottom:24 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                <IcGlobe size={18} stroke={ac}/>
-                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                  {isOriginals ? 'Encuéntranos en' : 'Enlaces Oficiales'}
-                </span>
+          {/* Scrollable */}
+          <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+            {/* Hero: glow + avatar + badge + nombre + redes en bolitas */}
+            <div style={{ padding:'8px 20px 24px', display:'flex', flexDirection:'column', alignItems:'center', gap:12, position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%)', width:240, height:180, borderRadius:999, background:`radial-gradient(ellipse, ${ac}20 0%, transparent 70%)`, pointerEvents:'none' }}/>
+              {/* Avatar */}
+              <div style={{
+                width:96, height:96, borderRadius:999, overflow:'hidden',
+                background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${ac}33, ${ac}11)`,
+                border:`2px solid ${ac}60`,
+                boxShadow:`0 0 0 4px ${ac}14, 0 0 28px -8px ${ac}70`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                flexShrink:0, position:'relative', zIndex:1,
+              }}>
+                {author.avatar
+                  ? <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                  : <span style={{ fontSize:36, fontWeight:800, color:ac, fontFamily:'var(--ff-display)', letterSpacing:'-0.03em' }}>{isOriginals ? '✦' : author.name.charAt(0)}</span>
+                }
               </div>
-              {/* Full-width links */}
-              {fullWidthLinks.map(renderLink)}
-              {/* Grid links */}
-              {gridLinks.length > 0 && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  {gridLinks.map(link => (
-                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.07)', textDecoration:'none', color:'inherit' }}>
-                      <div style={{ width:28, height:28, borderRadius:999, background:`${ac}18`, display:'flex', alignItems:'center', justifyContent:'center', color:ac, flexShrink:0 }}>
-                        {_linkIcon(link.icon)}
-                      </div>
-                      <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{link.label}</span>
-                      <IcChevR size={12} stroke="var(--ink-3)" strokeWidth={1.8}/>
-                    </a>
-                  ))}
+              {/* Badge */}
+              <div style={{ padding:'6px 16px', borderRadius:999, background:badgeBg, border:badgeBorder, display:'inline-flex', alignItems:'center', gap:7, boxShadow:`0 2px 12px -4px ${isOriginals ? ac : '#FFD66B'}30`, position:'relative', zIndex:1 }}>
+                {isOriginals ? <IcSparkles size={12} stroke={badgeColor}/> : <IcHeart size={12} stroke={badgeColor} fill={badgeColor}/>}
+                <span style={{ fontSize:12, fontWeight:700, color:badgeColor, letterSpacing:'0.01em' }}>{badgeText}</span>
+                {!isOriginals && <IcSparkles size={11} stroke={badgeColor}/>}
+              </div>
+              {/* Nombre + rol */}
+              <div style={{ textAlign:'center', position:'relative', zIndex:1 }}>
+                <div style={{ fontSize:24, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.025em', fontFamily:'var(--ff-display)', lineHeight:1.15 }}>{author.name}</div>
+                <div style={{ fontSize:13, color:'var(--ink-3)', fontWeight:500, marginTop:5 }}>{author.role}</div>
+              </div>
+              {/* Redes sociales en bolitas */}
+              {allLinks.length > 0 && (
+                <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', position:'relative', zIndex:1, marginTop:4 }}>
+                  {allLinks.map(link => {
+                    const brand = _socialBrand(link.icon);
+                    const IcBrand = brand.Ic;
+                    return (
+                      <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" aria-label={link.label} style={{ textDecoration:'none' }}>
+                        <div className="mtx-tap" style={{
+                          width:46, height:46, borderRadius:'50%',
+                          background:brand.bg, border:brand.border || 0,
+                          display:'flex', alignItems:'center', justifyContent:'center', color:'#fff',
+                          boxShadow:`0 0 18px ${brand.glow}, inset 0 1px 0 rgba(255,255,255,0.16)`,
+                          cursor:'pointer',
+                        }}>
+                          <IcBrand size={18} stroke="#fff"/>
+                        </div>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          )}
 
-          {/* Más contenido en Mentex */}
-          {relatedItems && relatedItems.length > 0 && (
-            <div style={{ marginBottom:24 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                <IcSparkles size={18} stroke={ac}/>
-                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                  {isOriginals ? `Más contenido de ${author.name}` : `Más resúmenes en Mentex`}
-                </span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {relatedItems.map(ri => (
-                  <div key={ri.id} onClick={() => setInnerItem(ri)} role="button" tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInnerItem(ri); } }}
-                    className="mtx-tap"
-                    style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:16, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.06)', cursor:'pointer', transition:'background .2s' }}>
-                    <div style={{ width:52, height:52, borderRadius:12, overflow:'hidden', background:ri.bg, flexShrink:0, position:'relative' }}>
-                      {ri.cover && <img src={ri.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ri.title}</div>
-                      <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>{ri.dur}</div>
-                    </div>
-                    <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
+            <div style={{ padding:'0 20px 24px' }}>
+              {/* Disclaimer (tribute only) */}
+              {!isOriginals && (
+                <div style={{ padding:'14px 16px', borderRadius:16, background:'rgba(155,138,255,0.07)', border:'0.5px solid rgba(155,138,255,0.18)', marginBottom:24, display:'flex', gap:12, alignItems:'flex-start' }}>
+                  <IcHeart size={15} stroke="#9b8aff" fill="#9b8aff" style={{ flexShrink:0, marginTop:1 }}/>
+                  <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.5 }}>
+                    Este perfil es un{' '}<strong style={{ color:'var(--ink-1)' }}>homenaje creado por Mentex</strong>
+                    {' '}para celebrar la obra de {author.name}. Los resúmenes en nuestra plataforma son de autoría propia.{' '}
+                    <strong style={{ color:'#FFD66B' }}>No es un perfil oficial del autor.</strong>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          {/* Amazon CTA (tribute only) */}
+              {/* Bio */}
+              <div style={{ marginBottom:24 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                  <IcBook size={18} stroke={ac}/>
+                  <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                    {isOriginals ? 'Sobre Mentex' : 'Sobre el Autor'}
+                  </span>
+                </div>
+                <div style={{ fontSize:14, color:'var(--ink-2)', lineHeight:1.6, textWrap:'pretty' }}>{author.bio}</div>
+              </div>
+
+              {/* Más contenido */}
+              {relatedItems && relatedItems.length > 0 && (
+                <div>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                    <IcSparkles size={18} stroke={ac}/>
+                    <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                      {isOriginals ? `Más contenido de ${author.name}` : 'Más resúmenes en Mentex'}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {relatedItems.map(ri => (
+                      <div key={ri.id} onClick={() => setInnerItem(ri)} role="button" tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInnerItem(ri); } }}
+                        className="mtx-tap"
+                        style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:16, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.06)', cursor:'pointer', transition:'background .2s' }}>
+                        <div style={{ width:52, height:52, borderRadius:12, overflow:'hidden', background:ri.bg, flexShrink:0, position:'relative' }}>
+                          {ri.cover && <img src={ri.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ri.title}</div>
+                          <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>{ri.dur}</div>
+                        </div>
+                        <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sticky footer — Amazon CTA visible siempre (tribute only) */}
           {!isOriginals && author.amazonUrl && (
-            <div style={{ marginBottom:8 }}>
+            <div style={{ flexShrink:0, padding:'12px 20px 28px', borderTop:'0.5px solid rgba(255,255,255,0.06)', background:'rgba(12,16,15,0.98)' }}>
               <a href={author.amazonUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration:'none', display:'block' }}>
                 <div className="mtx-tap" style={{
                   width:'100%', height:54, borderRadius:18,
@@ -5944,12 +5908,12 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
                   <IcChevR size={14} stroke="#fff" strokeWidth={2}/>
                 </div>
               </a>
-              <div style={{ textAlign:'center', fontSize:11, color:'var(--ink-3)', marginTop:8 }}>
+              <div style={{ textAlign:'center', fontSize:11, color:'var(--ink-3)', marginTop:8, lineHeight:1.4 }}>
                 Apoya al autor comprando sus obras originales ❤️
               </div>
             </div>
           )}
-        </div>
+        </>)}
       </div>
     </div>
   );
