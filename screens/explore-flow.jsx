@@ -5084,7 +5084,7 @@ function PlaylistOverviewScreen({ playlist, onBack, onPlayAll, onShuffle, onItem
 function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onScheduleForToday, onSaveToPlaylist }) {
   const episodes = React.useMemo(() => _generateSeriesEpisodes(series), [series?.id]);
   const [completedEps, setCompletedEps] = React.useState(() => new Set());
-  const [tab, setTab] = React.useState('episodes'); // default: tab central = Episodios
+  const [tab, setTab] = React.useState('episodes');
   const scheduled = useIsScheduled(series?.id);
 
   if (!series) return null;
@@ -5116,14 +5116,17 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
 
   return (
     <div style={{
-      paddingBottom:160,
+      position:'absolute', inset:0, zIndex:90,
+      background:'radial-gradient(80% 50% at 50% 0%, rgba(5,7,6,0.6), transparent 55%), #050706',
+      display:'flex', flexDirection:'column', overflow:'hidden',
       animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
     }}>
       {/* Nav bar */}
       <div style={{
+        flexShrink:0,
         paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10,
         display:'flex', alignItems:'center', justifyContent:'space-between',
-        flexShrink:0, position:'relative',
+        position:'relative',
       }}>
         <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{
           width:40, height:40, borderRadius:999, border:0,
@@ -5145,218 +5148,147 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
         <div style={{ width:40 }}/>
       </div>
 
-      {/* Hero — cover + title + author */}
-      <div style={{ padding:'8px 20px 16px' }}>
-        <div style={{
-          position:'relative', height:200,
-          borderRadius:24, overflow:'hidden',
-          background: series.bg,
-          border:`0.5px solid ${accent}33`,
-          boxShadow:`0 16px 44px -16px ${accent}55, 0 0 0 0.5px ${accent}1a`,
-        }}>
-          {series.cover && (
-            <img src={series.cover} alt="" style={{
+      {/* Scrollable content */}
+      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+        {/* Hero */}
+        <div style={{ padding:'8px 20px 16px' }}>
+          <div style={{
+            position:'relative', height:200,
+            borderRadius:24, overflow:'hidden',
+            background: series.bg,
+            border:`0.5px solid ${accent}33`,
+            boxShadow:`0 16px 44px -16px ${accent}55, 0 0 0 0.5px ${accent}1a`,
+          }}>
+            {series.cover && (
+              <img src={series.cover} alt="" style={{
+                position:'absolute', inset:0,
+                width:'100%', height:'100%', objectFit:'cover',
+                opacity:0.75, filter:'saturate(0.95) contrast(1.05)',
+              }}/>
+            )}
+            <div style={{
               position:'absolute', inset:0,
-              width:'100%', height:'100%', objectFit:'cover',
-              opacity:0.75, filter:'saturate(0.95) contrast(1.05)',
+              background:`linear-gradient(180deg, rgba(0,0,0,0.15) 30%, rgba(0,0,0,0.88) 100%), radial-gradient(circle at 80% 20%, ${accent}30, transparent 55%)`,
             }}/>
-          )}
-          <div style={{
-            position:'absolute', inset:0,
-            background:`linear-gradient(180deg, rgba(0,0,0,0.15) 30%, rgba(0,0,0,0.88) 100%), radial-gradient(circle at 80% 20%, ${accent}30, transparent 55%)`,
-          }}/>
-
-          {/* Series badge */}
-          <div style={{
-            position:'absolute', top:14, left:14,
-            fontSize:9, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase',
-            color:accent,
-            padding:'4px 9px', borderRadius:999,
-            background:'rgba(0,0,0,0.55)',
-            backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
-            border:`0.5px solid ${accent}45`,
-            display:'inline-flex', alignItems:'center', gap:5,
-          }}>
-            <IcTarget size={9} stroke="currentColor" strokeWidth={2}/>
-            Serie · {series.episodeCount} episodios
-          </div>
-
-          {/* Bottom: title + author */}
-          <div style={{
-            position:'absolute', left:18, right:18, bottom:16,
-            display:'flex', flexDirection:'column', gap:5,
-          }}>
             <div style={{
-              fontSize:22, fontWeight:700, color:'#fff',
-              letterSpacing:'-0.02em', lineHeight:1.18,
-              textShadow:'0 2px 12px rgba(0,0,0,0.65)',
-              fontFamily:'var(--ff-display)',
+              position:'absolute', top:14, left:14,
+              fontSize:9, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase',
+              color:accent, padding:'4px 9px', borderRadius:999,
+              background:'rgba(0,0,0,0.55)', backdropFilter:'blur(8px)',
+              border:`0.5px solid ${accent}45`,
+              display:'inline-flex', alignItems:'center', gap:5,
             }}>
-              {series.title}
+              <IcTarget size={9} stroke="currentColor" strokeWidth={2}/>
+              Serie · {series.episodeCount} episodios
             </div>
-            <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500 }}>
-              {series.author}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div style={{ padding:'0 20px', marginBottom:18, display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-        {[
-          { label: 'Episodios', value: series.episodeCount ?? episodes.length },
-          { label: 'Duración',  value: totalDur },
-          { label: 'Plays',     value: series.plays && series.plays !== '—' ? series.plays : '—' },
-        ].map(stat => (
-          <div key={stat.label} className="mtx-glass" style={{
-            padding:'12px', borderRadius:12, textAlign:'center',
-            background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)',
-          }}>
-            <div style={{
-              fontSize:9, fontWeight:700, letterSpacing:'0.12em',
-              textTransform:'uppercase', color:'var(--ink-3)', marginBottom:3,
-            }}>
-              {stat.label}
-            </div>
-            <div style={{
-              fontSize: stat.label === 'Duración' ? 14 : 18,
-              fontWeight:700, color:'var(--ink-1)',
-              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.02em',
-              fontFamily:'var(--ff-display)',
-              marginTop: stat.label === 'Duración' ? 3 : 0,
-            }}>
-              {stat.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs — misma estética que VideoSheet */}
-      <div style={{ padding:'0 20px', marginBottom:14 }}>
-        <div style={{ display:'flex', gap:6 }}>
-          {TABS.map(t => {
-            const active = tab === t.id;
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)} className="mtx-tap" style={{
-                flex:1, height:38, borderRadius:12, cursor:'pointer',
-                border: active ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
-                background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))' : 'rgba(255,255,255,0.025)',
-                color: active ? 'var(--neon)' : 'var(--ink-2)',
-                fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600,
-                letterSpacing:'-0.005em',
-                boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18), 0 6px 16px -8px rgba(61,255,209,0.4)' : 'none',
-                transition:'background .2s, border-color .2s, color .2s, box-shadow .25s',
-              }}>{t.label}</button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Panel de tabs */}
-      <div style={{ padding:'0 20px', minHeight:160, marginBottom:22 }}>
-
-        {/* ── Acerca de ── */}
-        {tab === 'about' && (
-          <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:14 }}>
-            {series.desc && (
-              <div style={{ fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>
-                {series.desc}
+            <div style={{ position:'absolute', left:18, right:18, bottom:16, display:'flex', flexDirection:'column', gap:5 }}>
+              <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.18, textShadow:'0 2px 12px rgba(0,0,0,0.65)', fontFamily:'var(--ff-display)' }}>
+                {series.title}
               </div>
-            )}
-            {series.narrator && series.narrator !== '—' && (
-              <div style={{
-                display:'flex', alignItems:'center', gap:10,
-                padding:'10px 14px', borderRadius:14,
-                background:'rgba(255,255,255,0.04)',
-                border:'0.5px solid rgba(255,255,255,0.06)',
-              }}>
-                <div style={{
-                  width:28, height:28, borderRadius:999,
-                  background:`${accent}22`,
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  color:accent,
-                }}>
-                  <IcMic size={13} stroke="currentColor"/>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500 }}>{series.author}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ padding:'0 20px', marginBottom:18, display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
+          {[
+            { label:'Episodios', value: series.episodeCount ?? episodes.length },
+            { label:'Duración',  value: totalDur },
+            { label:'Plays',     value: series.plays && series.plays !== '—' ? series.plays : '—' },
+          ].map(stat => (
+            <div key={stat.label} className="mtx-glass" style={{ padding:'12px', borderRadius:12, textAlign:'center', background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:3 }}>{stat.label}</div>
+              <div style={{ fontSize: stat.label === 'Duración' ? 14 : 18, fontWeight:700, color:'var(--ink-1)', fontVariantNumeric:'tabular-nums', letterSpacing:'-0.02em', fontFamily:'var(--ff-display)', marginTop: stat.label === 'Duración' ? 3 : 0 }}>{stat.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ padding:'0 20px', marginBottom:14 }}>
+          <div style={{ display:'flex', gap:6 }}>
+            {TABS.map(t => {
+              const active = tab === t.id;
+              return (
+                <button key={t.id} onClick={() => setTab(t.id)} className="mtx-tap" style={{
+                  flex:1, height:38, borderRadius:12, cursor:'pointer',
+                  border: active ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
+                  background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))' : 'rgba(255,255,255,0.025)',
+                  color: active ? 'var(--neon)' : 'var(--ink-2)',
+                  fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600, letterSpacing:'-0.005em',
+                  boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18), 0 6px 16px -8px rgba(61,255,209,0.4)' : 'none',
+                  transition:'background .2s, border-color .2s, color .2s, box-shadow .25s',
+                }}>{t.label}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tab panels */}
+        <div style={{ padding:'0 20px', minHeight:160, paddingBottom:20 }}>
+          {tab === 'about' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:14 }}>
+              {series.desc && <div style={{ fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{series.desc}</div>}
+              {series.narrator && series.narrator !== '—' && (
+                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ width:28, height:28, borderRadius:999, background:`${accent}22`, display:'flex', alignItems:'center', justifyContent:'center', color:accent }}>
+                    <IcMic size={13} stroke="currentColor"/>
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--ink-2)', fontWeight:500 }}>{series.narrator}</div>
                 </div>
-                <div style={{ fontSize:12, color:'var(--ink-2)', fontWeight:500 }}>{series.narrator}</div>
+              )}
+              {series.tags && series.tags.length > 0 && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {series.tags.map(tag => (
+                    <span key={tag} style={{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:999, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)', color:'var(--ink-3)', letterSpacing:'0.04em' }}>#{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {tab === 'episodes' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both' }}>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:10, paddingLeft:2, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span>Cola de reproducción</span>
+                <span style={{ fontVariantNumeric:'tabular-nums' }}>{episodes.length}</span>
               </div>
-            )}
-            {series.tags && series.tags.length > 0 && (
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {series.tags.map(tag => (
-                  <span key={tag} style={{
-                    fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:999,
-                    background:'rgba(255,255,255,0.04)',
-                    border:'0.5px solid rgba(255,255,255,0.06)',
-                    color:'var(--ink-3)', letterSpacing:'0.04em',
-                  }}>#{tag}</span>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {episodes.map((ep, i) => (
+                  <SeriesEpisodeRow key={ep.id} episode={ep} index={i} completed={completedEps.has(ep.id)} onClick={handleEpisodePlay}/>
                 ))}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Episodios ── */}
-        {tab === 'episodes' && (
-          <div style={{ animation:'mtx-fade-up .25s ease both' }}>
-            <div style={{
-              fontSize:10, fontWeight:700, letterSpacing:'0.14em',
-              textTransform:'uppercase', color:'var(--ink-3)',
-              marginBottom:10, paddingLeft:2,
-              display:'flex', alignItems:'center', justifyContent:'space-between',
-            }}>
-              <span>Cola de reproducción</span>
-              <span style={{ fontVariantNumeric:'tabular-nums' }}>{episodes.length}</span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {episodes.map((ep, i) => (
-                <SeriesEpisodeRow
-                  key={ep.id} episode={ep} index={i}
-                  completed={completedEps.has(ep.id)}
-                  onClick={handleEpisodePlay}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Comentarios ── */}
-        {tab === 'comments' && (
-          <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:10 }}>
-            {_MOCK_COMMENTS.map(c => (
-              <div key={c.id} style={{
-                padding:'12px 14px', borderRadius:14,
-                background:'rgba(255,255,255,0.03)',
-                border:'0.5px solid rgba(255,255,255,0.05)',
-                display:'flex', gap:10,
-              }}>
-                <div style={{
-                  width:32, height:32, borderRadius:999, flexShrink:0,
-                  background:`linear-gradient(180deg, ${c.accent}33, ${c.accent}10)`,
-                  border:`0.5px solid ${c.accent}40`,
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  color:c.accent, fontSize:13, fontWeight:700,
-                  fontFamily:'var(--ff-display)',
-                }}>{c.initial}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:3 }}>
-                    <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)' }}>{c.author}</span>
-                    <span style={{ fontSize:10, color:'var(--ink-3)' }}>{c.time}</span>
-                  </div>
-                  <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.45 }}>{c.text}</div>
-                  <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--ink-3)' }}>
-                    <IcHeart size={11} stroke="currentColor"/>
-                    <span style={{ fontVariantNumeric:'tabular-nums' }}>{c.likes}</span>
+          )}
+          {tab === 'comments' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:10 }}>
+              {_MOCK_COMMENTS.map(c => (
+                <div key={c.id} style={{ padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)', display:'flex', gap:10 }}>
+                  <div style={{ width:32, height:32, borderRadius:999, flexShrink:0, background:`linear-gradient(180deg, ${c.accent}33, ${c.accent}10)`, border:`0.5px solid ${c.accent}40`, display:'flex', alignItems:'center', justifyContent:'center', color:c.accent, fontSize:13, fontWeight:700, fontFamily:'var(--ff-display)' }}>{c.initial}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:3 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)' }}>{c.author}</span>
+                      <span style={{ fontSize:10, color:'var(--ink-3)' }}>{c.time}</span>
+                    </div>
+                    <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.45 }}>{c.text}</div>
+                    <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--ink-3)' }}>
+                      <IcHeart size={11} stroke="currentColor"/>
+                      <span style={{ fontVariantNumeric:'tabular-nums' }}>{c.likes}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* CTAs — idéntica jerarquía que VideoSheet */}
-      <div style={{ padding:'0 20px', display:'flex', flexDirection:'column', gap:10 }}>
+      {/* Sticky CTA footer */}
+      <div style={{
+        flexShrink:0,
+        background:'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.96) 22%, #050706 100%)',
+        padding:'16px 20px 40px',
+        display:'flex', flexDirection:'column', gap:10,
+      }}>
         <button onClick={onPlayAll} className="mtx-tap" style={{
           width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
           background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
@@ -5368,7 +5300,6 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
           <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
           Reproducir todo
         </button>
-
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           <button
             onClick={scheduled ? undefined : handleSchedule}
@@ -5384,9 +5315,7 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
               transition:'background .25s, color .25s, box-shadow .25s, border-color .25s',
               boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
             }}>
-            {scheduled
-              ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/>
-              : <IcCalendar size={14} stroke="currentColor"/>}
+            {scheduled ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={14} stroke="currentColor"/>}
             {scheduled ? 'Agendado' : 'Agendar para hoy'}
           </button>
           <button onClick={handleSave} className="mtx-tap" style={{
@@ -5523,6 +5452,251 @@ function SeriesEpisodeRow({ episode, index, completed, onClick }) {
   );
 }
 
+
+// ── ContentDetailScreen — full screen view de detalle de contenido ─────────────
+// Reemplaza el VideoSheet (bottom-sheet) para la navegación desde tarjetas.
+// Misma lógica de tabs que VideoSheet pero full-screen con CTAs siempre visibles.
+function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveToPlaylist, onShare }) {
+  const [tab, setTab] = React.useState('about');
+  const scheduled = useIsScheduled(item?.id);
+
+  if (!item) return null;
+  const accent = item.accent || '#3dffd1';
+  const chapters = React.useMemo(() => _generateChapters(item), [item.id]);
+
+  const TABS = [
+    { id: 'about',    label: 'Acerca de'   },
+    { id: 'chapters', label: 'Capítulos'   },
+    { id: 'comments', label: 'Comentarios' },
+  ];
+
+  const handleSchedule = () => onScheduleForToday?.(item);
+  const handleSave    = () => onSaveToPlaylist?.(item);
+  const handleShare   = () => onShare?.(item);
+
+  const typeLabel = CONTENT_TYPES.find(t => t.id === item.type)?.label || item.type;
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:90,
+      background:'radial-gradient(80% 50% at 50% 0%, rgba(5,7,6,0.6), transparent 55%), #050706',
+      display:'flex', flexDirection:'column', overflow:'hidden',
+      animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
+    }}>
+      {/* Nav bar */}
+      <div style={{
+        flexShrink:0,
+        paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        position:'relative',
+      }}>
+        <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{
+          width:40, height:40, borderRadius:999, border:0,
+          background:'rgba(255,255,255,0.06)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-1)', cursor:'pointer', position:'relative', zIndex:2,
+        }}>
+          <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
+        </button>
+        <div style={{
+          position:'absolute', left:'50%', top:'50%',
+          transform:'translate(-50%, calc(-50% + 19px))',
+          fontSize:11, fontWeight:700, color:'var(--ink-3)',
+          letterSpacing:'0.14em', textTransform:'uppercase',
+          fontFamily:'var(--ff-sans)', pointerEvents:'none',
+        }}>
+          {typeLabel}
+        </div>
+        <button onClick={handleShare} aria-label="Compartir" className="mtx-tap" style={{
+          width:40, height:40, borderRadius:999, border:0,
+          background:'rgba(255,255,255,0.06)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'var(--ink-2)', cursor:'pointer',
+        }}>
+          <IcShare size={16} stroke="currentColor"/>
+        </button>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
+        {/* Hero cover */}
+        <div style={{ padding:'8px 20px 16px' }}>
+          <div style={{
+            position:'relative', height:220,
+            borderRadius:24, overflow:'hidden',
+            background: item.bg,
+            border:`0.5px solid ${accent}33`,
+            boxShadow:`0 16px 44px -16px ${accent}55`,
+          }}>
+            {item.cover && (
+              <img src={item.cover} alt="" style={{
+                position:'absolute', inset:0,
+                width:'100%', height:'100%', objectFit:'cover',
+                opacity:0.85, filter:'saturate(1.05) contrast(1.05)',
+              }}/>
+            )}
+            <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%)' }}/>
+            <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 80% 20%, ${accent}30, transparent 55%)`, mixBlendMode:'screen' }}/>
+            {/* Kind chip */}
+            <div style={{
+              position:'absolute', top:14, left:14,
+              fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase',
+              color:accent, padding:'5px 10px', borderRadius:999,
+              background:'rgba(0,0,0,0.55)', backdropFilter:'blur(10px)',
+              border:`0.5px solid ${accent}55`,
+            }}>{typeLabel}</div>
+            {/* Title block */}
+            <div style={{ position:'absolute', left:18, right:18, bottom:16, display:'flex', flexDirection:'column', gap:4 }}>
+              <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', textShadow:'0 2px 12px rgba(0,0,0,0.6)', fontFamily:'var(--ff-display)', lineHeight:1.2 }}>{item.title}</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500 }}>{item.author}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, padding:'0 20px', marginBottom:16 }}>
+          {[
+            { label:'Duración', value: item.dur, Ic: IcClock },
+            { label:'Rating',   value: item.rating > 0 ? `${item.rating} ★` : '—' },
+            { label:'Plays',    value: item.plays },
+          ].map(stat => (
+            <div key={stat.label} className="mtx-glass" style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2 }}>{stat.label}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', display:'flex', alignItems:'center', gap:4 }}>
+                {stat.Ic && <stat.Ic size={11} stroke="currentColor"/>}{stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ padding:'0 20px', marginBottom:14 }}>
+          <div style={{ display:'flex', gap:6 }}>
+            {TABS.map(t => {
+              const active = tab === t.id;
+              return (
+                <button key={t.id} onClick={() => setTab(t.id)} className="mtx-tap" style={{
+                  flex:1, height:38, borderRadius:12, cursor:'pointer',
+                  border: active ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
+                  background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))' : 'rgba(255,255,255,0.025)',
+                  color: active ? 'var(--neon)' : 'var(--ink-2)',
+                  fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600, letterSpacing:'-0.005em',
+                  boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18), 0 6px 16px -8px rgba(61,255,209,0.4)' : 'none',
+                  transition:'background .2s, border-color .2s, color .2s, box-shadow .25s',
+                }}>{t.label}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tab panels */}
+        <div style={{ padding:'0 20px', minHeight:140, paddingBottom:20 }}>
+          {tab === 'about' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:14 }}>
+              <div style={{ fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{item.desc}</div>
+              {item.narrator && item.narrator !== '—' && (
+                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ width:28, height:28, borderRadius:999, background:`${accent}22`, display:'flex', alignItems:'center', justifyContent:'center', color:accent }}>
+                    <IcMic size={13} stroke="currentColor"/>
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--ink-2)', fontWeight:500 }}>{item.narrator}</div>
+                </div>
+              )}
+              {item.tags && item.tags.length > 0 && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {item.tags.map(tag => (
+                    <span key={tag} style={{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:999, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)', color:'var(--ink-3)', letterSpacing:'0.04em' }}>#{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {tab === 'chapters' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:6 }}>
+              {chapters.map((ch, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 14px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:accent, width:18, textAlign:'center', fontVariantNumeric:'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</div>
+                  <div style={{ flex:1, fontSize:13, color:'var(--ink-1)', fontWeight:500 }}>{ch.t}</div>
+                  <div style={{ fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>{ch.d}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tab === 'comments' && (
+            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:10 }}>
+              {_MOCK_COMMENTS.map(c => (
+                <div key={c.id} style={{ padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)', display:'flex', gap:10 }}>
+                  <div style={{ width:32, height:32, borderRadius:999, flexShrink:0, background:`linear-gradient(180deg, ${c.accent}33, ${c.accent}10)`, border:`0.5px solid ${c.accent}40`, display:'flex', alignItems:'center', justifyContent:'center', color:c.accent, fontSize:13, fontWeight:700, fontFamily:'var(--ff-display)' }}>{c.initial}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:3 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)' }}>{c.author}</span>
+                      <span style={{ fontSize:10, color:'var(--ink-3)' }}>{c.time}</span>
+                    </div>
+                    <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.45 }}>{c.text}</div>
+                    <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--ink-3)' }}>
+                      <IcHeart size={11} stroke="currentColor"/>
+                      <span style={{ fontVariantNumeric:'tabular-nums' }}>{c.likes}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky CTA footer */}
+      <div style={{
+        flexShrink:0,
+        background:'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.96) 22%, #050706 100%)',
+        padding:'16px 20px 40px',
+        display:'flex', flexDirection:'column', gap:10,
+      }}>
+        <button onClick={() => onPlay(item)} className="mtx-tap" style={{
+          width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
+          background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+          color:'#0a1410', fontSize:15, fontWeight:700,
+          fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+          boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+        }}>
+          <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
+          Reproducir
+        </button>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <button
+            onClick={scheduled ? undefined : handleSchedule}
+            disabled={scheduled}
+            aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
+            className="mtx-tap" style={{
+              height:50, borderRadius:14, cursor: scheduled ? 'default' : 'pointer',
+              border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
+              background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
+              color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
+              fontSize:13, fontWeight: scheduled ? 700 : 600, fontFamily:'var(--ff-sans)',
+              display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+              transition:'background .25s, color .25s, box-shadow .25s, border-color .25s',
+              boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
+            }}>
+            {scheduled ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={14} stroke="currentColor"/>}
+            {scheduled ? 'Agendado' : 'Agendar para hoy'}
+          </button>
+          <button onClick={handleSave} className="mtx-tap" style={{
+            height:50, borderRadius:14, cursor:'pointer',
+            border:'0.5px solid var(--glass-stroke)',
+            background:'var(--glass-2)', color:'var(--ink-1)',
+            fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
+            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+            transition:'background .2s, color .2s, border-color .2s',
+          }}>
+            <IcBookmark size={14} stroke="currentColor"/>
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── PlaylistOptionsSheet — menú "···" sobre una playlist ──────────────────────
 function PlaylistOptionsSheet({ playlist, onClose, onPlayAll, onShuffle, onShare, onAddContent, onEdit, onRemove }) {
@@ -8450,7 +8624,7 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     } else if (item.type === 'series') {
       nav.push({ view: 'series-overview', seriesId: item.id });
     } else {
-      setVideoSheetItem(item);
+      nav.push({ view: 'content-detail', contentId: item.id });
     }
   };
 
@@ -8787,6 +8961,34 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
   // Falls back to inline rendering if the portal root isn't found.
   const overlays = (
     <>
+      {nav.state.view === 'content-detail' && (() => {
+        const _cdItem = EXPLORE_CONTENT.find(c => c.id === nav.state.contentId);
+        return _cdItem ? (
+          <ContentDetailScreen
+            item={_cdItem}
+            onBack={nav.back}
+            onPlay={(it) => setVideoPlayingItem(it)}
+            onScheduleForToday={(it) => setScheduleItem(it)}
+            onSaveToPlaylist={(it) => setSaveToPlaylistItem(it)}
+            onShare={(it) => setShareItem(it)}
+          />
+        ) : null;
+      })()}
+      {nav.state.view === 'series-overview' && (() => {
+        const _soSeries = EXPLORE_CONTENT.find(c => c.id === nav.state.seriesId && c.type === 'series');
+        if (!_soSeries) return null;
+        const _soEps = _generateSeriesEpisodes(_soSeries);
+        return (
+          <SeriesOverviewScreen
+            series={_soSeries}
+            onBack={nav.back}
+            onPlayAll={() => { const first = _soEps[0]; if (first) setVideoPlayingItem(first); }}
+            onEpisodePlay={(ep) => setVideoPlayingItem(ep)}
+            onScheduleForToday={(it) => setScheduleItem(it)}
+            onSaveToPlaylist={(it) => setSaveToPlaylistItem(it)}
+          />
+        );
+      })()}
       {comingSoonItem && (
         <ComingSoonSheet item={comingSoonItem} onClose={() => setComingSoonItem(null)}/>
       )}
@@ -8900,30 +9102,14 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     return <AddContentScreen playlist={playlist} onBack={nav.back}/>;
   };
 
-  const renderSeriesOverview = () => {
-    const series = EXPLORE_CONTENT.find(c => c.id === nav.state.seriesId && c.type === 'series');
-    if (!series) return renderHome();
-    const episodes = _generateSeriesEpisodes(series);
-    return (
-      <SeriesOverviewScreen
-        series={series}
-        onBack={nav.back}
-        onPlayAll={() => {
-          const first = episodes[0];
-          if (first) setVideoSheetItem(first);
-        }}
-        onEpisodePlay={(ep) => setVideoSheetItem(ep)}
-        onScheduleForToday={(item) => setScheduleItem(item)}
-        onSaveToPlaylist={(item) => setSaveToPlaylistItem(item)}
-      />
-    );
-  };
+  // SeriesOverviewScreen rendered inline in overlays (portalled)
 
   const renderCurrentView = () => {
     switch (nav.state.view) {
       case 'category-full':     return renderCategoryFull();
       case 'playlist-overview': return renderPlaylistOverview();
-      case 'series-overview':   return renderSeriesOverview();
+      case 'series-overview':   return renderHome(); // rendered via portal overlay
+      case 'content-detail':    return renderHome(); // rendered via portal overlay
       case 'library':           return renderLibrary();
       case 'add-content':       return renderAddContent();
       default:                  return renderHome();
@@ -8970,7 +9156,7 @@ Object.assign(window, {
   VideoSheet, VideoPlayerFullscreen, VideoCompletionSheet,
   PlaylistCard, PlaylistsRow, PlaylistItemRow,
   PlaylistOverviewScreen, PlaylistQueueSheet,
-  SeriesOverviewScreen, SeriesEpisodeRow,
+  SeriesOverviewScreen, SeriesEpisodeRow, ContentDetailScreen,
   LibraryScreen, LibraryStatsBar, LibraryTabs, NewPlaylistCard, HistoryRow,
   ALL_CATEGORIES, CATEGORIES_BY_TYPE, DividerBanner, CategorySection,
   TopTenCard, TopTenRow, FilterPanel, SearchScreen, SearchResultRow,
