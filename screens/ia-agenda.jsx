@@ -286,11 +286,16 @@
   }
 
   function eventTypeStyle(type) {
-    if (type === 'focus')    return { dot: 'var(--neon)',  label: 'Enfoque',  bg: 'rgba(61,255,209,0.08)',  border: 'rgba(61,255,209,0.24)'  };
-    if (type === 'meeting')  return { dot: '#7B9FFF',      label: 'Reunión',  bg: 'rgba(123,159,255,0.08)', border: 'rgba(123,159,255,0.24)' };
-    if (type === 'break')    return { dot: '#FFD27D',      label: 'Pausa',    bg: 'rgba(255,210,125,0.08)', border: 'rgba(255,210,125,0.24)' };
-    if (type === 'personal') return { dot: '#F5A6E5',      label: 'Personal', bg: 'rgba(245,166,229,0.08)', border: 'rgba(245,166,229,0.24)' };
-    return { dot: 'var(--ink-3)', label: '', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' };
+    // ── Tipos Mentex (color semántico por categoría) ──────────────────────
+    if (type === 'ritual')   return { dot: '#3dffd1',  label: 'Ritual',       bg: 'rgba(61,255,209,0.08)',   border: 'rgba(61,255,209,0.24)'   };
+    if (type === 'content')  return { dot: '#60a5fa',  label: 'Contenido',    bg: 'rgba(96,165,250,0.08)',   border: 'rgba(96,165,250,0.24)'   };
+    if (type === 'reminder') return { dot: '#a78bfa',  label: 'Recordatorio', bg: 'rgba(167,139,250,0.08)',  border: 'rgba(167,139,250,0.24)'  };
+    if (type === 'focus')    return { dot: '#3dffd1',  label: 'Enfoque',      bg: 'rgba(61,255,209,0.08)',   border: 'rgba(61,255,209,0.24)'   };
+    // ── Tipos Google Calendar ─────────────────────────────────────────────
+    if (type === 'meeting')  return { dot: '#7B9FFF',  label: 'Reunión',      bg: 'rgba(123,159,255,0.08)', border: 'rgba(123,159,255,0.24)'  };
+    if (type === 'break')    return { dot: '#FFD27D',  label: 'Pausa',        bg: 'rgba(255,210,125,0.08)', border: 'rgba(255,210,125,0.24)'  };
+    if (type === 'personal') return { dot: '#F5A6E5',  label: 'Personal',     bg: 'rgba(245,166,229,0.08)', border: 'rgba(245,166,229,0.24)'  };
+    return { dot: 'rgba(255,255,255,0.22)', label: '', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' };
   }
 
   function formatDuration(min) {
@@ -304,11 +309,13 @@
   // ── EventRow ──────────────────────────────────────────────────────────────
   // Diseño tipo timeline: columna de hora fija a la izquierda, card con stripe
   // de color a la derecha. Estados: past (opaco), now (glowing), future (normal).
+  // onReminderToggle: callback para marcar/desmarcar recordatorios en el timeline.
   function EventRow(props) {
-    var ev     = props.event;
-    var isPast = props.isPast;
-    var isNow  = props.isNow;
-    var ts     = eventTypeStyle(ev.type);
+    var ev                = props.event;
+    var isPast            = props.isPast;
+    var isNow             = props.isNow;
+    var onReminderToggle  = props.onReminderToggle;
+    var ts                = eventTypeStyle(ev.type);
 
     return (
       <div style={{
@@ -357,15 +364,18 @@
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 13, fontWeight: isNow ? 600 : 500,
-                color: isNow ? 'var(--ink-1)' : 'var(--ink-2)',
+                color: (ev.source === 'reminder' && ev.completed)
+                  ? 'var(--ink-4)'
+                  : (isNow ? 'var(--ink-1)' : 'var(--ink-2)'),
                 letterSpacing: '-0.01em', fontFamily: 'var(--ff-sans)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                textDecoration: (ev.source === 'reminder' && ev.completed) ? 'line-through' : 'none',
               }}>{ev.title}</div>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 5, marginTop: 3,
                 fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--ff-sans)',
               }}>
-                {ev.durationMin && <span>{formatDuration(ev.durationMin)}</span>}
+                {ev.durationMin > 0 && <span>{formatDuration(ev.durationMin)}</span>}
                 {ts.label && (
                   <span style={{
                     padding: '1px 6px', borderRadius: 999,
@@ -384,8 +394,30 @@
               </div>
             </div>
 
-            {/* Ícono de fuente: "G" Google Calendar · hoja Mentex */}
-            {ev.source === 'calendar' ? (
+            {/* Ícono de fuente: checkbox (reminder) · G (calendar) · sparkle (mentex) */}
+            {ev.source === 'reminder' ? (
+              <button
+                onClick={function (e) {
+                  e.stopPropagation();
+                  if (onReminderToggle) onReminderToggle(ev.id);
+                }}
+                aria-label={(ev.completed ? 'Desmarcar' : 'Completar') + ' · ' + ev.title}
+                aria-pressed={ev.completed}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flexShrink: 0,
+                  width: 22, height: 22, borderRadius: 999,
+                  border: ev.completed
+                    ? '0.5px solid rgba(167,139,250,0.55)'
+                    : '0.5px solid rgba(255,255,255,0.20)',
+                  background: ev.completed ? 'rgba(167,139,250,0.18)' : 'transparent',
+                  color: ev.completed ? '#a78bfa' : 'transparent',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background .2s, border-color .2s, color .2s',
+                }}>
+                {ev.completed && <IcCheck size={12} stroke="currentColor" strokeWidth={2.4}/>}
+              </button>
+            ) : ev.source === 'calendar' ? (
               <div style={{
                 width: 20, height: 20, borderRadius: 5, flexShrink: 0,
                 background: 'linear-gradient(135deg,#4285F4,#34A853)',
@@ -733,17 +765,30 @@
     var reminders         = nav.reminders;
     var calendarConnected = nav.calendarConnected;
 
-    var today           = new Date();
-    var dayLabel        = 'Hoy, ' + formatDayLabel(today);
-    var nowMin          = getNowMinutes();
-    var pendingReminders = reminders.filter(function (r) { return !r.completed; }).length;
+    var today    = new Date();
+    var dayLabel = 'Hoy, ' + formatDayLabel(today);
+    var nowMin   = getNowMinutes();
 
-    // Ordenar por hora, calcular estado de cada evento
-    var sorted = events.slice().sort(function (a, b) {
+    // Recordatorios con hora válida → van al timeline; sin hora → sección flotante
+    function hasValidTime(t) { return typeof t === 'string' && /^\d{1,2}:\d{2}$/.test(t); }
+
+    var timelineReminders = reminders
+      .filter(function (r) { return hasValidTime(r.time); })
+      .map(function (r) {
+        return Object.assign({}, r, { source: 'reminder', type: 'reminder', durationMin: 20 });
+      });
+
+    var floatingReminders = reminders.filter(function (r) { return !hasValidTime(r.time); });
+    var pendingFloating   = floatingReminders.filter(function (r) { return !r.completed; }).length;
+
+    // Timeline unificado: eventos + recordatorios con hora, ordenados cronológicamente
+    var sorted = events.concat(timelineReminders).sort(function (a, b) {
       return parseTimeToMin(a.time) - parseTimeToMin(b.time);
     });
 
     function evState(ev) {
+      // Recordatorio completado → siempre aparece como pasado (dimmed)
+      if (ev.source === 'reminder' && ev.completed) return 'past';
       var s = parseTimeToMin(ev.time);
       if (s < 0) return 'future';
       var e = s + (ev.durationMin || 30);
@@ -754,8 +799,10 @@
 
     var mentexCount   = events.filter(function (e) { return e.source === 'mentex'; }).length;
     var calCount      = events.filter(function (e) { return e.source === 'calendar'; }).length;
-    var statLabel     = events.length > 0
-      ? events.length + ' ' + (events.length === 1 ? 'evento' : 'eventos')
+    var remCount      = timelineReminders.length;
+    var totalTimeline = sorted.length;
+    var statLabel     = totalTimeline > 0
+      ? totalTimeline + ' ' + (totalTimeline === 1 ? 'ítem' : 'ítems')
       : 'Día libre';
 
     var handleAccept   = function (id) { if (window.__mtxIAAgenda) window.__mtxIAAgenda.acceptProposal(id); };
@@ -779,7 +826,7 @@
         timelineRows.push(<NowLine key="now-line"/>);
       }
       timelineRows.push(
-        <EventRow key={ev.id} event={ev} isPast={isPast} isNow={isNow}/>
+        <EventRow key={ev.id} event={ev} isPast={isPast} isNow={isNow} onReminderToggle={handleToggle}/>
       );
     });
     // Si todos los eventos ya pasaron, NowLine al final
@@ -849,7 +896,7 @@
               fontSize: 10.5, fontWeight: 600,
               color: events.length > 0 ? 'var(--neon)' : 'var(--ink-3)',
               fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
-            }}>{statLabel} · {pendingReminders} pendientes</div>
+            }}>{statLabel}{pendingFloating > 0 ? ' · ' + pendingFloating + ' sin hora' : ''}</div>
           </div>
 
           {/* Propuestas del coach ── ── ── ── ── ── ── ── ── ── ── ── ── */}
@@ -883,11 +930,13 @@
                 <IcCalendar size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
                 <span>TIMELINE DEL DÍA</span>
               </div>
-              {calendarConnected && (mentexCount > 0 || calCount > 0) && (
+              {(mentexCount > 0 || calCount > 0 || remCount > 0) && (
                 <span style={{ fontSize: 9.5, fontWeight: 500, letterSpacing: 0, color: 'var(--ink-4)' }}>
-                  {mentexCount > 0 && mentexCount + ' Mentex'}
-                  {mentexCount > 0 && calCount > 0 && ' · '}
-                  {calCount > 0 && calCount + ' Calendar'}
+                  {[
+                    mentexCount > 0 ? mentexCount + ' Mentex' : null,
+                    calCount > 0    ? calCount    + ' Calendar' : null,
+                    remCount > 0    ? remCount    + ' ' + (remCount === 1 ? 'recordatorio' : 'recordatorios') : null,
+                  ].filter(Boolean).join(' · ')}
                 </span>
               )}
             </div>
@@ -911,30 +960,25 @@
             ) : timelineRows}
           </div>
 
-          {/* Recordatorios ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── */}
-          <div style={{ padding: '2px 20px 8px', flexShrink: 0 }}>
-            <div style={{
-              fontSize: 9.5, color: 'var(--ink-4)',
-              letterSpacing: '0.14em', textTransform: 'uppercase',
-              fontWeight: 700, marginBottom: 8,
-              display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--ff-sans)',
-            }}>
-              <IcBell size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
-              <span>RECORDATORIOS · {pendingReminders} ACTIVOS</span>
-            </div>
-            {reminders.length === 0 ? (
+          {/* Recordatorios sin hora — solo los que no tienen HH:MM válido */}
+          {floatingReminders.length > 0 && (
+            <div style={{ padding: '2px 20px 8px', flexShrink: 0 }}>
               <div style={{
-                padding: '24px 0', textAlign: 'center',
-                fontSize: 12.5, color: 'var(--ink-4)', fontFamily: 'var(--ff-sans)',
-              }}>Sin recordatorios. Pídele al coach que te recuerde algo.</div>
-            ) : (
-              reminders.map(function (r) {
+                fontSize: 9.5, color: 'var(--ink-4)',
+                letterSpacing: '0.14em', textTransform: 'uppercase',
+                fontWeight: 700, marginBottom: 8,
+                display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--ff-sans)',
+              }}>
+                <IcBell size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                <span>SIN HORA · {pendingFloating} PENDIENTE{pendingFloating === 1 ? '' : 'S'}</span>
+              </div>
+              {floatingReminders.map(function (r) {
                 return (
                   <ReminderRow key={r.id} reminder={r} onToggle={handleToggle} onDelete={handleDelRem}/>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
 
           {/* Footer */}
           <div style={{

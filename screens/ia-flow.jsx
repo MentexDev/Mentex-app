@@ -1507,10 +1507,19 @@ function IAScreen(props) {
       // directamente vía __mtxScheduler — sin esperar que el user redacte.
       if (label === 'Organizar mi horario' && window.__mtxScheduler) {
         var session = window.__mtxSessionItems || { rituals: [], content: [] };
-        var allItems = (session.rituals || []).concat(session.content || []);
+        // Preservar tipo (ritual/content) para que el timeline use el color correcto
+        var taggedRituals = (session.rituals || []).map(function(item) {
+          return Object.assign({}, item, { _kind: 'ritual' });
+        });
+        var taggedContent = (session.content || []).map(function(item) {
+          return Object.assign({}, item, { _kind: 'content' });
+        });
+        var allItems = taggedRituals.concat(taggedContent);
         // Fallback: si no hay ítems de sesión, usar las primeras 3 de ACTIVITIES
         if (allItems.length === 0 && window.ACTIVITIES && window.ACTIVITIES.length) {
-          allItems = window.ACTIVITIES.slice(0, 3);
+          allItems = window.ACTIVITIES.slice(0, 3).map(function(item) {
+            return Object.assign({}, item, { _kind: 'ritual' });
+          });
         }
         if (allItems.length === 0) {
           setDraft('Organiza el horario de mi ritual y aprendizaje del día');
@@ -1525,15 +1534,15 @@ function IAScreen(props) {
           var h = Math.floor(totalMin / 60) % 24;
           var m = totalMin % 60;
           var time = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
-          window.__mtxScheduler.schedule(item.id, time, item.title);
+          window.__mtxScheduler.schedule(item.id, time, item.title, item._kind || 'ritual');
           lines.push(time + ' — ' + item.title);
         });
-        // Añade también recordatorios pendientes
+        // Añade también recordatorios pendientes (tipo 'reminder' — franja violeta)
         if (window.__mtxIAAgenda) {
           var reminders = window.__mtxIAAgenda.get().reminders || [];
           reminders.forEach(function(r) {
             if (!r.completed && /^\d{1,2}:\d{2}$/.test(r.time) && !window.__mtxScheduler.getTime(r.id)) {
-              window.__mtxScheduler.schedule(r.id, r.time, r.title);
+              window.__mtxScheduler.schedule(r.id, r.time, r.title, 'reminder');
             }
           });
         }

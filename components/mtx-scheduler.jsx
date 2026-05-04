@@ -78,15 +78,15 @@
   }
 
   // ── Bridge → __mtxIAAgenda ─────────────────────────────────────────────────
-  // Inyectar el ítem schedulado como evento Mentex en el timeline de la agenda.
-  // durationMin=30 como estimación; en Fase 5 vendrá de la metadata del ítem.
-  function _bridgeUpsert(id, time, label) {
+  // itemType: 'ritual' | 'content' | 'focus' — determina color de la franja
+  // en el timeline de la agenda. Pasa undefined para usar 'focus' por defecto.
+  function _bridgeUpsert(id, time, label, itemType) {
     if (!window.__mtxIAAgenda) return;
     window.__mtxIAAgenda.upsertMentexEvent({
       id: 'sched_' + id,
       title: label,
       time: time,
-      type: 'focus',
+      type: itemType || 'focus',
       source: 'mentex',
       durationMin: 30,
     });
@@ -98,29 +98,29 @@
   }
 
   // Restaurar bridge cuando la agenda no está lista aún (race condition al recargar)
-  function _bridgeUpsertLazy(id, time, label) {
+  function _bridgeUpsertLazy(id, time, label, itemType) {
     if (window.__mtxIAAgenda) {
-      _bridgeUpsert(id, time, label);
+      _bridgeUpsert(id, time, label, itemType);
     } else {
       var attempts = 0;
       var poll = setInterval(function () {
         if (window.__mtxIAAgenda || ++attempts > 20) {
           clearInterval(poll);
-          if (window.__mtxIAAgenda) _bridgeUpsert(id, time, label);
+          if (window.__mtxIAAgenda) _bridgeUpsert(id, time, label, itemType);
         }
       }, 150);
     }
   }
 
   window.__mtxScheduler = {
-    schedule: function (id, time, label) {
+    schedule: function (id, time, label, itemType) {
       _clearTid(id);
       var tid = _scheduleNotifAt(id, time, label);
-      _items[id] = { time: time, label: label, tid: tid };
+      _items[id] = { time: time, label: label, itemType: itemType || 'focus', tid: tid };
       _save();
       _notifyUI(id);
       // Bridge: upsert en agenda, luego verificar conflictos
-      _bridgeUpsert(id, time, label);
+      _bridgeUpsert(id, time, label, itemType);
       if (window.__mtxIAAgenda) window.__mtxIAAgenda.checkConflict('sched_' + id, time, label);
     },
 
@@ -162,7 +162,7 @@
         var v = _items[id];
         if (v && _isValidHHMM(v.time)) {
           _items[id].tid = _scheduleNotifAt(id, v.time, v.label);
-          _bridgeUpsertLazy(id, v.time, v.label);
+          _bridgeUpsertLazy(id, v.time, v.label, v.itemType);
         }
       });
     },
