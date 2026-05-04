@@ -5080,10 +5080,10 @@ function PlaylistOverviewScreen({ playlist, onBack, onPlayAll, onShuffle, onItem
 
 
 // ── SeriesOverviewScreen — full screen view de una serie (≈PlaylistOverview) ─
-function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodePlay }) {
+function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay }) {
   const episodes = React.useMemo(() => _generateSeriesEpisodes(series), [series?.id]);
-  const toast = window.useToast ? window.useToast() : { show: () => {} };
-  const [saved, setSaved] = React.useState(false);
+  // Rastreo local de episodios completados (se persiste solo en esta sesión/montaje)
+  const [completedEps, setCompletedEps] = React.useState(() => new Set());
 
   if (!series) return null;
   const accent = series.accent || '#3dffd1';
@@ -5095,17 +5095,22 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
     ? `${Math.floor(totalMin / 60)}h ${totalMin % 60}min`
     : `${totalMin} min`;
 
-  const handleSave = () => {
-    setSaved(s => !s);
-    toast.show({ message: saved ? 'Removida de tu biblioteca' : 'Guardada en tu biblioteca', duration: 1800 });
+  const handleEpisodePlay = (ep) => {
+    // Marca el anterior al actual como completado (lógica optimista de progreso)
+    setCompletedEps(prev => {
+      const next = new Set(prev);
+      episodes.forEach((e, i) => { if (i < ep.episodeIndex) next.add(e.id); });
+      return next;
+    });
+    onEpisodePlay(ep);
   };
 
   return (
     <div style={{
-      paddingBottom:120,
+      paddingBottom:160,
       animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
     }}>
-      {/* Nav bar */}
+      {/* Nav bar — sin botón de guardar: las series no son playlists guardables */}
       <div style={{
         paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10,
         display:'flex', alignItems:'center', justifyContent:'space-between',
@@ -5128,22 +5133,8 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
         }}>
           Serie
         </div>
-        <button
-          onClick={handleSave}
-          aria-label={saved ? 'Quitar de biblioteca' : 'Guardar en biblioteca'}
-          className="mtx-tap"
-          style={{
-            width:40, height:40, borderRadius:999, border:0, cursor:'pointer',
-            background: saved ? `rgba(${accent === '#3dffd1' ? '61,255,209' : '155,138,255'},0.12)` : 'rgba(255,255,255,0.06)',
-            color: saved ? accent : 'var(--ink-1)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            position:'relative', zIndex:2,
-            transition:'background .2s, color .2s',
-          }}
-        >
-          <IcBookmark size={18} stroke="currentColor" strokeWidth={saved ? 2.4 : 1.8}
-            fill={saved ? 'currentColor' : 'none'}/>
-        </button>
+        {/* Spacer — mantiene el título centrado sin botón derecho */}
+        <div style={{ width:40 }}/>
       </div>
 
       {/* Hero — cover + title + author */}
@@ -5232,10 +5223,10 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
         ))}
       </div>
 
-      {/* CTAs */}
-      <div style={{ padding:'0 20px', marginBottom:14, display:'grid', gridTemplateColumns:'2fr 1fr', gap:10 }}>
+      {/* CTA — solo reproducir en orden (las series no tienen aleatorio) */}
+      <div style={{ padding:'0 20px', marginBottom:14 }}>
         <button onClick={onPlayAll} className="mtx-tap" style={{
-          height:50, borderRadius:14, border:0, cursor:'pointer',
+          width:'100%', height:50, borderRadius:14, border:0, cursor:'pointer',
           background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
           color:'#0a1410', fontSize:14, fontWeight:700,
           fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
@@ -5244,16 +5235,6 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
         }}>
           <IcPlay size={14} stroke="currentColor" strokeWidth={2.4}/>
           Reproducir todo
-        </button>
-        <button onClick={onShuffle} className="mtx-tap" style={{
-          height:50, borderRadius:14, cursor:'pointer',
-          border:'0.5px solid var(--glass-stroke)',
-          background:'var(--glass-2)', color:'var(--ink-1)',
-          fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-          display:'inline-flex', alignItems:'center', justifyContent:'center', gap:5,
-        }}>
-          <IcZap size={13} stroke="currentColor"/>
-          Aleatorio
         </button>
       </div>
 
@@ -5279,7 +5260,11 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {episodes.map((ep, i) => (
-            <SeriesEpisodeRow key={ep.id} episode={ep} index={i} onClick={onEpisodePlay}/>
+            <SeriesEpisodeRow
+              key={ep.id} episode={ep} index={i}
+              completed={completedEps.has(ep.id)}
+              onClick={handleEpisodePlay}
+            />
           ))}
         </div>
       </div>
@@ -5287,8 +5272,8 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onShuffle, onEpisodeP
   );
 }
 
-// ── SeriesEpisodeRow — fila de episodio en SeriesOverviewScreen ───────────────
-function SeriesEpisodeRow({ episode, index, onClick }) {
+// ── SeriesEpisodeRow — fila de episodio con indicador de completado ──────────
+function SeriesEpisodeRow({ episode, index, completed, onClick }) {
   if (!episode) return null;
   const accent = episode.accent || '#3dffd1';
 
@@ -5302,19 +5287,36 @@ function SeriesEpisodeRow({ episode, index, onClick }) {
       style={{
         display:'flex', alignItems:'center', gap:12,
         padding:'10px 12px', borderRadius:14, cursor:'pointer',
-        background:'rgba(255,255,255,0.025)',
-        border:'0.5px solid rgba(255,255,255,0.05)',
+        background: completed ? `linear-gradient(180deg, ${accent}0a, transparent)` : 'rgba(255,255,255,0.025)',
+        border: completed ? `0.5px solid ${accent}22` : '0.5px solid rgba(255,255,255,0.05)',
         position:'relative', overflow:'hidden',
-        transition:'transform .25s, box-shadow .3s',
+        transition:'transform .25s, box-shadow .3s, background .3s',
+        opacity: completed ? 0.72 : 1,
       }}
     >
-      {/* Episode number */}
+      {/* Número o checkmark si completado */}
       <div style={{
         width:24, flexShrink:0, textAlign:'center',
-        fontSize:11, fontWeight:700, color:'var(--ink-3)',
-        fontVariantNumeric:'tabular-nums',
+        display:'flex', alignItems:'center', justifyContent:'center',
       }}>
-        {String(index + 1).padStart(2, '0')}
+        {completed ? (
+          <div style={{
+            width:20, height:20, borderRadius:999,
+            background:`linear-gradient(135deg, ${accent}33, ${accent}18)`,
+            border:`0.5px solid ${accent}55`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:accent,
+          }}>
+            <IcCheck size={11} stroke="currentColor" strokeWidth={2.4}/>
+          </div>
+        ) : (
+          <span style={{
+            fontSize:11, fontWeight:700, color:'var(--ink-3)',
+            fontVariantNumeric:'tabular-nums',
+          }}>
+            {String(index + 1).padStart(2, '0')}
+          </span>
+        )}
       </div>
 
       {/* Cover */}
@@ -5328,26 +5330,39 @@ function SeriesEpisodeRow({ episode, index, onClick }) {
           <img src={episode.cover} alt="" loading="lazy" style={{
             position:'absolute', inset:0,
             width:'100%', height:'100%', objectFit:'cover',
-            opacity:0.72,
+            opacity: completed ? 0.5 : 0.72,
+            filter: completed ? 'saturate(0.5)' : 'none',
+            transition:'opacity .3s, filter .3s',
           }}/>
         )}
         <div style={{
           position:'absolute', inset:0,
           background:`linear-gradient(135deg, ${accent}22, transparent 60%)`,
         }}/>
+        {/* Overlay check en cover cuando completado */}
+        {completed && (
+          <div style={{
+            position:'absolute', inset:0,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            background:'rgba(0,0,0,0.35)',
+          }}>
+            <IcCheck size={18} stroke={accent} strokeWidth={2.2}/>
+          </div>
+        )}
       </div>
 
       {/* Text */}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{
           fontSize:9, fontWeight:700, letterSpacing:'0.1em',
-          color: accent, textTransform:'uppercase',
-          marginBottom:2, opacity:0.7,
+          color: completed ? 'var(--ink-3)' : accent, textTransform:'uppercase',
+          marginBottom:2, opacity: completed ? 0.6 : 0.7,
         }}>
-          EP {index + 1}
+          {completed ? 'Completado' : `EP ${index + 1}`}
         </div>
         <div style={{
-          fontSize:13, fontWeight:600, color:'var(--ink-1)',
+          fontSize:13, fontWeight:600,
+          color: completed ? 'var(--ink-3)' : 'var(--ink-1)',
           letterSpacing:'-0.01em',
           whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
         }}>
@@ -5355,14 +5370,20 @@ function SeriesEpisodeRow({ episode, index, onClick }) {
         </div>
       </div>
 
-      {/* Duration */}
+      {/* Duración o ícono de replay si completado */}
       <div style={{
         fontSize:11, color:'var(--ink-3)', flexShrink:0,
         fontVariantNumeric:'tabular-nums',
         display:'inline-flex', alignItems:'center', gap:4,
       }}>
-        <IcClock size={10} stroke="currentColor"/>
-        {episode.dur}
+        {completed ? (
+          <IcRefresh size={13} stroke="currentColor" strokeWidth={1.6}/>
+        ) : (
+          <>
+            <IcClock size={10} stroke="currentColor"/>
+            {episode.dur}
+          </>
+        )}
       </div>
     </div>
   );
@@ -8756,11 +8777,6 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
         onPlayAll={() => {
           const first = episodes[0];
           if (first) setVideoSheetItem(first);
-        }}
-        onShuffle={() => {
-          const idx = Math.floor(Math.random() * episodes.length);
-          const ep = episodes[idx];
-          if (ep) setVideoSheetItem(ep);
         }}
         onEpisodePlay={(ep) => setVideoSheetItem(ep)}
       />
