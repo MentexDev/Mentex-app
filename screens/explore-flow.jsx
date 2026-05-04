@@ -5859,36 +5859,25 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
                 <div style={{ fontSize:14, color:'var(--ink-2)', lineHeight:1.6, textWrap:'pretty' }}>{author.bio}</div>
               </div>
 
-              {/* Más contenido */}
-              {relatedItems && relatedItems.length > 0 && (
-                <div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                    <IcSparkles size={18} stroke={ac}/>
-                    <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                      {isOriginals ? `Más contenido de ${author.name}` : 'Más resúmenes en Mentex'}
-                    </span>
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {relatedItems.map(ri => (
-                      <div key={ri.id} onClick={() => setInnerItem(ri)} role="button" tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInnerItem(ri); } }}
-                        className="mtx-tap"
-                        style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:16, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.06)', cursor:'pointer', transition:'background .2s' }}>
-                        <div style={{ width:52, height:52, borderRadius:12, overflow:'hidden', background:ri.bg, flexShrink:0, position:'relative' }}>
-                          {ri.cover && <img src={ri.cover} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.85 }}/>}
-                        </div>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ri.title}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>{ri.dur}</div>
-                        </div>
-                        <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.8}/>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
+
+          {/* Más contenido del autor — scroll horizontal estilo ContentRow */}
+          {relatedItems && relatedItems.length > 0 && (
+            <div style={{ marginBottom:8 }}>
+              <div style={{ padding:'0 20px', display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                <IcSparkles size={18} stroke={ac}/>
+                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                  {isOriginals ? `Más de ${author.name}` : 'Más en Mentex'}
+                </span>
+              </div>
+              <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
+                {relatedItems.map(ri => (
+                  <ExploreContentCard key={ri.id} item={ri} onClick={(it) => setInnerItem(it)}/>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Sticky footer — Amazon CTA visible siempre (tribute only) */}
           {!isOriginals && author.amazonUrl && (
@@ -5931,7 +5920,7 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
   const hasChapters = item.type === 'audiobook';
   const author = _getAuthor(item);
   const relatedItems = React.useMemo(() =>
-    EXPLORE_CONTENT.filter(c => c.authorId === item.authorId && c.id !== item.id && c.status === 'available').slice(0, 4),
+    EXPLORE_CONTENT.filter(c => c.authorId === item.authorId && c.id !== item.id && c.status === 'available').slice(0, 6),
     [item.authorId, item.id]
   );
   const [tributeOpen, setTributeOpen] = React.useState(false);
