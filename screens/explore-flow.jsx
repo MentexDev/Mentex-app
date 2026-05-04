@@ -5462,13 +5462,17 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
 
   if (!item) return null;
   const accent = item.accent || '#3dffd1';
-  const chapters = React.useMemo(() => _generateChapters(item), [item.id]);
+  const hasChapters = item.type === 'audiobook';
+  const chapters = React.useMemo(
+    () => hasChapters ? _generateChapters(item) : [],
+    [item.id, hasChapters]
+  );
 
-  const TABS = [
+  const TABS = React.useMemo(() => [
     { id: 'about',    label: 'Acerca de'   },
-    { id: 'chapters', label: 'Capítulos'   },
+    ...(hasChapters ? [{ id: 'chapters', label: 'Capítulos' }] : []),
     { id: 'comments', label: 'Comentarios' },
-  ];
+  ], [hasChapters]);
 
   const handleSchedule = () => onScheduleForToday?.(item);
   const handleSave    = () => onSaveToPlaylist?.(item);
