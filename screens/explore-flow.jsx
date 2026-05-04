@@ -5866,24 +5866,31 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
               </div>
 
             </div>
-          </div>
 
-          {/* Más contenido del autor — scroll horizontal, incluye el item actual */}
-          {authorItems.length > 0 && (
-            <div style={{ marginBottom:8 }}>
-              <div style={{ padding:'0 20px', display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                <IcSparkles size={18} stroke={ac}/>
-                <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
-                  {isOriginals ? `Más de ${author.name}` : 'En Mentex'}
-                </span>
+            {/* Más contenido del autor — scroll horizontal dentro del área scrolleable */}
+            {authorItems.length > 0 && (
+              <div style={{ marginBottom:28 }}>
+                <div style={{ padding:'0 20px', marginBottom:14 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:5 }}>
+                    <IcSparkles size={17} stroke={ac}/>
+                    <span style={{ fontSize:16, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.015em' }}>
+                      {isOriginals ? `Más de ${author.name}` : `${author.name} en Mentex`}
+                    </span>
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--ink-3)', lineHeight:1.4, paddingLeft:26 }}>
+                    {isOriginals
+                      ? 'Contenido creado por el equipo de Mentex'
+                      : 'Sus obras resumidas y narradas para escuchar'}
+                  </div>
+                </div>
+                <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
+                  {authorItems.map(ri => (
+                    <ExploreContentCard key={ri.id} item={ri} onClick={(it) => setInnerItem(it)}/>
+                  ))}
+                </div>
               </div>
-              <div className="mtx-scroll-x" style={{ paddingLeft:20, paddingRight:20 }}>
-                {authorItems.map(ri => (
-                  <ExploreContentCard key={ri.id} item={ri} onClick={(it) => setInnerItem(it)}/>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Sticky footer — Amazon CTA visible siempre (tribute only) */}
           {!isOriginals && author.amazonUrl && (
