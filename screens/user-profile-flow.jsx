@@ -731,6 +731,7 @@ function UserProfileScreen({ userId, onClose }) {
           <window.AchievementSheet
             achievement={achievementSheet}
             onClose={() => setAchievementSheet(null)}
+            onShare={(item) => { setAchievementSheet(null); setShareEntity(item); }}
           />
         );
         return overlayRoot && window.ReactDOM

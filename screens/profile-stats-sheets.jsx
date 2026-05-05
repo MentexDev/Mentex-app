@@ -1028,7 +1028,7 @@ function FollowersSheet({ profile, onClose, isOwn = false, initialTab = 'followe
 // ─────────────────────────────────────────────────────────────────────────────
 // AchievementSheet — detalle de un logro (badge XL + narrativa + percentil + progreso)
 // ─────────────────────────────────────────────────────────────────────────────
-function AchievementSheet({ achievement, onClose }) {
+function AchievementSheet({ achievement, onClose, onShare }) {
   if (!achievement) return null;
   const tiers = window._ACHIEVEMENT_TIERS || {};
   const tier = tiers[achievement.tier] || { label:'Logro', color:'#3dffd1', glow:'rgba(61,255,209,0.45)' };
@@ -1238,21 +1238,23 @@ function AchievementSheet({ achievement, onClose }) {
           type="button"
           className="mtx-tap"
           onClick={() => {
-            if (typeof window !== 'undefined') {
-              // dispatchEvent es síncrono — el listener corre antes de que onClose desmonte el sheet
-              window.dispatchEvent(new CustomEvent('mtx:request-share', {
-                detail: { item: { ...achievement, type:'achievement', title: achievement.name } }
-              }));
+            const shareItem = { ...achievement, type:'achievement', title: achievement.name };
+            if (onShare) {
+              onClose();
+              // pequeño delay para que el sheet cierre antes de que el ShareSheet abra
+              setTimeout(() => onShare(shareItem), 180);
+            } else {
+              window.dispatchEvent(new CustomEvent('mtx:request-share', { detail: { item: shareItem } }));
+              onClose();
             }
-            onClose();
           }}
           style={{
             width:'100%', padding:'14px 20px', borderRadius:14,
             appearance:'none', cursor:'pointer',
-            border: isUnlocked ? 'none' : `0.5px solid ${accent}55`,
+            border: isUnlocked ? 'none' : `0.5px solid ${accent}88`,
             background: isUnlocked
               ? `linear-gradient(135deg, ${accent}e0, ${accent}b0)`
-              : `linear-gradient(135deg, ${accent}2e, ${accent}18)`,
+              : `linear-gradient(135deg, ${accent}55, ${accent}38)`,
             color: isUnlocked ? '#030a07' : accent,
             fontSize:14.5, fontWeight:800,
             fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
