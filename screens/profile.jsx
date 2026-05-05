@@ -674,12 +674,13 @@ function AchievementBadgeV2({ tier, Ic, unlocked, size = 64 }) {
 }
 
 
-// ── AchievementCardFull — 1-por-fila, clickable, con estado lock/unlock ─────
-function AchievementCardFull({ a, onTap }) {
+// ── AchievementCardFull — alias compat ──────────────────────────────────────
+// (mantenido para compatibilidad con exports de window; el grid usa AchievementCardGrid)
+// ── AchievementCardGrid — 2-col compact square card ─────────────────────────
+function AchievementCardGrid({ a, onTap }) {
   const tier = _ACHIEVEMENT_TIERS[a.tier];
   const pct = Math.min(1, a.current / a.target);
   const isUnlocked = a.unlocked;
-  const left = a.target - a.current;
 
   return (
     <button
@@ -688,121 +689,97 @@ function AchievementCardFull({ a, onTap }) {
       className="mtx-tap"
       style={{
         appearance:'none', cursor:'pointer', border:0, padding:0,
-        width:'100%', textAlign:'left',
-        borderRadius:18, background:'transparent',
-        fontFamily:'var(--ff-sans)',
+        textAlign:'center', background:'transparent',
+        fontFamily:'var(--ff-sans)', width:'100%', borderRadius:16,
       }}
     >
       <div className="mtx-glass" style={{
-        padding:'14px 16px 13px', borderRadius:18,
-        background: isUnlocked
-          ? `linear-gradient(180deg, ${tier.color}14, rgba(255,255,255,0.012))`
-          : 'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))',
+        padding:'14px 10px 12px', borderRadius:16,
+        background:'linear-gradient(160deg, rgba(255,255,255,0.03), rgba(255,255,255,0.008))',
         border: isUnlocked
-          ? `0.5px solid ${tier.color}40`
+          ? `0.5px solid ${tier.color}28`
           : '0.5px solid rgba(255,255,255,0.06)',
         boxShadow: isUnlocked
-          ? `0 0 0 0.5px ${tier.color}1a, 0 14px 30px -16px ${tier.glow}`
+          ? `0 0 0 0.5px ${tier.color}14, 0 10px 22px -14px ${tier.glow}`
           : 'var(--shadow-card)',
+        display:'flex', flexDirection:'column', alignItems:'center',
         position:'relative', overflow:'hidden',
-        transition:'background .2s, border-color .2s, box-shadow .25s',
+        filter: isUnlocked ? 'none' : 'saturate(0.25) brightness(0.65)',
+        transition:'filter .2s',
       }}>
-        {/* Halo accent — solo unlocked */}
-        {isUnlocked && (
+        {/* Tier pill — esquina superior derecha */}
+        <div style={{
+          position:'absolute', top:7, right:7,
+          fontSize:7, fontWeight:800,
+          padding:'2px 5px', borderRadius:999,
+          background: isUnlocked ? `${tier.color}1e` : 'rgba(255,255,255,0.04)',
+          border: isUnlocked ? `0.5px solid ${tier.color}3c` : '0.5px solid rgba(255,255,255,0.07)',
+          color: isUnlocked ? tier.color : 'var(--ink-4,rgba(255,255,255,0.25))',
+          letterSpacing:'0.09em', textTransform:'uppercase',
+          lineHeight:1.5, zIndex:2, whiteSpace:'nowrap',
+        }}>
+          {tier.label}
+        </div>
+
+        {/* Badge — animado cuando unlocked */}
+        <div style={{ marginBottom:9, marginTop:6 }}>
+          <AchievementBadgeV2 tier={tier} Ic={a.Ic} unlocked={isUnlocked} size={56}/>
+        </div>
+
+        {/* Nombre */}
+        <div style={{
+          fontSize:12, fontWeight:800, lineHeight:1.2,
+          color: isUnlocked ? 'var(--ink-1)' : 'var(--ink-2)',
+          letterSpacing:'-0.01em', marginBottom:3,
+          fontFamily:'var(--ff-display)',
+          display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+          width:'100%',
+        }}>
+          {a.name}
+        </div>
+
+        {/* Tagline — 1 línea sutil */}
+        <div style={{
+          fontSize:9, color:'var(--ink-3)', lineHeight:1.3,
+          marginBottom:10,
+          display:'-webkit-box', WebkitLineClamp:1, WebkitBoxOrient:'vertical', overflow:'hidden',
+          width:'100%', letterSpacing:'-0.003em',
+        }}>
+          {a.tagline}
+        </div>
+
+        {/* Barra de progreso */}
+        <div style={{
+          width:'100%', height:3, borderRadius:999,
+          background:'rgba(255,255,255,0.06)', overflow:'hidden',
+        }}>
           <div style={{
-            position:'absolute', top:-30, right:-20, width:130, height:130,
-            background:`radial-gradient(circle, ${tier.color}26 0%, transparent 65%)`,
-            pointerEvents:'none', filter:'blur(8px)',
+            width:`${pct * 100}%`, height:'100%',
+            background: isUnlocked
+              ? `linear-gradient(90deg, ${tier.color}99, ${tier.color})`
+              : `linear-gradient(90deg, ${tier.color}33, ${tier.color}66)`,
+            boxShadow: isUnlocked ? `0 0 6px ${tier.color}55` : 'none',
+            borderRadius:999,
+            transition:'width .55s cubic-bezier(.25,.8,.25,1)',
           }}/>
-        )}
+        </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
-          {/* Badge */}
-          <AchievementBadgeV2 tier={tier} Ic={a.Ic} unlocked={isUnlocked} size={64}/>
-
-          {/* Info */}
-          <div style={{ flex:1, minWidth:0 }}>
-            {/* Name + tier pill */}
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
-              <span style={{
-                fontSize:14.5, fontWeight:800,
-                color: isUnlocked ? 'var(--ink-1)' : 'var(--ink-2)',
-                letterSpacing:'-0.012em', lineHeight:1.2,
-                fontFamily:'var(--ff-display)',
-              }}>
-                {a.name}
-              </span>
-              <span style={{
-                fontSize:8.5, fontWeight:800,
-                padding:'2.5px 7px', borderRadius:999,
-                background: isUnlocked ? `${tier.color}22` : 'rgba(255,255,255,0.04)',
-                border: isUnlocked ? `0.5px solid ${tier.color}55` : '0.5px solid rgba(255,255,255,0.08)',
-                color: isUnlocked ? tier.color : 'var(--ink-3)',
-                letterSpacing:'0.12em', textTransform:'uppercase',
-                whiteSpace:'nowrap',
-                boxShadow: isUnlocked ? `0 0 8px ${tier.color}33` : 'none',
-              }}>
-                {tier.label}
-              </span>
-            </div>
-
-            {/* Tagline — clamp 2 lines */}
-            <div style={{
-              fontSize:11.5, color:'var(--ink-3)', lineHeight:1.4, marginBottom:9,
-              letterSpacing:'-0.005em',
-              display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
-            }}>
-              {a.tagline}
-            </div>
-
-            {/* Progress bar */}
-            <div style={{ height:5, borderRadius:999, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
-              <div style={{
-                width:`${pct * 100}%`, height:'100%',
-                background: isUnlocked
-                  ? `linear-gradient(90deg, ${tier.color}aa, ${tier.color})`
-                  : `linear-gradient(90deg, ${tier.color}55, ${tier.color}aa)`,
-                boxShadow: isUnlocked ? `0 0 10px ${tier.color}88` : 'none',
-                borderRadius:999,
-                transition:'width .55s cubic-bezier(.25,.8,.25,1)',
-              }}/>
-            </div>
-
-            {/* Status row */}
-            <div style={{ marginTop:7, display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8 }}>
-              {isUnlocked ? (
-                <span style={{
-                  fontSize:11, fontWeight:700,
-                  color: tier.color, letterSpacing:'-0.005em',
-                  display:'inline-flex', alignItems:'center', gap:5,
-                }}>
-                  <IcCheck size={11} stroke="currentColor" strokeWidth={2.2}/>
-                  Desbloqueado
-                </span>
-              ) : (
-                <span style={{ fontSize:11, color:'var(--ink-2)', letterSpacing:'-0.005em', minWidth:0 }}>
-                  <span style={{
-                    color:'var(--ink-1)', fontWeight:800,
-                    fontFamily:'var(--ff-display)', fontVariantNumeric:'tabular-nums',
-                    fontSize:13, letterSpacing:'-0.018em',
-                  }}>{a.current}</span>
-                  <span style={{ color:'var(--ink-3)' }}> / {a.target} {a.unit}</span>
-                </span>
-              )}
-              <span style={{
-                fontSize:11, fontWeight:700,
-                color: isUnlocked ? tier.color : 'var(--ink-3)',
-                fontVariantNumeric:'tabular-nums', flexShrink:0,
-              }}>
-                {Math.round(pct * 100)}%
-              </span>
-            </div>
-          </div>
+        {/* Estado */}
+        <div style={{
+          marginTop:5, fontSize:9, fontVariantNumeric:'tabular-nums', fontWeight:700,
+          color: isUnlocked ? tier.color : 'var(--ink-3)',
+          display:'flex', alignItems:'center', gap:3,
+        }}>
+          {isUnlocked
+            ? <><IcCheck size={8} stroke="currentColor" strokeWidth={2.2}/> Desbloqueado</>
+            : `${a.current} / ${a.target} ${a.unit}`
+          }
         </div>
       </div>
     </button>
   );
 }
+const AchievementCardFull = AchievementCardGrid;
 
 
 // ── ProfileReviewCard — diseño community-like (rating + texto + item embed + actions)
@@ -2321,293 +2298,163 @@ function HeroNextAchievement({ achievement, accentOverride, onTap }) {
 }
 
 
+// ── SwipeableHeroCarousel — carrusel de logros en progreso con dots ──────────
+function SwipeableHeroCarousel({ achievements, onTap }) {
+  const [idx, setIdx] = React.useState(0);
+  const touchStartX = React.useRef(null);
+  const total = achievements ? achievements.length : 0;
+
+  // Resetear idx si el array se achica (logro desbloqueado mid-session)
+  React.useEffect(() => {
+    if (total > 0) setIdx(i => Math.min(i, total - 1));
+  }, [total]);
+
+  if (total === 0) return null;
+
+  const safeIdx = Math.min(idx, total - 1);
+  const current = achievements[safeIdx];
+  const tier = _ACHIEVEMENT_TIERS[current.tier];
+
+  const onTouchStart  = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchCancel = ()  => { touchStartX.current = null; };
+  const onTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (delta < -44 && safeIdx < total - 1) setIdx(safeIdx + 1);
+    else if (delta > 44 && safeIdx > 0) setIdx(safeIdx - 1);
+  };
+
+  return (
+    <div style={{ padding:'0 20px 20px' }}>
+      <div className="mtx-eyebrow" style={{
+        fontSize:9, color: tier.color,
+        letterSpacing:'0.14em', marginBottom:10, paddingLeft:2,
+        textShadow:`0 0 10px ${tier.color}55`,
+        transition:'color .25s, text-shadow .25s',
+      }}>
+        A un paso
+      </div>
+      <div
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
+        style={{ touchAction:'pan-y', userSelect:'none' }}
+      >
+        <HeroNextAchievement achievement={current} onTap={onTap}/>
+      </div>
+      {total > 1 && (
+        <div
+          role="tablist"
+          aria-label="Logros en progreso"
+          style={{ display:'flex', justifyContent:'center', gap:5, marginTop:12 }}
+        >
+          {achievements.map((a, i) => {
+            const dotTier = _ACHIEVEMENT_TIERS[a.tier];
+            const isActive = i === safeIdx;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-label={`${a.name}, logro ${i + 1} de ${total}`}
+                onClick={() => setIdx(i)}
+                className="mtx-tap"
+                style={{
+                  appearance:'none', border:0, padding:0,
+                  width: isActive ? 18 : 5,
+                  height: 5,
+                  borderRadius: 999,
+                  background: isActive ? dotTier.color : 'rgba(255,255,255,0.18)',
+                  boxShadow: isActive ? `0 0 8px ${dotTier.color}88` : 'none',
+                  transition: 'width .28s cubic-bezier(.4,0,.2,1), background .25s, box-shadow .25s',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── AwardsTab — sistema de 30 logros con filtros por categoría ──────────────
 // `profile`/`isOwn` opcionales: sin ellos asume perfil propio (Juan Diego);
 // con `profile` y `isOwn=false` deriva los logros del user específico.
 function AwardsTab({ onAchievementTap, profile, isOwn = true }) {
-  const [category, setCategory] = React.useState('all'); // 'all' | focus | learning | ...
-
   const all = React.useMemo(() =>
     isOwn ? _buildAchievements() : _buildAchievementsForUser(profile),
   [isOwn, profile]);
 
-  // Counts por categoría (para los pills de filtro)
-  const categoriesData = Object.values(_ACHIEVEMENT_CATEGORIES).map(c => {
-    const inCat = all.filter(a => a.category === c.id);
-    const unlocked = inCat.filter(a => a.unlocked).length;
-    return { ...c, unlocked, total: inCat.length, list: inCat };
-  });
+  // "A un paso": sólo logros con ≥40% de progreso, ordenados por % desc
+  const inProgress = React.useMemo(() => {
+    return all
+      .filter(a => !a.unlocked && a.current / a.target >= 0.40)
+      .sort((a, b) => (b.current / b.target) - (a.current / a.target));
+  }, [all]);
 
-  // Hero "A un paso" — coherente con el filtro activo
-  // Para 'all' → busca en todos. Para una categoría → solo en esa categoría.
-  // SOLO muestra logros con progreso real (current > 0). Si no hay ninguno
-  // en proceso real en la categoría, no aparece el hero.
-  const scopeForHero = category === 'all' ? all : all.filter(a => a.category === category);
-  const inProgress = scopeForHero.filter(a => !a.unlocked && a.current > 0);
-  const nextAchievement = inProgress.length > 0
-    ? inProgress.reduce((best, a) => {
-        const pa = a.current / a.target;
-        const pb = best.current / best.target;
-        return pa > pb ? a : best;
-      }, inProgress[0])
-    : null;
-  // Hay logros desbloqueados en esta categoría?
-  const anyUnlockedInScope = scopeForHero.some(a => a.unlocked);
-  const allUnlockedInScope = scopeForHero.every(a => a.unlocked);
-
-  // Pills filtros: Todas + 6 categorías (count = total de logros, no desbloqueados)
-  const filterPills = [
-    { id: 'all', label: 'Todas', count: all.length, color: '#3dffd1' },
-    ...Object.values(_ACHIEVEMENT_CATEGORIES).map(c => ({
-      id: c.id, label: c.label, count: 5, color: c.color,
-    })),
-  ];
-
-  // Lista filtrada por categoría seleccionada
-  const filteredList = category === 'all' ? null : all.filter(a => a.category === category);
-  const currentCatData = category === 'all' ? null : categoriesData.find(c => c.id === category);
+  // Agrupar por tier de más raro a más común
+  const tierGroups = React.useMemo(() => {
+    const ORDER = ['mythic', 'legendary', 'epic', 'rare', 'common'];
+    return ORDER.map(tierId => {
+      const meta = _ACHIEVEMENT_TIERS[tierId];
+      const items = all.filter(a => a.tier === tierId);
+      const unlocked = items.filter(a => a.unlocked).length;
+      return { tierId, meta, items, unlocked };
+    }).filter(g => g.items.length > 0);
+  }, [all]);
 
   return (
     <div style={{ animation:'mtx-fade-up .25s ease both', paddingBottom:14 }}>
 
-      {/* ── Filter pills — Todas + 6 categorías (scroll horizontal) ── */}
-      <div className="mtx-no-scrollbar" style={{
-        padding:'14px 20px 16px',
-        display:'flex', gap:8, overflowX:'auto', WebkitOverflowScrolling:'touch',
-      }}>
-        {filterPills.map(f => {
-          const isActive = category === f.id;
-          return (
-            <button key={f.id} onClick={() => setCategory(f.id)} className="mtx-tap" style={{
-              appearance:'none', cursor:'pointer', flexShrink:0,
-              display:'inline-flex', alignItems:'center', gap:6,
-              padding:'8px 14px', borderRadius:999,
-              border: isActive ? `0.5px solid ${f.color}55` : '0.5px solid rgba(255,255,255,0.08)',
-              background: isActive ? `linear-gradient(180deg, ${f.color}1f, ${f.color}06)` : 'rgba(255,255,255,0.04)',
-              color: isActive ? f.color : 'var(--ink-2)',
-              fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600,
-              letterSpacing:'-0.005em',
-              boxShadow: isActive ? `0 0 0 0.5px ${f.color}1c, 0 6px 16px -8px ${f.color}66` : 'none',
-              transition:'background .2s, border-color .2s, color .2s, box-shadow .25s',
-              whiteSpace:'nowrap',
-            }}>
-              {f.label}
-              <span style={{
-                fontSize:9.5, fontWeight:800,
-                padding:'1px 6px', borderRadius:999,
-                background: isActive ? `${f.color}26` : 'rgba(255,255,255,0.06)',
-                color: isActive ? f.color : 'var(--ink-3)',
-                fontVariantNumeric:'tabular-nums',
-              }}>
-                {f.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Hero "A un paso" — solo si hay logro en progreso real ── */}
-      {nextAchievement && (() => {
-        // Color principal: si filter es 'all' → color del tier (variado).
-        // Si filter es de categoría → color de la categoría (cohesión visual).
-        const heroAccent = category === 'all' ? null : currentCatData?.color;
-        const eyebrowColor = heroAccent || _ACHIEVEMENT_TIERS[nextAchievement.tier].color;
-        return (
-          <div style={{ padding:'0 20px 16px' }}>
-            <div className="mtx-eyebrow" style={{
-              fontSize:9, color: eyebrowColor, letterSpacing:'0.14em',
-              marginBottom:10, paddingLeft:2,
-              textShadow:`0 0 10px ${eyebrowColor}55`,
-            }}>
-              {category === 'all' ? 'A un paso' : `A un paso en ${currentCatData?.label || ''}`}
-            </div>
-            <HeroNextAchievement
-              achievement={nextAchievement}
-              accentOverride={heroAccent}
-              onTap={onAchievementTap}
-            />
-          </div>
-        );
-      })()}
-
-      {/* ── Estado: toda la categoría desbloqueada ── */}
-      {!nextAchievement && allUnlockedInScope && category !== 'all' && currentCatData && (
-        <div style={{ padding:'0 20px 16px' }}>
-          <div className="mtx-glass" style={{
-            padding:'18px 18px', borderRadius:20,
-            background:`linear-gradient(180deg, ${currentCatData.color}14, rgba(255,255,255,0.012))`,
-            border:`0.5px solid ${currentCatData.color}38`,
-            boxShadow:`0 0 0 0.5px ${currentCatData.color}1a, 0 14px 30px -16px ${currentCatData.color}66`,
-            display:'flex', alignItems:'center', gap:14,
-            position:'relative', overflow:'hidden',
-          }}>
-            <div style={{
-              position:'absolute', top:-30, right:-20, width:120, height:120,
-              background:`radial-gradient(circle, ${currentCatData.color}26 0%, transparent 65%)`,
-              pointerEvents:'none', filter:'blur(8px)',
-            }}/>
-            <div style={{
-              width:48, height:48, borderRadius:14, flexShrink:0,
-              background:`linear-gradient(135deg, ${currentCatData.color}55, ${currentCatData.color}1a)`,
-              border:`0.5px solid ${currentCatData.color}66`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              color: currentCatData.color,
-              boxShadow:`0 0 16px ${currentCatData.color}55, inset 0 1px 0 rgba(255,255,255,0.2)`,
-              position:'relative', zIndex:1,
-            }}>
-              <IcCheck size={22} stroke="currentColor" strokeWidth={2.4}/>
-            </div>
-            <div style={{ flex:1, minWidth:0, position:'relative', zIndex:1 }}>
-              <div style={{ fontSize:14.5, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.014em', lineHeight:1.2, fontFamily:'var(--ff-display)' }}>
-                Categoría completa
-              </div>
-              <div style={{ fontSize:11.5, color:'var(--ink-3)', marginTop:3, lineHeight:1.4 }}>
-                Has desbloqueado los 5 logros de {currentCatData.label}.
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* ── Hero carousel "A un paso" ── */}
+      {inProgress.length > 0 && (
+        <SwipeableHeroCarousel achievements={inProgress} onTap={onAchievementTap}/>
       )}
 
-      {/* ── Estado: categoría sin progreso aún (current=0 en todos) ── */}
-      {!nextAchievement && !allUnlockedInScope && category !== 'all' && currentCatData && (
-        <div style={{ padding:'0 20px 16px' }}>
-          <div style={{
-            padding:'14px 16px', borderRadius:16,
-            background:'linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))',
-            border:'1px dashed rgba(255,255,255,0.10)',
-            display:'flex', alignItems:'center', gap:12,
-          }}>
-            <div style={{
-              width:36, height:36, borderRadius:11, flexShrink:0,
-              background:`linear-gradient(135deg, ${currentCatData.color}1c, ${currentCatData.color}06)`,
-              border:`0.5px solid ${currentCatData.color}28`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              color: currentCatData.color,
-            }}>
-              <currentCatData.Ic size={16} stroke="currentColor" strokeWidth={1.7}/>
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.008em', lineHeight:1.25 }}>
-                Aún no has empezado en {currentCatData.label}
-              </div>
-              <div style={{ fontSize:10.5, color:'var(--ink-3)', marginTop:2, lineHeight:1.4 }}>
-                Da el primer paso para que aparezca tu próximo objetivo aquí.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Secciones por tier ── */}
+      {tierGroups.map(({ tierId, meta, items, unlocked }) => (
+        <div key={tierId} style={{ padding:'0 20px 24px' }}>
 
-      {/* ── Body: vista "Todas" o vista por categoría ── */}
-      {category === 'all' ? (
-        // Vista "Todas" — mini-rows por categoría con 2 cards relevantes
-        <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-          {categoriesData.map(cat => {
-            // En "Todas": último desbloqueado + siguiente. Si todos locked: 2 más cercanos.
-            // Si todos unlocked: los 2 últimos.
-            const sortedByProgress = [...cat.list].sort((a, b) => (b.current / b.target) - (a.current / a.target));
-            const next = cat.list.find(a => !a.unlocked);
-            const lastUnlocked = [...cat.list].reverse().find(a => a.unlocked);
-            let preview = [];
-            if (lastUnlocked && next) {
-              preview = [lastUnlocked, next];
-            } else if (next) {
-              preview = sortedByProgress.slice(0, 2);
-            } else {
-              preview = cat.list.slice(-2);
-            }
-
-            return (
-              <div key={cat.id} style={{ padding:'0 20px' }}>
-                {/* Header de categoría */}
-                <div style={{
-                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                  marginBottom:10, paddingLeft:2, gap:8,
-                }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
-                    <div style={{
-                      width:24, height:24, borderRadius:7, flexShrink:0,
-                      background:`linear-gradient(135deg, ${cat.color}33, ${cat.color}10)`,
-                      border:`0.5px solid ${cat.color}45`,
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      color: cat.color,
-                      boxShadow:`0 0 8px ${cat.color}33`,
-                    }}>
-                      <cat.Ic size={12} stroke="currentColor" strokeWidth={1.8}/>
-                    </div>
-                    <span className="mtx-eyebrow" style={{
-                      fontSize:10, color:'var(--ink-1)', letterSpacing:'0.12em', fontWeight:800,
-                      whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-                    }}>
-                      {cat.label}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setCategory(cat.id)}
-                    className="mtx-tap"
-                    style={{
-                      appearance:'none', cursor:'pointer', border:0,
-                      background:'transparent',
-                      display:'inline-flex', alignItems:'center', gap:5,
-                      fontFamily:'var(--ff-sans)', fontSize:10.5, fontWeight:700,
-                      color: cat.color,
-                      fontVariantNumeric:'tabular-nums', letterSpacing:'-0.005em',
-                      padding:'2px 0',
-                    }}
-                    aria-label={`Ver los 5 logros de ${cat.label}`}
-                  >
-                    {cat.unlocked}/{cat.total}
-                    <IcChevR size={11} stroke="currentColor" strokeWidth={2}/>
-                  </button>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {preview.map(a => (
-                    <AchievementCardFull key={a.id} a={a} onTap={onAchievementTap}/>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        // Vista por categoría — todos los 5 logros
-        <div style={{ padding:'0 20px' }}>
+          {/* Header de sección */}
           <div style={{
             display:'flex', alignItems:'center', justifyContent:'space-between',
-            marginBottom:10, paddingLeft:2, gap:8,
+            marginBottom:12, paddingLeft:2,
           }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7 }}>
               <div style={{
-                width:24, height:24, borderRadius:7, flexShrink:0,
-                background:`linear-gradient(135deg, ${currentCatData.color}33, ${currentCatData.color}10)`,
-                border:`0.5px solid ${currentCatData.color}45`,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                color: currentCatData.color,
-                boxShadow:`0 0 8px ${currentCatData.color}33`,
-              }}>
-                <currentCatData.Ic size={12} stroke="currentColor" strokeWidth={1.8}/>
-              </div>
+                width:7, height:7, borderRadius:'50%', flexShrink:0,
+                background: meta.color,
+                boxShadow:`0 0 7px ${meta.color}bb`,
+              }}/>
               <span className="mtx-eyebrow" style={{
-                fontSize:10, color:'var(--ink-1)', letterSpacing:'0.12em', fontWeight:800,
+                fontSize:10, color: meta.color,
+                letterSpacing:'0.14em', fontWeight:800,
+                textShadow:`0 0 10px ${meta.color}44`,
               }}>
-                {currentCatData.label}
+                {meta.label}
               </span>
             </div>
             <span style={{
-              fontSize:10.5, fontWeight:700, color: currentCatData.color,
-              fontVariantNumeric:'tabular-nums', letterSpacing:'-0.005em',
+              fontSize:10, fontWeight:700, color:'var(--ink-3)',
+              fontVariantNumeric:'tabular-nums',
             }}>
-              {currentCatData.unlocked} / {currentCatData.total} desbloqueados
+              {unlocked} / {items.length}
             </span>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {filteredList.map(a => (
-              <AchievementCardFull key={a.id} a={a} onTap={onAchievementTap}/>
+
+          {/* Grid 2 columnas */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            {items.map(a => (
+              <AchievementCardGrid key={a.id} a={a} onTap={onAchievementTap}/>
             ))}
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }

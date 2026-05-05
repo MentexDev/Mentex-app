@@ -104,10 +104,24 @@ function GlobalPlayerOverlay() {
 
   const activePlaylist = aq.activePlaylist;
   const activePlaylistItems = aq.activePlaylistItems || [];
-  const currentIndex = React.useMemo(() => {
-    if (!activeItem) return -1;
-    return activePlaylistItems.findIndex(i => i && i.id === activeItem.id);
-  }, [activePlaylistItems, activeItem?.id]);
+
+  // Cola efectiva para navegación prev/next. Si el ítem actual no está en la
+  // activeQueue (currentIndex=-1), construimos una cola contextual con todos
+  // los ítems de EXPLORE_CONTENT del mismo tipo — así las flechas funcionan
+  // desde cualquier ítem, no solo los que están en "Ver más tarde".
+  const { effectiveItems, effectiveIndex } = React.useMemo(() => {
+    if (!activeItem) return { effectiveItems: activePlaylistItems, effectiveIndex: -1 };
+    const rawIdx = activePlaylistItems.findIndex(i => i && i.id === activeItem.id);
+    if (rawIdx !== -1) return { effectiveItems: activePlaylistItems, effectiveIndex: rawIdx };
+    // Item fuera de la queue activa — construir cola contextual por tipo
+    const EC = (window.EXPLORE_CONTENT || []).filter(c => c && c.status !== 'coming-soon');
+    const sameType = EC.filter(c => c.type === activeItem.type);
+    const pool = sameType.length >= 3 ? sameType : EC;
+    const ctxIdx = pool.findIndex(c => c.id === activeItem.id);
+    return { effectiveItems: pool, effectiveIndex: ctxIdx };
+  }, [activePlaylistItems, activeItem?.id, activeItem?.type]);
+
+  const currentIndex = effectiveIndex;
 
   // Listener: expandir desde mini player
   React.useEffect(() => {
@@ -154,12 +168,12 @@ function GlobalPlayerOverlay() {
   };
   const handlePrev = () => {
     if (currentIndex > 0) {
-      window.__mtxGlobalPlayer?.selectItem(activePlaylistItems[currentIndex - 1]);
+      window.__mtxGlobalPlayer?.selectItem(effectiveItems[currentIndex - 1]);
     }
   };
   const handleNext = () => {
-    if (currentIndex >= 0 && currentIndex < activePlaylistItems.length - 1) {
-      window.__mtxGlobalPlayer?.selectItem(activePlaylistItems[currentIndex + 1]);
+    if (currentIndex >= 0 && currentIndex < effectiveItems.length - 1) {
+      window.__mtxGlobalPlayer?.selectItem(effectiveItems[currentIndex + 1]);
     }
   };
 
@@ -212,13 +226,13 @@ function GlobalPlayerOverlay() {
           onPrev={handlePrev}
           onNext={handleNext}
           canPrev={currentIndex > 0}
-          canNext={currentIndex >= 0 && currentIndex < activePlaylistItems.length - 1}
+          canNext={currentIndex >= 0 && currentIndex < effectiveItems.length - 1}
         />
         {queueOpen && PlaylistQueueSheet && activePlaylist && (
           <PlaylistQueueSheet
             playlist={activePlaylist}
             items={activePlaylistItems}
-            currentIndex={currentIndex}
+            currentIndex={Math.max(0, currentIndex)}
             onSelect={handleSelectFromQueue}
             onClose={handleCloseQueue}
             onShareItem={handleShare}

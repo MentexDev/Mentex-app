@@ -34,6 +34,9 @@ function useStatSheet(onClose) {
   const [isDragging, setIsDragging] = React.useState(false);
   const dragStart = React.useRef(0);
   const dragActive = React.useRef(false);
+  // Ref para ESC handler — evita re-registrar el listener en cada render del padre
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => { onCloseRef.current = onClose; });
 
   const onDown = (e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -57,11 +60,11 @@ function useStatSheet(onClose) {
       const t = e.target;
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
       if (typing) return;
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []); // estable — lee onClose desde ref, nunca se re-registra
 
   return { dragY, isDragging, onDown, onMove, onUp };
 }
@@ -1227,6 +1230,42 @@ function AchievementSheet({ achievement, onClose }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Botón compartir */}
+      <div style={{ padding:'16px 24px 20px' }}>
+        <button
+          type="button"
+          className="mtx-tap"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              // dispatchEvent es síncrono — el listener corre antes de que onClose desmonte el sheet
+              window.dispatchEvent(new CustomEvent('mtx:request-share', {
+                detail: { item: { ...achievement, type:'achievement', title: achievement.name } }
+              }));
+            }
+            onClose();
+          }}
+          style={{
+            width:'100%', padding:'14px 20px', borderRadius:14,
+            appearance:'none', cursor:'pointer',
+            border: isUnlocked ? 'none' : `0.5px solid ${accent}55`,
+            background: isUnlocked
+              ? `linear-gradient(135deg, ${accent}e0, ${accent}b0)`
+              : `linear-gradient(135deg, ${accent}2e, ${accent}18)`,
+            color: isUnlocked ? '#030a07' : accent,
+            fontSize:14.5, fontWeight:800,
+            fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            boxShadow: isUnlocked
+              ? `0 8px 24px -8px ${accent}66`
+              : `0 4px 18px -8px ${accent}44`,
+            transition:'opacity .15s',
+          }}
+        >
+          <IcShare size={16} stroke="currentColor" strokeWidth={2}/>
+          {isUnlocked ? 'Compartir logro' : 'Compartir progreso'}
+        </button>
       </div>
     </StatSheetShell>
   );
