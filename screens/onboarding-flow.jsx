@@ -517,6 +517,7 @@
     var ans = props.answers;
     var onChange = props.onChange;
     var IcUserComp = window.IcUser;
+    var suggRef = React.useRef(0);
 
     return React.createElement('div', null,
       React.createElement(StepHeader, {
@@ -559,42 +560,48 @@
               fontWeight: 600, textTransform: 'uppercase', marginBottom: 6,
             },
           }, 'Tagline'),
-          React.createElement('input', {
-            type: 'text',
-            value: ans.tagline || '',
-            onChange: function(e) { onChange({ tagline: e.target.value }); },
-            placeholder: 'Una frase que te describa',
-            maxLength: 60,
-            style: Object.assign({}, INPUT_STYLE_BASE, {
-              width: '100%', height: 46, padding: '0 14px',
-              fontSize: 14,
+          React.createElement('div', { style: { position: 'relative' } },
+            React.createElement('input', {
+              type: 'text',
+              value: ans.tagline || '',
+              onChange: function(e) { onChange({ tagline: e.target.value }); },
+              placeholder: 'Una frase que te describa',
+              maxLength: 60,
+              style: Object.assign({}, INPUT_STYLE_BASE, {
+                width: '100%', height: 46,
+                padding: '0 46px 0 14px',
+                fontSize: 14, boxSizing: 'border-box',
+              }),
             }),
-          }),
-          // Chips de sugerencia
-          React.createElement('div', {
-            style: {
-              marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6,
+            React.createElement('button', {
+              type: 'button',
+              className: 'mtx-tap',
+              title: 'Sugerir tagline',
+              onClick: function() {
+                var next = (suggRef.current + 1) % TAGLINE_SUGGESTIONS.length;
+                suggRef.current = next;
+                onChange({ tagline: TAGLINE_SUGGESTIONS[next] });
+              },
+              style: {
+                position: 'absolute', right: 0, top: 0, bottom: 0,
+                width: 44,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--ink-3)',
+                borderRadius: '0 11px 11px 0',
+                transition: 'color .18s',
+              },
             },
-          },
-            TAGLINE_SUGGESTIONS.map(function(s) {
-              var active = ans.tagline === s;
-              return React.createElement('button', {
-                key: s,
-                onClick: function() { onChange({ tagline: s }); },
-                className: 'mtx-tap',
-                style: {
-                  appearance: 'none', cursor: 'pointer',
-                  padding: '6px 11px',
-                  fontFamily: 'var(--ff-sans)',
-                  fontSize: 11.5, fontWeight: 500,
-                  borderRadius: 999,
-                  background: active ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
-                  border: '0.5px solid ' + (active ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.08)'),
-                  color: active ? 'var(--neon)' : 'var(--ink-2)',
-                  transition: 'all .18s ease',
-                },
-              }, s);
-            })
+              React.createElement('svg', {
+                width: 16, height: 16, viewBox: '0 0 24 24',
+                fill: 'none', stroke: 'currentColor',
+                strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
+              },
+                React.createElement('path', { d: 'M1 4v6h6' }),
+                React.createElement('path', { d: 'M23 20v-6h-6' }),
+                React.createElement('path', { d: 'M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15' })
+              )
+            )
           )
         ),
 
