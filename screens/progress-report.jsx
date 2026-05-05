@@ -1043,10 +1043,20 @@ function ReportStoryPlayer({ report, onClose }) {
 // ── ReportCard ────────────────────────────────────────────────────────────────
 function ReportCard({ report, onOpen }) {
   const accentColor = report.isNew ? '#3dffd1' : '#9b8aff';
+
+  // Horas recuperadas
   const hrs = report.stats.horasRecuperadas;
-  const whole = Math.floor(hrs);
-  const minsRem = Math.round((hrs - whole) * 60);
-  const hrsLabel = minsRem > 0 ? `${whole}h ${minsRem}m` : `${whole}h`;
+  const hrsWhole = Math.floor(hrs);
+  const hrsMins = Math.round((hrs - hrsWhole) * 60);
+  const hrsLabel = hrsMins > 0 ? `${hrsWhole}h ${hrsMins}m` : `${hrsWhole}h`;
+
+  // Horas de aprendizaje (de minutosEnMentex)
+  const learnMins = report.stats.minutosEnMentex;
+  const learnH = Math.floor(learnMins / 60);
+  const learnM = learnMins % 60;
+  const learnLabel = learnH > 0
+    ? (learnM > 0 ? `${learnH}h ${learnM}m` : `${learnH}h`)
+    : `${learnMins}m`;
 
   return (
     <div
@@ -1058,7 +1068,7 @@ function ReportCard({ report, onOpen }) {
         position:'relative', borderRadius:22,
         background:'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
         border:`0.5px solid ${accentColor}28`,
-        padding:'18px 18px 16px', cursor:'pointer',
+        padding:'16px 18px 14px', cursor:'pointer',
         boxShadow:`0 0 0 0.5px ${accentColor}18, 0 12px 32px rgba(0,0,0,0.45)`,
         overflow:'hidden', marginBottom:12,
         transition:'transform 0.18s, box-shadow 0.18s',
@@ -1072,27 +1082,27 @@ function ReportCard({ report, onOpen }) {
         e.currentTarget.style.boxShadow = `0 0 0 0.5px ${accentColor}18, 0 12px 32px rgba(0,0,0,0.45)`;
       }}
     >
-      {/* Subtle orb */}
+      {/* Orb decorativo */}
       <div style={{
         position:'absolute', right:-30, top:-30, width:120, height:120, borderRadius:999,
-        background:`radial-gradient(circle, ${accentColor}18, transparent 70%)`, pointerEvents:'none',
+        background:`radial-gradient(circle, ${accentColor}15, transparent 70%)`, pointerEvents:'none',
       }}/>
 
-      {/* Top row */}
+      {/* Eyebrow + semana + percentil */}
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:12 }}>
         <div>
           <div style={{
             fontSize:10, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase',
-            color:`${accentColor}99`, fontFamily:'var(--ff-sans)', marginBottom:4,
+            color:`${accentColor}99`, fontFamily:'var(--ff-sans)', marginBottom:3,
           }}>
             {report.isNew ? (
-              <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+              <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
                 <span style={{ width:5, height:5, borderRadius:999, background:accentColor, display:'inline-block', boxShadow:`0 0 6px ${accentColor}` }}/>
                 Nuevo reporte
               </span>
             ) : 'Reporte semanal'}
           </div>
-          <div style={{ fontSize:15, fontWeight:700, color:'var(--ink-1)', fontFamily:'var(--ff-display)', letterSpacing:'-0.01em' }}>
+          <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-1)', fontFamily:'var(--ff-display)', letterSpacing:'-0.01em' }}>
             {report.weekLabel}
           </div>
         </div>
@@ -1101,39 +1111,60 @@ function ReportCard({ report, onOpen }) {
           background:`${accentColor}14`, border:`0.5px solid ${accentColor}30`,
           fontSize:10, fontWeight:800, color:accentColor,
           letterSpacing:'0.07em', textTransform:'uppercase', fontFamily:'var(--ff-sans)',
+          flexShrink:0,
         }}>
-          {report.stats.percentilAprendizaje}%
+          Top {100 - report.stats.percentilAprendizaje}%
         </div>
       </div>
 
-      {/* Main stat */}
-      <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
-        <span style={{
-          fontSize:36, fontWeight:900, color:accentColor,
-          fontFamily:'var(--ff-display)', letterSpacing:'-0.04em', lineHeight:1,
-          textShadow:`0 0 20px ${accentColor}60`,
-        }}>{hrsLabel}</span>
-        <span style={{ fontSize:13, color:'var(--ink-3)', fontWeight:500, fontFamily:'var(--ff-sans)' }}>recuperadas</span>
+      {/* Dos métricas al mismo nivel */}
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        <div style={{
+          flex:1, padding:'10px 12px', borderRadius:14,
+          background:'rgba(255,255,255,0.04)',
+          border:'0.5px solid rgba(255,255,255,0.08)',
+        }}>
+          <div style={{
+            fontSize:22, fontWeight:900, color:accentColor,
+            fontFamily:'var(--ff-display)', letterSpacing:'-0.04em', lineHeight:1,
+            textShadow:`0 0 16px ${accentColor}50`,
+            marginBottom:4,
+          }}>{hrsLabel}</div>
+          <div style={{ fontSize:11, color:'var(--ink-4)', fontFamily:'var(--ff-sans)', fontWeight:500 }}>
+            recuperadas
+          </div>
+        </div>
+        <div style={{
+          flex:1, padding:'10px 12px', borderRadius:14,
+          background:'rgba(255,255,255,0.04)',
+          border:'0.5px solid rgba(255,255,255,0.08)',
+        }}>
+          <div style={{
+            fontSize:22, fontWeight:900, color:'#9b8aff',
+            fontFamily:'var(--ff-display)', letterSpacing:'-0.04em', lineHeight:1,
+            textShadow:'0 0 16px rgba(155,138,255,0.5)',
+            marginBottom:4,
+          }}>{learnLabel}</div>
+          <div style={{ fontSize:11, color:'var(--ink-4)', fontFamily:'var(--ff-sans)', fontWeight:500 }}>
+            de aprendizaje
+          </div>
+        </div>
       </div>
 
-      {/* Distribution bar */}
+      {/* Barra de distribución */}
       <div style={{ display:'flex', width:'100%', height:3, borderRadius:999, overflow:'hidden', gap:1, marginBottom:12 }}>
         {report.stats.distribucion.map(seg => (
-          <div key={seg.label} style={{ flex:seg.min, background:seg.color, opacity:0.7 }}/>
+          <div key={seg.label} style={{ flex:seg.min, background:seg.color, opacity:0.65 }}/>
         ))}
       </div>
 
-      {/* Secondary stats + CTA */}
+      {/* Días activos + CTA */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', gap:14 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-            <IcBrain size={12} stroke="var(--ink-4)"/>
-            <span style={{ fontSize:12, color:'var(--ink-3)', fontFamily:'var(--ff-sans)' }}>{report.stats.minutosEnMentex} min</span>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-            <IcFlame size={12} stroke="var(--ink-4)"/>
-            <span style={{ fontSize:12, color:'var(--ink-3)', fontFamily:'var(--ff-sans)' }}>{report.stats.diasActivos}/7 días</span>
-          </div>
+        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+          <IcFlame size={12} stroke="var(--ink-4)"/>
+          <span style={{ fontSize:12, color:'var(--ink-3)', fontFamily:'var(--ff-sans)' }}>
+            {report.stats.diasActivos}/7 días activos
+          </span>
         </div>
         <div style={{
           display:'inline-flex', alignItems:'center', gap:5,
