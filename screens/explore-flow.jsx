@@ -1146,6 +1146,17 @@ const _MOCK_HISTORY = [
 const _MOCK_SAVED_ITEMS     = ['c-deepwork', 'c-jobs', 'c-watts', 'c-bosque', 'c-rams', 'c-foco'];
 const _MOCK_SAVED_PLAYLISTS = ['pl-meditaciones', 'pl-filosofia', 'pl-watch-later'];
 
+// Descargas — cada entrada: { contentId, sizeMb, downloadedAt (grupo) }
+const _MOCK_DOWNLOADS = [
+  { contentId: 'c-deepwork',    sizeMb: 142, group: 'Hoy'           },
+  { contentId: 'c-jobs',        sizeMb:  38, group: 'Hoy'           },
+  { contentId: 'c-habits',      sizeMb: 168, group: 'Esta semana'   },
+  { contentId: 'c-watts',       sizeMb:  52, group: 'Esta semana'   },
+  { contentId: 'c-stoic',       sizeMb: 207, group: 'Esta semana'   },
+  { contentId: 'c-rams',        sizeMb:  44, group: 'Antes'         },
+  { contentId: 'c-morning-med', sizeMb:  18, group: 'Antes'         },
+];
+
 
 // ── Mock comments ────────────────────────────────────────────────────────────
 const _MOCK_COMMENTS = [
@@ -2195,118 +2206,559 @@ function VideoSheet({ item, onClose, onPlay, onShare, onSaveToPlaylist, onSchedu
 }
 
 
-// ── ShareSheet — bottom sheet de compartir ───────────────────────────────────
-function ShareSheet({ item, onClose }) {
-  const toast = window.useToast ? window.useToast() : { show: () => {} };
-  if (!item) return null;
-  const accent = item.accent || '#3dffd1';
+// ── ShareSheet — bottom sheet de compartir (v2) ───────────────────────────────
+// Social brand icons — SVG paths compactos, todos normalized 24×24 viewBox
+const _IcWA = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.564 4.14 1.544 5.872L.057 23.928a.5.5 0 0 0 .614.615l6.05-1.487A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.869 0-3.62-.484-5.14-1.333l-.369-.209-3.825.94.962-3.819-.228-.381A9.94 9.94 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+  </svg>
+);
+const _IcFB = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+  </svg>
+);
+const _IcIG = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+  </svg>
+);
+const _IcTG = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+  </svg>
+);
+const _IcXtwitter = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+);
+const _IcMsgBubble = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+  </svg>
+);
+const _IcDots3 = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+  </svg>
+);
 
-  const options = [
-    { id: 'link',     label: 'Copiar enlace', Ic: IcLink,    accent: '#9b8aff' },
-    { id: 'message',  label: 'Mensaje',       Ic: IcMessage, accent: '#5dd3ff' },
-    { id: 'whatsapp', label: 'WhatsApp',      Ic: IcSpark,   accent: '#25D366' },
-    { id: 'twitter',  label: 'Twitter / X',   Ic: IcTrend,   accent: '#e8e8e8' },
-    { id: 'mail',     label: 'Correo',        Ic: IcMail,    accent: '#ffd47a' },
-    { id: 'more',     label: 'Más opciones',  Ic: IcChevR,   accent: '#cbd5e1' },
+// ── ShareMoreSheet — apps adicionales + acciones de plataforma ────────────────
+const _IcEmail = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+    <polyline points="22,6 12,13 2,6"/>
+  </svg>
+);
+const _IcLinkedIn = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+    <rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
+  </svg>
+);
+const _IcReddit = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="12" r="10"/>
+    <path fill="white" d="M20.5 12a1.5 1.5 0 0 0-1.5-1.5c-.4 0-.77.16-1.04.42A7.37 7.37 0 0 0 14 9.5a.25.25 0 0 0-.24.19l-.56 3.5c-1.2.06-2.28.42-3.1.98-.27-.26-.64-.42-1.04-.42A1.5 1.5 0 0 0 7.5 15c0 .55.3 1.03.74 1.3a3.5 3.5 0 0 0-.24 1.2c0 1.93 2.24 3.5 5 3.5s5-1.57 5-3.5c0-.42-.09-.83-.24-1.2.44-.27.74-.75.74-1.3zM9.5 15.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0zm4.5.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm-3 1.5c0-.28.67-.5 1-.5s1 .22 1 .5-.67.5-1 .5-1-.22-1-.5z"/>
+    <circle cx="17.5" cy="6.5" r="1.5" fill="#FF6314"/>
+  </svg>
+);
+const _IcNotes = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+);
+const _IcBookmarkFilled = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+  </svg>
+);
+const _IcLightning = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+);
+const _IcGift = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 12 20 22 4 22 4 12"/>
+    <rect x="2" y="7" width="20" height="5"/>
+    <line x1="12" y1="22" x2="12" y2="7"/>
+    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+  </svg>
+);
+const _IcFlag = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+    <line x1="4" y1="22" x2="4" y2="15"/>
+  </svg>
+);
+const _IcCard = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="3"/>
+    <path d="M3 9h18M9 21V9"/>
+  </svg>
+);
+
+function ShareMoreSheet({ item, onClose, onCloseAll }) {
+  const toast  = window.useToast ? window.useToast() : { show: () => {} };
+  const accent = item?.accent || '#3dffd1';
+
+  const moreApps = [
+    { id:'email',    label:'Correo',   bg:'linear-gradient(135deg,#FF8C00,#FFC107)', color:'#fff', Icon: _IcEmail },
+    { id:'linkedin', label:'LinkedIn', bg:'#0A66C2',  color:'#fff', Icon: _IcLinkedIn },
+    { id:'reddit',   label:'Reddit',   bg:'#FF4500',  color:'#fff', Icon: _IcReddit },
+    { id:'notes',    label:'Notas',    bg:'linear-gradient(135deg,#FDE68A,#F59E0B)', color:'#7c4f00', Icon: _IcNotes },
   ];
 
-  const handleSelect = (opt) => {
-    if (opt.id === 'link') {
-      try {
-        if (navigator.clipboard) navigator.clipboard.writeText(`mentex://content/${item.id}`).catch(() => {});
-      } catch {}
-      toast.show({ message: 'Enlace copiado al portapapeles', duration: 1800 });
-    } else {
-      toast.show({ message: `Compartiendo en ${opt.label}…`, duration: 1500 });
-    }
-    setTimeout(onClose, 250);
+  const actions = [
+    {
+      id:'library', label:'Guardar en biblioteca', desc:'Accede sin conexión desde tu perfil',
+      bg:`${accent}20`, border:`${accent}40`, color:accent, Icon: _IcBookmarkFilled,
+    },
+    {
+      id:'ritual', label:'Agregar al ritual de hoy', desc:'Lo incluye en tu sesión de aprendizaje',
+      bg:'rgba(155,138,255,0.18)', border:'rgba(155,138,255,0.4)', color:'#b9a8ff', Icon: _IcLightning,
+    },
+    {
+      id:'recommend', label:'Recomendar a un amigo', desc:'Invítalos directamente desde Mentex',
+      bg:'rgba(253,186,116,0.18)', border:'rgba(253,186,116,0.4)', color:'#fba94c', Icon: _IcGift,
+    },
+    {
+      id:'report', label:'Reportar contenido', desc:'Algo incorrecto o inapropiado',
+      bg:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.08)', color:'var(--ink-3)', Icon: _IcFlag,
+      dim:true,
+    },
+  ];
+
+  const handleApp = (label) => {
+    toast.show({ message: `Abriendo ${label}…`, duration: 1300 });
+    setTimeout(onCloseAll, 280);
   };
+
+  const handleAction = (a) => {
+    if (a.id === 'library') {
+      if (item && window.__mtxGlobalPlayer?.addToLibrary) window.__mtxGlobalPlayer.addToLibrary(item);
+      toast.show({ message: '¡Guardado en tu biblioteca!', duration: 1800 });
+    } else if (a.id === 'ritual') {
+      if (item && window.__mtxRitual?.add) window.__mtxRitual.add({ ...item, addedFrom:'share' });
+      toast.show({ message: 'Agregado a tu ritual de hoy', duration: 1800 });
+    } else if (a.id === 'recommend') {
+      toast.show({ message: 'Abriendo recomendaciones…', duration: 1400 });
+    } else if (a.id === 'report') {
+      toast.show({ message: 'Reporte enviado. Gracias.', duration: 2000 });
+    }
+    setTimeout(onCloseAll, 300);
+  };
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:145,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.45)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
+      animation:'mtx-fade-up .2s ease',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:'linear-gradient(180deg, rgba(16,20,19,0.99) 0%, rgba(10,14,13,1) 100%)',
+        backdropFilter:'blur(44px)',
+        borderTop:'0.5px solid rgba(255,255,255,0.10)',
+        borderTopLeftRadius:32, borderTopRightRadius:32,
+        width:'100%', paddingBottom:34,
+        animation:'mtxSheetUp .3s cubic-bezier(.18,.9,.28,1.1) both',
+        boxShadow:'0 -24px 64px -12px rgba(0,0,0,0.8)',
+      }}>
+
+        {/* Drag handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:11, paddingBottom:2 }}>
+          <div style={{ width:34, height:4, borderRadius:999, background:'rgba(255,255,255,0.15)' }}/>
+        </div>
+
+        {/* Header */}
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px 18px' }}>
+          <button onClick={onClose} className="mtx-tap" aria-label="Volver"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onClose(); } }}
+            style={{
+              width:32, height:32, borderRadius:999, flexShrink:0,
+              border:'0.5px solid rgba(255,255,255,0.10)',
+              background:'rgba(255,255,255,0.06)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              cursor:'pointer', color:'var(--ink-2)',
+            }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <span style={{ fontSize:17, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em', fontFamily:'var(--ff-sans)' }}>
+            Más opciones
+          </span>
+        </div>
+
+        {/* More apps — 4 circles horizontal */}
+        <div style={{ padding:'0 20px 20px' }}>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.12em',
+                        textTransform:'uppercase', marginBottom:14, fontFamily:'var(--ff-sans)' }}>
+            Compartir en
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-around' }}>
+            {moreApps.map(a => (
+              <button key={a.id} onClick={() => handleApp(a.label)} className="mtx-tap"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); handleApp(a.label); } }}
+                aria-label={a.label}
+                style={{
+                  appearance:'none', cursor:'pointer', border:0,
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:8,
+                  background:'none', padding:'2px 8px',
+                }}>
+                <div style={{
+                  width:56, height:56, borderRadius:999,
+                  background: a.bg, color: a.color,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow:'0 4px 16px rgba(0,0,0,0.4)',
+                }}>
+                  <a.Icon/>
+                </div>
+                <span style={{ fontSize:10, fontWeight:500, color:'var(--ink-3)',
+                               fontFamily:'var(--ff-sans)', letterSpacing:'-0.005em', whiteSpace:'nowrap' }}>
+                  {a.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height:'0.5px', background:'rgba(255,255,255,0.06)', margin:'0 20px 18px' }}/>
+
+        {/* Mentex actions — list rows */}
+        <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.12em',
+                        textTransform:'uppercase', marginBottom:8, paddingLeft:2, fontFamily:'var(--ff-sans)' }}>
+            Acciones
+          </div>
+          {actions.map(a => (
+            <button key={a.id} onClick={() => handleAction(a)} className="mtx-tap"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); handleAction(a); } }}
+              style={{
+                appearance:'none', cursor:'pointer', textAlign:'left', width:'100%',
+                display:'flex', alignItems:'center', gap:13,
+                padding:'11px 13px', borderRadius:15,
+                border:`0.5px solid ${a.border}`,
+                background: a.bg,
+                opacity: a.dim ? 0.65 : 1,
+                transition:'opacity .18s',
+              }}>
+              <div style={{
+                width:36, height:36, borderRadius:11, flexShrink:0,
+                background: a.dim ? 'rgba(255,255,255,0.06)' : `${a.color}22`,
+                border:`0.5px solid ${a.border}`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color: a.color,
+              }}>
+                <a.Icon/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13.5, fontWeight:600, color: a.dim ? 'var(--ink-3)' : 'var(--ink-1)',
+                              letterSpacing:'-0.01em', lineHeight:1.2 }}>
+                  {a.label}
+                </div>
+                <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2, lineHeight:1.35 }}>
+                  {a.desc}
+                </div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ color:'rgba(255,255,255,0.18)', flexShrink:0 }}>
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function ShareSheet({ item, onClose }) {
+  const toast   = window.useToast ? window.useToast() : { show: () => {} };
+  const [copied, setCopied]   = React.useState(false);
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  if (!item) return null;
+
+  const accent   = item.accent || '#3dffd1';
+  const shareUrl = `mentex.app/c/${item.id || 'share'}`;
+
+  // Cleanup al desmontar si hay un reset pendiente
+  React.useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2400);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  const handleCopyLink = () => {
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(`https://${shareUrl}`).catch(() => {});
+    } catch {}
+    setCopied(true);
+    toast.show({ message: 'Enlace copiado', duration: 1600 });
+  };
+
+  const handleSocial = (id, label) => {
+    if (id === 'more') { setMoreOpen(true); return; }
+    toast.show({ message: `Abriendo ${label}…`, duration: 1300 });
+    setTimeout(onClose, 300);
+  };
+
+  const socials = [
+    { id:'whatsapp',  label:'WhatsApp',   bg:'#25D366', color:'#fff', Icon: _IcWA },
+    { id:'instagram', label:'Instagram',
+      bg:'linear-gradient(135deg,#833ab4 0%,#c13584 35%,#e1306c 60%,#fd1d1d 80%,#fcaf45 100%)',
+      color:'#fff', Icon: _IcIG },
+    { id:'facebook',  label:'Facebook',   bg:'#1877F2', color:'#fff', Icon: _IcFB },
+    { id:'telegram',  label:'Telegram',   bg:'#2AABEE', color:'#fff', Icon: _IcTG },
+    { id:'twitter',   label:'X',          bg:'#000',    color:'#fff', Icon: _IcXtwitter },
+    { id:'message',   label:'Mensaje',    bg:'#34C759', color:'#fff', Icon: _IcMsgBubble },
+    { id:'more',      label:'Más',
+      bg:'rgba(255,255,255,0.09)', color:'var(--ink-2)',
+      border:'0.5px solid rgba(255,255,255,0.13)', Icon: _IcDots3 },
+  ];
+
+  const dur    = item.dur || '';
+  const plays  = item.plays && item.plays !== '—' ? item.plays : null;
+  const typeLabel = ({ audiobook:'Audiolibro', meditation:'Meditación', series:'Serie',
+                       talk:'Charla', sound:'Sonido' })[item.type] || 'Contenido';
 
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:140,
       display:'flex', alignItems:'flex-end',
-      background:'rgba(0,0,0,0.6)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
-      animation:'mtx-fade-up .25s ease',
+      background:'rgba(0,0,0,0.52)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)',
+      animation:'mtx-fade-up .22s ease',
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
-        background:'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
-        backdropFilter:'blur(28px)',
-        border:'0.5px solid rgba(255,255,255,0.08)',
-        borderBottom:0,
-        borderTopLeftRadius:28, borderTopRightRadius:28,
-        width:'100%', paddingBottom:28,
-        animation:'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+        background:'linear-gradient(175deg, rgba(15,20,18,0.98) 0%, rgba(9,13,12,1) 100%)',
+        backdropFilter:'blur(48px)',
+        borderTop:'0.5px solid rgba(255,255,255,0.10)',
+        borderTopLeftRadius:32, borderTopRightRadius:32,
+        width:'100%', paddingBottom:34,
+        animation:'mtxSheetUp .3s cubic-bezier(.18,.9,.28,1.1) both',
+        boxShadow:`0 -24px 64px -12px rgba(0,0,0,0.75), 0 -1px 0 rgba(255,255,255,0.06)`,
       }}>
-        <style>{`@keyframes mtxSheetUp { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
 
-        <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6 }}>
-          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
+        {/* Drag handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:11, paddingBottom:0 }}>
+          <div style={{ width:32, height:4, borderRadius:999, background:'rgba(255,255,255,0.14)' }}/>
         </div>
 
-        {/* Header */}
-        <div style={{ padding:'10px 22px 18px', display:'flex', alignItems:'center', gap:14 }}>
-          {item.cover && (
+        {/* Header row */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 20px 14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:9 }}>
             <div style={{
-              width:54, height:54, borderRadius:14, flexShrink:0,
-              backgroundImage:`url(${item.cover})`, backgroundSize:'cover', backgroundPosition:'center',
-              border:`0.5px solid ${accent}40`,
-              boxShadow:`0 6px 16px -6px ${accent}55`,
-            }}/>
-          )}
-          <div style={{ flex:1, minWidth:0 }}>
-            <div className="mtx-eyebrow" style={{ fontSize:9, color:accent, letterSpacing:'0.16em', fontWeight:700, marginBottom:3 }}>
+              width:30, height:30, borderRadius:10,
+              background:`linear-gradient(135deg, ${accent}28, ${accent}0c)`,
+              border:`0.5px solid ${accent}44`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              color: accent,
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <span style={{ fontSize:18, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.022em', fontFamily:'var(--ff-sans)' }}>
               Compartir
+            </span>
+          </div>
+          <button onClick={onClose} className="mtx-tap" tabIndex={0} aria-label="Cerrar"
+            onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onClose(); } }}
+            style={{
+              width:32, height:32, borderRadius:999,
+              border:'0.5px solid rgba(255,255,255,0.10)',
+              background:'rgba(255,255,255,0.06)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              cursor:'pointer', color:'var(--ink-3)',
+            }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Content preview card */}
+        <div style={{
+          margin:'0 18px',
+          borderRadius:18,
+          overflow:'hidden',
+          background:`linear-gradient(145deg, ${accent}09 0%, rgba(255,255,255,0.028) 55%, rgba(255,255,255,0.018) 100%)`,
+          border:`0.5px solid rgba(255,255,255,0.08)`,
+          boxShadow:`inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.3)`,
+        }}>
+          {/* Item info */}
+          <div style={{ display:'flex', gap:13, padding:'13px 13px 12px', alignItems:'center' }}>
+            {(item.cover || item.thumbnail) ? (
+              <div style={{
+                width:60, height:60, borderRadius:12, flexShrink:0, overflow:'hidden',
+                boxShadow:`0 0 0 0.5px ${accent}30, 0 8px 24px -8px ${accent}55, 0 4px 12px rgba(0,0,0,0.5)`,
+              }}>
+                <img src={item.cover || item.thumbnail} alt={item.title}
+                  style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}/>
+              </div>
+            ) : (
+              <div style={{
+                width:60, height:60, borderRadius:12, flexShrink:0,
+                background:`linear-gradient(135deg, ${accent}30, ${accent}0e)`,
+                border:`0.5px solid ${accent}44`,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:24,
+              }}>📖</div>
+            )}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{
+                display:'inline-flex', alignItems:'center',
+                padding:'2px 7px', borderRadius:5, marginBottom:5,
+                background:`${accent}18`, border:`0.5px solid ${accent}33`,
+                fontSize:9.5, fontWeight:800, color:accent,
+                letterSpacing:'0.13em', textTransform:'uppercase', fontFamily:'var(--ff-sans)',
+              }}>
+                {typeLabel}
+              </div>
+              <div style={{
+                fontSize:14.5, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em',
+                lineHeight:1.22, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                fontFamily:'var(--ff-display)',
+              }}>
+                {item.title}
+              </div>
+              <div style={{ fontSize:11.5, color:'var(--ink-3)', marginTop:2, fontWeight:400 }}>
+                {item.author}
+              </div>
+              {(dur || plays) && (
+                <div style={{ display:'flex', alignItems:'center', gap:7, marginTop:5 }}>
+                  {dur && (
+                    <span style={{ display:'flex', alignItems:'center', gap:3.5,
+                                   fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      {dur}
+                    </span>
+                  )}
+                  {dur && plays && <span style={{ width:2.5, height:2.5, borderRadius:'50%', background:'rgba(255,255,255,0.18)', flexShrink:0 }}/>}
+                  {plays && (
+                    <span style={{ display:'flex', alignItems:'center', gap:3.5,
+                                   fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      {plays}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            <div style={{ fontSize:15, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.018em', lineHeight:1.2,
-                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-              {item.title}
+          </div>
+
+          {/* Separator */}
+          <div style={{ height:'0.5px', background:`linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 20%, rgba(255,255,255,0.08) 80%, transparent)`, margin:'0 2px' }}/>
+
+          {/* URL bar */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 13px' }}>
+            <div style={{ position:'relative', flex:1, minWidth:0, overflow:'hidden' }}>
+              <div style={{
+                fontSize:11.5, color:'var(--ink-3)',
+                fontFamily:'var(--ff-mono, "SF Mono", "Fira Mono", monospace)',
+                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                letterSpacing:'-0.01em', lineHeight:1,
+              }}>
+                {shareUrl}
+              </div>
             </div>
-            <div style={{ fontSize:11, color:'var(--ink-3)', marginTop:2 }}>
-              {item.author}
-            </div>
+            <button onClick={handleCopyLink} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); handleCopyLink(); } }}
+              style={{
+                appearance:'none', cursor:'pointer', flexShrink:0,
+                padding:'8px 16px', borderRadius:10,
+                border: copied ? `0.5px solid ${accent}60` : '0.5px solid rgba(255,255,255,0.11)',
+                background: copied
+                  ? `linear-gradient(135deg, ${accent}26, ${accent}0c)`
+                  : 'rgba(255,255,255,0.09)',
+                color: copied ? accent : 'var(--ink-1)',
+                fontSize:12, fontWeight:700, fontFamily:'var(--ff-sans)',
+                display:'flex', alignItems:'center', gap:5,
+                transition:'all .2s cubic-bezier(.2,.9,.3,1)',
+                letterSpacing:'-0.01em',
+              }}>
+              {copied ? (
+                <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Copiado</>
+              ) : (
+                <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copiar</>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Options grid */}
-        <div style={{ padding:'0 22px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          {options.map(opt => (
-            <button key={opt.id} onClick={() => handleSelect(opt)} className="mtx-tap" style={{
-              appearance:'none', cursor:'pointer', textAlign:'left',
-              padding:'13px 14px', borderRadius:16,
-              border:`0.5px solid ${opt.accent}26`,
-              background:`linear-gradient(155deg, ${opt.accent}14 0%, rgba(255,255,255,0.025) 70%)`,
-              display:'flex', alignItems:'center', gap:10,
-              fontFamily:'var(--ff-sans)',
-              transition:'background .2s, border-color .2s',
-            }}>
-              <div style={{
-                width:36, height:36, borderRadius:12,
-                background:`linear-gradient(135deg, ${opt.accent}33, ${opt.accent}10)`,
-                border:`0.5px solid ${opt.accent}40`,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                color:opt.accent, flexShrink:0,
-              }}>
-                <opt.Ic size={15} stroke="currentColor"/>
-              </div>
-              <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', letterSpacing:'-0.005em' }}>
-                {opt.label}
-              </div>
-            </button>
-          ))}
+        {/* Section label */}
+        <div style={{ padding:'18px 20px 10px', display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.12em',
+                        textTransform:'uppercase', fontFamily:'var(--ff-sans)' }}>
+            Compartir en
+          </div>
+          <div style={{ flex:1, height:'0.5px', background:'rgba(255,255,255,0.06)' }}/>
         </div>
 
-        {/* Cancel */}
-        <div style={{ padding:'18px 22px 0' }}>
-          <button onClick={onClose} className="mtx-tap" style={{
-            width:'100%', height:48, borderRadius:14, cursor:'pointer',
-            border:'0.5px solid var(--glass-stroke)',
-            background:'var(--glass-2)', color:'var(--ink-2)',
-            fontSize:13, fontWeight:600, fontFamily:'var(--ff-sans)',
-          }}>
-            Cancelar
-          </button>
+        {/* Social apps row */}
+        <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch',
+                      scrollbarWidth:'none', msOverflowStyle:'none' }}>
+          <div style={{ display:'flex', gap:4, padding:'2px 18px 6px', width:'max-content' }}>
+            {socials.map(s => (
+              <button key={s.id}
+                onClick={() => handleSocial(s.id, s.label)} className="mtx-tap"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); handleSocial(s.id, s.label); } }}
+                aria-label={s.label}
+                style={{
+                  appearance:'none', cursor:'pointer',
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:7,
+                  background:'none', border:0, padding:'4px 8px',
+                  outline:'none',
+                }}>
+                <div style={{
+                  width:56, height:56, borderRadius:999,
+                  background: s.bg,
+                  border: s.border || 'none',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  color: s.color, flexShrink:0,
+                  boxShadow: s.id !== 'more'
+                    ? '0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)'
+                    : '0 2px 8px rgba(0,0,0,0.2)',
+                }}>
+                  <s.Icon/>
+                </div>
+                <span style={{
+                  fontSize:10, fontWeight:500, color:'var(--ink-3)',
+                  fontFamily:'var(--ff-sans)', letterSpacing:'-0.005em', whiteSpace:'nowrap',
+                }}>
+                  {s.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* ShareMoreSheet */}
+        {moreOpen && (
+          <ShareMoreSheet
+            item={item}
+            onClose={() => setMoreOpen(false)}
+            onCloseAll={onClose}
+          />
+        )}
+
       </div>
     </div>
   );
@@ -2962,6 +3414,143 @@ const _calculateEarnedPoints = (item) => {
 // ── Speed cycles for playback control ────────────────────────────────────────
 const _SPEED_CYCLE = [1, 1.25, 1.5, 2, 0.75];
 const _formatSpeed = (s) => (s === 1 ? '1.0x' : s === 0.75 ? '0.75x' : s === 1.25 ? '1.25x' : s === 1.5 ? '1.5x' : '2.0x');
+
+// ── ChaptersSheet — lista de capítulos del contenido con seek ────────────────
+function ChaptersSheet({ item, currentSec, totalSec, onClose, onSeek }) {
+  const accent = item?.accent || 'var(--neon)';
+
+  const chapters = React.useMemo(() => item ? _generateChapters(item) : [], [item?.id]);
+
+  // Compute cumulative start time (seconds) for each chapter
+  const chapterStarts = React.useMemo(() => {
+    let cum = 0;
+    return chapters.map((ch, i) => {
+      const start = cum;
+      const m = String(ch.d || '0').match(/(\d+)/);
+      cum += (m ? parseInt(m[1], 10) : 0) * 60;
+      return start;
+    });
+  }, [chapters]);
+
+  // Which chapter is currently playing?
+  const activeIdx = React.useMemo(() => {
+    for (let i = chapterStarts.length - 1; i >= 0; i--) {
+      if (currentSec >= chapterStarts[i]) return i;
+    }
+    return 0;
+  }, [currentSec, chapterStarts]);
+
+  const handlePick = (idx) => {
+    const sec = chapterStarts[idx] || 0;
+    onSeek?.(sec);
+    setTimeout(onClose, 180);
+  };
+
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:170,
+      display:'flex', alignItems:'flex-end',
+      background:'rgba(0,0,0,0.6)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+      animation:'mtx-fade-up .25s ease',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
+        backdropFilter:'blur(28px)',
+        border:'0.5px solid rgba(255,255,255,0.08)',
+        borderBottom:0,
+        borderTopLeftRadius:28, borderTopRightRadius:28,
+        width:'100%', paddingBottom:28,
+        animation:'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+      }}>
+
+        {/* Drag handle */}
+        <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6 }}>
+          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.18)' }}/>
+        </div>
+
+        {/* Header */}
+        <div style={{ padding:'10px 22px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{
+            width:44, height:44, borderRadius:14,
+            background:`linear-gradient(135deg, ${accent}33, ${accent}0a)`,
+            border:`0.5px solid ${accent}55`,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color: accent, flexShrink:0,
+            boxShadow:`inset 0 1px 0 rgba(255,255,255,0.1), 0 0 16px ${accent}22`,
+          }}>
+            {/* List icon */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <circle cx="3" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div className="mtx-eyebrow" style={{ fontSize:9, color:accent, letterSpacing:'0.16em', fontWeight:700, marginBottom:3 }}>
+              CONTENIDO
+            </div>
+            <div style={{ fontSize:18, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.02em', lineHeight:1.15 }}>
+              Capítulos
+            </div>
+            <div style={{ fontSize:11.5, color:'var(--ink-3)', marginTop:2 }}>
+              {chapters.length} secciones · toca para saltar
+            </div>
+          </div>
+        </div>
+
+        {/* Chapter list */}
+        <div style={{ padding:'0 18px', display:'flex', flexDirection:'column', gap:6 }}>
+          {chapters.map((ch, i) => {
+            const isActive = i === activeIdx;
+            return (
+              <button key={i} onClick={() => handlePick(i)} className="mtx-tap"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePick(i); } }}
+                style={{
+                  appearance:'none', cursor:'pointer', textAlign:'left', width:'100%',
+                  display:'flex', alignItems:'center', gap:12,
+                  padding:'12px 14px', borderRadius:14,
+                  border: isActive ? `0.5px solid ${accent}44` : '0.5px solid rgba(255,255,255,0.05)',
+                  background: isActive
+                    ? `linear-gradient(135deg, ${accent}15, ${accent}05)`
+                    : 'rgba(255,255,255,0.025)',
+                  transition:'background .18s, border-color .18s',
+                  boxShadow: isActive ? `inset 0 0 14px ${accent}08, 0 0 0 0.5px ${accent}20` : 'none',
+                }}>
+                {/* Chapter number */}
+                <div style={{
+                  fontSize:11, fontWeight:800, color: isActive ? accent : 'var(--ink-3)',
+                  width:20, textAlign:'center', fontVariantNumeric:'tabular-nums',
+                  flexShrink:0, transition:'color .18s',
+                }}>{String(i + 1).padStart(2, '0')}</div>
+
+                {/* Playing indicator dot */}
+                {isActive && (
+                  <div style={{
+                    width:5, height:5, borderRadius:'50%', background:accent,
+                    flexShrink:0, boxShadow:`0 0 6px ${accent}`,
+                    animation:'mtx-pulse 1.4s ease-in-out infinite',
+                  }}/>
+                )}
+
+                {/* Title */}
+                <div style={{
+                  flex:1, fontSize:13.5, color: isActive ? 'var(--ink-1)' : 'var(--ink-2)',
+                  fontWeight: isActive ? 600 : 500, lineHeight:1.3, transition:'color .18s',
+                }}>{ch.t}</div>
+
+                {/* Duration */}
+                <div style={{
+                  fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums',
+                  flexShrink:0,
+                }}>{ch.d}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── SleepTimerSheet — selector de duración para apagar reproducción ──────────
 function SleepTimerSheet({ activeSec, onClose, onPick, onCancel }) {
@@ -3700,6 +4289,7 @@ function VideoPlayerFullscreen({
   const [skipSheetOpen, setSkipSheetOpen] = React.useState(false);
   const [skipSeconds, setSkipSeconds] = React.useState(() => window.__mtxSkipSec || 15);
   const [bookmarkNameSheet, setBookmarkNameSheet] = React.useState(null); // { sec, defaultName }
+  const [chaptersSheetOpen, setChaptersSheetOpen] = React.useState(false);
   const progressBarRef = React.useRef(null);
   const dragStartY     = React.useRef(0);
   const dragActiveRef  = React.useRef(false);
@@ -3832,6 +4422,7 @@ function VideoPlayerFullscreen({
     else setBookmarksSheetOpen(true);
   };
   const handleJumpToBookmark = (sec) => {
+    if (totalSec <= 0) return;
     setProgress(Math.max(0, Math.min(1, sec / totalSec)));
   };
 
@@ -3857,13 +4448,13 @@ function VideoPlayerFullscreen({
 
   // Chapter markers — posiciones porcentuales sobre la progress bar
   const chapterMarkers = React.useMemo(() => {
-    if (!item) return [];
+    if (!item || totalSec <= 0) return [];
     const chapters = _generateChapters(item);
     if (!chapters || chapters.length <= 1) return [];
     const out = [];
     let cum = 0;
     for (let i = 0; i < chapters.length - 1; i++) {
-      const m = String(chapters[i].d).match(/(\d+)/);
+      const m = String(chapters[i].d || '0').match(/(\d+)/);
       const sec = (m ? parseInt(m[1], 10) : 0) * 60;
       cum += sec;
       const pct = Math.max(0, Math.min(100, (cum / totalSec) * 100));
@@ -3874,7 +4465,7 @@ function VideoPlayerFullscreen({
 
   // Bookmark markers en la progress bar (los que el usuario guardó)
   const bookmarkMarkers = React.useMemo(() => {
-    if (!item || !window.__mtxBookmarks[item.id]) return [];
+    if (!item || !window.__mtxBookmarks[item.id] || totalSec <= 0) return [];
     return window.__mtxBookmarks[item.id].map(b => ({
       pct: Math.max(0, Math.min(100, (b.sec / totalSec) * 100)),
       sec: b.sec,
@@ -3904,7 +4495,7 @@ function VideoPlayerFullscreen({
     setProgress(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
   };
 
-  const skip = (sec) => setProgress(p => Math.max(0, Math.min(1, p + sec / totalSec)));
+  const skip = (sec) => { if (totalSec <= 0) return; setProgress(p => Math.max(0, Math.min(1, p + sec / totalSec))); };
 
   if (!item) return null;
   const accent = item.accent || '#3dffd1';
@@ -4130,6 +4721,29 @@ function VideoPlayerFullscreen({
               : <IcBookmark size={11} stroke="currentColor" strokeWidth={1.8}/>}
             {bookmarkCount > 0 ? `${bookmarkCount}` : 'Marcar'}
           </button>
+
+          {/* Chapters chip */}
+          <button onClick={() => setChaptersSheetOpen(true)} className="mtx-tap"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setChaptersSheetOpen(true); } }}
+            aria-label="Ver capítulos" style={{
+            appearance:'none', cursor:'pointer',
+            display:'inline-flex', alignItems:'center', gap:5,
+            padding:'8px 13px', borderRadius:999,
+            border:'0.5px solid rgba(255,255,255,0.08)',
+            background:'rgba(255,255,255,0.04)',
+            color:'var(--ink-2)',
+            fontFamily:'var(--ff-sans)',
+            fontSize:11.5, fontWeight:700,
+            letterSpacing:'-0.005em',
+            transition:'background .2s, border-color .2s, color .2s',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <circle cx="3" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+            </svg>
+            Caps
+          </button>
         </div>
 
         {/* Controls — prev · skip-back · play · skip-forward · next */}
@@ -4254,6 +4868,17 @@ function VideoPlayerFullscreen({
           defaultName={bookmarkNameSheet.defaultName}
           onClose={() => setBookmarkNameSheet(null)}
           onSave={commitBookmark}
+        />
+      )}
+
+      {/* Chapters sheet */}
+      {chaptersSheetOpen && (
+        <ChaptersSheet
+          item={item}
+          currentSec={curSec}
+          totalSec={totalSec}
+          onClose={() => setChaptersSheetOpen(false)}
+          onSeek={(sec) => { if (totalSec > 0) setProgress(Math.max(0, Math.min(1, sec / totalSec))); }}
         />
       )}
     </div>
@@ -5948,20 +6573,60 @@ function TributeProfileScreen({ author, currentItem, relatedItems, onBack, onIte
 }
 
 // ── ContentDetailScreen — full screen view de detalle de contenido ─────────────
-// Reemplaza el VideoSheet (bottom-sheet) para la navegación desde tarjetas.
-// Misma lógica de tabs que VideoSheet pero full-screen con CTAs siempre visibles.
+// Highlights por tipo — 3 bullets para el tab "Acerca de"
+function _getContentHighlights(item) {
+  const dur = item.dur || '';
+  const byType = {
+    audiobook: [
+      `${dur} de contenido narrado con voz Mentex AI — sin perder ni una idea del original`,
+      'Capítulos estructurados para escuchar en cualquier momento del día',
+      'Descarga disponible para acceso sin conexión a internet',
+    ],
+    meditation: [
+      'Guiado paso a paso — ideal para cualquier nivel de experiencia',
+      'Perfecto para mañanas, descansos activos o rituales nocturnos',
+      'Diseñado para construir hábitos de bienestar duraderos',
+    ],
+    talk: [
+      'Ideas accionables que puedes aplicar desde hoy mismo',
+      'Seleccionado y curado por el equipo editorial de Mentex',
+      'Puntos clave y resumen incluido en capítulos',
+    ],
+    series: [
+      'Serie progresiva — episodios de 15 a 30 minutos por entrega',
+      'Aprende a tu ritmo, en el orden que mejor funcione para ti',
+      'Acceso completo a toda la serie con tu suscripción',
+    ],
+    sound: [
+      'Diseñado para maximizar tu estado de enfoque o relajación profunda',
+      'Sin interrupciones, sin anuncios — inmersión total garantizada',
+      'Compatible con sleep timer y modo reproducción continua',
+    ],
+  };
+  return byType[item.type] || byType.audiobook;
+}
+
+// Pantalla de detalle de contenido — hero full-bleed edge-to-edge,
+// fila scrolleable de acciones + stats, "Acerca de" enriquecida.
+// AuthorStrip eliminada; author card reactiva solo para type:'tribute'.
 function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveToPlaylist, onShare }) {
   const [tab, setTab] = React.useState('about');
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
   const scheduled = useIsScheduled(item?.id);
 
   if (!item) return null;
   const accent = item.accent || '#3dffd1';
-  const hasChapters = item.type === 'audiobook';
+  const hasChapters = item.type === 'audiobook' || item.type === 'series';
   const author = _getAuthor(item);
-  const relatedItems = React.useMemo(() =>
-    EXPLORE_CONTENT.filter(c => c.authorId === item.authorId && c.id !== item.id && c.status === 'available').slice(0, 6),
-    [item.authorId, item.id]
-  );
+  const hasRealAuthor = author.type === 'tribute';
+
+  // Contenido relacionado: mismo tipo primero, luego tags solapados
+  const relatedItems = React.useMemo(() => {
+    const byType = EXPLORE_CONTENT.filter(c => c.type === item.type && c.id !== item.id && c.status === 'available');
+    const byTag  = EXPLORE_CONTENT.filter(c => c.id !== item.id && c.status === 'available' && c.type !== item.type && c.tags && item.tags && c.tags.some(t => (item.tags || []).includes(t)));
+    return [...byType, ...byTag].slice(0, 5);
+  }, [item.id, item.type]);
+
   const [tributeOpen, setTributeOpen] = React.useState(false);
   const chapters = React.useMemo(
     () => hasChapters ? _generateChapters(item) : [],
@@ -5974,210 +6639,359 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
     { id: 'comments', label: 'Comentarios' },
   ], [hasChapters]);
 
-  const handleSchedule = () => onScheduleForToday?.(item);
-  const handleSave    = () => onSaveToPlaylist?.(item);
-  const handleShare   = () => onShare?.(item);
-
   const typeLabel = CONTENT_TYPES.find(t => t.id === item.type)?.label || item.type;
+  const authorVerb = item.type === 'talk' ? 'Presentado por' : item.type === 'meditation' ? 'Guiado por' : 'Escrito por';
+  const highlights = React.useMemo(() => _getContentHighlights(item), [item.id]);
+
+  // Dimensiones del hero full-bleed
+  const HERO_H  = 286;
+  const SPACER_H = 252; // card se superpone 34px sobre el hero
 
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:90,
-      background:'radial-gradient(80% 50% at 50% 0%, rgba(5,7,6,0.6), transparent 55%), #050706',
-      display:'flex', flexDirection:'column', overflow:'hidden',
+      background:'#050706', overflow:'hidden',
       animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
     }}>
-      {/* Nav bar */}
+
+      {/* ── Hero — full bleed, fijo en el fondo ─────────────────────────── */}
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:HERO_H, zIndex:1, overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, background:item.bg }}/>
+        {item.cover && (
+          <img src={item.cover} alt="" style={{
+            position:'absolute', inset:0, width:'100%', height:'100%',
+            objectFit:'cover', opacity:0.9,
+          }}/>
+        )}
+        {/* Scrim superior — legibilidad de botones */}
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 38%)' }}/>
+        {/* Gradiente inferior — fusiona con la card */}
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(0deg, #050706 0%, rgba(5,7,6,0.72) 30%, transparent 62%)' }}/>
+        {/* Brillo accent */}
+        <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 76% 18%, ${accent}28, transparent 54%)`, mixBlendMode:'screen' }}/>
+
+        {/* Tipo badge — encima del overlap de la card */}
+        <div style={{ position:'absolute', bottom:54, left:20 }}>
+          <div style={{
+            display:'inline-flex', alignItems:'center', gap:5,
+            fontSize:10, fontWeight:700, letterSpacing:'0.16em', textTransform:'uppercase',
+            color:accent, padding:'5px 11px', borderRadius:999,
+            background:'rgba(0,0,0,0.52)', backdropFilter:'blur(10px)',
+            border:`0.5px solid ${accent}55`,
+          }}>{typeLabel}</div>
+        </div>
+
+        {/* Social proof — plays count */}
+        <div style={{ position:'absolute', bottom:54, right:20, display:'flex', alignItems:'center', gap:4, fontSize:10, color:'rgba(255,255,255,0.68)', fontWeight:600, background:'rgba(0,0,0,0.44)', backdropFilter:'blur(8px)', padding:'4px 9px', borderRadius:999, border:'0.5px solid rgba(255,255,255,0.1)' }}>
+          <IcEye size={10} stroke="currentColor"/>{item.plays}
+        </div>
+      </div>
+
+      {/* ── Controles nav — flotan sobre el hero ────────────────────────── */}
       <div style={{
-        flexShrink:0,
-        paddingTop:48, paddingLeft:16, paddingRight:16, paddingBottom:10,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        position:'relative',
+        position:'absolute', top:0, left:0, right:0, zIndex:20,
+        paddingTop:50, paddingLeft:16, paddingRight:16,
+        display:'flex', justifyContent:'space-between', alignItems:'center',
       }}>
-        <button onClick={onBack} aria-label="Volver" className="mtx-tap" style={{
-          width:40, height:40, borderRadius:999, border:0,
-          background:'rgba(255,255,255,0.06)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          color:'var(--ink-1)', cursor:'pointer', position:'relative', zIndex:2,
-        }}>
+        <button onClick={onBack} aria-label="Volver" className="mtx-tap" tabIndex={0}
+          onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onBack(); } }}
+          style={{ width:38, height:38, borderRadius:999, border:0, background:'rgba(0,0,0,0.38)', backdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', cursor:'pointer' }}>
           <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
         </button>
-        <div style={{
-          position:'absolute', left:'50%', top:'50%',
-          transform:'translate(-50%, calc(-50% + 19px))',
-          fontSize:11, fontWeight:700, color:'var(--ink-3)',
-          letterSpacing:'0.14em', textTransform:'uppercase',
-          fontFamily:'var(--ff-sans)', pointerEvents:'none',
-        }}>
-          {typeLabel}
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={() => onShare?.(item)} aria-label="Compartir" className="mtx-tap" tabIndex={0}
+            onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onShare?.(item); } }}
+            style={{ width:38, height:38, borderRadius:999, border:0, background:'rgba(0,0,0,0.38)', backdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', cursor:'pointer' }}>
+            <IcShare size={16} stroke="currentColor"/>
+          </button>
+          <button onClick={() => setOptionsOpen(true)} aria-label="Más opciones" className="mtx-tap" tabIndex={0}
+            onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); setOptionsOpen(true); } }}
+            style={{ width:38, height:38, borderRadius:999, border:0, background:'rgba(0,0,0,0.38)', backdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', cursor:'pointer' }}>
+            <IcMoreV size={18}/>
+          </button>
         </div>
-        <button onClick={handleShare} aria-label="Compartir" className="mtx-tap" style={{
-          width:40, height:40, borderRadius:999, border:0,
-          background:'rgba(255,255,255,0.06)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          color:'var(--ink-2)', cursor:'pointer',
-        }}>
-          <IcShare size={16} stroke="currentColor"/>
-        </button>
       </div>
 
-      {/* Scrollable content */}
-      <div className="mtx-no-scrollbar" style={{ flex:1, overflowY:'auto' }}>
-        {/* Hero cover */}
-        <div style={{ padding:'8px 20px 16px' }}>
-          <div style={{
-            position:'relative', height:220,
-            borderRadius:24, overflow:'hidden',
-            background: item.bg,
-            border:`0.5px solid ${accent}33`,
-            boxShadow:`0 16px 44px -16px ${accent}55`,
-          }}>
-            {item.cover && (
-              <img src={item.cover} alt="" style={{
-                position:'absolute', inset:0,
-                width:'100%', height:'100%', objectFit:'cover',
-                opacity:0.85, filter:'saturate(1.05) contrast(1.05)',
-              }}/>
-            )}
-            <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%)' }}/>
-            <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 80% 20%, ${accent}30, transparent 55%)`, mixBlendMode:'screen' }}/>
-            {/* Kind chip */}
+      {/* ── Cuerpo scrolleable ──────────────────────────────────────────── */}
+      <div className="mtx-no-scrollbar" style={{ position:'absolute', inset:0, zIndex:5, overflowY:'auto' }}>
+
+        {/* Espaciador transparente — muestra el hero debajo */}
+        <div style={{ height:SPACER_H }}/>
+
+        {/* Card de contenido — sube con esquinas redondeadas */}
+        <div style={{ background:'#050706', borderRadius:'24px 24px 0 0', overflow:'visible' }}>
+
+          {/* Título + autor */}
+          <div style={{ padding:'20px 20px 0' }}>
             <div style={{
-              position:'absolute', top:14, left:14,
-              fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase',
-              color:accent, padding:'5px 10px', borderRadius:999,
-              background:'rgba(0,0,0,0.55)', backdropFilter:'blur(10px)',
-              border:`0.5px solid ${accent}55`,
-            }}>{typeLabel}</div>
-            {/* Title block */}
-            <div style={{ position:'absolute', left:18, right:18, bottom:16, display:'flex', flexDirection:'column', gap:4 }}>
-              <div style={{ fontSize:22, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', textShadow:'0 2px 12px rgba(0,0,0,0.6)', fontFamily:'var(--ff-display)', lineHeight:1.2 }}>{item.title}</div>
-              <div style={{ fontSize:13, color:'rgba(255,255,255,0.78)', fontWeight:500 }}>{item.author}</div>
+              fontSize:24, fontWeight:800, color:'#fff',
+              letterSpacing:'-0.03em', lineHeight:1.16,
+              fontFamily:'var(--ff-display)',
+              marginBottom: hasRealAuthor ? 5 : 0,
+            }}>
+              {item.title}
             </div>
-          </div>
-        </div>
-
-        {/* Author strip */}
-        <AuthorStrip
-          author={author}
-          scheduled={scheduled}
-          onOpenTribute={() => setTributeOpen(true)}
-          onSchedule={handleSchedule}
-          onSave={handleSave}
-        />
-
-        {/* Stats row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, padding:'0 20px', marginBottom:16 }}>
-          {[
-            { label:'Duración', value: item.dur, Ic: IcClock },
-            { label:'Rating',   value: item.rating > 0 ? `${item.rating} ★` : '—' },
-            { label:'Plays',    value: item.plays },
-          ].map(stat => (
-            <div key={stat.label} className="mtx-glass" style={{ padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2 }}>{stat.label}</div>
-              <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', display:'flex', alignItems:'center', gap:4 }}>
-                {stat.Ic && <stat.Ic size={11} stroke="currentColor"/>}{stat.value}
+            {hasRealAuthor && (
+              <div style={{ fontSize:13, color:'var(--ink-3)', fontWeight:500 }}>
+                Por{' '}
+                <span onClick={() => setTributeOpen(true)} role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); setTributeOpen(true); } }}
+                  style={{ color:accent, fontWeight:700, cursor:'pointer' }}>
+                  {author.name}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div style={{ padding:'0 20px', marginBottom:14 }}>
-          <div style={{ display:'flex', gap:6 }}>
-            {TABS.map(t => {
-              const active = tab === t.id;
-              return (
-                <button key={t.id} onClick={() => setTab(t.id)} className="mtx-tap" style={{
-                  flex:1, height:38, borderRadius:12, cursor:'pointer',
-                  border: active ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
-                  background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))' : 'rgba(255,255,255,0.025)',
-                  color: active ? 'var(--neon)' : 'var(--ink-2)',
-                  fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600, letterSpacing:'-0.005em',
-                  boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18), 0 6px 16px -8px rgba(61,255,209,0.4)' : 'none',
-                  transition:'background .2s, border-color .2s, color .2s, box-shadow .25s',
-                }}>{t.label}</button>
-              );
-            })}
+            )}
           </div>
-        </div>
 
-        {/* Tab panels */}
-        <div style={{ padding:'0 20px', minHeight:140, paddingBottom:20 }}>
-          {tab === 'about' && (
-            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:14 }}>
-              <div style={{ fontSize:14, lineHeight:1.55, color:'var(--ink-2)', textWrap:'pretty' }}>{item.desc}</div>
-              {item.narrator && item.narrator !== '—' && (
-                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ width:28, height:28, borderRadius:999, background:`${accent}22`, display:'flex', alignItems:'center', justifyContent:'center', color:accent }}>
-                    <IcMic size={13} stroke="currentColor"/>
+          {/* ── Fila scrolleable: guardar · agendar | duración · rating · plays ── */}
+          <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', msOverflowStyle:'none', padding:'14px 0 6px' }}>
+            <div style={{ display:'flex', gap:8, padding:'0 20px', width:'max-content', alignItems:'center' }}>
+
+              {/* Guardar */}
+              <button onClick={() => onSaveToPlaylist?.(item)} aria-label="Guardar" className="mtx-tap" tabIndex={0}
+                style={{ width:44, height:44, borderRadius:14, border:'0.5px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--ink-2)', cursor:'pointer', flexShrink:0 }}>
+                <IcBookmark size={17} stroke="currentColor"/>
+              </button>
+
+              {/* Agendar */}
+              <button onClick={scheduled ? undefined : () => onScheduleForToday?.(item)} disabled={scheduled}
+                aria-label={scheduled ? 'Agendado' : 'Agendar'} className="mtx-tap" tabIndex={0}
+                style={{ height:44, padding:'0 14px', borderRadius:14, flexShrink:0, cursor: scheduled ? 'default' : 'pointer', border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid rgba(255,255,255,0.1)', background: scheduled ? 'rgba(61,255,209,0.1)' : 'rgba(255,255,255,0.05)', color: scheduled ? 'var(--neon)' : 'var(--ink-1)', fontSize:12, fontWeight:600, fontFamily:'var(--ff-sans)', display:'flex', alignItems:'center', gap:6 }}>
+                {scheduled ? <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={13} stroke="currentColor"/>}
+                {scheduled ? 'Agendado' : 'Agendar'}
+              </button>
+
+              {/* Separador visual */}
+              <div style={{ width:1, height:28, background:'rgba(255,255,255,0.1)', flexShrink:0 }}/>
+
+              {/* Stats como pills en la misma fila */}
+              {[
+                { label:'Duración', value: item.dur,                             Ic: IcClock },
+                { label:'Rating',   value: item.rating > 0 ? `${item.rating} ★` : '—' },
+                { label:'Plays',    value: item.plays },
+              ].map(stat => (
+                <div key={stat.label} style={{ height:44, padding:'0 14px', borderRadius:14, flexShrink:0, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column', justifyContent:'center', gap:1 }}>
+                  <div style={{ fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--ink-3)' }}>{stat.label}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--ink-1)', display:'flex', alignItems:'center', gap:3 }}>
+                    {stat.Ic && <stat.Ic size={10} stroke="currentColor"/>}{stat.value}
                   </div>
-                  <div style={{ fontSize:12, color:'var(--ink-2)', fontWeight:500 }}>{item.narrator}</div>
                 </div>
-              )}
-              {item.tags && item.tags.length > 0 && (
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {item.tags.map(tag => (
-                    <span key={tag} style={{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:999, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)', color:'var(--ink-3)', letterSpacing:'0.04em' }}>#{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Tabs ─────────────────────────────────────────────────────── */}
+          <div style={{ padding:'16px 20px 12px' }}>
+            <div style={{ display:'flex', gap:6 }}>
+              {TABS.map(t => {
+                const active = tab === t.id;
+                return (
+                  <button key={t.id} onClick={() => setTab(t.id)} className="mtx-tap" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); setTab(t.id); } }}
+                    style={{
+                      flex:1, height:38, borderRadius:12, cursor:'pointer',
+                      border: active ? '0.5px solid rgba(61,255,209,0.4)' : '0.5px solid rgba(255,255,255,0.06)',
+                      background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))' : 'rgba(255,255,255,0.025)',
+                      color: active ? 'var(--neon)' : 'var(--ink-2)',
+                      fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600,
+                      boxShadow: active ? '0 0 0 1px rgba(61,255,209,0.18), 0 6px 16px -8px rgba(61,255,209,0.4)' : 'none',
+                      transition:'all .2s',
+                    }}>{t.label}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Contenido del tab ─────────────────────────────────────────── */}
+          <div style={{ padding:'0 20px', paddingBottom:128 }}>
+
+            {/* ── Acerca de ── */}
+            {tab === 'about' && (
+              <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:16 }}>
+
+                {/* Descripción principal + extensión contextual */}
+                <div style={{ fontSize:14, lineHeight:1.6, color:'var(--ink-2)', textWrap:'pretty' }}>
+                  {item.desc}
+                  {' '}
+                  <span style={{ color:'rgba(255,255,255,0.55)', fontStyle:'italic' }}>
+                    {hasRealAuthor
+                      ? `Una obra que lleva la visión de ${author.name} directamente a tus oídos — adaptada y narrada para quienes aprenden escuchando, sin sacrificar ni una sola idea del texto original.`
+                      : 'Creado y curado por el equipo editorial de Mentex para ofrecerte la experiencia de aprendizaje más clara, accesible y transformadora posible.'
+                    }
+                  </span>
+                </div>
+
+                {/* Bullets de por qué escucharlo */}
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {highlights.map((h, i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+                      <div style={{ width:18, height:18, borderRadius:999, background:`${accent}1e`, border:`0.5px solid ${accent}45`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                        <IcCheck size={10} stroke={accent} strokeWidth={2.5}/>
+                      </div>
+                      <div style={{ fontSize:13, color:'var(--ink-2)', lineHeight:1.45 }}>{h}</div>
+                    </div>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-          {tab === 'chapters' && (
-            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:6 }}>
-              {chapters.map((ch, i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 14px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:accent, width:18, textAlign:'center', fontVariantNumeric:'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</div>
-                  <div style={{ flex:1, fontSize:13, color:'var(--ink-1)', fontWeight:500 }}>{ch.t}</div>
-                  <div style={{ fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>{ch.d}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {tab === 'comments' && (
-            <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:10 }}>
-              {_MOCK_COMMENTS.map(c => (
-                <div key={c.id} style={{ padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)', display:'flex', gap:10 }}>
-                  <div style={{ width:32, height:32, borderRadius:999, flexShrink:0, background:`linear-gradient(180deg, ${c.accent}33, ${c.accent}10)`, border:`0.5px solid ${c.accent}40`, display:'flex', alignItems:'center', justifyContent:'center', color:c.accent, fontSize:13, fontWeight:700, fontFamily:'var(--ff-display)' }}>{c.initial}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:3 }}>
-                      <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)' }}>{c.author}</span>
-                      <span style={{ fontSize:10, color:'var(--ink-3)' }}>{c.time}</span>
+
+                {/* Narrador */}
+                {item.narrator && item.narrator !== '—' && (
+                  <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ width:28, height:28, borderRadius:999, background:`${accent}22`, display:'flex', alignItems:'center', justifyContent:'center', color:accent }}>
+                      <IcMic size={13} stroke="currentColor"/>
                     </div>
-                    <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.45 }}>{c.text}</div>
-                    <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--ink-3)' }}>
-                      <IcHeart size={11} stroke="currentColor"/>
-                      <span style={{ fontVariantNumeric:'tabular-nums' }}>{c.likes}</span>
+                    <div style={{ fontSize:12, color:'var(--ink-2)', fontWeight:500 }}>{item.narrator}</div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {item.tags && item.tags.length > 0 && (
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {item.tags.map(tag => (
+                      <span key={tag} style={{ fontSize:10, fontWeight:600, padding:'4px 10px', borderRadius:999, background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.06)', color:'var(--ink-3)', letterSpacing:'0.04em' }}>#{tag}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Autor — solo autores humanos reales */}
+                {hasRealAuthor && (
+                  <div>
+                    <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'2px 0 14px' }}/>
+                    <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:10 }}>
+                      {authorVerb}
+                    </div>
+                    <div onClick={() => setTributeOpen(true)} role="button" tabIndex={0}
+                      onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); setTributeOpen(true); } }}
+                      className="mtx-tap"
+                      style={{ display:'flex', alignItems:'center', gap:13, padding:'14px', borderRadius:16, background:'rgba(255,255,255,0.03)', border:`0.5px solid ${accent}28`, cursor:'pointer' }}>
+                      <div style={{ width:52, height:52, borderRadius:999, overflow:'hidden', flexShrink:0, border:`1.5px solid ${accent}50`, boxShadow:`0 0 0 2px ${accent}18`, display:'flex', alignItems:'center', justifyContent:'center', background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${accent}33, ${accent}11)` }}>
+                        {author.avatar
+                          ? <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                          : <span style={{ fontSize:20, fontWeight:800, color:accent, fontFamily:'var(--ff-display)' }}>{author.name.charAt(0)}</span>
+                        }
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:14, fontWeight:700, color:'var(--ink-1)', marginBottom:3 }}>{author.name}</div>
+                        <div style={{ fontSize:11, color:'var(--ink-3)', fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{author.role}</div>
+                      </div>
+                      <IcChevR size={16} stroke="var(--ink-3)" strokeWidth={1.8}/>
+                    </div>
+                    {/* Bio teaser — 2 primeras frases (robusto si no hay puntos) */}
+                    {author.bio && (
+                      <div style={{ fontSize:12, color:'var(--ink-3)', lineHeight:1.52, marginTop:10, padding:'0 2px' }}>
+                        {(() => {
+                          const sentences = author.bio.split('.').map(s => s.trim()).filter(Boolean);
+                          return sentences.length >= 2
+                            ? sentences[0] + '. ' + sentences[1] + '.'
+                            : author.bio;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Contenido relacionado */}
+                {relatedItems.length > 0 && (
+                  <div>
+                    <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'2px 0 14px' }}/>
+                    <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:12 }}>
+                      También te puede gustar
+                    </div>
+                    <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', msOverflowStyle:'none', margin:'0 -20px', paddingBottom:4 }}>
+                      <div style={{ display:'flex', gap:10, padding:'0 20px', width:'max-content' }}>
+                        {relatedItems.map(rel => {
+                          const rAcc = rel.accent || '#3dffd1';
+                          const rType = CONTENT_TYPES.find(t => t.id === rel.type)?.label || rel.type;
+                          return (
+                            <div key={rel.id} style={{ width:118, flexShrink:0 }}>
+                              <div style={{ width:118, height:118, borderRadius:14, overflow:'hidden', background:rel.bg, border:`0.5px solid ${rAcc}33`, marginBottom:7, position:'relative' }}>
+                                {rel.cover && <img src={rel.cover} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', opacity:0.88 }}/>}
+                                <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.55) 100%)' }}/>
+                                <div style={{ position:'absolute', bottom:6, left:6, fontSize:8, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:rAcc, background:'rgba(0,0,0,0.52)', padding:'2px 6px', borderRadius:999, backdropFilter:'blur(6px)' }}>
+                                  {rType}
+                                </div>
+                              </div>
+                              <div style={{ fontSize:11, fontWeight:600, color:'var(--ink-1)', lineHeight:1.3, marginBottom:2, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                                {rel.title}
+                              </div>
+                              <div style={{ fontSize:10, color:'var(--ink-3)' }}>{rel.dur}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+
+            {/* ── Capítulos ── */}
+            {tab === 'chapters' && (
+              <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:6 }}>
+                {chapters.map((ch, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 14px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:accent, width:18, textAlign:'center', fontVariantNumeric:'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</div>
+                    <div style={{ flex:1, fontSize:13, color:'var(--ink-1)', fontWeight:500 }}>{ch.t}</div>
+                    <div style={{ fontSize:11, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>{ch.d}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Comentarios ── */}
+            {tab === 'comments' && (
+              <div style={{ animation:'mtx-fade-up .25s ease both', display:'flex', flexDirection:'column', gap:10 }}>
+                {_MOCK_COMMENTS.map(c => (
+                  <div key={c.id} style={{ padding:'12px 14px', borderRadius:14, background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.05)', display:'flex', gap:10 }}>
+                    <div style={{ width:32, height:32, borderRadius:999, flexShrink:0, background:`linear-gradient(180deg, ${c.accent}33, ${c.accent}10)`, border:`0.5px solid ${c.accent}40`, display:'flex', alignItems:'center', justifyContent:'center', color:c.accent, fontSize:13, fontWeight:700, fontFamily:'var(--ff-display)' }}>{c.initial}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:3 }}>
+                        <span style={{ fontSize:12, fontWeight:600, color:'var(--ink-1)' }}>{c.author}</span>
+                        <span style={{ fontSize:10, color:'var(--ink-3)' }}>{c.time}</span>
+                      </div>
+                      <div style={{ fontSize:12.5, color:'var(--ink-2)', lineHeight:1.45 }}>{c.text}</div>
+                      <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--ink-3)' }}>
+                        <IcHeart size={11} stroke="currentColor"/>
+                        <span style={{ fontVariantNumeric:'tabular-nums' }}>{c.likes}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Sticky CTA footer — solo Reproducir (Agendar/Guardar viven en AuthorStrip) */}
+      {/* ── Footer CTA — siempre visible en la parte inferior ───────────── */}
       <div style={{
-        flexShrink:0,
-        background:'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.96) 22%, #050706 100%)',
+        position:'absolute', bottom:0, left:0, right:0, zIndex:20,
+        background:'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.96) 28%, #050706 100%)',
         padding:'16px 20px 40px',
       }}>
-        <button onClick={() => onPlay(item)} className="mtx-tap" style={{
-          width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
-          background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
-          color:'#0a1410', fontSize:15, fontWeight:700,
-          fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-          boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
-        }}>
+        <button onClick={() => onPlay(item)} className="mtx-tap" tabIndex={0}
+          onKeyDown={(e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onPlay(item); } }}
+          style={{
+            width:'100%', height:54, borderRadius:18, border:0, cursor:'pointer',
+            background:'linear-gradient(180deg, var(--neon-soft, rgba(61,255,209,0.85)), var(--neon-deep, #1ad9ad))',
+            color:'#0a1410', fontSize:15, fontWeight:700, fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            boxShadow:'0 0 0 1px rgba(61,255,209,0.4), 0 12px 32px -8px rgba(61,255,209,0.55), inset 0 1px 0 rgba(255,255,255,0.4)',
+          }}>
           <IcPlay size={16} stroke="currentColor" strokeWidth={2.4}/>
           Reproducir
         </button>
       </div>
 
-      {/* Author tribute modal — rendered inside ContentDetailScreen */}
+      {/* ── Overlays ─────────────────────────────────────────────────────── */}
+      {optionsOpen && (
+        <VideoOptionsSheet
+          item={item}
+          onClose={() => setOptionsOpen(false)}
+          onSchedule={(it) => { onScheduleForToday?.(it); }}
+          onSaveToPlaylist={(it) => { onSaveToPlaylist?.(it); }}
+          onShare={(it) => { setOptionsOpen(false); setTimeout(() => onShare?.(it), 150); }}
+        />
+      )}
       {tributeOpen && (
         <TributeProfileScreen
           author={author}
@@ -6328,6 +7142,7 @@ function VideoOptionsSheet({ item, playlist, currentTime, skipSeconds, onClose, 
     { id: 'schedule', label: 'Agendar para hoy',     desc: 'Súmalo a tu ritual del día',           Ic: IcCalendar, accent: '#3dffd1' },
     { id: 'save',     label: 'Guardar en playlist',  desc: 'Añade a una de tus colecciones',       Ic: IcBookmark, accent: '#9b8aff' },
     { id: 'share',    label: 'Compartir',            desc: 'Envía un enlace a quien quieras',      Ic: IcShare,    accent: '#5dd3ff' },
+    { id: 'download', label: 'Descargar contenido',  desc: 'Escúchalo sin internet · requiere espacio', Ic: IcDownload, accent: '#3dffd1' },
   ];
   const momentOption = hasMoment ? [{
     id: 'share-moment',
@@ -6366,6 +7181,9 @@ function VideoOptionsSheet({ item, playlist, currentTime, skipSeconds, onClose, 
     }
     else if (opt.id === 'bookmarks') {
       onOpenBookmarks?.();
+    }
+    else if (opt.id === 'download') {
+      toast.show({ message: `"${item.title}" descargado · Disponible sin internet`, duration: 2200 });
     }
     else if (opt.id === 'remove') {
       onRemoveFromPlaylist?.(item, playlist);
@@ -7931,21 +8749,24 @@ function LibraryStatsBar({ savedCount, historyCount, playlistCount }) {
 }
 
 
-// ── LibraryTabs — segmented control elegante ─────────────────────────────────
+// ── LibraryTabs — chips scrolleables (soporta N tabs sin overflow) ───────────
 const LIBRARY_TABS = [
-  { id: 'playlists', label: 'Playlists', Ic: IcTarget    },
-  { id: 'saved',     label: 'Guardados', Ic: IcBookmarkFill },
-  { id: 'history',   label: 'Historial', Ic: IcClock     },
+  { id: 'playlists', label: 'Playlists',  Ic: IcTarget       },
+  { id: 'saved',     label: 'Guardados',  Ic: IcBookmarkFill  },
+  { id: 'downloads', label: 'Descargas',  Ic: IcDownload      },
+  { id: 'history',   label: 'Historial',  Ic: IcClock         },
 ];
 
 function LibraryTabs({ value, onChange, counts }) {
   return (
-    <div style={{ padding:'0 20px', marginBottom:18 }}>
+    <div style={{
+      overflowX:'auto', WebkitOverflowScrolling:'touch',
+      scrollbarWidth:'none', msOverflowStyle:'none',
+      paddingBottom:18,
+    }}>
       <div style={{
-        display:'flex', gap:4,
-        padding:4, borderRadius:14,
-        background:'rgba(255,255,255,0.04)',
-        border:'0.5px solid rgba(255,255,255,0.06)',
+        display:'flex', gap:6,
+        padding:'0 20px', width:'max-content',
       }}>
         {LIBRARY_TABS.map(t => {
           const active = value === t.id;
@@ -7954,25 +8775,36 @@ function LibraryTabs({ value, onChange, counts }) {
               key={t.id}
               onClick={() => onChange(t.id)}
               className="mtx-tap"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onChange(t.id); } }}
               style={{
-                flex:1, height:38, borderRadius:11, cursor:'pointer',
-                border:0,
-                background: active ? 'linear-gradient(180deg, rgba(61,255,209,0.18), rgba(61,255,209,0.06))' : 'transparent',
+                flexShrink:0,
+                height:36, borderRadius:999, cursor:'pointer',
+                padding:'0 14px',
+                border: active
+                  ? '0.5px solid rgba(61,255,209,0.35)'
+                  : '0.5px solid rgba(255,255,255,0.08)',
+                background: active
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.16), rgba(61,255,209,0.05))'
+                  : 'rgba(255,255,255,0.04)',
                 color: active ? 'var(--neon)' : 'var(--ink-3)',
                 fontFamily:'var(--ff-sans)', fontSize:12, fontWeight:600,
                 letterSpacing:'-0.005em',
-                display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
-                boxShadow: active ? '0 0 0 0.5px rgba(61,255,209,0.3), 0 4px 14px -6px rgba(61,255,209,0.45), inset 0 1px 0 rgba(255,255,255,0.04)' : 'none',
-                transition:'background .25s, color .2s, box-shadow .25s',
+                display:'inline-flex', alignItems:'center', gap:6,
+                boxShadow: active
+                  ? '0 0 0 0.5px rgba(61,255,209,0.25), 0 4px 12px -6px rgba(61,255,209,0.35), inset 0 1px 0 rgba(255,255,255,0.06)'
+                  : 'none',
+                transition:'background .22s, color .18s, border-color .22s, box-shadow .22s',
               }}>
-              <t.Ic size={12} stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
+              <t.Ic size={12} stroke="currentColor" strokeWidth={active ? 2.1 : 1.6}/>
               {t.label}
-              {counts && counts[t.id] != null && (
+              {counts?.[t.id] != null && (
                 <span style={{
                   fontSize:10, fontWeight:700,
                   color: active ? 'var(--neon)' : 'var(--ink-3)',
-                  opacity:0.75,
+                  opacity: active ? 0.8 : 0.6,
                   fontVariantNumeric:'tabular-nums',
+                  minWidth:12, textAlign:'center',
                 }}>{counts[t.id]}</span>
               )}
             </button>
@@ -8123,10 +8955,13 @@ function LibraryScreen({ onBack, onItemClick, onPlaylistClick }) {
   const otherUserPlaylists = userPlaylists.filter(p => !p.isWatchLater);
   const savedItems         = _MOCK_SAVED_ITEMS.map(id => EXPLORE_CONTENT.find(c => c.id === id)).filter(Boolean);
   const historyItems       = _MOCK_HISTORY.map(h => ({ ...h, item: EXPLORE_CONTENT.find(c => c.id === h.contentId) })).filter(h => h.item);
+  const downloadItems      = _MOCK_DOWNLOADS.map(d => ({ ...d, item: EXPLORE_CONTENT.find(c => c.id === d.contentId) })).filter(d => d.item);
+  const totalDownloadMb    = downloadItems.reduce((acc, d) => acc + d.sizeMb, 0);
 
   const counts = {
     playlists: allLibraryPlaylists.length,
     saved:     savedItems.length + _MOCK_SAVED_PLAYLISTS.length,
+    downloads: downloadItems.length,
     history:   historyItems.length,
   };
 
@@ -8323,6 +9158,144 @@ function LibraryScreen({ onBack, onItemClick, onPlaylistClick }) {
                   <PlaylistCard key={p.id} playlist={p} onClick={onPlaylistClick} variant="grid"/>
                 ))}
               </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'downloads' && (
+        <div style={{ animation:'mtx-fade-up .25s ease both' }}>
+          {downloadItems.length === 0 ? (
+            <div style={{ padding:'48px 28px', textAlign:'center' }}>
+              <div style={{
+                width:64, height:64, borderRadius:20, margin:'0 auto 14px',
+                background:'rgba(255,255,255,0.04)',
+                border:'0.5px solid rgba(255,255,255,0.08)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                color:'var(--ink-3)',
+              }}>
+                <IcDownload size={24} stroke="currentColor" strokeWidth={1.6}/>
+              </div>
+              <div style={{ fontSize:15, fontWeight:600, color:'var(--ink-1)', marginBottom:4 }}>
+                Sin descargas todavía
+              </div>
+              <div style={{ fontSize:12, color:'var(--ink-3)' }}>
+                Descarga contenido para escucharlo sin internet.
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Storage bar */}
+              <div style={{ margin:'4px 20px 16px', padding:'12px 14px', borderRadius:14,
+                background:'rgba(255,255,255,0.03)', border:'0.5px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:7 }}>
+                  <span style={{ fontSize:11.5, fontWeight:600, color:'var(--ink-2)' }}>
+                    Almacenamiento usado
+                  </span>
+                  <span style={{ fontSize:11, color:'var(--neon)', fontWeight:700, fontVariantNumeric:'tabular-nums' }}>
+                    {totalDownloadMb >= 1024
+                      ? `${(totalDownloadMb / 1024).toFixed(1)} GB`
+                      : `${totalDownloadMb} MB`}
+                  </span>
+                </div>
+                <div style={{ height:4, borderRadius:999, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
+                  <div style={{
+                    height:'100%', borderRadius:999,
+                    width:`${Math.min(100, (totalDownloadMb / 2048) * 100)}%`,
+                    background:'linear-gradient(90deg, var(--neon), rgba(61,255,209,0.6))',
+                    boxShadow:'0 0 8px rgba(61,255,209,0.5)',
+                    transition:'width .4s ease',
+                  }}/>
+                </div>
+                <div style={{ marginTop:5, fontSize:10, color:'var(--ink-3)' }}>
+                  {downloadItems.length} {downloadItems.length === 1 ? 'archivo' : 'archivos'} · {2048 - totalDownloadMb} MB disponibles
+                </div>
+              </div>
+
+              {/* Download list grouped by date */}
+              {(() => {
+                const groupOrder = ['Hoy', 'Esta semana', 'Antes'];
+                const grouped = {};
+                downloadItems.forEach(d => { (grouped[d.group] = grouped[d.group] || []).push(d); });
+                return groupOrder.filter(g => grouped[g]?.length).map(group => (
+                  <div key={group} style={{ marginBottom:18 }}>
+                    <div style={{ padding:'4px 20px 10px', display:'flex', alignItems:'baseline', gap:10 }}>
+                      <div className="mtx-eyebrow" style={{ fontSize:9, fontWeight:700, color:'var(--ink-3)', letterSpacing:'0.16em' }}>
+                        {group}
+                      </div>
+                      <div style={{ flex:1, height:'0.5px', background:'rgba(255,255,255,0.05)' }}/>
+                      <span style={{ fontSize:10, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>
+                        {grouped[group].length}
+                      </span>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'0 20px' }}>
+                      {grouped[group].map(d => {
+                        const it = d.item;
+                        const accent = it.accent || '#3dffd1';
+                        return (
+                          <div key={d.contentId}
+                            onClick={() => onItemClick(it)}
+                            role="button" tabIndex={0}
+                            onKeyDown={e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); onItemClick(it); } }}
+                            className="mtx-glass mtx-tap"
+                            style={{
+                              display:'flex', alignItems:'center', gap:12,
+                              padding:'10px 12px', borderRadius:14, cursor:'pointer',
+                              background:'rgba(255,255,255,0.025)',
+                              border:'0.5px solid rgba(255,255,255,0.05)',
+                            }}>
+                            {(it.cover || it.thumbnail) ? (
+                              <div style={{
+                                width:44, height:44, borderRadius:10, flexShrink:0, overflow:'hidden',
+                                border:`0.5px solid ${accent}30`,
+                                boxShadow:`0 4px 12px -4px ${accent}44`,
+                              }}>
+                                <img src={it.cover || it.thumbnail} alt={it.title}
+                                  style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}/>
+                              </div>
+                            ) : (
+                              <div style={{
+                                width:44, height:44, borderRadius:10, flexShrink:0,
+                                background:`linear-gradient(135deg, ${accent}26, ${accent}0a)`,
+                                border:`0.5px solid ${accent}30`,
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                color:accent,
+                              }}>
+                                <IcDownload size={16} stroke="currentColor" strokeWidth={1.6}/>
+                              </div>
+                            )}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{
+                                fontSize:13, fontWeight:600, color:'var(--ink-1)',
+                                letterSpacing:'-0.01em', lineHeight:1.2,
+                                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                              }}>
+                                {it.title}
+                              </div>
+                              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+                                <span style={{ fontSize:10.5, color:'var(--ink-3)' }}>{it.author}</span>
+                                <span style={{ width:2, height:2, borderRadius:'50%', background:'rgba(255,255,255,0.2)', flexShrink:0 }}/>
+                                <span style={{ fontSize:10.5, color:'var(--ink-3)', fontVariantNumeric:'tabular-nums' }}>{it.dur}</span>
+                              </div>
+                            </div>
+                            <div style={{ flexShrink:0, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
+                              <div style={{
+                                display:'inline-flex', alignItems:'center', gap:3,
+                                padding:'3px 7px', borderRadius:6,
+                                background:`${accent}15`, border:`0.5px solid ${accent}25`,
+                                fontSize:9.5, fontWeight:700, color:accent,
+                              }}>
+                                <IcDownload size={8} stroke="currentColor" strokeWidth={2.2}/>
+                                {d.sizeMb} MB
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+              })()}
             </>
           )}
         </div>
@@ -9660,7 +10633,7 @@ Object.assign(window, {
   CreatePlaylistSheet, PlaylistOptionsSheet, VideoOptionsSheet,
   AddContentToPlaylistSheet, EditPlaylistSheet,
   AddContentScreen, SelectableContentCard, MtxAddMoreCard,
-  SleepTimerSheet, PlayerWaveform, PlaylistAccessCard,
+  SleepTimerSheet, ChaptersSheet, PlayerWaveform, PlaylistAccessCard,
   SwipeableQueueRow, SkipDurationSheet, BookmarksSheet, BookmarkNameSheet,
   ReviewSheet, ReviewSuccessSheet,
   useRitualItems, useIsScheduled,

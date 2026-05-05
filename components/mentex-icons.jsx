@@ -52,7 +52,8 @@ const IcMail = (p) => <Icon {...p}><rect x="3" y="5" width="18" height="14" rx="
 const IcList = (p) => <Icon {...p}><path d="M4 6h16M4 12h16M4 18h10"/></Icon>;
 const IcSparkles = (p) => <Icon {...p}><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M19 16l.7 1.8L21.5 18l-1.8.7L19 20.5l-.7-1.8L16.5 18l1.8-.7z"/></Icon>;
 const IcMoon = (p) => <Icon {...p}><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></Icon>;
-const IcGauge = (p) => <Icon {...p}><path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4-5"/><circle cx="12" cy="18" r="1.2" fill="currentColor"/></Icon>;
+const IcGauge    = (p) => <Icon {...p}><path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4-5"/><circle cx="12" cy="18" r="1.2" fill="currentColor"/></Icon>;
+const IcDownload = (p) => <Icon {...p}><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v1a3 3 0 003 3h10a3 3 0 003-3v-1"/></Icon>;
 
 // Skip controls — track prev/next + arc-style skip back/forward con segundos custom
 const IcSkipPrev = ({ size = 20, stroke = 'currentColor', strokeWidth = 1.8 }) => (
@@ -198,7 +199,7 @@ Object.assign(window, {
   IcHeart, IcZap, IcMic, IcSearch, IcTrend,
   IcBookmark, IcBookmarkFill, IcCalendar,
   IcShare, IcLink, IcMessage, IcMail, IcList, IcSparkles,
-  IcMoon, IcGauge,
+  IcMoon, IcGauge, IcDownload,
   IcSkipPrev, IcSkipNext, IcSkipBack, IcSkipForward,
   IcInstagram, IcTwitterX, IcSpotify, IcGlobe, IcTrophy, IcCrown, IcSettings,
   IcSliders, IcUserPlus, IcUserCheck,

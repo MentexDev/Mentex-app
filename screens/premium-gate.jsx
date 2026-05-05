@@ -404,7 +404,7 @@
             width:p.size, height:p.round ? p.size : p.size * 1.9,
             borderRadius: p.round ? '50%' : 2,
             background:p.color, opacity:0.88,
-            animation:`mtxPremiumC${p.anim} ${p.dur}s cubic-bezier(.25,.46,.45,.94) ${p.delay}s infinite`,
+            animation:`mtxPremiumC${p.anim} ${p.dur}s cubic-bezier(.25,.46,.45,.94) ${p.delay}s 2`,
             pointerEvents:'none', zIndex:1,
           }}/>
         ))}
