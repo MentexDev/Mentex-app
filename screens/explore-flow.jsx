@@ -4754,7 +4754,7 @@ function VideoCompletionSheet({ item, nextItem, onNext, onClose, onWriteReview }
         </div>
 
         {/* Header */}
-        <div style={{ padding:'14px 28px 4px', textAlign:'center', position:'relative', zIndex:2 }}>
+        <div style={{ padding:'14px 28px 0', textAlign:'center', position:'relative', zIndex:2 }}>
           <div className="mtx-eyebrow" style={{ fontSize:9, color:accent, letterSpacing:'0.16em', marginBottom:8 }}>
             Completado
           </div>
@@ -4765,7 +4765,27 @@ function VideoCompletionSheet({ item, nextItem, onNext, onClose, onWriteReview }
           }}>
             Una pieza más para ti.
           </h1>
-          <p style={{ margin:'8px 0 0', fontSize:12.5, color:'var(--ink-3)', lineHeight:1.5 }}>
+        </div>
+
+        {/* Cover del ítem completado */}
+        {(item.cover || item.thumbnail) && (
+          <div style={{ display:'flex', justifyContent:'center', padding:'18px 28px 4px', position:'relative', zIndex:2 }}>
+            <div style={{
+              width:160, height:160, borderRadius:18, overflow:'hidden', flexShrink:0,
+              boxShadow:`0 8px 32px -8px ${accent}55, 0 0 0 0.5px rgba(255,255,255,0.08), 0 20px 40px -20px rgba(0,0,0,0.8)`,
+            }}>
+              <img
+                src={item.cover || item.thumbnail}
+                alt={item.title}
+                style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Subtítulo — nombre del item */}
+        <div style={{ padding:'10px 28px 4px', textAlign:'center', position:'relative', zIndex:2 }}>
+          <p style={{ margin:0, fontSize:12.5, color:'var(--ink-3)', lineHeight:1.5 }}>
             "{item.title}"
           </p>
         </div>
