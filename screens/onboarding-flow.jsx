@@ -386,17 +386,16 @@
         React.createElement(ProgressDots, { current: stepIndex, total: totalSteps })
       ),
 
-      // Body: scrollable content
+      // Body: scrollable content (noScroll=true para steps que manejan su propio scroll)
       React.createElement('div', {
         key: 'step-body-' + stepIndex,
-        style: {
+        style: Object.assign({
           flex: 1,
-          overflowY: 'auto',
-          paddingTop: 22,
-          paddingBottom: 32,
           animation: 'mtx-fade-in .35s ease',
-          WebkitOverflowScrolling: 'touch',
-        },
+        }, props.noScroll
+          ? { overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+          : { overflowY: 'auto', paddingTop: 22, paddingBottom: 32, WebkitOverflowScrolling: 'touch' }
+        ),
       }, props.children),
 
       // Footer: back/skip row + primary CTA
@@ -1846,179 +1845,196 @@
       if (onComplete) onComplete();
     }
 
-    return React.createElement('div', null,
-      // ── HERO compacto e impactante ──────────────────────────────────────
-      React.createElement('div', {
-        style: { padding: '4px 28px 22px', textAlign: 'center' },
-      },
-        React.createElement('div', {
-          style: {
-            fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.20em',
-            fontWeight: 700, textTransform: 'uppercase', marginBottom: 12,
-          },
-        }, '✦ Mentex Premium'),
-        React.createElement('h1', {
-          style: {
-            margin: 0, fontSize: 30, lineHeight: 1.12, fontWeight: 700,
-            color: 'var(--ink-1)', letterSpacing: '-0.02em',
-          },
-        }, 'Tu mente,',
-          React.createElement('br'),
-          React.createElement('span', {
-            style: { color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 },
-          }, 'sin límites')
-        ),
-        React.createElement('p', {
-          style: {
-            margin: '10px auto 0', maxWidth: 280,
-            fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)',
-          },
-        }, 'Acceso completo. Coach ilimitado. Foco profundo.')
-      ),
+    // Layout split: scroll arriba (hero + benefits + rating), fijo abajo (plan card + CTAs).
+    // El OnboardingShell cede el scroll al paso paywall via noScroll=true.
+    return React.createElement('div', {
+      style: { height: '100%', display: 'flex', flexDirection: 'column' },
+    },
 
-      // ── PLAN CARD (toggle + precio) — primero, decisión clara ──────────
-      React.createElement('div', {
-        style: { padding: '0 28px', marginBottom: 24 },
-      },
-        React.createElement(PlanCard, { cycle: cycle, onChange: selectCycle })
-      ),
-
-      // ── SECTION HEADER ──────────────────────────────────────────────────
-      // Da peso editorial a la sección de benefits y eleva su jerarquía
+      // ── ZONA SCROLLEABLE: hero + benefits + social proof ───────────────
       React.createElement('div', {
         style: {
-          padding: '0 28px', marginBottom: 14,
-          display: 'flex', alignItems: 'center', gap: 10,
+          flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+          paddingTop: 18, paddingBottom: 16,
         },
       },
+        // HERO compacto
         React.createElement('div', {
-          style: {
-            flex: 1, height: 1,
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10))',
-          },
-        }),
-        React.createElement('div', {
-          style: {
-            fontSize: 9.5, fontWeight: 700, color: 'var(--ink-3)',
-            letterSpacing: '0.18em', textTransform: 'uppercase',
-            fontFamily: 'var(--ff-sans)',
-          },
-        }, 'Todo lo que desbloqueas'),
-        React.createElement('div', {
-          style: {
-            flex: 1, height: 1,
-            background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)',
-          },
-        })
-      ),
-
-      // ── BENEFITS — cards grandes que justifican el plan ────────────────
-      React.createElement('div', {
-        style: {
-          padding: '0 24px',
-          display: 'flex', flexDirection: 'column', gap: 10,
-          marginBottom: 22,
+          style: { padding: '4px 28px 20px', textAlign: 'center' },
         },
-      },
-        PREMIUM_BENEFITS.map(function(b, i) {
-          return React.createElement('div', {
-            key: i,
+          React.createElement('div', {
             style: {
-              padding: '15px 16px',
-              borderRadius: 16,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012))',
-              border: '0.5px solid rgba(255,255,255,0.10)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-              display: 'flex', alignItems: 'center', gap: 14,
+              fontSize: 9.5, color: 'var(--neon)', letterSpacing: '0.20em',
+              fontWeight: 700, textTransform: 'uppercase', marginBottom: 12,
+            },
+          }, '✦ Mentex Premium'),
+          React.createElement('h1', {
+            style: {
+              margin: 0, fontSize: 30, lineHeight: 1.12, fontWeight: 700,
+              color: 'var(--ink-1)', letterSpacing: '-0.02em',
+            },
+          }, 'Tu mente,',
+            React.createElement('br'),
+            React.createElement('span', {
+              style: { color: 'var(--neon)', fontStyle: 'italic', fontWeight: 600 },
+            }, 'sin límites')
+          ),
+          React.createElement('p', {
+            style: {
+              margin: '10px auto 0', maxWidth: 280,
+              fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)',
+            },
+          }, 'Acceso completo. Coach ilimitado. Foco profundo.')
+        ),
+
+        // SECTION HEADER
+        React.createElement('div', {
+          style: {
+            padding: '0 28px', marginBottom: 14,
+            display: 'flex', alignItems: 'center', gap: 10,
+          },
+        },
+          React.createElement('div', {
+            style: {
+              flex: 1, height: 1,
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10))',
+            },
+          }),
+          React.createElement('div', {
+            style: {
+              fontSize: 9.5, fontWeight: 700, color: 'var(--ink-3)',
+              letterSpacing: '0.18em', textTransform: 'uppercase',
               fontFamily: 'var(--ff-sans)',
             },
-          },
-            React.createElement('div', {
-              style: {
-                width: 44, height: 44, borderRadius: 13,
-                background: 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))',
-                border: '0.5px solid rgba(61,255,209,0.26)',
-                boxShadow: '0 0 16px rgba(61,255,209,0.10), inset 0 1px 0 rgba(61,255,209,0.20)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, flexShrink: 0,
-              },
-            }, b.icon),
-            React.createElement('div', { style: { flex: 1, minWidth: 0 } },
-              React.createElement('div', {
-                style: {
-                  fontSize: 14.5, fontWeight: 700, color: 'var(--ink-1)',
-                  letterSpacing: '-0.005em', marginBottom: 3,
-                },
-              }, b.title),
-              React.createElement('div', {
-                style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 },
-              }, b.sub)
-            )
-          );
-        })
-      ),
+          }, 'Todo lo que desbloqueas'),
+          React.createElement('div', {
+            style: {
+              flex: 1, height: 1,
+              background: 'linear-gradient(90deg, rgba(255,255,255,0.10), transparent)',
+            },
+          })
+        ),
 
-      // ── SOCIAL PROOF ───────────────────────────────────────────────────
-      // Pill discreto con rating + count, justo antes del CTA — refuerza
-      // confianza en el momento de decidir
-      React.createElement('div', {
-        style: {
-          padding: '0 28px', marginBottom: 18,
-          display: 'flex', justifyContent: 'center',
-        },
-      },
+        // BENEFITS
         React.createElement('div', {
           style: {
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '7px 14px',
-            borderRadius: 999,
-            background: 'rgba(255,255,255,0.03)',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            fontSize: 11.5, color: 'var(--ink-2)',
-            fontFamily: 'var(--ff-sans)',
-            fontWeight: 500,
+            padding: '0 24px',
+            display: 'flex', flexDirection: 'column', gap: 10,
+            marginBottom: 20,
           },
         },
-          React.createElement('span', {
-            style: { color: '#FFD66B', letterSpacing: '0.05em' },
-          }, '★★★★★'),
-          React.createElement('span', { style: { color: 'var(--ink-1)', fontWeight: 700 } }, '4.8'),
-          React.createElement('span', {
-            style: { color: 'var(--ink-3)' },
-          }, '· +50,000 mentes despiertas')
+          PREMIUM_BENEFITS.map(function(b, i) {
+            return React.createElement('div', {
+              key: i,
+              style: {
+                padding: '15px 16px',
+                borderRadius: 16,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012))',
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+                display: 'flex', alignItems: 'center', gap: 14,
+                fontFamily: 'var(--ff-sans)',
+              },
+            },
+              React.createElement('div', {
+                style: {
+                  width: 44, height: 44, borderRadius: 13,
+                  background: 'linear-gradient(180deg, rgba(61,255,209,0.14), rgba(61,255,209,0.04))',
+                  border: '0.5px solid rgba(61,255,209,0.26)',
+                  boxShadow: '0 0 16px rgba(61,255,209,0.10), inset 0 1px 0 rgba(61,255,209,0.20)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22, flexShrink: 0,
+                },
+              }, b.icon),
+              React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+                React.createElement('div', {
+                  style: {
+                    fontSize: 14.5, fontWeight: 700, color: 'var(--ink-1)',
+                    letterSpacing: '-0.005em', marginBottom: 3,
+                  },
+                }, b.title),
+                React.createElement('div', {
+                  style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 },
+                }, b.sub)
+              )
+            );
+          })
+        ),
+
+        // SOCIAL PROOF
+        React.createElement('div', {
+          style: {
+            padding: '0 28px 4px',
+            display: 'flex', justifyContent: 'center',
+          },
+        },
+          React.createElement('div', {
+            style: {
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '7px 14px',
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.03)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              fontSize: 11.5, color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              fontWeight: 500,
+            },
+          },
+            React.createElement('span', {
+              style: { color: '#FFD66B', letterSpacing: '0.05em' },
+            }, '★★★★★'),
+            React.createElement('span', { style: { color: 'var(--ink-1)', fontWeight: 700 } }, '4.8'),
+            React.createElement('span', {
+              style: { color: 'var(--ink-3)' },
+            }, '· +50,000 mentes despiertas')
+          )
         )
       ),
 
-      // ── CTAs ───────────────────────────────────────────────────────────
+      // ── ZONA FIJA: plan card + CTAs ────────────────────────────────────
       React.createElement('div', {
-        style: { padding: '0 28px 24px' },
+        style: {
+          flexShrink: 0,
+          background: 'linear-gradient(180deg, rgba(5,7,6,0) 0%, rgba(5,7,6,0.70) 18%, #050706 38%)',
+          paddingTop: 14,
+        },
       },
-        React.createElement(PrimaryCTA, {
-          onClick: startTrial,
-          label: 'Empezar 7 días gratis',
-        }),
-        React.createElement('button', {
-          onClick: continueFree,
-          className: 'mtx-tap',
-          style: {
-            width: '100%',
-            marginTop: 10, marginBottom: 6,
-            appearance: 'none', cursor: 'pointer',
-            background: 'transparent', border: 'none',
-            color: 'var(--ink-3)',
-            fontSize: 13, fontWeight: 500,
-            fontFamily: 'var(--ff-sans)',
-            padding: '10px 0',
-          },
-        }, 'Continuar con plan gratuito'),
+        // Plan Card
         React.createElement('div', {
-          style: {
-            textAlign: 'center', fontSize: 10.5,
-            color: 'var(--ink-4, rgba(255,255,255,0.40))',
-            lineHeight: 1.5,
-            marginTop: 4,
-          },
-        }, 'Cancela cuando quieras desde Ajustes.')
+          style: { padding: '0 20px', marginBottom: 14 },
+        },
+          React.createElement(PlanCard, { cycle: cycle, onChange: selectCycle })
+        ),
+        // CTAs
+        React.createElement('div', {
+          style: { padding: '0 24px 28px' },
+        },
+          React.createElement(PrimaryCTA, {
+            onClick: startTrial,
+            label: 'Empezar 7 días gratis',
+          }),
+          React.createElement('button', {
+            onClick: continueFree,
+            className: 'mtx-tap',
+            style: {
+              width: '100%',
+              marginTop: 10, marginBottom: 6,
+              appearance: 'none', cursor: 'pointer',
+              background: 'transparent', border: 'none',
+              color: 'var(--ink-3)',
+              fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--ff-sans)',
+              padding: '10px 0',
+            },
+          }, 'Continuar con plan gratuito'),
+          React.createElement('div', {
+            style: {
+              textAlign: 'center', fontSize: 10.5,
+              color: 'var(--ink-4, rgba(255,255,255,0.40))',
+              lineHeight: 1.5, marginTop: 4,
+            },
+          }, 'Cancela cuando quieras desde Ajustes.')
+        )
       )
     );
   }
@@ -2158,6 +2174,8 @@
       // (fake-load se reproduce, advance, repeat). Step 9 cierra el flow
       // de configuración: para editar prefs hay que ir a Settings (Phase 7).
       lockNav: step === 8 || step === 9 || step === 10 || step === 11,
+      // Paywall maneja su propio scroll interno — el shell cede control
+      noScroll: step === 11,
     }, stepEl);
   }
 
