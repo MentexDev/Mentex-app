@@ -4135,14 +4135,17 @@ function VideoPlayerFullscreen({
         {/* Controls — prev · skip-back · play · skip-forward · next */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, marginTop:18 }}>
           {/* Previous track */}
-          <button onClick={onPrev} disabled={!canPrev} className="mtx-tap" aria-label="Anterior" style={{
-            width:42, height:42, borderRadius:999, border:0,
-            background:'none',
-            cursor: canPrev ? 'pointer' : 'default',
-            color: canPrev ? 'var(--ink-2)' : 'rgba(255,255,255,0.16)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            transition:'color .2s',
-          }}>
+          <button onClick={canPrev ? onPrev : undefined} disabled={!canPrev} className="mtx-tap" aria-label="Anterior"
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && canPrev) { e.preventDefault(); onPrev?.(); } }}
+            style={{
+              width:44, height:44, borderRadius:999, border:0,
+              background: canPrev ? `${accent}18` : 'none',
+              cursor: canPrev ? 'pointer' : 'default',
+              color: canPrev ? accent : 'rgba(255,255,255,0.16)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow: canPrev ? `0 0 14px ${accent}30` : 'none',
+              transition:'color .2s, background .2s, box-shadow .2s',
+            }}>
             <IcSkipPrev size={22} stroke="currentColor" strokeWidth={2}/>
           </button>
 
@@ -4179,14 +4182,17 @@ function VideoPlayerFullscreen({
           </button>
 
           {/* Next track */}
-          <button onClick={onNext} disabled={!canNext} className="mtx-tap" aria-label="Siguiente" style={{
-            width:42, height:42, borderRadius:999, border:0,
-            background:'none',
-            cursor: canNext ? 'pointer' : 'default',
-            color: canNext ? 'var(--ink-2)' : 'rgba(255,255,255,0.16)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            transition:'color .2s',
-          }}>
+          <button onClick={canNext ? onNext : undefined} disabled={!canNext} className="mtx-tap" aria-label="Siguiente"
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && canNext) { e.preventDefault(); onNext?.(); } }}
+            style={{
+              width:44, height:44, borderRadius:999, border:0,
+              background: canNext ? `${accent}18` : 'none',
+              cursor: canNext ? 'pointer' : 'default',
+              color: canNext ? accent : 'rgba(255,255,255,0.16)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow: canNext ? `0 0 14px ${accent}30` : 'none',
+              transition:'color .2s, background .2s, box-shadow .2s',
+            }}>
             <IcSkipNext size={22} stroke="currentColor" strokeWidth={2}/>
           </button>
         </div>

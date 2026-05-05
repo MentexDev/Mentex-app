@@ -1,4 +1,4 @@
-// ── progress-report.jsx — v2 ────────────────────────────────────────────────
+// ── progress-report.jsx — v3 ────────────────────────────────────────────────
 // Mi Progreso · Reportes semanales tipo Instagram Stories
 // v2: espejo emocional de transformación — ciencia del cerebro, percentil
 //     cognitivo, efecto compuesto, slide tipográfico, share card aurora.
@@ -187,7 +187,7 @@ function DonutChart({ segments, size=160 }) {
     return () => clearTimeout(t);
   }, []);
 
-  const r = 58, cx = size / 2, cy = size / 2;
+  const r = Math.round(size * 0.36), cx = size / 2, cy = size / 2;
   const circumference = 2 * Math.PI * r;
   const total = segments.reduce((s, seg) => s + seg.min, 0);
 
@@ -360,17 +360,17 @@ function RecoveredSlide({ report }) {
         </div>
       </div>
 
-      <p style={{ fontSize:18, fontWeight:700, color:'var(--ink-2)', fontFamily:'var(--ff-sans)', margin:'0 0 4px' }}>
-        Esta semana...
+      <p style={{ fontSize:15, fontWeight:600, color:'var(--ink-3)', fontFamily:'var(--ff-sans)', margin:'0 0 6px' }}>
+        Estas horas eran de las redes sociales.
       </p>
-      <p style={{ fontSize:22, fontWeight:800, color:'var(--ink-1)', fontFamily:'var(--ff-display)', letterSpacing:'-0.02em', margin:'0 0 28px' }}>
-        ...elegiste diferente
+      <p style={{ fontSize:20, fontWeight:800, color:'var(--ink-1)', fontFamily:'var(--ff-display)', letterSpacing:'-0.02em', margin:'0 0 24px' }}>
+        Esta semana las recuperaste.
       </p>
 
       <SlotMachineNumber value={whole} suffix={mins > 0 ? `h ${mins}m` : 'h'} color="#3dffd1" size={88} delay={400}/>
 
-      <p style={{ fontSize:15, fontWeight:500, color:'var(--ink-3)', fontFamily:'var(--ff-sans)', margin:'16px 0 32px', lineHeight:1.5 }}>
-        de redes sociales<br/>devueltas a tu vida
+      <p style={{ fontSize:17, fontWeight:700, color:'#3dffd1', fontFamily:'var(--ff-display)', letterSpacing:'-0.01em', margin:'14px 0 32px' }}>
+        son tuyas.
       </p>
 
       <div style={{
@@ -394,6 +394,26 @@ function BrainSlide({ report }) {
   const dominant = distribucion.reduce((a, b) => a.min > b.min ? a : b);
   const impact = BRAIN_IMPACT[dominant.label] || BRAIN_IMPACT['Audiolibros'];
 
+  const [countedTotal, setCountedTotal] = React.useState(0);
+  React.useEffect(() => {
+    setCountedTotal(0);
+    let rafId;
+    const tid = setTimeout(() => {
+      let startTs = null;
+      const duration = 1400;
+      const step = (timestamp) => {
+        if (!startTs) startTs = timestamp;
+        const elapsed = timestamp - startTs;
+        const progress = Math.min(1, elapsed / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setCountedTotal(Math.round(eased * total));
+        if (progress < 1) { rafId = requestAnimationFrame(step); }
+      };
+      rafId = requestAnimationFrame(step);
+    }, 450);
+    return () => { clearTimeout(tid); if (rafId) cancelAnimationFrame(rafId); };
+  }, [total]);
+
   return (
     <div style={{
       position:'absolute', inset:0,
@@ -415,15 +435,30 @@ function BrainSlide({ report }) {
 
       {/* Donut + center */}
       <div style={{ position:'relative', marginBottom:18, animation:'mtxBrainIn .5s .1s both' }}>
-        <DonutChart segments={distribucion} size={180}/>
+        <DonutChart segments={distribucion} size={210}/>
         <div style={{
           position:'absolute', inset:0,
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
         }}>
-          <span style={{ fontSize:26, fontWeight:900, color:'var(--ink-1)', fontFamily:'var(--ff-display)', letterSpacing:'-0.03em', lineHeight:1 }}>{total}</span>
-          <span style={{ fontSize:11, color:'var(--ink-3)', fontWeight:600, fontFamily:'var(--ff-sans)' }}>min</span>
+          <span style={{
+            fontSize:32, fontWeight:900, color:'var(--ink-1)',
+            fontFamily:'var(--ff-display)', letterSpacing:'-0.03em', lineHeight:1,
+            textShadow:'0 0 20px rgba(255,255,255,0.3)',
+          }}>{countedTotal}</span>
+          <span style={{ fontSize:12, color:'var(--ink-3)', fontWeight:600, fontFamily:'var(--ff-sans)' }}>min</span>
         </div>
       </div>
+
+      {/* Elegiste aprender */}
+      <p style={{
+        fontSize:16, fontWeight:700, color:'var(--ink-1)', fontFamily:'var(--ff-display)',
+        letterSpacing:'-0.01em', margin:'0 0 20px',
+        animation:'mtxBrainIn .5s .2s both',
+      }}>
+        Elegiste{' '}
+        <span style={{ color: dominant.color }}>aprender</span>
+        {' '}esta semana.
+      </p>
 
       {/* Category pills */}
       <div style={{ display:'flex', gap:8, marginBottom:24, flexWrap:'wrap', justifyContent:'center', animation:'mtxBrainIn .5s .25s both' }}>
@@ -643,7 +678,7 @@ function ProjectionSlide({ report }) {
       </p>
 
       {/* Human equivalences */}
-      <div style={{ display:'flex', gap:8, animation:'mtxImpactIn .5s .8s both' }}>
+      <div style={{ display:'flex', gap:8, marginBottom:20, animation:'mtxImpactIn .5s .8s both' }}>
         {humanCards.map((c, i) => (
           <div key={i} style={{
             flex:1, padding:'12px 10px', borderRadius:16, textAlign:'center',
@@ -653,6 +688,22 @@ function ProjectionSlide({ report }) {
             <div style={{ fontSize:10, color:'var(--ink-4)', fontFamily:'var(--ff-sans)', lineHeight:1.3 }}>{c.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Investment message */}
+      <div style={{
+        width:'100%', maxWidth:320, padding:'14px 18px', borderRadius:18,
+        background:'rgba(61,255,209,0.06)', border:'0.5px solid rgba(61,255,209,0.2)',
+        animation:'mtxImpactIn .5s 1s both',
+        textAlign:'left',
+      }}>
+        <p style={{ margin:'0 0 4px', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'rgba(61,255,209,0.55)', fontFamily:'var(--ff-sans)' }}>
+          Úsalos en lo que importa
+        </p>
+        <p style={{ margin:0, fontSize:14, color:'var(--ink-2)', fontFamily:'var(--ff-sans)', lineHeight:1.55, fontWeight:500 }}>
+          Tus proyectos, tu familia, tu negocio…
+          {' '}<span style={{ color:'#3dffd1', fontWeight:700 }}>o sigue aprendiendo con Mentex.</span>
+        </p>
       </div>
     </div>
   );
@@ -919,9 +970,9 @@ function ShareSlide({ report, onClose }) {
 
 // ── ReportStoryPlayer ─────────────────────────────────────────────────────────
 function ReportStoryPlayer({ report, onClose }) {
-  const SLIDE_COMPONENTS = [HeroSlide, RecoveredSlide, BrainSlide, CognitiveEdgeSlide, ProjectionSlide, TransformationSlide, ShareSlide];
+  const SLIDE_COMPONENTS = [HeroSlide, BrainSlide, CognitiveEdgeSlide, RecoveredSlide, ProjectionSlide, TransformationSlide, ShareSlide];
   const TOTAL_SLIDES = SLIDE_COMPONENTS.length;
-  const DURATIONS = [5000, 8000, 9000, 9000, 10000, 9000, 0];
+  const DURATIONS = [5000, 9000, 9000, 8000, 10000, 9000, 0];
 
   const [current, setCurrent] = React.useState(0);
   const [segProgress, setSegProgress] = React.useState(0);
@@ -1197,36 +1248,37 @@ function ProgressReportGallery({ onClose }) {
       background:'#050706',
       display:'flex', flexDirection:'column',
       overflow:'hidden',
-      animation:'mtxNotifInFull .35s cubic-bezier(.25,.8,.25,1) both',
+      animation:'mtxPrgIn .3s cubic-bezier(0.22,1,0.36,1) both',
     }}>
       <style>{`
-        @keyframes mtxNotifInFull { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes mtxPrgIn { from{transform:translateX(32px);opacity:0} to{transform:translateX(0);opacity:1} }
       `}</style>
 
-      {/* Nav header */}
-      <div style={{ flexShrink:0, paddingTop:54, paddingLeft:20, paddingRight:20, paddingBottom:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
+      {/* Nav header — mismo patrón que SubScreen */}
+      <div style={{
+        flexShrink:0, paddingTop:60,
+        background:'linear-gradient(180deg, rgba(5,7,7,0.98) 0%, rgba(8,11,10,0.95) 100%)',
+        backdropFilter:'blur(18px)', WebkitBackdropFilter:'blur(18px)',
+        borderBottom:'0.5px solid rgba(255,255,255,0.04)',
+      }}>
+        <div style={{ padding:'14px 12px', display:'flex', alignItems:'center', gap:8 }}>
           <button
             onClick={onClose}
+            aria-label="Volver"
             style={{
-              width:38, height:38, borderRadius:999,
-              border:'0.5px solid rgba(255,255,255,0.1)',
-              background:'rgba(255,255,255,0.05)',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              cursor:'pointer', flexShrink:0,
+              width:36, height:36, borderRadius:999, flexShrink:0,
+              background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.08)',
+              color:'var(--ink-1)', cursor:'pointer',
+              display:'inline-flex', alignItems:'center', justifyContent:'center',
             }}
           >
-            <IcChevL size={18} stroke="var(--ink-1)" strokeWidth={2}/>
+            <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
           </button>
-          <div>
-            <h1 style={{
-              fontSize:22, fontWeight:900, color:'var(--ink-1)',
-              fontFamily:'var(--ff-display)', letterSpacing:'-0.02em', margin:0,
-            }}>Mi Progreso</h1>
-            <p style={{ fontSize:12, color:'var(--ink-3)', fontFamily:'var(--ff-sans)', margin:'2px 0 0' }}>
-              Reportes semanales de tu transformación
-            </p>
-          </div>
+          <h1 style={{
+            flex:1, textAlign:'center', margin:0, fontSize:16, fontWeight:600,
+            color:'var(--ink-1)', letterSpacing:'-0.02em', fontFamily:'var(--ff-sans)',
+          }}>Mi Progreso</h1>
+          <div style={{ width:36, flexShrink:0 }}/>
         </div>
       </div>
 

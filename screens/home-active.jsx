@@ -1011,13 +1011,7 @@ function DisableProtectionConfirmModal() {
     };
   }, [confirmDisableOpen]);
 
-  if (!confirmDisableOpen) return null;
-
-  const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
-  // Ring 180x180 — mismo patrón hero que ReflectionDelayScreen
-  const ringR = 82, ringC = 2 * Math.PI * ringR;
-
-  // Theme rotativo + breath phase compartidos desde session-flow.jsx
+  // Todos los hooks deben estar antes del early return (Rules of Hooks)
   const theme = React.useMemo(
     () => (typeof window !== 'undefined' && window._pickAndAdvanceModalTheme)
       ? window._pickAndAdvanceModalTheme()
@@ -1028,6 +1022,12 @@ function DisableProtectionConfirmModal() {
     ? window.useBreathPhase(5000)
     : 'Respira';
   const Aurora = (typeof window !== 'undefined' && window.ConfirmAuroraBackground) || (() => null);
+
+  if (!confirmDisableOpen) return null;
+
+  const ringPct = (COUNTDOWN_TOTAL - seconds) / COUNTDOWN_TOTAL;
+  // Ring 180x180 — mismo patrón hero que ReflectionDelayScreen
+  const ringR = 82, ringC = 2 * Math.PI * ringR;
 
   return (
     <div style={{

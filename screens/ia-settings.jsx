@@ -313,8 +313,9 @@ function AssistantConfigSheet(props) {
       zIndex: 100,
       background: '#0F1313',
       display: 'flex', flexDirection: 'column',
-      animation: 'mtx-fade-up .35s ease both',
+      animation: 'mtx-ia-settings-in .32s cubic-bezier(.25,.46,.45,.94) both',
     }}>
+      <style>{`@keyframes mtx-ia-settings-in { from { transform:translateX(32px); opacity:0; } to { transform:none; opacity:1; } }`}</style>
       {/* Header con paddingTop:60 para que el contenido (back + título +
           tabs) quede debajo del status bar / dynamic island del iPhone.
           paddingTop:18 + paddingBottom:14 dan aire al título y al back. */}
@@ -550,7 +551,7 @@ function PersonalityTab() {
       </div>
 
       {/* Emojis toggle */}
-      <ToggleRow
+      <IAToggleRow
         label="Usar emojis"
         desc="El coach incluye emojis en sus respuestas para dar tono visual"
         value={agent.emojis}
@@ -657,7 +658,7 @@ function SliderRow(props) {
 }
 
 
-function ToggleRow(props) {
+function IAToggleRow(props) {
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', gap: 12,

@@ -323,10 +323,174 @@
   }
 
 
+  // ── PremiumSuccessScreen ───────────────────────────────────────────────────
+  // Pantalla de celebración post-suscripción. Aparece UNA SOLA VEZ después del
+  // onboarding cuando el user selecciona un plan de pago (selectedPlan !== 'free').
+  // MentexApp detecta la transición onboarding→app con plan pago y monta este
+  // overlay (zIndex:55) encima de la app. El user toca "Comenzar" y el overlay
+  // se desmonta — la app queda visible debajo sin ningún flash.
+  function PremiumSuccessScreen({ onStart }) {
+    const [dismissed, setDismissed] = React.useState(false);
+
+    const handleStart = () => {
+      setDismissed(true);
+      setTimeout(onStart, 380);
+    };
+
+    // Confetti — 34 piezas, colores del universo Mentex + fiesta
+    const CONFETTI_COLORS = ['#3dffd1','#7dffe0','#FFD66B','#9b8aff','#ff6b9d','#4d96ff','#c77dff','#ffd93d','#6bcb77'];
+    const confettiPieces = Array.from({ length: 34 }, (_, i) => {
+      const left  = (i * 11 + 3) % 100;
+      const delay = (i * 0.21) % 5;
+      const dur   = 3.0 + (i % 6) * 0.38;
+      const anim  = i % 3;
+      const size  = 4 + (i % 4) * 2;
+      const round = i % 3 !== 1;
+      return { left, delay, dur, anim, size, round, color: CONFETTI_COLORS[i % CONFETTI_COLORS.length] };
+    });
+
+    // Bokeh blobs — luz difusa de colores de fondo (como en la referencia)
+    const BOKEH = [
+      { left:'6%',  top:'20%', color:'#ff6b9d', size:110, blur:48 },
+      { left:'72%', top:'22%', color:'#ffd93d',  size:80,  blur:36 },
+      { left:'10%', top:'58%', color:'#4d96ff',  size:95,  blur:42 },
+      { left:'76%', top:'60%', color:'#c77dff',  size:105, blur:44 },
+      { left:'42%', top:'4%',  color:'#3dffd1',  size:72,  blur:36 },
+      { left:'58%', top:'78%', color:'#ff6b9d',  size:78,  blur:40 },
+      { left:'28%', top:'80%', color:'#6bcb77',  size:65,  blur:34 },
+    ];
+
+    return (
+      <div style={{
+        position:'absolute', inset:0, zIndex:55,
+        background:'#050706',
+        display:'flex', flexDirection:'column',
+        alignItems:'center', justifyContent:'space-between',
+        overflow:'hidden',
+        animation: dismissed
+          ? 'mtxPremiumOut .38s cubic-bezier(.4,0,1,1) both'
+          : 'mtxPremiumIn .6s cubic-bezier(.25,.8,.25,1) both',
+      }}>
+        <style>{`
+          @keyframes mtxPremiumIn  { from { opacity:0; transform:scale(0.96) } to { opacity:1; transform:scale(1) } }
+          @keyframes mtxPremiumOut { from { opacity:1; transform:scale(1)    } to { opacity:0; transform:scale(1.04) } }
+          @keyframes mtxPremiumBadge { 0%{opacity:0;transform:scale(0.25) rotate(-18deg)} 65%{transform:scale(1.14) rotate(4deg);opacity:1} 100%{transform:scale(1) rotate(0deg);opacity:1} }
+          @keyframes mtxPremiumGlow  { 0%,100%{box-shadow:0 0 32px rgba(61,255,209,.45),0 0 60px rgba(61,255,209,.18)} 50%{box-shadow:0 0 52px rgba(61,255,209,.65),0 0 90px rgba(61,255,209,.30)} }
+          @keyframes mtxPremiumC0 { 0%{transform:translateY(-16px) rotate(0);opacity:0} 8%{opacity:1} 100%{transform:translateY(980px) rotate(390deg);opacity:0} }
+          @keyframes mtxPremiumC1 { 0%{transform:translateY(-16px) rotate(0);opacity:0} 8%{opacity:1} 100%{transform:translateY(870px) rotate(-390deg);opacity:0} }
+          @keyframes mtxPremiumC2 { 0%{transform:translateY(-16px) rotate(0);opacity:0} 8%{opacity:1} 100%{transform:translateY(1060px) rotate(210deg);opacity:0} }
+          @keyframes mtxPremiumTextIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes mtxPremiumCTAIn  { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+        `}</style>
+
+        {/* Bokeh background blobs */}
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0 }}>
+          {BOKEH.map((b, i) => (
+            <div key={i} style={{
+              position:'absolute', left:b.left, top:b.top,
+              width:b.size, height:b.size, borderRadius:'50%',
+              background:b.color,
+              filter:`blur(${b.blur}px)`,
+              opacity:0.52,
+              transform:'translateX(-50%) translateY(-50%)',
+            }}/>
+          ))}
+        </div>
+
+        {/* Falling confetti */}
+        {confettiPieces.map((p, i) => (
+          <div key={i} style={{
+            position:'absolute', top:-14, left:`${p.left}%`,
+            width:p.size, height:p.round ? p.size : p.size * 1.9,
+            borderRadius: p.round ? '50%' : 2,
+            background:p.color, opacity:0.88,
+            animation:`mtxPremiumC${p.anim} ${p.dur}s cubic-bezier(.25,.46,.45,.94) ${p.delay}s infinite`,
+            pointerEvents:'none', zIndex:1,
+          }}/>
+        ))}
+
+        {/* ── Centro: pill con ring iridiscente ── */}
+        <div style={{
+          flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+          position:'relative', zIndex:2, width:'100%',
+        }}>
+          {/* Ring wrapper — padding crea el borde de color */}
+          <div style={{
+            position:'relative',
+            width:228, height:308,
+            borderRadius:76,
+            padding:3.5,
+            background:'conic-gradient(from 210deg at 50% 50%, #ff6b9d 0%, #ffd93d 16%, #6bcb77 30%, #3dffd1 46%, #4d96ff 62%, #c77dff 78%, #ff9f6b 90%, #ff6b9d 100%)',
+            boxShadow:'0 0 55px rgba(61,255,209,.16), 0 0 110px rgba(155,85,255,.12)',
+          }}>
+            {/* Glass inner pill */}
+            <div style={{
+              width:'100%', height:'100%',
+              borderRadius:72,
+              background:'rgba(5,7,6,0.91)',
+              backdropFilter:'blur(24px)',
+              WebkitBackdropFilter:'blur(24px)',
+              border:'0.5px solid rgba(255,255,255,0.07)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+            }}>
+              {/* Neon check badge */}
+              <div style={{
+                width:70, height:70, borderRadius:999,
+                background:'linear-gradient(145deg, #3dffd1, #1dc9a0)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                animation:'mtxPremiumBadge .82s cubic-bezier(.175,.885,.32,1.275) .35s both, mtxPremiumGlow 2.6s ease-in-out 1.2s infinite',
+              }}>
+                <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+                  <path d="M8 17.5L14.5 24L26 12" stroke="#050706" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Bottom: texto + CTA ── */}
+        <div style={{ width:'100%', padding:'0 28px 46px', zIndex:2, textAlign:'center' }}>
+          <h1 style={{
+            margin:'0 0 9px',
+            fontSize:32, fontWeight:800,
+            color:'var(--ink-1)', letterSpacing:'-0.025em', lineHeight:1.1,
+            fontFamily:'var(--ff-sans)',
+            animation:'mtxPremiumTextIn .5s ease .92s both',
+          }}>¡Todo listo!</h1>
+          <p style={{
+            margin:'0 0 26px',
+            fontSize:14.5, lineHeight:1.6, color:'var(--ink-3)',
+            fontFamily:'var(--ff-sans)',
+            animation:'mtxPremiumTextIn .5s ease 1.06s both',
+          }}>
+            Tu suscripción está activa.<br/>Bienvenido a Mentex Premium.
+          </p>
+          <button
+            type="button"
+            onClick={handleStart}
+            className="mtx-tap"
+            style={{
+              width:'100%', padding:'17px 24px',
+              borderRadius:100, border:'none', cursor:'pointer',
+              background:'var(--ink-1)', color:'#030a07',
+              fontSize:16, fontWeight:800,
+              fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+              animation:'mtxPremiumCTAIn .5s ease 1.22s both',
+            }}
+          >
+            Comenzar a escuchar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+
   // ── Export ─────────────────────────────────────────────────────────────────
   Object.assign(window, {
     PremiumLockSheet: PremiumLockSheet,
     PremiumLockChip: PremiumLockChip,
+    PremiumSuccessScreen: PremiumSuccessScreen,
     PREMIUM_FEATURE_MESSAGES: FEATURE_MESSAGES,
   });
 

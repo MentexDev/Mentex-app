@@ -35,7 +35,7 @@
   <script type="text/babel" src="components/mtx-scheduler.jsx?v=3"></script>
   <script type="text/babel" src="screens/auth-flow.jsx?v=18"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=9"></script>
-  <script type="text/babel" src="screens/premium-gate.jsx?v=2"></script>
+  <script type="text/babel" src="screens/premium-gate.jsx?v=3"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=44"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=51"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -426,6 +426,10 @@
       const authState = (typeof window.useAuth === 'function') ? window.useAuth() : { isAuthenticated: false, user: null };
       const initialView = (typeof window.getInitialAuthView === 'function') ? window.getInitialAuthView() : 'app';
       const [authView, setAuthView] = React.useState(initialView);
+      // Pantalla de celebración post-suscripción: se activa una sola vez
+      // cuando el user completa el onboarding con un plan de pago.
+      const [showTrialSuccess, setShowTrialSuccess] = React.useState(false);
+      const prevAuthViewRef = React.useRef(initialView);
 
       // Re-evaluar la vista cuando cambia el state de auth (login/logout).
       // No solo respeta authState reactive — también permite que screens
@@ -444,6 +448,20 @@
           if (authView === 'app') setAuthView('splash');
         }
       }, [authState.isAuthenticated, authState.user]);
+
+      // Detecta la transición onboarding→app: si el plan es de pago, muestra
+      // la pantalla de celebración antes de dejar ver el app shell.
+      React.useEffect(() => {
+        if (prevAuthViewRef.current === 'onboarding' && authView === 'app') {
+          const plan = (typeof window.__mtxOnboarding !== 'undefined' && window.__mtxOnboarding && window.__mtxOnboarding.get)
+            ? window.__mtxOnboarding.get().answers?.selectedPlan
+            : null;
+          if (plan && plan !== 'free') {
+            setShowTrialSuccess(true);
+          }
+        }
+        prevAuthViewRef.current = authView;
+      }, [authView]);
 
       // Touch lastActiveAt cuando el user está en el app (Phase 6 lo usará).
       React.useEffect(() => {
@@ -499,6 +517,9 @@
             )}
             {authView === 'onboarding' && typeof window.OnboardingScreen !== 'undefined' && (
               <window.OnboardingScreen />
+            )}
+            {showTrialSuccess && typeof window.PremiumSuccessScreen !== 'undefined' && (
+              <window.PremiumSuccessScreen onStart={() => setShowTrialSuccess(false)} />
             )}
 
             <div className="mtx-bg" style={{

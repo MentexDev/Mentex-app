@@ -393,9 +393,727 @@ function ComingSoonSubScreen({ title, icon: Ic, iconBg, onBack }) {
   );
 }
 
+// ── CeLoadingDots (inline spinner para botones de email/pw flow) ───────────────
+function CeLoadingDots() {
+  return (
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+      <style>{`@keyframes ceDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
+      {[0, 1, 2].map(i => (
+        <span key={i} style={{
+          width: 5, height: 5, borderRadius: '50%',
+          background: 'currentColor', display: 'inline-block',
+          animation: `ceDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+        }}/>
+      ))}
+    </span>
+  );
+}
+
+// ── ChangeEmailSheet ───────────────────────────────────────────────────────────
+function ChangeEmailSheet({ currentEmail, onClose, onSuccess }) {
+  const root = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
+
+  const [step, setStep] = React.useState(1);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const [pw, setPw] = React.useState('');
+  const [showPw, setShowPw] = React.useState(false);
+  const [focusPw, setFocusPw] = React.useState(false);
+
+  const [newEmail, setNewEmail] = React.useState('');
+  const [focusEmail, setFocusEmail] = React.useState(false);
+
+  const [otp, setOtp] = React.useState(['', '', '', '', '', '']);
+  const otpRef0 = React.useRef(null);
+  const otpRef1 = React.useRef(null);
+  const otpRef2 = React.useRef(null);
+  const otpRef3 = React.useRef(null);
+  const otpRef4 = React.useRef(null);
+  const otpRef5 = React.useRef(null);
+  const otpRefs = [otpRef0, otpRef1, otpRef2, otpRef3, otpRef4, otpRef5];
+
+  const [resendCooldown, setResendCooldown] = React.useState(0);
+  React.useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  if (!root) return null;
+
+  const inputWrap = (focused, hasErr) => ({
+    position: 'relative', display: 'flex', alignItems: 'center',
+    padding: '0 14px', height: 50, borderRadius: 13,
+    background: 'rgba(255,255,255,0.03)',
+    border: `0.5px solid ${hasErr ? 'rgba(255,74,110,0.55)' : focused ? 'rgba(61,255,209,0.35)' : 'rgba(255,255,255,0.09)'}`,
+    boxShadow: focused ? '0 0 0 3px rgba(61,255,209,0.07)' : 'none',
+    transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+  });
+  const inputStyle = {
+    flex: 1, background: 'none', border: 'none', outline: 'none', padding: 0,
+    fontSize: 14.5, fontWeight: 500, color: 'var(--ink-1)',
+    fontFamily: 'var(--ff-sans)', letterSpacing: '-0.01em',
+  };
+
+  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
+  const otpFull = otp.join('');
+
+  const handleStep1 = () => {
+    if (!pw || loading) return;
+    setError('');
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (pw.length < 3) { setError('Contraseña incorrecta. Inténtalo de nuevo.'); return; }
+      setStep(2);
+    }, 1200);
+  };
+
+  const handleStep2 = () => {
+    if (!isValidEmail(newEmail) || loading) return;
+    if (newEmail.trim().toLowerCase() === (currentEmail || '').toLowerCase()) {
+      setError('El nuevo email debe ser diferente al actual.'); return;
+    }
+    setError('');
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setResendCooldown(30);
+      setStep(3);
+    }, 1200);
+  };
+
+  const handleStep3 = () => {
+    if (otpFull.length < 6 || loading) return;
+    setError('');
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (otpFull === '000000') { setError('Código incorrecto. Verifica tu correo.'); return; }
+      setStep(4);
+      if (window.__mtxAuth && typeof window.__mtxAuth.updateEmail === 'function') {
+        window.__mtxAuth.updateEmail(newEmail.trim());
+      }
+      onSuccess(newEmail.trim());
+    }, 1200);
+  };
+
+  const handleResend = () => {
+    if (resendCooldown > 0) return;
+    setResendCooldown(30);
+    setOtp(['', '', '', '', '', '']);
+    otpRef0.current && otpRef0.current.focus();
+  };
+
+  const handleOtpChange = (idx, val) => {
+    const digits = val.replace(/\D/g, '');
+    if (!digits) {
+      const next = [...otp]; next[idx] = ''; setOtp(next); return;
+    }
+    if (digits.length >= 6 && idx === 0) {
+      const arr = digits.slice(0, 6).split('');
+      setOtp(arr);
+      otpRefs[5].current && otpRefs[5].current.focus();
+      return;
+    }
+    const next = [...otp]; next[idx] = digits[0]; setOtp(next);
+    if (digits[0] && idx < 5) otpRefs[idx + 1].current && otpRefs[idx + 1].current.focus();
+  };
+
+  const handleOtpKeyDown = (idx, e) => {
+    if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+      otpRefs[idx - 1].current && otpRefs[idx - 1].current.focus();
+    }
+  };
+
+  const stepTitles = ['', 'Confirma tu contraseña', 'Nuevo correo electrónico', 'Verifica tu correo', '¡Email actualizado!'];
+  const stepDescs  = [
+    '',
+    'Por seguridad, confirma tu contraseña actual antes de cambiar tu email.',
+    `Tu email actual es ${currentEmail || '—'}. Ingresa la nueva dirección.`,
+    `Enviamos un código de 6 dígitos a ${newEmail || '...'}. Revisa tu bandeja de entrada.`,
+    '',
+  ];
+
+  const canStep1  = !!pw && !loading;
+  const canStep2  = isValidEmail(newEmail) && !loading;
+  const canStep3  = otpFull.length === 6 && !loading;
+
+  return ReactDOM.createPortal(
+    <div style={{ position: 'absolute', inset: 0, zIndex: 165, display: 'flex', alignItems: 'flex-end' }}>
+      <style>{`@keyframes ceMailUp { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
+      <div role="button" tabIndex={-1} aria-label="Cerrar"
+        onClick={step < 4 ? onClose : undefined}
+        onKeyDown={e => e.key === 'Escape' && onClose()}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+      />
+      <div onClick={e => e.stopPropagation()} style={{
+        position: 'relative', zIndex: 1, width: '100%',
+        background: 'linear-gradient(180deg, rgba(5,7,7,0.99) 0%, rgba(8,11,10,1) 100%)',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        border: '0.5px solid rgba(255,255,255,0.09)', borderBottom: 'none',
+        padding: '12px 20px 44px',
+        animation: 'ceMailUp .32s cubic-bezier(.22,1,.36,1) both',
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 16 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.16)' }}/>
+        </div>
+
+        {/* Step dots */}
+        {step < 4 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                height: 3, borderRadius: 999,
+                width: i === step ? 20 : 8,
+                background: i <= step ? 'var(--neon)' : 'rgba(255,255,255,0.12)',
+                boxShadow: i === step ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
+                transition: 'all 0.3s ease',
+              }}/>
+            ))}
+          </div>
+        )}
+
+        {/* Icon */}
+        {step < 4 ? (
+          <div style={{
+            width: 64, height: 64, borderRadius: 20, margin: '0 auto 18px',
+            background: 'rgba(61,255,209,0.10)', border: '0.5px solid rgba(61,255,209,0.25)',
+            boxShadow: '0 0 32px rgba(61,255,209,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {step === 1
+              ? <IcLock size={28} stroke="var(--neon)" strokeWidth={1.6}/>
+              : <IcMail size={28} stroke="var(--neon)" strokeWidth={1.6}/>}
+          </div>
+        ) : (
+          <div style={{
+            width: 72, height: 72, borderRadius: 24, margin: '0 auto 20px',
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.25) 0%, rgba(61,255,209,0.08) 100%)',
+            border: '0.5px solid rgba(61,255,209,0.4)',
+            boxShadow: '0 0 40px rgba(61,255,209,0.28)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <IcCheck size={34} stroke="var(--neon)" strokeWidth={2.2}/>
+          </div>
+        )}
+
+        {/* Title + description */}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink-1)', letterSpacing: '-0.025em', fontFamily: 'var(--ff-display)', marginBottom: 8 }}>
+            {stepTitles[step]}
+          </div>
+          {step < 4 && stepDescs[step] && (
+            <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, letterSpacing: '-0.01em' }}>{stepDescs[step]}</div>
+          )}
+          {step === 4 && (
+            <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, letterSpacing: '-0.01em' }}>
+              Tu email fue actualizado a<br/>
+              <span style={{ color: 'var(--neon)', fontWeight: 600 }}>{newEmail}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ─ Step 1: confirm current password ─ */}
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={inputWrap(focusPw, !!error)}>
+              <IcLock size={16} stroke="rgba(255,255,255,0.25)" strokeWidth={1.7} style={{ flexShrink: 0, marginRight: 10 }}/>
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={pw}
+                onChange={e => { setPw(e.target.value); setError(''); }}
+                onFocus={() => setFocusPw(true)}
+                onBlur={() => setFocusPw(false)}
+                onKeyDown={e => e.key === 'Enter' && handleStep1()}
+                placeholder="Tu contraseña actual"
+                autoComplete="current-password"
+                style={inputStyle}
+              />
+              <button onClick={() => setShowPw(p => !p)} tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowPw(p => !p); } }}
+                aria-label={showPw ? 'Ocultar' : 'Mostrar'}
+                style={{ flexShrink: 0, cursor: 'pointer', background: 'none', border: 'none', padding: '4px 0 4px 8px', display: 'flex', alignItems: 'center' }}>
+                <IcEye size={17} stroke={showPw ? 'var(--neon)' : 'rgba(255,255,255,0.25)'} strokeWidth={1.7}/>
+              </button>
+            </div>
+            {error && <div style={{ fontSize: 11.5, color: '#FF4A6E', paddingLeft: 2 }}>{error}</div>}
+            <button onClick={handleStep1} disabled={!canStep1} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStep1(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: canStep1 ? 'pointer' : 'default',
+                background: canStep1 ? 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)' : 'rgba(255,255,255,0.05)',
+                color: canStep1 ? '#0D1210' : 'rgba(255,255,255,0.22)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: canStep1 ? '0 4px 24px rgba(61,255,209,0.28)' : 'none',
+                transition: 'all 0.22s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {loading ? <CeLoadingDots/> : 'Continuar'}
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 2: new email ─ */}
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={inputWrap(focusEmail, !!error)}>
+              <IcMail size={16} stroke="rgba(255,255,255,0.25)" strokeWidth={1.7} style={{ flexShrink: 0, marginRight: 10 }}/>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => { setNewEmail(e.target.value); setError(''); }}
+                onFocus={() => setFocusEmail(true)}
+                onBlur={() => setFocusEmail(false)}
+                onKeyDown={e => e.key === 'Enter' && isValidEmail(newEmail) && handleStep2()}
+                placeholder="nuevo@email.com"
+                autoComplete="email"
+                autoCapitalize="none"
+                style={inputStyle}
+              />
+              {isValidEmail(newEmail) && (
+                <IcCheck size={16} stroke="var(--neon)" strokeWidth={2.2} style={{ flexShrink: 0, marginLeft: 4 }}/>
+              )}
+            </div>
+            {error && <div style={{ fontSize: 11.5, color: '#FF4A6E', paddingLeft: 2 }}>{error}</div>}
+            <button onClick={handleStep2} disabled={!canStep2} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStep2(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: canStep2 ? 'pointer' : 'default',
+                background: canStep2 ? 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)' : 'rgba(255,255,255,0.05)',
+                color: canStep2 ? '#0D1210' : 'rgba(255,255,255,0.22)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: canStep2 ? '0 4px 24px rgba(61,255,209,0.28)' : 'none',
+                transition: 'all 0.22s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {loading ? <CeLoadingDots/> : 'Enviar código de verificación'}
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 3: OTP ─ */}
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              {otp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={otpRefs[i]}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={i === 0 ? 6 : 1}
+                  value={digit}
+                  onChange={e => handleOtpChange(i, e.target.value)}
+                  onKeyDown={e => handleOtpKeyDown(i, e)}
+                  style={{
+                    width: 44, height: 52, borderRadius: 12, textAlign: 'center',
+                    fontSize: 20, fontWeight: 700, fontFamily: 'var(--ff-display)',
+                    color: 'var(--ink-1)',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: `0.5px solid ${digit ? 'rgba(61,255,209,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                    boxShadow: digit ? '0 0 10px rgba(61,255,209,0.12)' : 'none',
+                    outline: 'none', caretColor: 'transparent',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                  }}
+                />
+              ))}
+            </div>
+            {error && <div style={{ fontSize: 11.5, color: '#FF4A6E', textAlign: 'center' }}>{error}</div>}
+            <button onClick={handleStep3} disabled={!canStep3} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStep3(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: canStep3 ? 'pointer' : 'default',
+                background: canStep3 ? 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)' : 'rgba(255,255,255,0.05)',
+                color: canStep3 ? '#0D1210' : 'rgba(255,255,255,0.22)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: canStep3 ? '0 4px 24px rgba(61,255,209,0.28)' : 'none',
+                transition: 'all 0.22s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {loading ? <CeLoadingDots/> : 'Verificar código'}
+            </button>
+            <button onClick={handleResend} disabled={resendCooldown > 0} tabIndex={0}
+              onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && resendCooldown === 0) { e.preventDefault(); handleResend(); } }}
+              style={{
+                background: 'none', border: 'none', cursor: resendCooldown > 0 ? 'default' : 'pointer',
+                textAlign: 'center', fontSize: 13.5, fontWeight: 600,
+                color: resendCooldown > 0 ? 'rgba(255,255,255,0.22)' : 'var(--neon)',
+                fontFamily: 'var(--ff-sans)', letterSpacing: '-0.01em',
+              }}>
+              {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 4: success ─ */}
+        {step === 4 && (
+          <button onClick={onClose} className="mtx-tap" tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
+            style={{
+              width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)',
+              color: '#0D1210', fontSize: 15.5, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+              boxShadow: '0 4px 24px rgba(61,255,209,0.28)',
+            }}>
+            Listo
+          </button>
+        )}
+      </div>
+    </div>,
+    root
+  );
+}
+
+// ── ChangePasswordSheet ────────────────────────────────────────────────────────
+function ChangePasswordSheet({ onClose, onSuccess }) {
+  const root = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
+
+  const [step, setStep] = React.useState(1);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const [pwActual,   setPwActual]   = React.useState('');
+  const [showActual, setShowActual] = React.useState(false);
+  const [focusActual, setFocusActual] = React.useState(false);
+
+  const [pwNueva,     setPwNueva]     = React.useState('');
+  const [pwConfirm,   setPwConfirm]   = React.useState('');
+  const [showNueva,   setShowNueva]   = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
+  const [focusNueva,  setFocusNueva]  = React.useState(false);
+  const [focusConfirm, setFocusConfirm] = React.useState(false);
+
+  if (!root) return null;
+
+  const strength   = _stgPwStrength(pwNueva);
+  const strLabel   = _STG_STR_LABEL[strength] || '';
+  const strColor   = _STG_STR_COLOR[strength] || 'transparent';
+  const pwMatch    = pwNueva.length > 0 && pwConfirm.length > 0 && pwNueva === pwConfirm;
+  const pwMismatch = pwConfirm.length > 0 && pwNueva !== pwConfirm;
+
+  const inputWrap = (focused, hasErr) => ({
+    position: 'relative', display: 'flex', alignItems: 'center',
+    padding: '0 14px', height: 50, borderRadius: 13,
+    background: 'rgba(255,255,255,0.03)',
+    border: `0.5px solid ${hasErr ? 'rgba(255,74,110,0.55)' : focused ? 'rgba(61,255,209,0.35)' : 'rgba(255,255,255,0.09)'}`,
+    boxShadow: focused ? '0 0 0 3px rgba(61,255,209,0.07)' : 'none',
+    transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+  });
+  const inputStyle = {
+    flex: 1, background: 'none', border: 'none', outline: 'none', padding: 0,
+    fontSize: 14.5, fontWeight: 500, color: 'var(--ink-1)',
+    fontFamily: 'var(--ff-sans)', letterSpacing: '-0.01em',
+  };
+  const eyeBtn = (show, toggle) => (
+    <button onClick={toggle} tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+      aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      style={{ flexShrink: 0, cursor: 'pointer', background: 'none', border: 'none', padding: '4px 0 4px 8px', display: 'flex', alignItems: 'center' }}>
+      <IcEye size={17} stroke={show ? 'var(--neon)' : 'rgba(255,255,255,0.25)'} strokeWidth={1.7}/>
+    </button>
+  );
+
+  const handleStep1 = () => {
+    if (!pwActual || loading) return;
+    setError('');
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (pwActual.length < 3) { setError('Contraseña incorrecta. Inténtalo de nuevo.'); return; }
+      setStep(2);
+    }, 1200);
+  };
+
+  const handleStep2 = () => {
+    if (!pwMatch || pwNueva.length < 8 || loading) return;
+    setError('');
+    setStep(3);
+  };
+
+  const handleConfirm = () => {
+    if (loading) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (window.__mtxAuth && typeof window.__mtxAuth.changePassword === 'function') {
+        window.__mtxAuth.changePassword(pwNueva);
+      }
+      setStep(4);
+      onSuccess();
+    }, 1200);
+  };
+
+  const canStep1 = !!pwActual && !loading;
+  const canStep2 = pwMatch && pwNueva.length >= 8;
+
+  const stepMeta = [null,
+    { title: 'Contraseña actual',   desc: 'Por seguridad, confirma tu contraseña actual para continuar.' },
+    { title: 'Nueva contraseña',    desc: 'Elige una contraseña segura de al menos 8 caracteres.' },
+    { title: '¿Confirmar cambio?',  desc: 'Tu nueva contraseña quedará activa de inmediato. Cerraremos sesión en tus otros dispositivos.' },
+    { title: '¡Contraseña actualizada!', desc: null },
+  ];
+  const meta = stepMeta[step] || stepMeta[1];
+
+  return ReactDOM.createPortal(
+    <div style={{ position: 'absolute', inset: 0, zIndex: 165, display: 'flex', alignItems: 'flex-end' }}>
+      <style>{`@keyframes cePwUp { from { transform:translateY(100%); } to { transform:translateY(0); } }`}</style>
+      <div role="button" tabIndex={-1} aria-label="Cerrar"
+        onClick={step < 4 ? onClose : undefined}
+        onKeyDown={e => e.key === 'Escape' && onClose()}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+      />
+      <div onClick={e => e.stopPropagation()} style={{
+        position: 'relative', zIndex: 1, width: '100%',
+        background: 'linear-gradient(180deg, rgba(5,7,7,0.99) 0%, rgba(8,11,10,1) 100%)',
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        border: '0.5px solid rgba(255,255,255,0.09)', borderBottom: 'none',
+        padding: '12px 20px 44px',
+        animation: 'cePwUp .32s cubic-bezier(.22,1,.36,1) both',
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 16 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.16)' }}/>
+        </div>
+
+        {/* Step dots */}
+        {step < 4 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                height: 3, borderRadius: 999,
+                width: i === step ? 20 : 8,
+                background: i <= step ? 'var(--neon)' : 'rgba(255,255,255,0.12)',
+                boxShadow: i === step ? '0 0 8px rgba(61,255,209,0.6)' : 'none',
+                transition: 'all 0.3s ease',
+              }}/>
+            ))}
+          </div>
+        )}
+
+        {/* Icon */}
+        {step < 4 ? (
+          <div style={{
+            width: 64, height: 64, borderRadius: 20, margin: '0 auto 18px',
+            background: step === 3 ? 'rgba(255,214,107,0.10)' : 'rgba(61,255,209,0.10)',
+            border: step === 3 ? '0.5px solid rgba(255,214,107,0.25)' : '0.5px solid rgba(61,255,209,0.25)',
+            boxShadow: step === 3 ? '0 0 32px rgba(255,214,107,0.18)' : '0 0 32px rgba(61,255,209,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {step === 1 && <IcLock   size={28} stroke="var(--neon)"   strokeWidth={1.6}/>}
+            {step === 2 && <IcUnlock size={28} stroke="var(--neon)"   strokeWidth={1.6}/>}
+            {step === 3 && <IcLock   size={28} stroke="#FFD66B" strokeWidth={1.6}/>}
+          </div>
+        ) : (
+          <div style={{
+            width: 72, height: 72, borderRadius: 24, margin: '0 auto 20px',
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.25) 0%, rgba(61,255,209,0.08) 100%)',
+            border: '0.5px solid rgba(61,255,209,0.4)',
+            boxShadow: '0 0 40px rgba(61,255,209,0.28)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <IcCheck size={34} stroke="var(--neon)" strokeWidth={2.2}/>
+          </div>
+        )}
+
+        {/* Title + description */}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink-1)', letterSpacing: '-0.025em', fontFamily: 'var(--ff-display)', marginBottom: 8 }}>
+            {meta.title}
+          </div>
+          {step < 4 && meta.desc && (
+            <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, letterSpacing: '-0.01em' }}>{meta.desc}</div>
+          )}
+          {step === 4 && (
+            <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, letterSpacing: '-0.01em' }}>
+              Tu contraseña está activa. Tus otros dispositivos<br/>han cerrado sesión por seguridad.
+            </div>
+          )}
+        </div>
+
+        {/* ─ Step 1: current password ─ */}
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={inputWrap(focusActual, !!error)}>
+              <IcLock size={16} stroke="rgba(255,255,255,0.25)" strokeWidth={1.7} style={{ flexShrink: 0, marginRight: 10 }}/>
+              <input
+                type={showActual ? 'text' : 'password'}
+                value={pwActual}
+                onChange={e => { setPwActual(e.target.value); setError(''); }}
+                onFocus={() => setFocusActual(true)}
+                onBlur={() => setFocusActual(false)}
+                onKeyDown={e => e.key === 'Enter' && handleStep1()}
+                placeholder="Tu contraseña actual"
+                autoComplete="current-password"
+                style={inputStyle}
+              />
+              {eyeBtn(showActual, () => setShowActual(p => !p))}
+            </div>
+            {error && <div style={{ fontSize: 11.5, color: '#FF4A6E', paddingLeft: 2 }}>{error}</div>}
+            <button onClick={handleStep1} disabled={!canStep1} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStep1(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: canStep1 ? 'pointer' : 'default',
+                background: canStep1 ? 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)' : 'rgba(255,255,255,0.05)',
+                color: canStep1 ? '#0D1210' : 'rgba(255,255,255,0.22)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: canStep1 ? '0 4px 24px rgba(61,255,209,0.28)' : 'none',
+                transition: 'all 0.22s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {loading ? <CeLoadingDots/> : 'Continuar'}
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 2: new password ─ */}
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.32)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 7, paddingLeft: 2 }}>
+                Nueva contraseña
+              </div>
+              <div style={inputWrap(focusNueva, false)}>
+                <IcUnlock size={16} stroke="rgba(255,255,255,0.25)" strokeWidth={1.7} style={{ flexShrink: 0, marginRight: 10 }}/>
+                <input
+                  type={showNueva ? 'text' : 'password'}
+                  value={pwNueva}
+                  onChange={e => setPwNueva(e.target.value)}
+                  onFocus={() => setFocusNueva(true)}
+                  onBlur={() => setFocusNueva(false)}
+                  placeholder="Mín. 8 caracteres"
+                  autoComplete="new-password"
+                  style={inputStyle}
+                />
+                {eyeBtn(showNueva, () => setShowNueva(p => !p))}
+              </div>
+              {pwNueva.length > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} style={{
+                        flex: 1, height: 3, borderRadius: 2,
+                        background: i <= strength ? strColor : 'rgba(255,255,255,0.08)',
+                        transition: 'background 0.22s ease',
+                        boxShadow: i <= strength && strength >= 4 ? `0 0 6px ${strColor}88` : 'none',
+                      }}/>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: strColor, minWidth: 60, textAlign: 'right', letterSpacing: '-0.01em', transition: 'color 0.22s ease' }}>
+                    {strLabel}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.32)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 7, paddingLeft: 2 }}>
+                Confirmar contraseña
+              </div>
+              <div style={{ ...inputWrap(focusConfirm, false), border: `0.5px solid ${pwMismatch ? 'rgba(255,74,110,0.55)' : pwMatch ? 'rgba(61,255,209,0.35)' : focusConfirm ? 'rgba(61,255,209,0.35)' : 'rgba(255,255,255,0.09)'}` }}>
+                <IcUnlock size={16} stroke="rgba(255,255,255,0.25)" strokeWidth={1.7} style={{ flexShrink: 0, marginRight: 10 }}/>
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  value={pwConfirm}
+                  onChange={e => setPwConfirm(e.target.value)}
+                  onFocus={() => setFocusConfirm(true)}
+                  onBlur={() => setFocusConfirm(false)}
+                  placeholder="Repite la contraseña"
+                  autoComplete="new-password"
+                  style={inputStyle}
+                />
+                {pwMatch    && <IcCheck size={16} stroke="var(--neon)" strokeWidth={2.2} style={{ flexShrink: 0, marginLeft: 4 }}/>}
+                {pwMismatch && <IcClose size={16} stroke="#FF4A6E"    strokeWidth={2.2} style={{ flexShrink: 0, marginLeft: 4 }}/>}
+                {!pwMatch && !pwMismatch && eyeBtn(showConfirm, () => setShowConfirm(p => !p))}
+              </div>
+              {pwMismatch && (
+                <div style={{ marginTop: 6, fontSize: 11.5, color: '#FF4A6E', paddingLeft: 2 }}>Las contraseñas no coinciden</div>
+              )}
+            </div>
+            <button onClick={handleStep2} disabled={!canStep2} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStep2(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: canStep2 ? 'pointer' : 'default',
+                background: canStep2 ? 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)' : 'rgba(255,255,255,0.05)',
+                color: canStep2 ? '#0D1210' : 'rgba(255,255,255,0.22)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: canStep2 ? '0 4px 24px rgba(61,255,209,0.28)' : 'none',
+                transition: 'all 0.22s ease',
+              }}>
+              Continuar
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 3: confirmation ─ */}
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Fortaleza de la contraseña
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} style={{
+                      flex: 1, height: 4, borderRadius: 2,
+                      background: i <= strength ? strColor : 'rgba(255,255,255,0.08)',
+                      boxShadow: i <= strength && strength >= 4 ? `0 0 6px ${strColor}88` : 'none',
+                    }}/>
+                  ))}
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: strColor, minWidth: 60, textAlign: 'right' }}>{strLabel}</span>
+              </div>
+            </div>
+            <button onClick={handleConfirm} disabled={loading} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleConfirm(); } }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)',
+                color: '#0D1210', fontSize: 15.5, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+                boxShadow: '0 4px 24px rgba(61,255,209,0.28)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {loading ? <CeLoadingDots/> : 'Sí, cambiar contraseña'}
+            </button>
+            <button onClick={() => setStep(2)} disabled={loading} className="mtx-tap" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!loading) setStep(2); } }}
+              style={{
+                width: '100%', height: 46, borderRadius: 14, cursor: 'pointer',
+                background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.52)', fontSize: 14.5, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+              }}>
+              Volver a editar
+            </button>
+          </div>
+        )}
+
+        {/* ─ Step 4: success ─ */}
+        {step === 4 && (
+          <button onClick={onClose} className="mtx-tap" tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
+            style={{
+              width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(61,255,209,0.9) 0%, rgba(61,255,209,0.7) 100%)',
+              color: '#0D1210', fontSize: 15.5, fontWeight: 800, fontFamily: 'var(--ff-display)', letterSpacing: '-0.015em',
+              boxShadow: '0 4px 24px rgba(61,255,209,0.28)',
+            }}>
+            Listo
+          </button>
+        )}
+      </div>
+    </div>,
+    root
+  );
+}
+
 // ── Sub-pantalla Cuenta ───────────────────────────────────────────────────────
 function CuentaSubScreen({ profile, email, onBack }) {
-  const [editOpen, setEditOpen] = React.useState(false);
+  const [editOpen,        setEditOpen]        = React.useState(false);
+  const [changeEmailOpen, setChangeEmailOpen] = React.useState(false);
+  const [changePwOpen,    setChangePwOpen]    = React.useState(false);
+  const [displayEmail,    setDisplayEmail]    = React.useState(email);
   const toast = window.useToast ? window.useToast() : { show: () => {} };
   const accent = (profile && profile.accent) || 'var(--neon)';
 
@@ -479,9 +1197,9 @@ function CuentaSubScreen({ profile, email, onBack }) {
         <DetailRow
           icon={IcMail}
           label="Email"
-          subtitle={email}
+          subtitle={displayEmail || email}
           actionLabel="Cambiar"
-          onTap={() => toast.show({ message: 'Cambio de email — próximamente', duration: 1600 })}
+          onTap={() => setChangeEmailOpen(true)}
         />
         <DetailRow
           icon={IcLock}
@@ -489,7 +1207,7 @@ function CuentaSubScreen({ profile, email, onBack }) {
           subtitle="Protege tu cuenta"
           value="••••••••"
           actionLabel="Cambiar"
-          onTap={() => toast.show({ message: 'Cambio de contraseña — próximamente', duration: 1600 })}
+          onTap={() => setChangePwOpen(true)}
         />
       </CardList>
 
@@ -502,6 +1220,28 @@ function CuentaSubScreen({ profile, email, onBack }) {
             window.__mtxProfile.update(patch);
             toast.show({ message: 'Perfil actualizado', duration: 1600 });
             setEditOpen(false);
+          }}
+        />
+      )}
+
+      {/* ChangeEmailSheet */}
+      {changeEmailOpen && (
+        <ChangeEmailSheet
+          currentEmail={displayEmail || email}
+          onClose={() => setChangeEmailOpen(false)}
+          onSuccess={(newEmail) => {
+            setDisplayEmail(newEmail);
+            toast.show({ message: 'Email actualizado correctamente', duration: 2200 });
+          }}
+        />
+      )}
+
+      {/* ChangePasswordSheet */}
+      {changePwOpen && (
+        <ChangePasswordSheet
+          onClose={() => setChangePwOpen(false)}
+          onSuccess={() => {
+            toast.show({ message: 'Contraseña actualizada ✓', duration: 2200 });
           }}
         />
       )}
@@ -4390,8 +5130,8 @@ function SettingsScreen({ open, onClose }) {
     <>
       <style>{`
         @keyframes mtx-settings-in {
-          from { transform: translateY(48px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
+          from { transform: translateX(32px); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
         }
       `}</style>
       <div style={{
