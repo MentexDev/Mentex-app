@@ -391,17 +391,23 @@
       _emit();
     },
 
-    // Channels
+    // Channels — permite crear o actualizar (Fase 3 multi-canal añadió
+    // telegram/watch/voice dinámicamente desde ia-channels.jsx).
     setChannel: function(channel, patch) {
-      if (!_state.channels[channel]) return;
-      _state.channels[channel] = Object.assign({}, _state.channels[channel], patch);
+      var prev = _state.channels[channel] || {};
+      _state.channels = Object.assign({}, _state.channels);
+      _state.channels[channel] = Object.assign({}, prev, patch);
       _emit();
     },
 
     // Integrations
+    // Integrations — permite crear o actualizar (Fase 4 catalog añade
+    // gmail/instagram/twitter/linkedin/youtube/appleHealth/strava dinámicamente
+    // desde ia-integrations.jsx). Mismo patrón que setChannel post-Fase 3.
     setIntegration: function(integ, patch) {
-      if (!_state.integrations[integ]) return;
-      _state.integrations[integ] = Object.assign({}, _state.integrations[integ], patch);
+      var prev = _state.integrations[integ] || {};
+      _state.integrations = Object.assign({}, _state.integrations);
+      _state.integrations[integ] = Object.assign({}, prev, patch);
       _emit();
     },
 
@@ -573,18 +579,28 @@
       return _CREDIT_PACKS.slice().map(function(p) { return Object.assign({}, p); });
     },
 
+    // Historial de compras — expone _state.packsHistory inmutable (Fase 4
+    // monetization polish añade UI de historial visible para el user).
+    getPurchasesHistory: function() {
+      return _state.packsHistory.slice().reverse();  // más recientes primero
+    },
+
     // Comprar pack (mock). Fase 4 conecta RevenueCat IAP — mismo shape del store.
+    // Inmutable: reasigna packsHistory en lugar de push. Emite además un evento
+    // específico mtx:ia-credit-purchased para disparar UI (confeti, success card).
     purchasePack: function(packId) {
       var pack = _CREDIT_PACKS.find(function(p) { return p.id === packId; });
       if (!pack) return null;
       _state.creditsExtra = (_state.creditsExtra || 0) + pack.amount;
-      _state.packsHistory.push({
+      var receipt = {
         packId:      pack.id,
         amount:      pack.amount,
         price:       pack.price,
         purchasedAt: Date.now(),
-      });
+      };
+      _state.packsHistory = _state.packsHistory.concat([receipt]);
       _emit();
+      window.dispatchEvent(new CustomEvent('mtx:ia-credit-purchased', { detail: { pack: pack, receipt: receipt } }));
       return pack;
     },
 
@@ -835,8 +851,22 @@ function AssistantConfigSheet(props) {
         {activeTab === 'personality' && <PersonalityTab/>}
         {activeTab === 'memory' && <MemoryTab/>}
         {activeTab === 'knowledge' && <KnowledgeTab/>}
-        {activeTab === 'channels' && <ChannelsTab onConnect={setConnectCtx}/>}
-        {activeTab === 'integrations' && <IntegrationsTab onConnect={setConnectCtx}/>}
+        {/* Post-Fase 3: ChannelsTab v2 vive en screens/ia-channels.jsx con
+            Telegram/Watch/Voice, QR codes, deep links, previews per-canal y
+            health status. Fallback al ChannelsTab legacy si el módulo no cargó. */}
+        {activeTab === 'channels' && (
+          window.EnhancedChannelsTab
+            ? <window.EnhancedChannelsTab/>
+            : <ChannelsTab onConnect={setConnectCtx}/>
+        )}
+        {/* Post-Fase 4: IntegrationsTab v2 vive en screens/ia-integrations.jsx
+            con catalog rico, OAuth consent mock, sync activity log y disconnect
+            inline. Fallback al legacy si el módulo no cargó. */}
+        {activeTab === 'integrations' && (
+          window.EnhancedIntegrationsTab
+            ? <window.EnhancedIntegrationsTab/>
+            : <IntegrationsTab onConnect={setConnectCtx}/>
+        )}
         {activeTab === 'skills' && window.SkillsTab && <window.SkillsTab/>}
         {activeTab === 'workflows' && window.WorkflowsTab && <window.WorkflowsTab/>}
         {activeTab === 'usage' && <UsageTab/>}
@@ -3101,6 +3131,10 @@ function UsageTab() {
           </div>
         </div>
       </div>
+
+      {/* Fase 4.2 polish: UpgradeCTA (solo si plan=free) + Purchases history +
+          Confetti overlay al comprar. Vive en screens/ia-monetization.jsx. */}
+      {window.MonetizationExtras && <window.MonetizationExtras/>}
     </div>
   );
 }
