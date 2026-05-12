@@ -57,6 +57,27 @@
       spotify:        { connected: false, scopes: [] },
       slack:          { connected: false, scopes: [] },
     },
+
+    // ── Custom Instructions (Fase 1.1) ────────────────────────────────────
+    // Alimentan el system prompt del agente. Estilo Claude/ChatGPT: 2 campos
+    // libres. Persisten cross-session y se inyectan en cada turno.
+    customInstructions: { aboutYou: '', responseStyle: '', updatedAt: 0 },
+
+    // ── Memory Settings (Fase 1.1) ───────────────────────────────────────
+    // Controles del comportamiento de memoria automática.
+    //   autoLearnEnabled:    si false, el chat NO dispara autoSaveMemory.
+    //   showAutoNotification: toast sutil cuando se aprende algo (default OFF
+    //                         para cero interrupción — patrón ChatGPT memory).
+    //   maxActive:           hard cap de memorias activas. Al excederlo se
+    //                         auto-archiva la menos usada + más vieja.
+    //   decayDays:           futuro (Fase 1.5): memorias sin uso >N días
+    //                         pasan a archived automáticamente.
+    memorySettings: {
+      autoLearnEnabled: true,
+      showAutoNotification: false,
+      maxActive: 50,
+      decayDays: 90,
+    },
   };
 
   function _emit() {
@@ -67,6 +88,72 @@
 
   function _genId(prefix) {
     return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  }
+
+  // ── Helpers de memoria (Fase 1.1) ─────────────────────────────────────────
+  // Normaliza un label para anti-duplicación: lowercase, strip accents,
+  // strip puntuación, collapse spaces. Misma cadena → mismo hash semántico.
+  function _normalizeLabel(s) {
+    return String(s || '').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Busca duplicado por label normalizado + mismo type (entre activas).
+  // Si encuentra → caller hace bump de usageCount en vez de duplicar.
+  function _findDuplicate(label, type) {
+    var norm = _normalizeLabel(label);
+    if (!norm) return null;
+    for (var i = 0; i < _state.memory.length; i++) {
+      var m = _state.memory[i];
+      if (m.archived) continue;
+      if (m.type !== type) continue;
+      if (_normalizeLabel(m.label) === norm) return m;
+    }
+    return null;
+  }
+
+  // Aplica capacity cap: si activas > maxActive, archiva la menos usada
+  // + más vieja (excluyendo pinned). Garantiza UI limpia sin perder data.
+  function _enforceCapacity() {
+    var cap = (_state.memorySettings && _state.memorySettings.maxActive) || 50;
+    var active = _state.memory.filter(function(m) { return !m.archived; });
+    if (active.length <= cap) return;
+    var candidates = active.filter(function(m) { return !m.pinned; });
+    if (candidates.length === 0) return;
+    candidates.sort(function(a, b) {
+      var au = a.usageCount || 0;
+      var bu = b.usageCount || 0;
+      if (au !== bu) return au - bu;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+    candidates[0].archived = true;
+    candidates[0].updatedAt = Date.now();
+  }
+
+  // Aplica defaults al leer memorias antiguas (backward-compat: las que se
+  // crearon con shape mínimo { id, type, label, value, createdAt } reciben
+  // los campos nuevos con valores seguros).
+  function _withMemoryDefaults(m) {
+    return {
+      id:               m.id,
+      type:             m.type,
+      label:            m.label,
+      value:            m.value || '',
+      createdAt:        m.createdAt,
+      source:           m.source           || 'manual',
+      confidence:       typeof m.confidence === 'number' ? m.confidence : 1,
+      usageCount:       m.usageCount       || 0,
+      lastUsed:         m.lastUsed         || null,
+      pinned:           !!m.pinned,
+      archived:         !!m.archived,
+      tags:             Array.isArray(m.tags) ? m.tags : [],
+      relatedMessageId: m.relatedMessageId || null,
+      conversationId:   m.conversationId   || null,
+      updatedAt:        m.updatedAt        || m.createdAt,
+    };
   }
 
   window.__mtxIAConfig = {
@@ -90,27 +177,99 @@
       _emit();
     },
 
-    // Memory — shape: { id, type, label, value, createdAt }
-    //   label: título corto (one-line en lista). REQUERIDO.
-    //   value: detalle opcional (multi-line, oculto en lista, visible en detail).
+    // ── Memory — shape extendido (Fase 1.1) ──────────────────────────────
+    // Campos: { id, type, label, value, createdAt, source, confidence,
+    //          usageCount, lastUsed, pinned, archived, tags,
+    //          relatedMessageId, conversationId, updatedAt }
+    //   source: 'manual' | 'auto' | 'user-asked'
+    //   - manual: agregada desde la UI (botón + Agregar)
+    //   - auto: detectada por el chat al procesar mensajes del user
+    //   - user-asked: el user pidió explícito "recuerda X" en chat
+    //
+    // Memorias antiguas (sin source/usageCount/etc) son leídas con defaults
+    // vía _withMemoryDefaults — backward compat garantizada.
     addMemory: function(type, label, value) {
-      var l = String(label || '').trim();
+      return window.__mtxIAConfig._saveMemory({
+        type: type, label: label, value: value, source: 'manual',
+      });
+    },
+
+    // Engine interno usado por addMemory / autoSaveMemory / userAskedSaveMemory.
+    // Aplica anti-duplicación (bumpea usageCount en lugar de crear duplicado)
+    // y capacity enforcement (auto-archive del menos usado si > maxActive).
+    _saveMemory: function(opts) {
+      var l = String((opts && opts.label) || '').trim();
       if (!l) return null;
+      var type = (opts && opts.type) || 'context';
+
+      // Anti-duplicación
+      var existing = _findDuplicate(l, type);
+      if (existing) {
+        existing.usageCount = (existing.usageCount || 0) + 1;
+        existing.lastUsed = Date.now();
+        existing.updatedAt = Date.now();
+        // Si la duplicada estaba archived (decay), la "resucita"
+        if (existing.archived) existing.archived = false;
+        _emit();
+        return existing;
+      }
+
       var fact = {
-        id: _genId('mem'),
-        type: type || 'context',
-        label: l,
-        value: String(value || '').trim(),
-        createdAt: Date.now(),
+        id:               _genId('mem'),
+        type:             type,
+        label:            l,
+        value:            String((opts && opts.value) || '').trim(),
+        createdAt:        Date.now(),
+        source:           opts.source || 'manual',
+        confidence:       typeof opts.confidence === 'number' ? opts.confidence : 1,
+        usageCount:       0,
+        lastUsed:         null,
+        pinned:           false,
+        archived:         false,
+        tags:             Array.isArray(opts.tags) ? opts.tags : [],
+        relatedMessageId: opts.relatedMessageId || null,
+        conversationId:   opts.conversationId   || null,
+        updatedAt:        Date.now(),
       };
       _state.memory = _state.memory.concat([fact]);
+      _enforceCapacity();
       _emit();
       return fact;
     },
+
+    // Auto-save: llamado por ia-flow al detectar facts en mensajes del user.
+    // Respeta el toggle autoLearnEnabled — si está OFF, no-op.
+    autoSaveMemory: function(opts) {
+      if (!_state.memorySettings.autoLearnEnabled) return null;
+      var fact = window.__mtxIAConfig._saveMemory(
+        Object.assign({}, opts, { source: 'auto' })
+      );
+      if (fact) {
+        window.dispatchEvent(new CustomEvent('mtx:ia-memory-auto-saved', {
+          detail: { memory: _withMemoryDefaults(fact) },
+        }));
+      }
+      return fact;
+    },
+
+    // User-asked save: el user pidió explícito "recuerda X" en chat.
+    // SIEMPRE guarda (ignora autoLearnEnabled — es pedido directo del user).
+    userAskedSaveMemory: function(opts) {
+      var fact = window.__mtxIAConfig._saveMemory(
+        Object.assign({}, opts, { source: 'user-asked' })
+      );
+      if (fact) {
+        window.dispatchEvent(new CustomEvent('mtx:ia-memory-user-asked-saved', {
+          detail: { memory: _withMemoryDefaults(fact) },
+        }));
+      }
+      return fact;
+    },
+
     updateMemory: function(id, patch) {
       _state.memory = _state.memory.map(function(m) {
         if (m.id !== id) return m;
-        var next = Object.assign({}, m, patch);
+        var next = Object.assign({}, m, patch, { updatedAt: Date.now() });
         if (typeof next.label === 'string') next.label = next.label.trim();
         if (typeof next.value === 'string') next.value = next.value.trim();
         return next;
@@ -121,9 +280,108 @@
       _state.memory = _state.memory.filter(function(m) { return m.id !== id; });
       _emit();
     },
+    archiveMemory: function(id) {
+      window.__mtxIAConfig.updateMemory(id, { archived: true });
+      window.dispatchEvent(new CustomEvent('mtx:ia-memory-archived', {
+        detail: { memoryId: id },
+      }));
+    },
+    unarchiveMemory: function(id) {
+      window.__mtxIAConfig.updateMemory(id, { archived: false });
+    },
+    pinMemory: function(id, pinned) {
+      window.__mtxIAConfig.updateMemory(id, { pinned: !!pinned });
+    },
+    markMemoryUsed: function(id) {
+      _state.memory = _state.memory.map(function(m) {
+        if (m.id !== id) return m;
+        return Object.assign({}, m, {
+          usageCount: (m.usageCount || 0) + 1,
+          lastUsed: Date.now(),
+        });
+      });
+      _emit();
+      window.dispatchEvent(new CustomEvent('mtx:ia-memory-used', {
+        detail: { memoryId: id },
+      }));
+    },
     clearMemory: function() {
       _state.memory = [];
       _emit();
+    },
+
+    // ── Custom Instructions (Fase 1.1) ────────────────────────────────────
+    setCustomInstructions: function(ci) {
+      var aboutYou      = String((ci && ci.aboutYou) || '').slice(0, 1500);
+      var responseStyle = String((ci && ci.responseStyle) || '').slice(0, 1500);
+      _state.customInstructions = {
+        aboutYou: aboutYou,
+        responseStyle: responseStyle,
+        updatedAt: Date.now(),
+      };
+      _emit();
+      window.dispatchEvent(new CustomEvent('mtx:ia-custom-instructions-changed', {
+        detail: { aboutYou: aboutYou, responseStyle: responseStyle },
+      }));
+    },
+    getCustomInstructions: function() {
+      return Object.assign({ aboutYou: '', responseStyle: '', updatedAt: 0 }, _state.customInstructions);
+    },
+
+    // ── Memory Settings (Fase 1.1) ────────────────────────────────────────
+    setMemorySettings: function(patch) {
+      _state.memorySettings = Object.assign({}, _state.memorySettings, patch || {});
+      _emit();
+      window.dispatchEvent(new CustomEvent('mtx:ia-memory-settings-changed', {
+        detail: { settings: Object.assign({}, _state.memorySettings) },
+      }));
+    },
+    getMemorySettings: function() {
+      return Object.assign({
+        autoLearnEnabled: true,
+        showAutoNotification: false,
+        maxActive: 50,
+        decayDays: 90,
+      }, _state.memorySettings);
+    },
+
+    // ── Queries de memoria ────────────────────────────────────────────────
+    listMemories: function(filter) {
+      filter = filter || {};
+      var arr = _state.memory.filter(function(m) {
+        if (typeof filter.archived === 'boolean' && (!!m.archived) !== filter.archived) return false;
+        if (filter.type && m.type !== filter.type) return false;
+        if (filter.source && m.source !== filter.source) return false;
+        return true;
+      });
+      return arr.map(_withMemoryDefaults);
+    },
+    searchMemories: function(query) {
+      var q = _normalizeLabel(query);
+      if (!q) return [];
+      return _state.memory.filter(function(m) {
+        if (m.archived) return false;
+        var labelNorm = _normalizeLabel(m.label);
+        var valueNorm = _normalizeLabel(m.value || '');
+        return labelNorm.indexOf(q) !== -1 || valueNorm.indexOf(q) !== -1;
+      }).map(_withMemoryDefaults);
+    },
+    getMemoryStats: function() {
+      var all = _state.memory;
+      var active = all.filter(function(m) { return !m.archived; });
+      var byType = { identity: 0, goal: 0, context: 0, preference: 0 };
+      active.forEach(function(m) {
+        byType[m.type] = (byType[m.type] || 0) + 1;
+      });
+      var cap = (_state.memorySettings && _state.memorySettings.maxActive) || 50;
+      return {
+        total: all.length,
+        active: active.length,
+        archived: all.length - active.length,
+        capacity: cap,
+        percent: Math.min(100, Math.round((active.length / cap) * 100)),
+        byType: byType,
+      };
     },
 
     // Knowledge
@@ -173,10 +431,190 @@
       Object.keys(_state.integrations).forEach(function(k) {
         _state.integrations[k] = { connected: false, scopes: [] };
       });
+      _state.customInstructions = { aboutYou: '', responseStyle: '', updatedAt: 0 };
+      _state.memorySettings = {
+        autoLearnEnabled: true,
+        showAutoNotification: false,
+        maxActive: 50,
+        decayDays: 90,
+      };
       _emit();
     },
   };
 })();
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// __mtxIAUsage — store de uso semanal del agente IA (Fase 1.3)
+// ═══════════════════════════════════════════════════════════════════════════
+// Modelo Claude-style: cupo semanal incluido con el plan, reset automático
+// cada lunes 00:00 local. Si se agota, el user puede comprar packs de
+// créditos extra que se consumen ANTES del próximo reset.
+//
+// Track sources:
+//   • conversations: cada mensaje del user enviado al coach
+//   • skills:        cada activación de skill (Fase 2)
+//   • workflows:     cada ejecución de workflow (Fase 2)
+//
+// Reset automático: snapshot() y track() llaman _maybeResetWeek() que
+// detecta si Date.now() pasó weekEnd y reinicia counters.
+//
+// Compra de créditos: mock por ahora. En Fase 4 conectamos RevenueCat IAP
+// real — el shape del store no cambia, solo el implementador de purchasePack.
+(function() {
+  if (typeof window === 'undefined' || window.__mtxIAUsage) return;
+
+  // Catálogo de planes (mock — mismo orden que en pricing real)
+  var _PLAN_LIMITS = {
+    premium: { weeklyLimit: 5000,  displayName: 'Premium', priceMonth: 9.99 },
+    family:  { weeklyLimit: 15000, displayName: 'Family',  priceMonth: 19.99 },
+  };
+
+  // Packs de créditos extra disponibles
+  var _CREDIT_PACKS = [
+    { id: 'pack-500',  amount: 500,  price: 4.99,  pricePerUnit: 0.00998 },
+    { id: 'pack-1500', amount: 1500, price: 9.99,  pricePerUnit: 0.00666, bestValue: true },
+    { id: 'pack-5000', amount: 5000, price: 24.99, pricePerUnit: 0.00500 },
+  ];
+
+  // Compute current week boundaries: Monday 00:00 local → next Monday 00:00.
+  // Bug-resistant: clona la Date antes de mutar.
+  function _weekBoundaries(at) {
+    var d = new Date(at || Date.now());
+    d.setHours(0, 0, 0, 0);
+    var dow = d.getDay();
+    var daysFromMon = (dow + 6) % 7;  // 0 si lunes, 6 si domingo
+    d.setDate(d.getDate() - daysFromMon);
+    var weekStart = d.getTime();
+    var weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000;
+    return { weekStart: weekStart, weekEnd: weekEnd };
+  }
+
+  // Mock data inicial — uso realista (~37% del cupo Premium) para que la UI
+  // se vea poblada en demo. En backend real esto vendría del server.
+  var _initBounds = _weekBoundaries();
+  var _state = {
+    plan: 'premium',
+    weekStart: _initBounds.weekStart,
+    weekEnd: _initBounds.weekEnd,
+    used: {
+      conversations: 1842,
+      skills:        624,
+      workflows:     87,
+    },
+    creditsExtra: 0,
+    creditsConsumedThisWeek: 0,
+    packsHistory: [],  // [{ packId, amount, price, purchasedAt }]
+  };
+
+  function _emit() {
+    window.dispatchEvent(new CustomEvent('mtx:ia-usage-changed', {
+      detail: { snapshot: JSON.parse(JSON.stringify(_state)) },
+    }));
+  }
+
+  // Auto-reset semanal — llamado en cada read/write del store. Idempotente.
+  function _maybeResetWeek() {
+    var now = Date.now();
+    if (now >= _state.weekEnd) {
+      var bounds = _weekBoundaries(now);
+      _state.weekStart = bounds.weekStart;
+      _state.weekEnd   = bounds.weekEnd;
+      _state.used = { conversations: 0, skills: 0, workflows: 0 };
+      _state.creditsConsumedThisWeek = 0;
+      _emit();
+    }
+  }
+
+  window.__mtxIAUsage = {
+    snapshot: function() {
+      _maybeResetWeek();
+      return JSON.parse(JSON.stringify(_state));
+    },
+
+    // Incrementa el counter de una categoría.
+    // Llamado por ia-flow.handleSendFromInput / enterChat (conversations),
+    // por ia-skills (skills, Fase 2), por ia-workflows (workflows, Fase 2).
+    track: function(category, amount) {
+      _maybeResetWeek();
+      if (!_state.used.hasOwnProperty(category)) return;
+      _state.used[category] = (_state.used[category] || 0) + (amount || 1);
+      _emit();
+    },
+
+    // Stats computados: lo que la UI consume directo.
+    getStats: function() {
+      _maybeResetWeek();
+      var planInfo = _PLAN_LIMITS[_state.plan] || _PLAN_LIMITS.premium;
+      var totalUsed = (_state.used.conversations || 0)
+        + (_state.used.skills    || 0)
+        + (_state.used.workflows || 0);
+      var limit = planInfo.weeklyLimit;
+      var pctUsed = Math.min(100, Math.round((totalUsed / limit) * 100));
+      var msToReset = Math.max(0, _state.weekEnd - Date.now());
+      var daysToReset = Math.ceil(msToReset / (24 * 60 * 60 * 1000));
+      return {
+        plan:             _state.plan,
+        planDisplayName:  planInfo.displayName,
+        priceMonth:       planInfo.priceMonth,
+        used:             Object.assign({}, _state.used),
+        totalUsed:        totalUsed,
+        limit:            limit,
+        pctUsed:          pctUsed,
+        remaining:        Math.max(0, limit - totalUsed),
+        daysToReset:      daysToReset,
+        msToReset:        msToReset,
+        creditsExtra:     _state.creditsExtra,
+        creditsConsumedThisWeek: _state.creditsConsumedThisWeek,
+      };
+    },
+
+    getCreditPacks: function() {
+      return _CREDIT_PACKS.slice().map(function(p) { return Object.assign({}, p); });
+    },
+
+    // Comprar pack (mock). Fase 4 conecta RevenueCat IAP — mismo shape del store.
+    purchasePack: function(packId) {
+      var pack = _CREDIT_PACKS.find(function(p) { return p.id === packId; });
+      if (!pack) return null;
+      _state.creditsExtra = (_state.creditsExtra || 0) + pack.amount;
+      _state.packsHistory.push({
+        packId:      pack.id,
+        amount:      pack.amount,
+        price:       pack.price,
+        purchasedAt: Date.now(),
+      });
+      _emit();
+      return pack;
+    },
+
+    setPlan: function(planId) {
+      if (!_PLAN_LIMITS[planId]) return;
+      _state.plan = planId;
+      _emit();
+    },
+
+    // Dev: forzar reset semanal (botón debug o testing)
+    devResetWeek: function() {
+      _state.used = { conversations: 0, skills: 0, workflows: 0 };
+      _state.creditsConsumedThisWeek = 0;
+      _emit();
+    },
+  };
+})();
+
+
+function useIAUsage() {
+  var force = React.useReducer(function(x) { return x + 1; }, 0)[1];
+  React.useEffect(function() {
+    var h = function() { force(); };
+    window.addEventListener('mtx:ia-usage-changed', h);
+    return function() { window.removeEventListener('mtx:ia-usage-changed', h); };
+  }, []);
+  return (typeof window !== 'undefined' && window.__mtxIAUsage)
+    ? window.__mtxIAUsage.snapshot()
+    : null;
+}
 
 
 function useIAConfig() {
@@ -292,8 +730,11 @@ function AssistantConfigSheet(props) {
     { id: 'personality',  label: 'Personalidad' },
     { id: 'memory',       label: 'Memoria' },
     { id: 'knowledge',    label: 'Conocimiento' },
+    { id: 'skills',       label: 'Skills' },
+    { id: 'workflows',    label: 'Workflows' },
     { id: 'channels',     label: 'Canales' },
     { id: 'integrations', label: 'Integraciones' },
+    { id: 'usage',        label: 'Uso' },
     { id: 'privacy',      label: 'Privacidad' },
   ];
 
@@ -396,6 +837,9 @@ function AssistantConfigSheet(props) {
         {activeTab === 'knowledge' && <KnowledgeTab/>}
         {activeTab === 'channels' && <ChannelsTab onConnect={setConnectCtx}/>}
         {activeTab === 'integrations' && <IntegrationsTab onConnect={setConnectCtx}/>}
+        {activeTab === 'skills' && window.SkillsTab && <window.SkillsTab/>}
+        {activeTab === 'workflows' && window.WorkflowsTab && <window.WorkflowsTab/>}
+        {activeTab === 'usage' && <UsageTab/>}
         {activeTab === 'privacy' && <PrivacyTab/>}
       </div>
 
@@ -739,40 +1183,266 @@ function MemoryTab() {
   var detailCtxState = React.useState(null);
   var detailCtx = detailCtxState[0]; var setDetailCtx = detailCtxState[1];
 
+  // Lectura del store (vuelve a leer en cada render por el snapshot del useIAConfig)
   if (!config) return null;
-  var memory = config.memory;
+  var stats              = window.__mtxIAConfig.getMemoryStats();
+  var memorySettings     = window.__mtxIAConfig.getMemorySettings();
+  var customInstructions = window.__mtxIAConfig.getCustomInstructions();
 
+  // Memorias visibles = activas (excluye archived por capacity overflow / decay)
+  var activeMemory = config.memory.filter(function(m) { return !m.archived; });
+
+  // ── Custom Instructions: local state controlado, sync con store ─────────
+  var aboutYouState = React.useState(customInstructions.aboutYou);
+  var aboutYou = aboutYouState[0]; var setAboutYou = aboutYouState[1];
+  var styleState = React.useState(customInstructions.responseStyle);
+  var responseStyle = styleState[0]; var setResponseStyle = styleState[1];
+
+  // Sync local state si customInstructions cambia externamente (ej: import/reset)
+  React.useEffect(function() {
+    setAboutYou(customInstructions.aboutYou);
+    setResponseStyle(customInstructions.responseStyle);
+  }, [customInstructions.updatedAt]);
+
+  var dirtyCI = (aboutYou !== customInstructions.aboutYou) ||
+                 (responseStyle !== customInstructions.responseStyle);
+
+  // ── Agrupar memorias por type, ordenar pinned primero + más recientes ──
   var byType = {};
   _MEMORY_TYPES.forEach(function(t) { byType[t.id] = []; });
-  memory.forEach(function(m) {
+  activeMemory.forEach(function(m) {
     if (byType[m.type]) byType[m.type].push(m);
   });
+  Object.keys(byType).forEach(function(k) {
+    byType[k].sort(function(a, b) {
+      if ((!!a.pinned) !== (!!b.pinned)) return a.pinned ? -1 : 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  });
 
+  // ── Handlers ───────────────────────────────────────────────────────────
+  var handleSaveCI = function() {
+    if (!dirtyCI) return;
+    window.__mtxIAConfig.setCustomInstructions({
+      aboutYou: aboutYou,
+      responseStyle: responseStyle,
+    });
+  };
+  var handleToggleAuto = function() {
+    window.__mtxIAConfig.setMemorySettings({
+      autoLearnEnabled: !memorySettings.autoLearnEnabled,
+    });
+  };
   var handleClearAll = function() {
-    if (!memory.length) return;
+    if (!activeMemory.length) return;
     if (window.confirm('¿Olvidar todo lo que el coach sabe de ti? Esta acción no se puede deshacer.')) {
       window.__mtxIAConfig.clearMemory();
     }
   };
 
-  // Helper: legacy facts pueden tener `content` en vez de `label`
+  // Backward-compat: memorias legacy pueden tener `content` en vez de `label`
   var factLabel = function(m) { return m.label || m.content || ''; };
   var factValue = function(m) { return m.value || ''; };
 
+  // Badge sutil por source (auto/user-asked); manual no muestra nada
+  var renderSourceBadge = function(source) {
+    if (source === 'auto') {
+      return <span aria-label="Aprendido automáticamente" style={{
+        fontSize: 9, lineHeight: 1, color: 'var(--neon)',
+        marginRight: 3, opacity: 0.9, flexShrink: 0,
+      }}>✦</span>;
+    }
+    if (source === 'user-asked') {
+      return <span aria-label="Pedido explícito" style={{
+        fontSize: 9, lineHeight: 1, color: '#ffc850',
+        marginRight: 3, opacity: 0.95, flexShrink: 0,
+      }}>★</span>;
+    }
+    return null;
+  };
+
+  var barColor = stats.percent > 80 ? '#ffc850' : 'var(--neon)';
+
   return (
     <div style={{ animation: 'mtx-fade-up .25s ease both' }}>
-      <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 14,
+      {/* ── Capacity header (X/50 + barra de progreso) ──────────────────── */}
+      <div style={{
+        marginBottom: 18, padding: '14px 16px', borderRadius: 16,
         background: 'linear-gradient(135deg, rgba(61,255,209,0.05), rgba(61,255,209,0.01))',
         border: '0.5px solid rgba(61,255,209,0.18)',
       }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-1)', marginBottom: 4 }}>
-          Lo que el coach recuerda de ti
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)', letterSpacing: '-0.01em' }}>
+            Memoria del coach
+          </div>
+          <div style={{
+            fontSize: 11.5, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+          }}>
+            <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{stats.active}</span>
+            <span style={{ opacity: 0.5 }}>{' / ' + stats.capacity}</span>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.45 }}>
-          Estos datos alimentan el contexto cada vez que hablas con tu coach. Toca un recuerdo para ver el detalle.
+        <div style={{
+          height: 4, borderRadius: 999,
+          background: 'rgba(255,255,255,0.05)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: stats.percent + '%', height: '100%',
+            background: barColor,
+            transition: 'width .4s ease',
+            boxShadow: stats.percent > 0
+              ? '0 0 8px ' + (stats.percent > 80 ? 'rgba(255,200,80,0.4)' : 'rgba(61,255,209,0.4)')
+              : 'none',
+          }}/>
+        </div>
+        <div style={{
+          fontSize: 10.5, color: 'var(--ink-4)', marginTop: 8,
+          lineHeight: 1.45, letterSpacing: '-0.005em',
+        }}>
+          {memorySettings.autoLearnEnabled
+            ? 'El coach aprende detalles y patrones automáticamente cuando hablas con él.'
+            : 'Auto-aprendizaje pausado. Las memorias se agregan solo manualmente.'}
         </div>
       </div>
 
+      {/* ── Instrucciones del coach (Custom Instructions) ────────────────── */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 10px' }}>
+          <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>
+            Instrucciones del coach
+          </span>
+        </div>
+
+        <div style={{
+          padding: 14, borderRadius: 16,
+          background: 'rgba(255,255,255,0.02)',
+          border: '0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          {/* About you */}
+          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-4)' }}>
+            ¿Qué debe saber el coach de ti?
+          </div>
+          <textarea
+            value={aboutYou}
+            onChange={function(e) { setAboutYou(e.target.value); }}
+            maxLength={1500}
+            rows={3}
+            placeholder="Ej: Soy founder de una startup, valoro la disciplina, vivo en Bogotá, prefiero trabajar de mañana…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              appearance: 'none', outline: 'none',
+              background: 'rgba(0,0,0,0.20)',
+              border: '0.5px solid rgba(255,255,255,0.06)',
+              borderRadius: 12,
+              padding: '11px 14px',
+              color: 'var(--ink-1)',
+              fontSize: 13, lineHeight: 1.5,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              resize: 'none',
+              marginBottom: 12,
+            }}
+          />
+
+          {/* Response style */}
+          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-4)' }}>
+            ¿Cómo debe responder?
+          </div>
+          <textarea
+            value={responseStyle}
+            onChange={function(e) { setResponseStyle(e.target.value); }}
+            maxLength={1500}
+            rows={3}
+            placeholder="Ej: Respuestas concretas, con bullets cuando ayude, priorizar acción sobre teoría…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              appearance: 'none', outline: 'none',
+              background: 'rgba(0,0,0,0.20)',
+              border: '0.5px solid rgba(255,255,255,0.06)',
+              borderRadius: 12,
+              padding: '11px 14px',
+              color: 'var(--ink-1)',
+              fontSize: 13, lineHeight: 1.5,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              resize: 'none',
+              marginBottom: 12,
+            }}
+          />
+
+          {/* Save button (alineado a la derecha, deshabilitado si no dirty) */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={handleSaveCI}
+              onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSaveCI(); } }}
+              disabled={!dirtyCI}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: dirtyCI ? 'pointer' : 'default',
+                padding: '8px 18px', borderRadius: 999,
+                background: dirtyCI
+                  ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
+                  : 'rgba(255,255,255,0.04)',
+                border: 0,
+                color: dirtyCI ? '#0a1410' : 'var(--ink-4)',
+                fontSize: 12.5, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                opacity: dirtyCI ? 1 : 0.55,
+                boxShadow: dirtyCI ? '0 4px 12px -2px rgba(61,255,209,0.32)' : 'none',
+                transition: 'all .2s',
+              }}>
+              {dirtyCI ? 'Guardar' : 'Guardado'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section title + Auto-learn toggle inline ─────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 4px 10px',
+      }}>
+        <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>
+          Lo que sabe de ti
+        </span>
+        <button
+          onClick={handleToggleAuto}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleAuto(); } }}
+          aria-label={memorySettings.autoLearnEnabled ? 'Pausar auto-aprendizaje' : 'Reactivar auto-aprendizaje'}
+          className="mtx-tap"
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 11px', borderRadius: 999,
+            background: memorySettings.autoLearnEnabled
+              ? 'rgba(61,255,209,0.08)'
+              : 'rgba(255,255,255,0.03)',
+            border: '0.5px solid ' + (memorySettings.autoLearnEnabled
+              ? 'rgba(61,255,209,0.30)'
+              : 'rgba(255,255,255,0.06)'),
+            color: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
+            fontSize: 10.5, fontWeight: 600,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            transition: 'all .2s',
+          }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: 999,
+            background: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
+            boxShadow: memorySettings.autoLearnEnabled ? '0 0 6px rgba(61,255,209,0.7)' : 'none',
+            transition: 'all .2s',
+          }}/>
+          {'Auto-aprender · ' + (memorySettings.autoLearnEnabled ? 'ON' : 'OFF')}
+        </button>
+      </div>
+
+      {/* ── Categorías con píldoras ───────────────────────────────────────── */}
       {_MEMORY_TYPES.map(function(type) {
         var items = byType[type.id];
         return (
@@ -788,10 +1458,11 @@ function MemoryTab() {
 
             {/* Píldoras compactas: cada item = pill con label + X inline.
                 Tap pill body → abre detail sheet. Tap X → confirm + delete.
-                Wrap horizontal con flex-wrap: permite caber muchos items. */}
+                Badge sutil ✦ (auto) / ★ (user-asked) precede al label. */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {items.map(function(m) {
                 var hasValue = factValue(m).length > 0;
+                var src = m.source || 'manual';
                 return (
                   <div key={m.id} style={{
                     display: 'inline-flex', alignItems: 'center',
@@ -816,14 +1487,16 @@ function MemoryTab() {
                         letterSpacing: '-0.005em',
                         maxWidth: 200,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
                       }}>
+                      {renderSourceBadge(src)}
                       {factLabel(m)}
                       {hasValue && (
                         <span style={{
                           width: 4, height: 4, borderRadius: 999,
                           background: type.accent,
                           flexShrink: 0, opacity: 0.8,
+                          marginLeft: 2,
                         }}/>
                       )}
                     </button>
@@ -878,7 +1551,7 @@ function MemoryTab() {
         );
       })}
 
-      {memory.length > 0 && (
+      {activeMemory.length > 0 && (
         <button onClick={handleClearAll}
           className="mtx-tap"
           style={{
@@ -1409,12 +2082,23 @@ function KnowledgeTab() {
 
   return (
     <div style={{ animation: 'mtx-fade-up .25s ease both' }}>
+      {/* ── FUENTES INGESTADAS (Fase 2.3) ──────────────────────────────────
+          Contexto personal del user: PDFs, URLs, audios, textos con chunks
+          indexados. Cuando entre Mastra en backend, estos chunks viven en
+          pgvector y el coach los cita vía RAG. Componente vive en
+          screens/ia-knowledge.jsx (window.KnowledgeSourcesSection). */}
+      {window.KnowledgeSourcesSection && <window.KnowledgeSourcesSection/>}
+
+      {/* ── ÁREAS DE EXPERTISE (existente) ─────────────────────────────────
+          Cómo PIENSA el coach por dominio (productividad/bienestar/etc).
+          Configura su knowledge base genérica. Complementa Fuentes — las
+          Fuentes son TU contexto; Expertise es CÓMO razona el coach. */}
       <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 14,
         background: 'rgba(155,138,255,0.05)',
         border: '0.5px solid rgba(155,138,255,0.20)',
       }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-1)', marginBottom: 4 }}>
-          Áreas de especialización
+          Áreas de especialización del coach
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.45 }}>
           Ajusta qué dominios maneja tu coach y con cuánta profundidad. Más dominios activos = respuestas más holísticas.
@@ -2075,7 +2759,355 @@ function ConnectModal(props) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB ⑥ — PrivacyTab
+// TAB ⑥ — UsageTab (Fase 1.3) — Cupo semanal estilo Claude
+// ═══════════════════════════════════════════════════════════════════════════
+
+function UsageTab() {
+  var usage = useIAUsage();
+  if (!usage || !window.__mtxIAUsage) return null;
+
+  var stats = window.__mtxIAUsage.getStats();
+  var packs = window.__mtxIAUsage.getCreditPacks();
+
+  var toast = window.useToast ? window.useToast() : { show: function() {} };
+
+  var handlePurchase = function(packId) {
+    var pack = window.__mtxIAUsage.purchasePack(packId);
+    if (pack) {
+      toast.show({
+        message: '✦ +' + pack.amount.toLocaleString('es') + ' créditos · $' + pack.price.toFixed(2),
+        duration: 2200,
+      });
+    }
+  };
+
+  // Color de la barra según %
+  var barColor = stats.pctUsed >= 90 ? '#ff8b8b'
+              : stats.pctUsed >= 75 ? '#ffc850'
+              : 'var(--neon)';
+  var barGlow  = stats.pctUsed >= 90 ? 'rgba(255,139,139,0.4)'
+              : stats.pctUsed >= 75 ? 'rgba(255,200,80,0.4)'
+              : 'rgba(61,255,209,0.4)';
+
+  var resetLabel = stats.daysToReset <= 1 ? 'mañana' : 'en ' + stats.daysToReset + ' días';
+
+  // Plan accent + emoji
+  var planAccent = stats.plan === 'family' ? '#9b8aff' : 'var(--neon)';
+  var planEmoji  = stats.plan === 'family' ? '👨‍👩‍👧' : '✦';
+
+  // Breakdown rows (3 categorías)
+  var breakdownItems = [
+    { key: 'conversations', label: 'Conversaciones',  count: stats.used.conversations || 0, accent: '#3dffd1' },
+    { key: 'skills',        label: 'Skills activadas', count: stats.used.skills        || 0, accent: '#9b8aff' },
+    { key: 'workflows',     label: 'Workflows',        count: stats.used.workflows     || 0, accent: '#5dd3ff' },
+  ];
+
+  return (
+    <div style={{ animation: 'mtx-fade-up .25s ease both' }}>
+
+      {/* ── Plan card ─────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 18 }}>
+        <div className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)', padding: '0 4px 8px' }}>
+          Tu plan
+        </div>
+        <div style={{
+          padding: '14px 16px', borderRadius: 16,
+          background: 'linear-gradient(135deg, ' + planAccent + '14, ' + planAccent + '02)',
+          border: '0.5px solid ' + planAccent + '40',
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+            background: 'linear-gradient(135deg, ' + planAccent + '30, ' + planAccent + '10)',
+            border: '0.5px solid ' + planAccent + '40',
+            color: planAccent,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, fontWeight: 700,
+            boxShadow: '0 0 16px ' + planAccent + '24, inset 0 1px 0 rgba(255,255,255,0.08)',
+          }}>{planEmoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 14.5, fontWeight: 700,
+              color: 'var(--ink-1)',
+              letterSpacing: '-0.012em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+              marginBottom: 2,
+            }}>Mentex {stats.planDisplayName}</div>
+            <div style={{
+              fontSize: 11.5, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', letterSpacing: '-0.005em',
+            }}>{stats.limit.toLocaleString('es')} mensajes/semana · ${stats.priceMonth.toFixed(2)}/mes</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Big counter + barra de progreso ─────────────────────────────── */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 8px' }}>
+          <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>Uso esta semana</span>
+          <span style={{
+            fontSize: 10, color: 'var(--ink-4)',
+            fontFamily: 'var(--ff-sans)', letterSpacing: '-0.005em',
+          }}>Resetea {resetLabel}</span>
+        </div>
+
+        <div style={{
+          padding: '18px 16px 16px', borderRadius: 16,
+          background: 'rgba(255,255,255,0.02)',
+          border: '0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          {/* Big numbers */}
+          <div style={{
+            display: 'flex', alignItems: 'baseline', gap: 6,
+            fontFamily: 'var(--ff-display, var(--ff-sans))',
+            fontVariantNumeric: 'tabular-nums',
+            marginBottom: 12,
+            letterSpacing: '-0.025em',
+          }}>
+            <span style={{
+              fontSize: 32, fontWeight: 800,
+              color: 'var(--ink-1)',
+              lineHeight: 1,
+            }}>{stats.totalUsed.toLocaleString('es')}</span>
+            <span style={{
+              fontSize: 16, fontWeight: 500,
+              color: 'var(--ink-4)',
+              letterSpacing: '-0.01em',
+            }}>{' / ' + stats.limit.toLocaleString('es')}</span>
+            <span style={{ flex: 1 }}/>
+            <span style={{
+              fontSize: 13, fontWeight: 700,
+              color: barColor,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>{stats.pctUsed}%</span>
+          </div>
+
+          {/* Big progress bar */}
+          <div style={{
+            height: 8, borderRadius: 999,
+            background: 'rgba(255,255,255,0.04)',
+            overflow: 'hidden',
+            marginBottom: 10,
+          }}>
+            <div style={{
+              width: stats.pctUsed + '%', height: '100%',
+              background: barColor,
+              transition: 'width .5s ease, background .3s',
+              boxShadow: stats.pctUsed > 0 ? '0 0 12px ' + barGlow : 'none',
+              borderRadius: 999,
+            }}/>
+          </div>
+
+          {/* Remaining sub-text */}
+          <div style={{
+            fontSize: 11.5, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            lineHeight: 1.45,
+          }}>
+            Te quedan <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>
+              {stats.remaining.toLocaleString('es')}
+            </span> esta semana
+            {stats.creditsExtra > 0 && (
+              <span> + <span style={{ color: planAccent, fontWeight: 600 }}>
+                {stats.creditsExtra.toLocaleString('es')}
+              </span> créditos extra</span>
+            )}
+            .
+          </div>
+        </div>
+      </div>
+
+      {/* ── Desglose por categoría ───────────────────────────────────────── */}
+      <div style={{ marginBottom: 22 }}>
+        <div className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)', padding: '0 4px 8px' }}>
+          Desglose
+        </div>
+        <div style={{
+          padding: '4px 14px', borderRadius: 16,
+          background: 'rgba(255,255,255,0.02)',
+          border: '0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          {breakdownItems.map(function(item, i) {
+            var pct = stats.limit > 0 ? Math.min(100, Math.round((item.count / stats.limit) * 100)) : 0;
+            return (
+              <div key={item.key} style={{
+                padding: '12px 0',
+                borderBottom: i < breakdownItems.length - 1 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}>
+                  <span style={{
+                    fontSize: 12, fontWeight: 600,
+                    color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                  }}>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: 999,
+                      background: item.accent,
+                      boxShadow: '0 0 6px ' + item.accent + '70',
+                    }}/>
+                    {item.label}
+                  </span>
+                  <span style={{
+                    fontSize: 12.5, fontWeight: 600,
+                    color: 'var(--ink-2)',
+                    fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>{item.count.toLocaleString('es')}</span>
+                </div>
+                <div style={{
+                  height: 3, borderRadius: 999,
+                  background: 'rgba(255,255,255,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: pct + '%', height: '100%',
+                    background: item.accent,
+                    transition: 'width .5s ease',
+                    borderRadius: 999,
+                  }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Créditos extra ──────────────────────────────────────────────── */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 8px' }}>
+          <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>Créditos extra</span>
+          {stats.creditsExtra > 0 && (
+            <span style={{
+              fontSize: 10.5, fontWeight: 700,
+              color: 'var(--neon)',
+              fontFamily: 'var(--ff-sans)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{stats.creditsExtra.toLocaleString('es')} disponibles</span>
+          )}
+        </div>
+
+        <div style={{
+          padding: '12px 14px 6px', borderRadius: 16,
+          background: 'rgba(255,255,255,0.02)',
+          border: '0.5px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{
+            fontSize: 11.5, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            lineHeight: 1.5,
+            marginBottom: 12,
+          }}>
+            {stats.pctUsed >= 75
+              ? '¿Necesitas más esta semana? Compra créditos extra — se consumen antes del próximo reset.'
+              : 'Compra créditos para uso ilimitado más allá del cupo semanal. No expiran.'}
+          </div>
+
+          {/* Pack list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
+            {packs.map(function(pack) {
+              return (
+                <button key={pack.id}
+                  onClick={function() { handlePurchase(pack.id); }}
+                  onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePurchase(pack.id); } }}
+                  aria-label={'Comprar ' + pack.amount + ' créditos por $' + pack.price.toFixed(2)}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                    width: '100%',
+                    padding: '12px 14px', borderRadius: 13,
+                    background: pack.bestValue
+                      ? 'linear-gradient(135deg, rgba(61,255,209,0.10), rgba(61,255,209,0.02))'
+                      : 'rgba(255,255,255,0.025)',
+                    border: '0.5px solid ' + (pack.bestValue ? 'rgba(61,255,209,0.32)' : 'rgba(255,255,255,0.08)'),
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    transition: 'all .2s',
+                    position: 'relative',
+                  }}>
+                  {/* "Best value" badge — solo en el destacado */}
+                  {pack.bestValue && (
+                    <div style={{
+                      position: 'absolute', top: -8, right: 12,
+                      padding: '2px 8px', borderRadius: 999,
+                      background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                      color: '#0a1410',
+                      fontSize: 8.5, fontWeight: 800,
+                      letterSpacing: '0.08em',
+                      fontFamily: 'var(--ff-sans)',
+                      boxShadow: '0 4px 10px -2px rgba(61,255,209,0.32)',
+                    }}>MEJOR VALOR</div>
+                  )}
+
+                  {/* Amount tile */}
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                    background: pack.bestValue
+                      ? 'linear-gradient(135deg, rgba(61,255,209,0.28), rgba(61,255,209,0.08))'
+                      : 'rgba(255,255,255,0.04)',
+                    border: '0.5px solid ' + (pack.bestValue ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.08)'),
+                    color: pack.bestValue ? 'var(--neon)' : 'var(--ink-2)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15,
+                  }}>✦</div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 14, fontWeight: 700,
+                      color: 'var(--ink-1)',
+                      fontFamily: 'var(--ff-display, var(--ff-sans))',
+                      letterSpacing: '-0.012em',
+                      marginBottom: 2,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>{pack.amount.toLocaleString('es')} créditos</div>
+                    <div style={{
+                      fontSize: 10.5, color: 'var(--ink-4)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>${pack.pricePerUnit.toFixed(3)}/crédito</div>
+                  </div>
+
+                  {/* Price */}
+                  <div style={{
+                    fontSize: 14, fontWeight: 700,
+                    color: pack.bestValue ? 'var(--neon)' : 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.01em',
+                    flexShrink: 0,
+                  }}>${pack.price.toFixed(2)}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer note */}
+          <div style={{
+            fontSize: 10, color: 'var(--ink-4)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            textAlign: 'center',
+            padding: '8px 0 4px',
+          }}>
+            Cobro vía App Store / Play Store. No expiran.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB ⑦ — PrivacyTab
 // ═══════════════════════════════════════════════════════════════════════════
 
 function PrivacyTab() {
@@ -2212,6 +3244,8 @@ Object.assign(window, {
   KnowledgeTab: KnowledgeTab,
   ChannelsTab: ChannelsTab,
   IntegrationsTab: IntegrationsTab,
+  UsageTab: UsageTab,
+  useIAUsage: useIAUsage,
   PrivacyTab: PrivacyTab,
   ConnectModal: ConnectModal,
 });

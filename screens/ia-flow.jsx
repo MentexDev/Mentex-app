@@ -257,6 +257,101 @@ var _IA_QUICK_START = [
 //
 // Esto entrena las animaciones, transiciones y manejo de cancelación desde
 // el día 1, así cuando llegue el real no hay sorpresas.
+// ── Artifact detection + intro reply (Fase 1.2) ──────────────────────────────
+// Detecta qué tipo de artifact debe adjuntar el coach según keywords del user.
+// Cuando Mastra entre en Fase 1.5, esta heurística se reemplaza por tool calls
+// del agente — el shape del artifact (kind + props) queda igual, sólo cambia
+// quién decide. Componentes de render viven en screens/ia-artifacts.jsx.
+function _detectArtifactFromUser(userContent) {
+  if (!userContent) return null;
+  var lc = String(userContent).toLowerCase();
+
+  // Image — visualizaciones, vision boards
+  if (/(imagen|visual(iza|ízame)?|foto|mu(é|e)strame|vision\s*board|imagina|inspir)/i.test(lc)) {
+    return {
+      kind: 'image',
+      gradient: 'linear-gradient(135deg, #3dffd1 0%, #9b8aff 45%, #ffc850 100%)',
+      caption: 'Visualización para anclar tu intención de hoy',
+    };
+  }
+
+  // Voice note — audio, voz (word boundaries para evitar match en "audiolibro")
+  if (/(\baudio\b|\bvoz\b|voice\s*note|nota\s*de\s*voz|m(á|a)ndame\s*(?:una)?\s*nota|env(í|i)ame.*audio)/i.test(lc)) {
+    return {
+      kind: 'voice',
+      durationSec: 24,
+      transcript: 'Cada respiración es un regreso a ti. Tómate este momento — el día puede esperar dos minutos.',
+    };
+  }
+
+  // Content recommendation — libros, meditaciones, audiolibros
+  if (/(recom(i|í)end|sug(i|í)er|sug(i|í)éreme|libro|audiolibro|medita(ci|c)|qu(é|e)\s+leer|qu(é|e)\s+escuchar)/i.test(lc)) {
+    var ec = (typeof window !== 'undefined' && window.EXPLORE_CONTENT) || [];
+    var candidates = ec.filter(function(c) {
+      return c && c.status === 'available';
+    });
+    if (candidates.length > 0) {
+      var pick = candidates[Math.floor(Math.random() * candidates.length)];
+      return { kind: 'content', itemId: pick.id };
+    }
+  }
+
+  // Calendar / planning — semana, día, agenda
+  if (/(planif(i|í)ca|plan(é|e)a|organiza|agenda|tu\s+semana|mi\s+semana|mi\s+d(í|i)a|tu\s+d(í|i)a|horario|estructur)/i.test(lc)) {
+    return {
+      kind: 'calendar',
+      date: 'Hoy',
+      blocks: [
+        { time: '07:30', title: 'Meditación', durationMin: 10, type: 'focus' },
+        { time: '08:00', title: 'Deep work · proyecto principal', durationMin: 90, type: 'focus' },
+        { time: '12:30', title: 'Almuerzo + caminata', durationMin: 45, type: 'health' },
+        { time: '14:30', title: 'Lectura · 30 min', durationMin: 30, type: 'learning' },
+        { time: '18:00', title: 'Ejercicio', durationMin: 45, type: 'health' },
+        { time: '21:00', title: 'Cierre reflexivo', durationMin: 10, type: 'personal' },
+      ],
+    };
+  }
+
+  // Reminder — recordatorios, alertas
+  if (/(recordatorio|recu(é|e)rd(a|ame)|av(í|i)sa|al[ae]rta|recordarme)/i.test(lc)) {
+    return {
+      kind: 'reminder',
+      title: 'Hidratarte cada 90 min',
+      time: '07:00',
+      repeat: 'Diario',
+    };
+  }
+
+  return null;
+}
+
+// Intro texto adaptado al artifact (override del _mockAssistantReply default).
+// Si hay artifact, usamos este texto corto que enmarca el artifact en lugar de
+// la respuesta genérica por keyword. Mantiene el flow del coach natural.
+function _replyForArtifact(art) {
+  if (!art) return null;
+  switch (art.kind) {
+    case 'image':
+      return 'Aquí va una visualización para anclar tu intención. Quédate con ella unos segundos antes de seguir.';
+    case 'voice':
+      return 'Te dejo un voice note breve. Escúchalo cuando puedas — son veinticuatro segundos.';
+    case 'content':
+      var ec = (typeof window !== 'undefined' && window.EXPLORE_CONTENT) || [];
+      var item = ec.find(function(c) { return c.id === art.itemId; });
+      if (item) {
+        return 'Mira esto: "' + item.title + '" de ' + item.author + '. Encaja bien con lo que me cuentas — tap para abrirlo.';
+      }
+      return 'Te recomiendo esto. Tap para abrirlo.';
+    case 'calendar':
+      return 'Te propongo una estructura para hoy. Revísala y dime si algo no encaja — la puedes ajustar.';
+    case 'reminder':
+      return 'Esto te puede ayudar. Activarlo toma un segundo.';
+    default:
+      return null;
+  }
+}
+
+
 function _mockAssistantReply(userContent) {
   // Respuestas curadas según keyword detection
   var c = String(userContent || '').toLowerCase();
@@ -345,10 +440,18 @@ function _runMockResponse(convId, msgId, userContent, _alive) {
   // Step 1: reasoning (typing dots) — 600ms
   store.updateMessage(convId, msgId, { state: 'reasoning' });
 
+  // ── Artifact detection (Fase 1.2) ───────────────────────────────────────
+  // Si el user pide imagen/audio/recomendación/agenda/recordatorio,
+  // detectamos el tipo de artifact ANTES de empezar a stream. El texto del
+  // assistant se reemplaza por uno corto que enmarca el artifact. El
+  // artifact se attacha cuando el streaming termina (state=done).
+  var artifact = _detectArtifactFromUser(userContent);
+  var artifactReply = artifact ? _replyForArtifact(artifact) : null;
+
   setTimeout(function() {
     if (!_alive()) return;
     // Step 2: streaming — texto aparece char-by-char
-    var fullText = _mockAssistantReply(userContent);
+    var fullText = artifactReply || _mockAssistantReply(userContent);
     var i = 0;
     store.updateMessage(convId, msgId, { state: 'streaming', content: '' });
     var streamId = setInterval(function() {
@@ -359,7 +462,10 @@ function _runMockResponse(convId, msgId, userContent, _alive) {
       store.updateMessage(convId, msgId, { content: fullText.slice(0, i) });
       if (i >= fullText.length) {
         clearInterval(streamId);
-        store.updateMessage(convId, msgId, { state: 'done' });
+        // Attach artifact al state=done (Fase 1.2)
+        var patch = { state: 'done' };
+        if (artifact) patch.artifacts = [artifact];
+        store.updateMessage(convId, msgId, patch);
       }
     }, 22);
   }, 600);
@@ -413,6 +519,7 @@ function IAIconButton(props) {
 // Empty state: solo el icon row visible (el hero vive abajo en el body).
 // Active conversation: icon row + título compacto centrado tappable (rename).
 function IAHeader(props) {
+  var onTasks = props.onTasks;
   var current = props.current;
   var conversationCount = props.conversationCount;
   var onHistory = props.onHistory;
@@ -445,6 +552,10 @@ function IAHeader(props) {
           <IcList size={16} stroke="currentColor" strokeWidth={1.7}/>
         </IAIconButton>
         <div style={{ flex: 1 }}/>
+        {/* Fase 2.4: Tasks icon — actividad del coach (active/pending/scheduled/history).
+            Componente window.IATasksIcon vive en screens/ia-tasks.jsx con su propio
+            badge dinámico (pending count amber o active running dot neon). */}
+        {window.IATasksIcon && <window.IATasksIcon onClick={onTasks}/>}
         <IAIconButton aria-label="Agenda del día" onClick={onAgenda}>
           <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
         </IAIconButton>
@@ -719,7 +830,12 @@ function IAMessageBubble(props) {
     );
   }
 
-  // Assistant
+  // Assistant — columna flex con bubble (texto+chips) + artifacts como siblings.
+  // Bubble se mantiene compacto (max ~88% del column), pero artifacts ocupan
+  // todo el ancho disponible para tener espacio sin competir con el texto.
+  var artifacts = Array.isArray(msg.artifacts) ? msg.artifacts : [];
+  var hasArtifacts = artifacts.length > 0 && state === 'done';
+
   return (
     <div style={{
       display: 'flex', justifyContent: 'flex-start',
@@ -738,74 +854,96 @@ function IAMessageBubble(props) {
         <span role="img" aria-hidden="true">🌿</span>
       </div>
 
+      {/* Content column: bubble + artifacts como siblings stack vertical */}
       <div style={{
-        maxWidth: 'calc(82% - 36px)',
-        padding: '10px 14px', borderRadius: 18,
-        borderBottomLeftRadius: 6,
-        background: 'rgba(255,255,255,0.04)',
-        border: '0.5px solid rgba(255,255,255,0.08)',
-        color: 'var(--ink-1)',
-        fontSize: 13.5, lineHeight: 1.5,
-        fontFamily: 'var(--ff-sans)',
-        letterSpacing: '-0.005em',
-        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        flex: 1, minWidth: 0,
+        display: 'flex', flexDirection: 'column', gap: 10,
+        maxWidth: 'calc(100% - 36px)',
       }}>
-        {state === 'reasoning' && <IATypingDots/>}
-        {state === 'streaming' && (
-          <span>
-            {msg.content}
-            <span style={{
-              display: 'inline-block',
-              width: 7, height: 14, marginLeft: 2,
-              background: 'var(--neon)',
-              borderRadius: 1,
-              verticalAlign: 'text-bottom',
-              animation: 'mtx-pulse 1s ease-in-out infinite',
-              willChange: 'opacity',
-            }}/>
-          </span>
-        )}
-        {state === 'done' && msg.content}
-        {state === 'error' && (
-          <div style={{ color: '#ff8b8b' }}>
-            Algo se interrumpió. Vuelve a intentar.
-          </div>
-        )}
+        {/* Text bubble — compacto */}
+        <div style={{
+          alignSelf: 'flex-start',
+          maxWidth: '92%',
+          padding: '10px 14px', borderRadius: 18,
+          borderBottomLeftRadius: 6,
+          background: 'rgba(255,255,255,0.04)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          color: 'var(--ink-1)',
+          fontSize: 13.5, lineHeight: 1.5,
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>
+          {state === 'reasoning' && <IATypingDots/>}
+          {state === 'streaming' && (
+            <span>
+              {msg.content}
+              <span style={{
+                display: 'inline-block',
+                width: 7, height: 14, marginLeft: 2,
+                background: 'var(--neon)',
+                borderRadius: 1,
+                verticalAlign: 'text-bottom',
+                animation: 'mtx-pulse 1s ease-in-out infinite',
+                willChange: 'opacity',
+              }}/>
+            </span>
+          )}
+          {state === 'done' && msg.content}
+          {state === 'error' && (
+            <div style={{ color: '#ff8b8b' }}>
+              Algo se interrumpió. Vuelve a intentar.
+            </div>
+          )}
 
-        {/* Quick action chips — solo cuando el mensaje del assistant trae
-            chips. Tap en un chip dispara evento mtx:ia-chip-tap con el
-            label, que el IAScreen escucha para llenar el draft del input.
-            Atenuados visualmente para no competir con el contenido. */}
-        {Array.isArray(msg.chips) && msg.chips.length > 0 && state === 'done' && (
+          {/* Quick action chips — siguen DENTRO del bubble (micro-acciones
+              ligadas al texto). Tap dispara mtx:ia-chip-tap consumido por
+              IAScreen para llenar el draft del input. */}
+          {Array.isArray(msg.chips) && msg.chips.length > 0 && state === 'done' && (
+            <div style={{
+              display: 'flex', flexWrap: 'wrap', gap: 6,
+              marginTop: 12,
+              paddingTop: 10,
+              borderTop: '0.5px solid rgba(255,255,255,0.06)',
+            }}>
+              {msg.chips.map(function(chip, i) {
+                return (
+                  <button
+                    key={chip + '-' + i}
+                    onClick={function() {
+                      window.dispatchEvent(new CustomEvent('mtx:ia-chip-tap', {
+                        detail: { label: chip },
+                      }));
+                    }}
+                    className="mtx-tap"
+                    aria-label={'Acción rápida · ' + chip}
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '6px 12px', borderRadius: 999,
+                      border: '0.5px solid rgba(61,255,209,0.22)',
+                      background: 'rgba(61,255,209,0.04)',
+                      color: 'var(--neon)',
+                      fontSize: 11.5, fontWeight: 600,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      transition: 'background .2s, border-color .2s',
+                    }}>{chip}</button>
+                  );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Artifacts — FUERA del bubble, full width del column.
+            Image, Voice, Content card, Calendar, Reminder.
+            Componentes en screens/ia-artifacts.jsx (window.IAArtifact). */}
+        {hasArtifacts && window.IAArtifact && (
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 6,
-            marginTop: 12,
-            paddingTop: 10,
-            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            alignSelf: 'stretch',
           }}>
-            {msg.chips.map(function(chip, i) {
-              return (
-                <button
-                  key={chip + '-' + i}
-                  onClick={function() {
-                    window.dispatchEvent(new CustomEvent('mtx:ia-chip-tap', {
-                      detail: { label: chip },
-                    }));
-                  }}
-                  className="mtx-tap"
-                  aria-label={'Acción rápida · ' + chip}
-                  style={{
-                    appearance: 'none', cursor: 'pointer',
-                    padding: '6px 12px', borderRadius: 999,
-                    border: '0.5px solid rgba(61,255,209,0.22)',
-                    background: 'rgba(61,255,209,0.04)',
-                    color: 'var(--neon)',
-                    fontSize: 11.5, fontWeight: 600,
-                    fontFamily: 'var(--ff-sans)',
-                    letterSpacing: '-0.005em',
-                    transition: 'background .2s, border-color .2s',
-                  }}>{chip}</button>
-              );
+            {artifacts.map(function(art, i) {
+              return <window.IAArtifact key={i} artifact={art}/>;
             })}
           </div>
         )}
@@ -1226,6 +1364,197 @@ function IAHistoryRow(props) {
 }
 
 
+// ── Memory detection heuristic (Fase 1.1, sin Mastra todavía) ─────────────
+// Detecta hechos memorables en mensajes del user vía regex. Cuando Mastra
+// entre en Fase 1.5, esta heurística se reemplaza por extracción semántica
+// vía agent tool. La API contra __mtxIAConfig (autoSaveMemory /
+// userAskedSaveMemory) queda igual — migración invisible.
+//
+// Filosofía KISS: pocas reglas precisas > muchas vagas (anti-poisoning).
+// Una regla por categoría natural — evita memorias triviales o ambiguas.
+
+// Terminator común: parar en puntuación, salto de línea, conjunciones (" y "
+// / " pero " / " porque ") o fin de string. Evita capturas greedy del tipo
+// "soy vegano y vivo en X" que metían 2 facts en uno.
+var _TERM = '(?=[\\.\\,\\?\\!\\n]|\\s+y\\s+|\\s+pero\\s+|\\s+porque\\s+|\\s+y\\s+que\\s+|$)';
+
+var _MEMORY_REGEX_RULES = [
+  // ── Identidad ────────────────────────────────────────────────────────────
+  {
+    regex: new RegExp('\\bsoy\\s+([a-záéíóúñü][\\wáéíóúñü\\s-]{2,55}?)' + _TERM, 'i'),
+    type: 'identity',
+    formatter: function(m) { return _capitalize(m[1].trim()); },
+  },
+  {
+    regex: new RegExp('\\bvivo\\s+en\\s+([\\wáéíóúñü\\s-]{2,55}?)' + _TERM, 'i'),
+    type: 'identity',
+    formatter: function(m) { return 'Vive en ' + _capitalize(m[1].trim()); },
+  },
+  {
+    regex: new RegExp('\\btrabajo\\s+(en|de|como)\\s+([\\wáéíóúñü\\s-]{2,80}?)' + _TERM, 'i'),
+    type: 'identity',
+    formatter: function(m) { return 'Trabaja ' + m[1] + ' ' + m[2].trim(); },
+  },
+  {
+    regex: new RegExp('\\bmi\\s+nombre\\s+es\\s+([\\wáéíóúñü\\s-]{2,50}?)' + _TERM, 'i'),
+    type: 'identity',
+    formatter: function(m) { return 'Se llama ' + _capitalize(m[1].trim()); },
+  },
+  {
+    regex: /\btengo\s+(\d{1,3})\s+años\b/i,
+    type: 'identity',
+    formatter: function(m) { return 'Tiene ' + m[1] + ' años'; },
+  },
+
+  // ── Metas ────────────────────────────────────────────────────────────────
+  {
+    regex: new RegExp('\\bquiero\\s+(?!que\\b)([\\wáéíóúñü\\s-]{4,100}?)' + _TERM, 'i'),
+    type: 'goal',
+    formatter: function(m) { return 'Quiere ' + m[1].trim(); },
+  },
+  {
+    regex: new RegExp('\\bmi\\s+(?:meta|objetivo)\\s+es\\s+([\\wáéíóúñü\\s-]{4,100}?)' + _TERM, 'i'),
+    type: 'goal',
+    formatter: function(m) { return _capitalize(m[1].trim()); },
+  },
+
+  // ── Preferencias negativas (CHECK FIRST — antes que "me gusta") ──────────
+  // Crítico: si user dice "no me gusta X", solo guardamos negativo, no positivo.
+  {
+    regex: new RegExp('\\bno\\s+me\\s+gusta(?:n)?\\s+([\\wáéíóúñü\\s-]{3,80}?)' + _TERM, 'i'),
+    type: 'preference',
+    formatter: function(m) { return 'No le gusta ' + m[1].trim(); },
+  },
+  {
+    regex: new RegExp('\\b(?:odio|detesto)\\s+([\\wáéíóúñü\\s-]{3,80}?)' + _TERM, 'i'),
+    type: 'preference',
+    formatter: function(m) { return 'Detesta ' + m[1].trim(); },
+  },
+
+  // ── Preferencias positivas (con negative lookbehind a "no ") ─────────────
+  // (?<!no\s) evita matchear "no me gusta" como preferencia positiva.
+  {
+    regex: new RegExp('(?<!no\\s)\\b(?:me\\s+gusta(?:n)?|me\\s+encanta|amo|disfruto)\\s+([\\wáéíóúñü\\s-]{3,80}?)' + _TERM, 'i'),
+    type: 'preference',
+    formatter: function(m) { return 'Le gusta ' + m[1].trim(); },
+  },
+  {
+    regex: new RegExp('\\bprefiero\\s+([\\wáéíóúñü\\s-]{3,80}?)' + _TERM, 'i'),
+    type: 'preference',
+    formatter: function(m) { return 'Prefiere ' + m[1].trim(); },
+  },
+
+  // ── Contexto ─────────────────────────────────────────────────────────────
+  {
+    regex: new RegExp('\\bestoy\\s+trabajando\\s+en\\s+([\\wáéíóúñü\\s-]{3,100}?)' + _TERM, 'i'),
+    type: 'context',
+    formatter: function(m) { return 'Trabajando en ' + m[1].trim(); },
+  },
+  {
+    regex: new RegExp('\\b(?:estoy\\s+aprendiendo|estudio)\\s+([\\wáéíóúñü\\s-]{3,80}?)' + _TERM, 'i'),
+    type: 'context',
+    formatter: function(m) { return 'Aprendiendo ' + m[1].trim(); },
+  },
+];
+
+// User-asked save: el user pide explícito al coach que recuerde algo.
+// Mayor prioridad que auto-detection — siempre guarda, ignora autoLearnEnabled.
+var _USER_ASKED_PATTERN = /^(?:recuerda|guarda|memoriza|anota|toma\s+nota)\s+(?:que\s+|de\s+que\s+)?(.{3,250})$/i;
+
+function _capitalize(str) {
+  if (!str) return '';
+  var s = String(str).trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Extrae hechos memorables de un mensaje del user. Retorna array de
+// { type, label, confidence }. Una regla matching por categoría natural.
+function _extractMemorableFacts(content) {
+  if (!content || typeof content !== 'string') return [];
+  var trimmed = content.trim();
+  // Skip mensajes muy cortos o demasiado largos (señal débil)
+  if (trimmed.length < 6 || trimmed.length > 800) return [];
+
+  var facts = [];
+  var seen = {};
+  for (var i = 0; i < _MEMORY_REGEX_RULES.length; i++) {
+    var rule = _MEMORY_REGEX_RULES[i];
+    var match = trimmed.match(rule.regex);
+    if (!match) continue;
+    var label = String(rule.formatter(match) || '').trim();
+    if (!label || label.length < 3) continue;
+    // Anti-duplicación dentro del mismo mensaje (mismo type+label normalizado)
+    var key = rule.type + '|' + label.toLowerCase();
+    if (seen[key]) continue;
+    seen[key] = true;
+    facts.push({ type: rule.type, label: label, confidence: 0.75 });
+  }
+  return facts;
+}
+
+// Detecta si el user pidió explícito guardar algo ("recuerda que X").
+// Retorna { type, label } o null.
+function _detectUserAskedSave(content) {
+  if (!content || typeof content !== 'string') return null;
+  var m = content.trim().match(_USER_ASKED_PATTERN);
+  if (!m) return null;
+  var label = _capitalize(m[1].trim());
+  if (label.length < 3) return null;
+  // Type 'context' por default: el user no especifica categoría → contexto neutral
+  return { label: label, type: 'context' };
+}
+
+// Entry point — llamado desde handleSendFromInput / enterChat después de
+// agregar el mensaje del user al store. Procesa user-asked save primero,
+// luego auto-detection. Si toastFn disponible + showAutoNotification ON,
+// muestra notificación sutil.
+function _processMemoryDetection(content, msgId, conversationId, toastFn) {
+  if (typeof window === 'undefined' || !window.__mtxIAConfig) return;
+
+  // 1. User-asked save (mayor prioridad — pedido explícito del user)
+  var userAsked = _detectUserAskedSave(content);
+  if (userAsked) {
+    window.__mtxIAConfig.userAskedSaveMemory({
+      type: userAsked.type,
+      label: userAsked.label,
+      relatedMessageId: msgId || null,
+      conversationId: conversationId || null,
+    });
+    if (toastFn) {
+      toastFn({ message: '✦ Guardado en memoria del coach', duration: 2000 });
+    }
+    return;  // El user-asked es explícito → no doble-procesamos auto-detection
+  }
+
+  // 2. Auto-detection (respeta autoLearnEnabled — si OFF, no-op interno)
+  var facts = _extractMemorableFacts(content);
+  if (facts.length === 0) return;
+
+  var saved = 0;
+  facts.forEach(function(fact) {
+    var mem = window.__mtxIAConfig.autoSaveMemory({
+      type: fact.type,
+      label: fact.label,
+      confidence: fact.confidence,
+      relatedMessageId: msgId || null,
+      conversationId: conversationId || null,
+    });
+    if (mem) saved++;
+  });
+
+  // Toast sutil opt-in (default OFF — patrón ChatGPT memory)
+  if (saved > 0 && toastFn) {
+    var settings = window.__mtxIAConfig.getMemorySettings();
+    if (settings.showAutoNotification) {
+      toastFn({
+        message: '✦ Coach aprendió ' + saved + ' detalle' + (saved === 1 ? '' : 's'),
+        duration: 1800,
+      });
+    }
+  }
+}
+
+
 // ── Saludo del coach por voice (Phase 5.2.1) ──────────────────────────────
 // Mapea cada voz del onboarding a una línea de apertura tono-consistente.
 // Usado por _buildSessionGreeting cuando ctx.mode === 'home-inactive'.
@@ -1337,6 +1666,241 @@ function _buildSessionGreeting(ctx) {
 //                    true) para que MentexApp esconda la barra inferior y
 //                    expanda el wrapper a bottom:0 (cubriendo la zona donde
 //                    estaría el tab bar).
+// ═══════════════════════════════════════════════════════════════════════════
+// Free gate (Fase 1.4) — pantalla locked dedicada para users no premium
+// ═══════════════════════════════════════════════════════════════════════════
+// Cuando user.selectedPlan === 'free' (o trial expirado), TODA la tab IA
+// se reemplaza por esta pantalla. No PremiumLockSheet bottom-sheet sobre
+// contenido oculto — eso es engañoso. Esta es una pantalla full-screen con
+// value-props claras + CTA prominente para activar trial.
+//
+// Reactive: useIsPremiumReactive escucha mtx:onboarding-changed (que emite
+// __mtxOnboarding.updateAnswers cuando __mtxActivateTrial setea el plan).
+// Al activar trial, isPremium → true, IAScreen re-renderiza y muestra el
+// hub normal sin reload.
+function useIsPremiumReactive() {
+  var force = React.useReducer(function(x) { return x + 1; }, 0)[1];
+  React.useEffect(function() {
+    var h = function() { force(); };
+    window.addEventListener('mtx:onboarding-changed', h);
+    return function() { window.removeEventListener('mtx:onboarding-changed', h); };
+  }, []);
+  return (typeof window !== 'undefined' && window.__mtxIsPremium)
+    ? window.__mtxIsPremium()
+    : true;  // optimist default si store no cargado todavía
+}
+
+function IAPremiumLockScreen(props) {
+  var onActivate = props.onActivate;
+  var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
+
+  // Catálogo de features visible para el user free — qué se está perdiendo.
+  // Cuando avancemos al backend agregamos métricas dinámicas (ej. "X usuarios
+  // activos esta semana") pero el shape queda igual.
+  var FEATURES = [
+    {
+      icon: '💬',
+      title: 'Chat ilimitado',
+      desc: 'Conversaciones 24/7 con un coach que conoce tu contexto',
+      accent: '#3dffd1',
+    },
+    {
+      icon: '🧠',
+      title: 'Memoria que aprende',
+      desc: 'Recuerda tus metas, hábitos y preferencias entre sesiones',
+      accent: '#9b8aff',
+    },
+    {
+      icon: '📅',
+      title: 'Agenda proactiva',
+      desc: 'Sugiere bloques de enfoque y recordatorios alineados a tu día',
+      accent: '#5dd3ff',
+    },
+    {
+      icon: '✨',
+      title: 'Skills y artifacts',
+      desc: 'Imágenes, audios, planes y workflows automatizados',
+      accent: '#ffc850',
+    },
+  ];
+
+  var handleActivate = function() {
+    if (typeof onActivate === 'function') {
+      onActivate();
+    } else if (window.__mtxActivateTrial) {
+      window.__mtxActivateTrial('annual');
+    }
+    if (toast && toast.show) {
+      toast.show({
+        message: '✦ Premium activado · 7 días gratis',
+        duration: 2400,
+      });
+    }
+  };
+
+  return (
+    <div className="mtx-no-scrollbar" style={{
+      flex: 1, minHeight: 0,
+      overflowY: 'auto', overflowX: 'hidden',
+      paddingTop: 60, paddingBottom: 100,  // 100 = tab bar 78 + 22 aire
+      animation: 'mtx-fade-up .35s ease both',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Hero — avatar grande con halo + eyebrow + título */}
+      <div style={{
+        padding: '20px 24px 0',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center',
+      }}>
+        {/* Avatar circle con glow neón pulsante */}
+        <div style={{
+          position: 'relative',
+          width: 96, height: 96, borderRadius: '50%',
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.30), rgba(155,138,255,0.16))',
+          border: '0.5px solid rgba(61,255,209,0.40)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginBottom: 18,
+          boxShadow: '0 0 32px rgba(61,255,209,0.32), inset 0 1px 0 rgba(255,255,255,0.10)',
+        }}>
+          {/* Halo radial decorativo */}
+          <div style={{
+            position: 'absolute', inset: -16, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(61,255,209,0.24) 0%, transparent 70%)',
+            filter: 'blur(12px)',
+            pointerEvents: 'none',
+            animation: 'mtx-pulse 3s ease-in-out infinite',
+            willChange: 'transform, opacity',
+          }}/>
+          <span style={{ fontSize: 44, lineHeight: 1, position: 'relative' }} role="img" aria-hidden="true">🌿</span>
+        </div>
+
+        {/* Eyebrow */}
+        <div className="mtx-eyebrow" style={{
+          fontSize: 10, color: 'var(--neon)',
+          letterSpacing: '0.16em',
+          marginBottom: 8,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}>
+          <span style={{ color: 'var(--neon)' }}>✦</span>
+          MENTEX PREMIUM
+        </div>
+
+        {/* Título */}
+        <h1 style={{
+          margin: 0,
+          fontSize: 26, fontWeight: 800,
+          color: 'var(--ink-1)',
+          letterSpacing: '-0.025em',
+          lineHeight: 1.15,
+          fontFamily: 'var(--ff-display, var(--ff-sans))',
+          marginBottom: 8,
+          maxWidth: 280,
+        }}>
+          Tu coach IA personal,<br/>siempre contigo
+        </h1>
+
+        {/* Subtitle */}
+        <p style={{
+          margin: '0 0 24px',
+          fontSize: 13.5, color: 'var(--ink-3)',
+          lineHeight: 1.5,
+          letterSpacing: '-0.005em',
+          fontFamily: 'var(--ff-sans)',
+          maxWidth: 280,
+        }}>
+          Desbloquea conversaciones ilimitadas, memoria contextual, agenda IA y skills automatizadas.
+        </p>
+      </div>
+
+      {/* Feature cards — 4 rows con icon tile + título + desc */}
+      <div style={{
+        padding: '0 20px 24px',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}>
+        {FEATURES.map(function(f, i) {
+          return (
+            <div key={i} style={{
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(255,255,255,0.025)',
+              border: '0.5px solid rgba(255,255,255,0.06)',
+              display: 'flex', alignItems: 'center', gap: 12,
+              animation: 'mtx-fade-up .4s ease ' + (i * 0.06) + 's both',
+            }}>
+              {/* Icon tile */}
+              <div style={{
+                width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                background: 'linear-gradient(135deg, ' + f.accent + '24, ' + f.accent + '08)',
+                border: '0.5px solid ' + f.accent + '32',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, lineHeight: 1,
+                boxShadow: '0 0 12px ' + f.accent + '18',
+              }}>
+                <span role="img" aria-hidden="true">{f.icon}</span>
+              </div>
+
+              {/* Text */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 700,
+                  color: 'var(--ink-1)',
+                  letterSpacing: '-0.012em',
+                  fontFamily: 'var(--ff-display, var(--ff-sans))',
+                  marginBottom: 2,
+                }}>{f.title}</div>
+                <div style={{
+                  fontSize: 11.5, color: 'var(--ink-3)',
+                  letterSpacing: '-0.005em',
+                  lineHeight: 1.4,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{f.desc}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* CTA — botón grande activar trial */}
+      <div style={{ padding: '0 20px', marginTop: 'auto' }}>
+        <button
+          onClick={handleActivate}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActivate(); } }}
+          className="mtx-tap"
+          aria-label="Empezar 7 días gratis de Mentex Premium"
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            width: '100%', padding: '14px 18px',
+            borderRadius: 16, border: 0,
+            background: 'linear-gradient(135deg, var(--neon) 0%, #1ad9ad 100%)',
+            color: '#0a1410',
+            fontSize: 15, fontWeight: 800,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.012em',
+            boxShadow: '0 8px 24px -6px rgba(61,255,209,0.50), inset 0 1px 0 rgba(255,255,255,0.20)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            animation: 'mtx-fade-up .45s ease .32s both',
+          }}>
+          <span>Empezar 7 días gratis</span>
+          <span style={{ fontSize: 14, opacity: 0.7 }}>→</span>
+        </button>
+
+        {/* Footnote */}
+        <div style={{
+          marginTop: 12,
+          textAlign: 'center',
+          fontSize: 10.5, color: 'var(--ink-4)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          lineHeight: 1.45,
+          animation: 'mtx-fade-up .45s ease .42s both',
+        }}>
+          $9.99/mes después · Cancela cuando quieras
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function IAScreen(props) {
   var nav = useIAChat();
   var conversations = nav.conversations;
@@ -1361,6 +1925,11 @@ function IAScreen(props) {
   // de tab). Auto-aplica al draft cuando el user confirma envío.
   var voiceOpenState = React.useState(false);
   var voiceOpen = voiceOpenState[0]; var setVoiceOpen = voiceOpenState[1];
+
+  // tasksOpen — TasksSheet (Fase 2.4). Local al IAScreen porque es overlay del
+  // tab IA; el sheet usa portal a mtx-overlay-root para anclarse al viewport.
+  var tasksOpenState = React.useState(false);
+  var tasksOpen = tasksOpenState[0]; var setTasksOpen = tasksOpenState[1];
 
   var draftState = React.useState('');
   var draft = draftState[0]; var setDraft = draftState[1];
@@ -1611,7 +2180,13 @@ function IAScreen(props) {
     if (seedPrompt) {
       // Crear conv + enviar mensaje seed (chip clicked)
       var conv = window.__mtxIAChat.create();
-      window.__mtxIAChat.addMessage(conv.id, { role: 'user', content: seedPrompt });
+      var userMsg = window.__mtxIAChat.addMessage(conv.id, { role: 'user', content: seedPrompt });
+      // Memory detection (Fase 1.1) — los chips de quick-start raras veces
+      // matchearán patterns de auto-detección (no son auto-disclosure),
+      // pero ejecutamos por consistencia + por si el chip incluye "recuerda…"
+      _processMemoryDetection(seedPrompt, userMsg && userMsg.id, conv.id, toast.show);
+      // Usage tracking (Fase 1.3) — chips también cuentan como conversación
+      if (window.__mtxIAUsage) window.__mtxIAUsage.track('conversations');
       var assistantMsg = window.__mtxIAChat.addMessage(conv.id, {
         role: 'assistant', content: '', state: 'reasoning',
       });
@@ -1648,7 +2223,12 @@ function IAScreen(props) {
       var conv = window.__mtxIAChat.create();
       cid = conv.id;
     }
-    window.__mtxIAChat.addMessage(cid, { role: 'user', content: content });
+    var userMsg = window.__mtxIAChat.addMessage(cid, { role: 'user', content: content });
+    // Memory detection (Fase 1.1) — extrae hechos memorables del mensaje
+    // user-asked tiene prioridad; auto-detection respeta el toggle del store.
+    _processMemoryDetection(content, userMsg && userMsg.id, cid, toast.show);
+    // Usage tracking (Fase 1.3) — incrementa contador semanal de conversaciones
+    if (window.__mtxIAUsage) window.__mtxIAUsage.track('conversations');
     setDraft('');
     var assistantMsg = window.__mtxIAChat.addMessage(cid, {
       role: 'assistant', content: '', state: 'reasoning',
@@ -1715,6 +2295,15 @@ function IAScreen(props) {
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
+  // FREE GATE (Fase 1.4): si user no es premium, reemplazamos TODA la tab IA
+  // por la pantalla locked. Reactivo a mtx:onboarding-changed — cuando user
+  // activa trial vía el CTA, isPremium → true y el hub normal aparece sin
+  // reload. Llamada después de TODOS los hooks (rules of hooks compliant).
+  var isPremium = useIsPremiumReactive();
+  if (!isPremium) {
+    return <IAPremiumLockScreen/>;
+  }
+
   // Hub view: scroll interno. paddingBottom:90 deja espacio para que las
   // chips no queden bajo la tab bar (que overlay a z=50 sobre los últimos
   // ~78px del wrapper). 90 = 78 (tab bar) + 12 (aire). NO input bar — los
@@ -1735,9 +2324,14 @@ function IAScreen(props) {
           onAgenda={handleAgenda}
           onNewChat={handleNewConversationFromHub}
           onSettings={handleSettings}
+          onTasks={function() { setTasksOpen(true); }}
         />
         <IAEmptyState onChipTap={function(chip) { enterChat(chip.prompt); }}/>
         {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
+        {/* Fase 2.4: TasksSheet local — portal a mtx-overlay-root */}
+        {tasksOpen && window.TasksSheet && (
+          <window.TasksSheet onClose={function() { setTasksOpen(false); }}/>
+        )}
       </div>
     );
   }
@@ -1756,6 +2350,7 @@ function IAScreen(props) {
         onNewChat={handleNewConversationFromChat}
         onAgenda={handleAgenda}
         onOpenHistory={function() { setHistoryOpen(true); }}
+        onTasks={function() { setTasksOpen(true); }}
       />
 
       <div style={{
@@ -1787,6 +2382,11 @@ function IAScreen(props) {
         />
       )}
 
+      {/* Fase 2.4: TasksSheet también desde chat view */}
+      {tasksOpen && window.TasksSheet && (
+        <window.TasksSheet onClose={function() { setTasksOpen(false); }}/>
+      )}
+
       {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
     </div>
   );
@@ -1805,6 +2405,8 @@ function IAHubHeader(props) {
         <IcList size={16} stroke="currentColor" strokeWidth={1.7}/>
       </IAIconButton>
       <div style={{ flex: 1 }}/>
+      {/* Fase 2.4: Tasks icon — actividad del coach */}
+      {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
       <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
         <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
       </IAIconButton>
@@ -1872,6 +2474,9 @@ function IAChatHeader(props) {
           }}>{current ? current.title : 'Nueva conversación'}</span>
           <IcChevD size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
         </button>
+
+        {/* Fase 2.4: Tasks icon también disponible en chat header */}
+        {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
 
         <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>

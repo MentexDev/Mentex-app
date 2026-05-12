@@ -35,7 +35,7 @@
   <script type="text/babel" src="components/mtx-scheduler.jsx?v=3"></script>
   <script type="text/babel" src="screens/auth-flow.jsx?v=18"></script>
   <script type="text/babel" src="screens/onboarding-flow.jsx?v=11"></script>
-  <script type="text/babel" src="screens/premium-gate.jsx?v=4"></script>
+  <script type="text/babel" src="screens/premium-gate.jsx?v=5"></script>
   <script type="text/babel" src="screens/home-inactive.jsx?v=44"></script>
   <script type="text/babel" src="screens/home-active.jsx?v=51"></script>
   <script type="text/babel" src="screens/custom-time-modal.jsx?v=9"></script>
@@ -48,21 +48,26 @@
   <script type="text/babel" src="screens/profile.jsx?v=36"></script>
   <script type="text/babel" src="screens/profile-stats-sheets.jsx?v=11"></script>
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
-  <script type="text/babel" src="screens/explore-flow.jsx?v=79"></script>
+  <script type="text/babel" src="screens/explore-flow.jsx?v=81"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
-  <script type="text/babel" src="screens/ia-settings.jsx?v=6"></script>
-  <script type="text/babel" src="screens/ia-agenda.jsx?v=9"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=27"></script>
+  <script type="text/babel" src="screens/ia-settings.jsx?v=11"></script>
+  <script type="text/babel" src="screens/ia-agenda.jsx?v=12"></script>
+  <script type="text/babel" src="screens/ia-artifacts.jsx?v=1"></script>
+  <script type="text/babel" src="screens/ia-skills.jsx?v=3"></script>
+  <script type="text/babel" src="screens/ia-workflows.jsx?v=2"></script>
+  <script type="text/babel" src="screens/ia-knowledge.jsx?v=3"></script>
+  <script type="text/babel" src="screens/ia-tasks.jsx?v=2"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=34"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>
   <script type="text/babel" src="screens/user-profile-flow.jsx?v=14"></script>
   <script type="text/babel" src="screens/now-playing-bar.jsx?v=1"></script>
   <script type="text/babel" src="screens/active-queue.jsx?v=2"></script>
-  <script type="text/babel" src="screens/global-player.jsx?v=4"></script>
+  <script type="text/babel" src="screens/global-player.jsx?v=5"></script>
   <script type="text/babel" src="screens/ritual-player.jsx?v=6"></script>
   <script type="text/babel" src="screens/activity-runner.jsx?v=26"></script>
-  <script type="text/babel" src="screens/settings-flow.jsx?v=33"></script>
+  <script type="text/babel" src="screens/settings-flow.jsx?v=34"></script>
   <script type="text/babel" src="screens/progress-report.jsx?v=5"></script>
   <script type="text/babel" src="components/in-app-browser.jsx?v=1"></script>
 
@@ -724,12 +729,29 @@
 
             {/* Phase 5.3 — Premium lock sheet global. Cualquier feature
                 gateada llama window.__mtxOpenPremiumLock(feature) para abrirlo.
-                onActivate dispara __mtxActivateTrial mock. */}
+                onActivate dispara __mtxActivateTrial mock.
+
+                onClose (dismissal): además de cerrar el sheet, dispara
+                'mtx:videosheet-closed' para que el closeHandler de back
+                navigation devuelva al user al tab origen si vino de
+                Comunidad/Perfil. closeHandler hace guard con prevTabRef,
+                así que disparar de más es benigno (si prevTabRef es null,
+                no hace nada). Esto cierra el último gap del flujo de back
+                navigation (ContentDetailScreen ya estaba cubierto via el
+                useEffect de view-transition en ExploreScreen).
+
+                onActivate: NO disparamos el evento. Si el user activó el
+                trial, queremos que se quede en Explorar para que pueda
+                acceder al contenido recién desbloqueado en vez de mandarlo
+                de regreso al feed. */}
             {window.PremiumLockSheet && (
               <window.PremiumLockSheet
                 open={!!premiumLockFeature}
                 feature={premiumLockFeature}
-                onClose={() => setPremiumLockFeature(null)}
+                onClose={() => {
+                  setPremiumLockFeature(null);
+                  window.dispatchEvent(new CustomEvent('mtx:videosheet-closed'));
+                }}
                 onActivate={() => setPremiumLockFeature(null)}/>
             )}
 
