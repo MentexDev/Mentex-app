@@ -129,6 +129,36 @@ function useIsScheduled(id) {
   return scheduled;
 }
 
+// Indica si el item vive en __mtxRitual (agregado desde HomeInactive/Explorar)
+// vs venir de ACTIVITIES base del ritual. Solo los items en __mtxRitual son
+// desagendables — los del ritual base son rutinas fijas que el user gestiona
+// desde el editor de rutinas, no desde el detalle del contenido.
+function useIsInRitualStore(id) {
+  const computeNow = () => !!(typeof window !== 'undefined' && window.__mtxRitual?.has(id));
+  const [val, setVal] = React.useState(computeNow);
+  React.useEffect(() => {
+    const handler = () => setVal(computeNow());
+    handler();
+    window.addEventListener(_RITUAL_EVENT, handler);
+    return () => window.removeEventListener(_RITUAL_EVENT, handler);
+  }, [id]);
+  return val;
+}
+
+// Toggle desagendar — quita el item del __mtxRitual. Helper compartido por
+// ContentDetailScreen y SeriesOverviewScreen cuando el user presiona
+// "Agendado" en estado scheduled. Emite toast vía evento (useToast es un
+// hook y no se puede invocar fuera de un componente).
+function _unscheduleFromRitual(item) {
+  if (!item || typeof window === 'undefined' || !window.__mtxRitual) return false;
+  if (!window.__mtxRitual.has(item.id)) return false;
+  window.__mtxRitual.remove(item.id);
+  window.dispatchEvent(new CustomEvent('mtx:toast', {
+    detail: { message: `${item.title || 'Contenido'} · desagendado`, duration: 1800 },
+  }));
+  return true;
+}
+
 // ── Tipos de contenido ────────────────────────────────────────────────────────
 const CONTENT_TYPES = [
   { id: 'all',        label: 'Todos',        Ic: IcCompass  },
@@ -5862,6 +5892,7 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
   const [completedEps, setCompletedEps] = React.useState(() => new Set());
   const [tab, setTab] = React.useState('episodes');
   const scheduled = useIsScheduled(series?.id);
+  const inRitualStore = useIsInRitualStore(series?.id);
 
   if (!series) return null;
   const accent = series.accent || '#3dffd1';
@@ -5881,7 +5912,12 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
     });
     onEpisodePlay(ep);
   };
-  const handleSchedule = () => onScheduleForToday?.(series);
+  // Toggle del botón Agendar/Agendado — comparte la misma lógica que
+  // ContentDetailScreen: si la serie está en __mtxRitual, desagenda; si está
+  // en ritual base, el botón queda disabled.
+  const handleScheduleToggle = scheduled
+    ? (inRitualStore ? () => _unscheduleFromRitual(series) : undefined)
+    : () => onScheduleForToday?.(series);
   const handleSave    = () => onSaveToPlaylist?.(series);
 
   const TABS = [
@@ -6078,11 +6114,14 @@ function SeriesOverviewScreen({ series, onBack, onPlayAll, onEpisodePlay, onSche
         </button>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           <button
-            onClick={scheduled ? undefined : handleSchedule}
-            disabled={scheduled}
-            aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
+            onClick={handleScheduleToggle}
+            disabled={scheduled && !inRitualStore}
+            aria-label={scheduled
+              ? (inRitualStore ? 'Desagendar de tu día' : 'Agendado (parte de tu ritual base)')
+              : 'Agendar para hoy'}
             className="mtx-tap" style={{
-              height:50, borderRadius:14, cursor: scheduled ? 'default' : 'pointer',
+              height:50, borderRadius:14,
+              cursor: (scheduled && !inRitualStore) ? 'default' : 'pointer',
               border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
               background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
               color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
@@ -6229,99 +6268,9 @@ function SeriesEpisodeRow({ episode, index, completed, onClick }) {
 }
 
 
-// ── AuthorStrip — franja de autor debajo del hero en ContentDetailScreen ──────
-function AuthorStrip({ author, scheduled, onOpenTribute, onSchedule, onSave }) {
-  if (!author) return null;
-  const ac = author.accentColor || '#3dffd1';
-  const isMentex = author.type === 'originals';
-
-  return (
-    <div style={{ padding:'0 20px', marginBottom:16, display:'flex', alignItems:'center', gap:12 }}>
-      {/* Avatar tappable */}
-      <div
-        onClick={onOpenTribute}
-        role="button" tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenTribute(); } }}
-        className="mtx-tap"
-        style={{ flexShrink:0, cursor:'pointer', position:'relative' }}
-      >
-        <div style={{
-          width:48, height:48, borderRadius:999, overflow:'hidden',
-          background: author.avatar ? 'transparent' : `linear-gradient(135deg, ${ac}33, ${ac}11)`,
-          border:`1.5px solid ${ac}50`,
-          boxShadow:`0 0 0 1px ${ac}20, 0 4px 14px -4px ${ac}40`,
-          display:'flex', alignItems:'center', justifyContent:'center',
-          flexShrink:0,
-        }}>
-          {author.avatar ? (
-            <img src={author.avatar} alt={author.name} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-          ) : (
-            <span style={{ fontSize:18, fontWeight:800, color:ac, fontFamily:'var(--ff-display)', letterSpacing:'-0.03em' }}>
-              {author.name.charAt(0)}
-            </span>
-          )}
-        </div>
-        {/* Badge indicator */}
-        <div style={{
-          position:'absolute', bottom:-2, right:-2,
-          width:16, height:16, borderRadius:999,
-          background: isMentex ? `linear-gradient(135deg, ${ac}, ${ac}aa)` : 'linear-gradient(135deg, #FFD66B, #FFA94D)',
-          border:'1.5px solid #050706',
-          display:'flex', alignItems:'center', justifyContent:'center',
-        }}>
-          <IcSparkles size={8} stroke="none" fill={isMentex ? '#050706' : '#3a2000'} strokeWidth={0}/>
-        </div>
-      </div>
-
-      {/* Name + role */}
-      <div style={{ flex:1, minWidth:0, cursor:'pointer' }} onClick={onOpenTribute}>
-        <div style={{ fontSize:13, fontWeight:700, color:'var(--ink-1)', letterSpacing:'-0.01em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-          {author.name}
-        </div>
-        <div style={{ fontSize:11, color:'var(--ink-3)', fontWeight:500, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-          {author.role}
-        </div>
-      </div>
-
-      {/* CTAs — Guardar (icon) + Agendar (icon+text) */}
-      <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
-        {/* Guardar — solo icono */}
-        <button onClick={onSave} aria-label="Guardar en playlist" className="mtx-tap" style={{
-          width:38, height:38, borderRadius:999, border:'0.5px solid var(--glass-stroke)',
-          background:'var(--glass-2)', color:'var(--ink-2)', cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          flexShrink:0,
-          transition:'background .2s, color .2s',
-        }}>
-          <IcBookmark size={15} stroke="currentColor"/>
-        </button>
-
-        {/* Agendar para hoy — icono + texto */}
-        <button
-          onClick={scheduled ? undefined : onSchedule}
-          disabled={scheduled}
-          aria-label={scheduled ? 'Ya agendado para hoy' : 'Agendar para hoy'}
-          className="mtx-tap"
-          style={{
-            height:38, borderRadius:999, cursor: scheduled ? 'default' : 'pointer',
-            border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid var(--glass-stroke)',
-            background: scheduled ? 'rgba(61,255,209,0.12)' : 'var(--glass-2)',
-            color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
-            fontSize:12, fontWeight: scheduled ? 700 : 600, fontFamily:'var(--ff-sans)',
-            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
-            padding:'0 14px', flexShrink:0,
-            transition:'background .25s, color .25s, border-color .25s, box-shadow .25s',
-            boxShadow: scheduled ? '0 0 0 1px rgba(61,255,209,0.18) inset' : 'none',
-          }}>
-          {scheduled
-            ? <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/>
-            : <IcCalendar size={13} stroke="currentColor"/>}
-          {scheduled ? 'Agendado' : 'Agendar'}
-        </button>
-      </div>
-    </div>
-  );
-}
+// AuthorStrip ELIMINADO (audit 2026-05-14): componente huérfano. La info de
+// autor ahora vive inline en el header de ContentDetailScreen (línea ~6730
+// "Por <author.name>") + tap abre TributeProfileScreen directo.
 
 // ── TributeProfileScreen — perfil homenaje o Mentex Originals ────────────────
 // Bottom sheet modal (88% height) con drag-to-close.
@@ -6613,6 +6562,15 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
   const [tab, setTab] = React.useState('about');
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const scheduled = useIsScheduled(item?.id);
+  const inRitualStore = useIsInRitualStore(item?.id);
+  // Toggle del botón Agendar/Agendado:
+  //   - NO scheduled                       → onScheduleForToday (abre sheet)
+  //   - scheduled + viene de __mtxRitual   → desagendar (remove + toast)
+  //   - scheduled + ritual base (ACTIVITIES) → disabled (no desagendable
+  //     desde el detalle — son rutinas fijas, se editan en el ritual editor)
+  const handleScheduleToggle = scheduled
+    ? (inRitualStore ? () => _unscheduleFromRitual(item) : undefined)
+    : () => onScheduleForToday?.(item);
 
   if (!item) return null;
   const accent = item.accent || '#3dffd1';
@@ -6753,10 +6711,17 @@ function ContentDetailScreen({ item, onBack, onPlay, onScheduleForToday, onSaveT
                 <IcBookmark size={17} stroke="currentColor"/>
               </button>
 
-              {/* Agendar */}
-              <button onClick={scheduled ? undefined : () => onScheduleForToday?.(item)} disabled={scheduled}
-                aria-label={scheduled ? 'Agendado' : 'Agendar'} className="mtx-tap" tabIndex={0}
-                style={{ height:44, padding:'0 14px', borderRadius:14, flexShrink:0, cursor: scheduled ? 'default' : 'pointer', border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid rgba(255,255,255,0.1)', background: scheduled ? 'rgba(61,255,209,0.1)' : 'rgba(255,255,255,0.05)', color: scheduled ? 'var(--neon)' : 'var(--ink-1)', fontSize:12, fontWeight:600, fontFamily:'var(--ff-sans)', display:'flex', alignItems:'center', gap:6 }}>
+              {/* Agendar / Agendado (toggle desagendar si viene de __mtxRitual) */}
+              <button onClick={handleScheduleToggle} disabled={scheduled && !inRitualStore}
+                aria-label={scheduled ? (inRitualStore ? 'Desagendar de tu día' : 'Agendado (parte de tu ritual base)') : 'Agendar'}
+                className="mtx-tap" tabIndex={0}
+                style={{ height:44, padding:'0 14px', borderRadius:14, flexShrink:0,
+                  cursor: (scheduled && !inRitualStore) ? 'default' : 'pointer',
+                  border: scheduled ? '0.5px solid rgba(61,255,209,0.45)' : '0.5px solid rgba(255,255,255,0.1)',
+                  background: scheduled ? 'rgba(61,255,209,0.1)' : 'rgba(255,255,255,0.05)',
+                  color: scheduled ? 'var(--neon)' : 'var(--ink-1)',
+                  fontSize:12, fontWeight:600, fontFamily:'var(--ff-sans)',
+                  display:'flex', alignItems:'center', gap:6 }}>
                 {scheduled ? <IcCheck size={13} stroke="currentColor" strokeWidth={2.4}/> : <IcCalendar size={13} stroke="currentColor"/>}
                 {scheduled ? 'Agendado' : 'Agendar'}
               </button>
@@ -10096,9 +10061,44 @@ function ExploreScreen({ onNotif = () => {}, notifCount = 0 }) {
     }
   };
 
-  // Sub-fase 0.3 · Los listeners 'mtx:explore-open-item' y 'mtx:expand-player'
-  // ahora viven en GlobalPlayerOverlay (a nivel del MentexApp). ExploreScreen
-  // ya no necesita escucharlos.
+  // ── Listener: mtx:explore-open-item ─────────────────────────────────────────
+  // Disparado por Mentex Home.html cuando Comunidad/Perfil/Settings emiten
+  // 'mtx:open-item-from-community'. Encamina al MISMO handleItemClick que usan
+  // los taps internos de Explorar — así la card del feed/perfil termina en el
+  // ContentDetailScreen full-screen (no en el VideoSheet legacy).
+  // Ref pattern (Blind Spot #9) para evitar re-bind del listener cuando
+  // handleItemClick cambia identidad por nav/state recreado.
+  const handleItemClickRef = React.useRef(handleItemClick);
+  React.useEffect(() => { handleItemClickRef.current = handleItemClick; });
+  React.useEffect(() => {
+    const handler = (e) => {
+      const itemId = e.detail && e.detail.itemId;
+      if (!itemId || itemId === '__explore_home__') return;
+      const it = EXPLORE_CONTENT.find(c => c.id === itemId);
+      if (it) handleItemClickRef.current(it);
+    };
+    window.addEventListener('mtx:explore-open-item', handler);
+    return () => window.removeEventListener('mtx:explore-open-item', handler);
+  }, []);
+
+  // ── Back navigation: regresar al tab origen al salir del detalle ────────────
+  // Cuando el user entró a Explorar desde Comunidad/Perfil (Home.html setea
+  // prevTabRef = tab origen) y termina cerrando el detalle hasta volver al
+  // home de Explorar, hay que avisarle a Home.html para que regrese al tab
+  // origen. Antes esto lo hacía el `mtx:videosheet-closed` del VideoSheet
+  // legacy; con el patrón nuevo (ContentDetailScreen via nav.push) hay que
+  // detectar la transición view: non-home → home y disparar el mismo evento.
+  // Home.html.closeHandler ignora el evento si prevTabRef está null, así que
+  // disparar de más es benigno.
+  const prevViewRef = React.useRef(nav.state.view);
+  React.useEffect(() => {
+    const prev = prevViewRef.current;
+    const curr = nav.state.view;
+    if (prev !== 'home' && curr === 'home') {
+      window.dispatchEvent(new CustomEvent('mtx:videosheet-closed'));
+    }
+    prevViewRef.current = curr;
+  }, [nav.state.view]);
 
   // Listeners de eventos request-* — son los que el GlobalPlayer dispara
   // cuando el usuario tap acciones del player (share, save, etc.). El
@@ -10625,7 +10625,7 @@ Object.assign(window, {
   PlaylistCard, PlaylistsRow, PlaylistItemRow,
   PlaylistOverviewScreen, PlaylistQueueSheet,
   SeriesOverviewScreen, SeriesEpisodeRow, ContentDetailScreen,
-  AuthorStrip, TributeProfileScreen,
+  TributeProfileScreen,
   LibraryScreen, LibraryStatsBar, LibraryTabs, NewPlaylistCard, HistoryRow,
   ALL_CATEGORIES, CATEGORIES_BY_TYPE, DividerBanner, CategorySection,
   TopTenCard, TopTenRow, FilterPanel, SearchScreen, SearchResultRow,

@@ -123,9 +123,10 @@ function _resolveActivityToExploreItem(activity) {
 // ── openRitualActivity ────────────────────────────────────────────────────────
 // Single entry point para abrir una activity desde el Home activo. Decide
 // qué experiencia montar según el tipo:
-//   1. Resuelve a item de Explorar → abre VideoSheet (player global).
-//   2. runnerType === 'timer'      → abre ActivityRunner fullscreen (Fase C).
-//   3. Sin match                    → toast "próximamente" (Fase D pendiente).
+//   1. runnerType === 'timer'        → ActivityRunner fullscreen (Fase C).
+//   2. fromExplore + exploreId       → ContentDetailScreen nuevo (Explorar).
+//   3. Activity base resuelve a item → VideoSheet (player global) [legacy].
+//   4. Sin match                      → toast "próximamente" (Fase D pendiente).
 function openRitualActivity(activity) {
   if (!activity) return false;
 
@@ -140,16 +141,31 @@ function openRitualActivity(activity) {
     return true;
   }
 
-  // 2. Sin runnerType pero con contenido de Explorar → player global.
-  // Aplica a items agendados via __mtxRitual.add() (audiolibros, charlas,
-  // meditaciones guiadas) que viven solo en Explorar.
+  // 2. Items agregados via __mtxRitual.add() desde HomeInactive
+  //    (audiolibros/charlas/meditaciones agendadas desde la sección
+  //    "Aprende hoy") → abren el ContentDetailScreen nuevo de Explorar,
+  //    NO el VideoSheet legacy. El detail screen ya tiene CTA "Reproducir"
+  //    + botón "Agendado" (toggle desagendar). Patrón idéntico al usado
+  //    por Comunidad/Perfil: dispatch al shell, el shell cambia tab a
+  //    'explore' y forwarda a explore-flow.jsx para abrir el detail.
+  const exploreId = activity.exploreId || activity.id;
+  if (activity.fromExplore && exploreId) {
+    window.dispatchEvent(new CustomEvent('mtx:open-item-from-community', {
+      detail: { itemId: exploreId },
+    }));
+    return true;
+  }
+
+  // 3. Activity base del ritual con match en EXPLORE_CONTENT → player
+  //    global (VideoSheet legacy). Mantenido por compat para activities
+  //    no-fromExplore que aún dependen de este flow.
   const item = _resolveActivityToExploreItem(activity);
   if (item) {
     window.__mtxGlobalPlayer?.openSheet(item);
     return true;
   }
 
-  // 3. Default → toast informativo
+  // 4. Default → toast informativo
   if (typeof window !== 'undefined' && window.dispatchEvent) {
     window.dispatchEvent(new CustomEvent('mtx:toast', {
       detail: {

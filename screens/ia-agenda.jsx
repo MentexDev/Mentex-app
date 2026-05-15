@@ -74,10 +74,33 @@
   ];
 
 
+  // ── Bloques Mentex por defecto: el ritual del día + el aprendizaje del día.
+  // En backend real: la IA los inserta cuando detecta que el user planeó su
+  // ritual desde Home. Aquí los hardcodeamos como mock para que aparezcan en
+  // la Agenda con el mismo diseño que los demás eventos.
+  var MOCK_MENTEX_BLOCKS = [
+    {
+      id: 'm-ritual',
+      title: 'Sesión ritual · enfoque profundo',
+      time: '11:00', durationMin: 45,
+      type: 'mentex', source: 'mentex',
+      playable: { kind: 'session', label: 'Iniciar sesión ritual' },
+      description: 'Tu coach reservó esta ventana cognitiva para tu sesión planeada: bloqueo de apps + rutinas activas.',
+    },
+    {
+      id: 'm-learning',
+      title: 'Charla del día · Steve Jobs · Stanford 2005',
+      time: '16:30', durationMin: 15,
+      type: 'mentex', source: 'mentex',
+      playable: { kind: 'audio', label: 'Escuchar ahora', contentId: 'steve-jobs-stanford' },
+      description: 'Tu coach agendó esta charla legendaria para tu momento de transición de la tarde.',
+    },
+  ];
+
   // ── Store: __mtxIAAgenda ───────────────────────────────────────────────────
   if (typeof window !== 'undefined' && !window.__mtxIAAgenda) {
     var _agendaState = {
-      events: [],                        // empieza vacío — scheduler + calendar lo llenan
+      events: MOCK_MENTEX_BLOCKS.slice(),   // arranca con ritual + aprendizaje del coach
       proposals: MOCK_PROPOSALS.slice(),
       reminders: MOCK_REMINDERS.slice(),
       calendarConnected: false,
@@ -315,14 +338,24 @@
     var isPast            = props.isPast;
     var isNow             = props.isNow;
     var onReminderToggle  = props.onReminderToggle;
+    var onOpen            = props.onOpen;
     var ts                = eventTypeStyle(ev.type);
 
     return (
-      <div style={{
+      <div
+        role={onOpen ? 'button' : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+        onClick={onOpen}
+        onKeyDown={onOpen ? function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+        aria-label={onOpen ? 'Ver detalle: ' + ev.title + ' a las ' + ev.time : undefined}
+        className={onOpen ? 'mtx-tap' : undefined}
+        style={{
         display: 'flex', alignItems: 'stretch', gap: 0,
         marginBottom: 6,
         opacity: isPast ? 0.38 : 1,
         transition: 'opacity .3s',
+        cursor: onOpen ? 'pointer' : 'default',
+        borderRadius: 12,
       }}>
         {/* Columna de hora */}
         <div style={{
@@ -368,7 +401,12 @@
                   ? 'var(--ink-4)'
                   : (isNow ? 'var(--ink-1)' : 'var(--ink-2)'),
                 letterSpacing: '-0.01em', fontFamily: 'var(--ff-sans)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                lineHeight: 1.28,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                wordBreak: 'break-word',
                 textDecoration: (ev.source === 'reminder' && ev.completed) ? 'line-through' : 'none',
               }}>{ev.title}</div>
               <div style={{
@@ -394,8 +432,15 @@
               </div>
             </div>
 
-            {/* Ícono de fuente: checkbox (reminder) · G (calendar) · sparkle (mentex) */}
-            {ev.source === 'reminder' ? (
+            {/* Acción inline al final de la card:
+                  - reminder 'check' (legacy o explícito) → checkbox toggle
+                  - calendar                              → ícono G (info-only)
+                  - reminder 'timer' / mentex / playable  → botón ▶ Play que
+                    abre el detail sheet (el sheet decide qué destino: timer
+                    runner, ContentDetailScreen, sesión ritual).
+                Stop propagation para que el tap del botón no abra el sheet
+                doble — la card body ya lo abre. */}
+            {(ev.source === 'reminder' && ev.measureKind !== 'timer') ? (
               <button
                 onClick={function (e) {
                   e.stopPropagation();
@@ -426,14 +471,25 @@
                 letterSpacing: 0,
               }}>G</div>
             ) : (
-              <div style={{
-                width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-                background: 'rgba(61,255,209,0.07)',
-                border: '0.5px solid rgba(61,255,209,0.22)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <IcSparkles size={10} stroke="var(--neon)" strokeWidth={1.6}/>
-              </div>
+              <button
+                onClick={function (e) {
+                  e.stopPropagation();
+                  if (onOpen) onOpen();
+                }}
+                aria-label={'Iniciar · ' + ev.title}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flexShrink: 0,
+                  width: 26, height: 26, borderRadius: 999, padding: 0,
+                  border: '0.5px solid rgba(61,255,209,0.36)',
+                  background: 'rgba(61,255,209,0.10)',
+                  color: 'var(--neon)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: 'inset 0 0 10px rgba(61,255,209,0.10)',
+                  transition: 'background .15s, border-color .15s',
+                }}>
+                <IcPlay size={11} stroke="currentColor" strokeWidth={2}/>
+              </button>
             )}
           </div>
         </div>
@@ -731,17 +787,190 @@
   }
 
 
+  // ── DayPillsRow ────────────────────────────────────────────────────────────
+  // Scroll horizontal de 7 días (-2..+4 desde hoy). El coach orquesta el plan
+  // de múltiples días — esto deja al user navegar entre ellos antes/después
+  // de dormir para revisar lo que viene.
+  function DayPillsRow(props) {
+    var selectedOffset = props.selectedOffset;
+    var onSelect = props.onSelect;
+    var dayCounts = props.dayCounts || {};
+
+    var today = new Date();
+    var pills = [];
+    for (var i = -2; i <= 4; i++) pills.push(i);
+    var DOW = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+    return (
+      <div className="mtx-scroll-x" style={{
+        display: 'flex', gap: 6,
+        padding: '6px 16px 12px',
+        flexShrink: 0,
+        borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+      }}>
+        {pills.map(function(offset) {
+          var d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+          var isToday = offset === 0;
+          var isSelected = selectedOffset === offset;
+          var dayLabel = isToday ? 'Hoy' : (offset === -1 ? 'Ayer' : offset === 1 ? 'Mañ' : DOW[d.getDay()]);
+          var count = dayCounts[offset] || 0;
+          return (
+            <button key={offset}
+              onClick={function() { onSelect(offset); }}
+              aria-pressed={isSelected}
+              aria-label={dayLabel + ' ' + d.getDate() + (count > 0 ? ', ' + count + ' ítems' : ', sin actividad')}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flexShrink: 0,
+                minWidth: 50,
+                padding: '8px 10px 7px',
+                borderRadius: 14,
+                background: isSelected
+                  ? 'linear-gradient(180deg, rgba(61,255,209,0.18), rgba(61,255,209,0.04))'
+                  : isToday ? 'rgba(61,255,209,0.04)' : 'rgba(255,255,255,0.025)',
+                border: '0.5px solid ' + (isSelected ? 'rgba(61,255,209,0.40)'
+                                        : isToday ? 'rgba(61,255,209,0.16)'
+                                        : 'rgba(255,255,255,0.06)'),
+                color: isSelected ? 'var(--neon)' : isToday ? 'var(--ink-2)' : 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                transition: 'all .2s',
+              }}>
+              <span style={{
+                fontSize: 9.5, fontWeight: 700,
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+                opacity: 0.8,
+              }}>{dayLabel}</span>
+              <span style={{
+                fontSize: 16, fontWeight: 700,
+                fontFamily: 'var(--ff-display, var(--ff-sans))',
+                letterSpacing: '-0.012em',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1,
+              }}>{d.getDate()}</span>
+              {count > 0 && (
+                <span aria-hidden="true" style={{
+                  width: 4, height: 4, borderRadius: '50%',
+                  background: isSelected ? 'var(--neon)' : 'var(--ink-3)',
+                  marginTop: 2,
+                }}/>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+
+  // ── Mock multi-día — eventos contextuales para cada día.
+  // Hoy (offset=0) usa los events reales del store. Otros días tienen mocks
+  // hardcodeados pero realistas. Backend real reemplaza esto con queries por
+  // rango de fecha al API de Calendar + scheduler.
+  function _getMockEventsForOffset(offset) {
+    if (offset === 0) return null;  // caller usa events del store
+    if (offset === -2) return [
+      { id: 'h-2a', title: 'Sesión profunda · Backend',  time: '10:00', durationMin: 75, type: 'mentex',   source: 'mentex' },
+      { id: 'h-2b', title: 'Standup',                     time: '09:00', durationMin: 15, type: 'meeting',  source: 'calendar' },
+      { id: 'h-2c', title: 'Almuerzo',                    time: '13:00', durationMin: 60, type: 'break',    source: 'calendar' },
+    ];
+    if (offset === -1) return [
+      { id: 'y1', title: 'Standup',                     time: '09:00', durationMin: 15, type: 'meeting', source: 'calendar' },
+      { id: 'y2', title: 'Sesión enfoque · Diseño',     time: '11:00', durationMin: 60, type: 'mentex',  source: 'mentex' },
+      { id: 'y3', title: '1:1 con Carlos',              time: '15:00', durationMin: 30, type: 'meeting', source: 'calendar' },
+      { id: 'y4', title: 'Wind down',                   time: '21:30', durationMin: 15, type: 'mentex',  source: 'mentex' },
+    ];
+    if (offset === 1) return [
+      { id: 't1', title: 'Daily standup',                time: '09:00', durationMin: 15, type: 'meeting',  source: 'calendar' },
+      { id: 't2', title: 'Sesión profunda · Producto',   time: '09:30', durationMin: 90, type: 'mentex',   source: 'mentex' },
+      { id: 't3', title: 'Demo con cliente',             time: '14:00', durationMin: 60, type: 'meeting',  source: 'calendar' },
+      { id: 't4', title: 'Lectura · 30 min',             time: '20:30', durationMin: 30, type: 'mentex',   source: 'mentex' },
+    ];
+    if (offset === 2) return [
+      { id: 'w1', title: 'Sprint planning',              time: '10:00', durationMin: 120, type: 'meeting', source: 'calendar' },
+      { id: 'w2', title: 'Cita médica',                  time: '16:00', durationMin: 60,  type: 'personal', source: 'calendar' },
+    ];
+    if (offset === 3) return [
+      { id: 'th1', title: 'All-hands semanal',           time: '11:00', durationMin: 45, type: 'meeting', source: 'calendar' },
+    ];
+    return [];  // offset === 4 → sin actividad
+  }
+
+  function _getMockProposalsForOffset(offset) {
+    if (offset === 0) return null;  // usa store proposals
+    if (offset === 1) return [
+      {
+        id: 'p-t-1', kind: 'focus_slot', icon: '🎯',
+        title: 'Slot ideal · 09:30 mañana',
+        description: '90 min libres después del standup. Tu mejor ventana cognitiva del día. ¿Bloqueo para deep work?',
+        ctas: [
+          { id: 'accept', label: 'Reservar bloque', primary: true },
+          { id: 'dismiss', label: 'Ver otro día', primary: false },
+        ],
+      },
+    ];
+    if (offset === 2) return [
+      {
+        id: 'p-w-1', kind: 'conflict', icon: '⚠️',
+        title: 'Sprint planning de 2h consecutivas',
+        description: 'No vas a tener slot de enfoque profundo este día. ¿Quieres que mueva tu sesión profunda a otro día?',
+        ctas: [
+          { id: 'accept', label: 'Reagendar enfoque', primary: true },
+          { id: 'dismiss', label: 'Está bien así', primary: false },
+        ],
+      },
+    ];
+    if (offset === 3) return [
+      {
+        id: 'p-th-1', kind: 'day_close', icon: '🌙',
+        title: 'Cierre semanal anticipado',
+        description: 'Jueves es buen día para hacer tu weekly review temprano y dejar el viernes libre. ¿Lo agendo?',
+        ctas: [
+          { id: 'accept', label: 'Agendar review', primary: true },
+          { id: 'dismiss', label: 'No por ahora', primary: false },
+        ],
+      },
+    ];
+    return [];
+  }
+
+
   // ── AgendaSheet ────────────────────────────────────────────────────────────
   function AgendaSheet(props) {
     var open    = props.open;
     var onClose = props.onClose;
     var nav     = useIAAgenda();
 
+    // HOOKS FIRST — todos antes de cualquier early return (post-audit Fase 3+4)
     var onCloseRef = React.useRef(onClose);
     React.useEffect(function () { onCloseRef.current = onClose; });
 
     var titleId  = React.useId ? React.useId() : 'agenda-title';
     var sheetRef = React.useRef(null);
+
+    // Día seleccionado: offset desde hoy (-7..+7 razonable, scroll horizontal)
+    var dayOffsetState = React.useState(0);
+    var dayOffset = dayOffsetState[0]; var setDayOffset = dayOffsetState[1];
+
+    // Drawer de detalle al click en un item del timeline
+    var detailItemState = React.useState(null);
+    var detailItem = detailItemState[0]; var setDetailItem = detailItemState[1];
+
+    // AddSheet (botón + arriba): reusa el AddReminderSheet existente
+    var addOpenState = React.useState(false);
+    var addOpen = addOpenState[0]; var setAddOpen = addOpenState[1];
+
+    // Suscripción a __mtxRitual: cuando el user agrega/quita contenido
+    // desde "Aprende hoy" (HomeInactive) o desagenda desde ContentDetailScreen,
+    // la Agenda debe re-renderizar para reflejar el plan real del día.
+    var ritualTickState = React.useState(0);
+    var setRitualTick = ritualTickState[1];
+    React.useEffect(function () {
+      var onChange = function () { setRitualTick(function (t) { return t + 1; }); };
+      window.addEventListener('mtx:ritual-changed', onChange);
+      return function () { window.removeEventListener('mtx:ritual-changed', onChange); };
+    }, []);
 
     React.useEffect(function () {
       if (!open) return;
@@ -760,14 +989,81 @@
 
     if (!open) return null;
 
-    var events            = nav.events;
-    var proposals         = nav.proposals;
-    var reminders         = nav.reminders;
+    // Datos del día seleccionado:
+    //   offset=0 → store real + items dinámicos de __mtxRitual
+    //   otros   → mocks contextuales (backend reemplazará con queries por rango)
+    var mockEvents = _getMockEventsForOffset(dayOffset);
+    var mockProps  = _getMockProposalsForOffset(dayOffset);
+    var events     = mockEvents !== null ? mockEvents : nav.events;
+    var proposals  = mockProps  !== null ? mockProps  : nav.proposals;
+    var reminders  = dayOffset === 0 ? nav.reminders : [];  // solo hoy
     var calendarConnected = nav.calendarConnected;
 
+    // ── Plan del día dinámico ──────────────────────────────────────────────
+    // Para hoy, los items que el user agendó desde "Aprende hoy" (HomeInactive)
+    // viven en window.__mtxRitual. Los convertimos a eventos Mentex con un
+    // slot horario suggested (escalonado en bloques de 90 min después de las
+    // 14:00). El coach IA real seleccionará slots inteligentemente; aquí lo
+    // suggested keeps it deterministic per index.
+    //
+    // Filtrado de duplicados: si nav.events ya tiene un evento con el mismo
+    // contentId (caso m-learning hardcoded de Steve Jobs vs c-jobs), se
+    // prefiere el dinámico — el del store es viejo mock.
+    function _ritualItemsToEvents() {
+      if (dayOffset !== 0) return [];
+      if (typeof window === 'undefined' || !window.__mtxRitual) return [];
+      var items = window.__mtxRitual.list();
+      var slots = ['14:00', '15:30', '17:00', '18:30', '20:00', '21:00'];
+      return items.map(function (it, i) {
+        var contentId = it.exploreId || it.id;
+        return {
+          id: 'rit-' + it.id,
+          title: it.title,
+          time: slots[i] || '20:30',
+          durationMin: 30,
+          type: 'mentex',
+          source: 'mentex',
+          exploreId: contentId,
+          cover: it.cover,
+          accent: it.accent,
+          author: it.author,
+          kind: it.kind,
+          playable: { kind: 'audio', contentId: contentId, label: 'Escuchar ahora' },
+          description: 'Agendado desde Aprende hoy · planeado para este momento del día.',
+        };
+      });
+    }
+    var ritualEvents = _ritualItemsToEvents();
+    if (ritualEvents.length > 0) {
+      var ritualIds = {};
+      ritualEvents.forEach(function (r) { ritualIds[r.exploreId] = true; });
+      events = events.filter(function (e) {
+        var cid = e.playable && e.playable.contentId;
+        // Match directo (e.playable.contentId === ritual exploreId)
+        if (cid && ritualIds[cid]) return false;
+        // Match legacy: m-learning hardcoded con contentId 'steve-jobs-stanford'
+        // vs ritual con exploreId 'c-jobs' (mismo contenido)
+        if (cid === 'steve-jobs-stanford' && ritualIds['c-jobs']) return false;
+        return true;
+      }).concat(ritualEvents);
+    }
+
     var today    = new Date();
-    var dayLabel = 'Hoy, ' + formatDayLabel(today);
+    var selectedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset);
+    var dayLabel = dayOffset === 0 ? 'Hoy, ' + formatDayLabel(today)
+                 : dayOffset === -1 ? 'Ayer, ' + formatDayLabel(selectedDate)
+                 : dayOffset === 1  ? 'Mañana, ' + formatDayLabel(selectedDate)
+                 : formatDayLabel(selectedDate);
     var nowMin   = getNowMinutes();
+    var isToday  = dayOffset === 0;
+
+    // Counts para los pills (dot indicator)
+    var dayCounts = {};
+    for (var off = -2; off <= 4; off++) {
+      var em = _getMockEventsForOffset(off);
+      var ev = em !== null ? em : nav.events;
+      dayCounts[off] = ev.length;
+    }
 
     // Recordatorios con hora válida → van al timeline; sin hora → sección flotante
     function hasValidTime(t) { return typeof t === 'string' && /^\d{1,2}:\d{2}$/.test(t); }
@@ -775,8 +1071,27 @@
     var timelineReminders = reminders
       .filter(function (r) { return hasValidTime(r.time); })
       .map(function (r) {
-        return Object.assign({}, r, { source: 'reminder', type: 'reminder', durationMin: 20 });
+        // durationMin: si el reminder es de tipo timer, preservar el valor
+        // que el user eligió (15/25/45/60/custom). Reminders 'check' o legacy
+        // usan 20 min por default solo para ocupar espacio visual.
+        var dur = (r.measureKind === 'timer' && r.durationMin) ? r.durationMin : 20;
+        return Object.assign({}, r, { source: 'reminder', type: 'reminder', durationMin: dur });
       });
+
+    // Dedupe: __mtxScheduler bridge crea events con id 'sched_<reminderId>'
+    // y source 'mentex' como mirror de cada reminder programado en el chat
+    // IA. Estos events compiten con el reminder original (source 'reminder')
+    // en el timeline — al clickear gana el primero por time, y se pierde la
+    // metadata measureKind/durationMin del reminder. Solución: si un event
+    // 'sched_<X>' coincide con un reminder cuyo id es X (timelineReminders),
+    // filtramos el event y dejamos solo el reminder canónico.
+    var reminderIds = {};
+    timelineReminders.forEach(function (r) { reminderIds[r.id] = true; });
+    events = events.filter(function (e) {
+      if (typeof e.id !== 'string' || e.id.indexOf('sched_') !== 0) return true;
+      var rid = e.id.substring('sched_'.length);
+      return !reminderIds[rid];
+    });
 
     var floatingReminders = reminders.filter(function (r) { return !hasValidTime(r.time); });
     var pendingFloating   = floatingReminders.filter(function (r) { return !r.completed; }).length;
@@ -787,7 +1102,10 @@
     });
 
     function evState(ev) {
-      // Recordatorio completado → siempre aparece como pasado (dimmed)
+      // Solo hoy tiene noción de "now/past/future" basado en hora actual.
+      // Días futuros: todo es "future". Días pasados: todo es "past" (dimmed).
+      if (dayOffset > 0) return 'future';
+      if (dayOffset < 0) return 'past';
       if (ev.source === 'reminder' && ev.completed) return 'past';
       var s = parseTimeToMin(ev.time);
       if (s < 0) return 'future';
@@ -812,7 +1130,7 @@
     var handleConnect  = function ()   { if (window.__mtxIAAgenda) window.__mtxIAAgenda.connectCalendar(); };
     var handleDisconn  = function ()   { if (window.__mtxIAAgenda) window.__mtxIAAgenda.disconnectCalendar(); };
 
-    // Construir filas del timeline con NowLine inyectada en la posición correcta
+    // Construir filas del timeline. NowLine solo aplica al día de hoy.
     var nowInserted = false;
     var timelineRows = [];
     sorted.forEach(function (ev, i) {
@@ -820,102 +1138,128 @@
       var isPast = state === 'past';
       var isNow  = state === 'now';
 
-      // NowLine: antes del primer evento futuro
-      if (!nowInserted && state === 'future') {
+      // NowLine: antes del primer evento futuro (solo hoy)
+      if (isToday && !nowInserted && state === 'future') {
         nowInserted = true;
         timelineRows.push(<NowLine key="now-line"/>);
       }
       timelineRows.push(
-        <EventRow key={ev.id} event={ev} isPast={isPast} isNow={isNow} onReminderToggle={handleToggle}/>
+        <EventRow key={ev.id} event={ev} isPast={isPast} isNow={isNow}
+          onReminderToggle={handleToggle}
+          onOpen={function() { setDetailItem(ev); }}/>
       );
     });
-    // Si todos los eventos ya pasaron, NowLine al final
-    if (!nowInserted && sorted.length > 0) {
+    // Si todos los eventos ya pasaron y es hoy, NowLine al final
+    if (isToday && !nowInserted && sorted.length > 0) {
       timelineRows.push(<NowLine key="now-line-end"/>);
     }
 
     return (
-      <div role="presentation" style={{
-        position: 'absolute', inset: 0, zIndex: 100,
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        animation: 'mtx-fade-in .25s ease',
-      }} onClick={onClose}>
-        <div
-          ref={sheetRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          tabIndex={-1}
-          onClick={function (e) { e.stopPropagation(); }}
-          style={{
-            background: 'rgba(11,15,15,0.97)',
-            backdropFilter: 'blur(36px) saturate(200%)',
-            WebkitBackdropFilter: 'blur(36px) saturate(200%)',
-            borderTop: '0.5px solid rgba(255,255,255,0.10)',
-            borderTopLeftRadius: 28, borderTopRightRadius: 28,
-            padding: '14px 0 36px',
-            boxShadow: '0 -40px 100px rgba(0,0,0,0.75)',
-            maxHeight: '90%', overflow: 'auto',
-            display: 'flex', flexDirection: 'column',
-            animation: 'mtx-fade-up .32s cubic-bezier(.4,1.4,.5,1)',
-            outline: 'none',
-          }}
-          className="mtx-no-scrollbar">
+      <div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 100,
+          background: 'radial-gradient(80% 60% at 50% 0%, rgba(61,255,209,0.05), transparent 60%), #050706',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          animation: 'mtxAgendaInFull .35s cubic-bezier(.25,.8,.25,1) both',
+          outline: 'none',
+        }}>
+        <style>{`
+          @keyframes mtxAgendaInFull  { from { transform:translateX(100%); opacity:0.2; } to { transform:translateX(0); opacity:1; } }
+          @keyframes mtxAgendaOutFull { from { transform:translateX(0); opacity:1; } to { transform:translateX(100%); opacity:0.2; } }
+        `}</style>
 
-          {/* Grabber */}
-          <div style={{
-            width: 36, height: 4, borderRadius: 999, margin: '0 auto 16px',
-            background: 'rgba(255,255,255,0.16)', flexShrink: 0,
-          }}/>
+        {/* ── Header con back + título + botón "+" circular arriba ───────── */}
+        <div style={{
+          paddingTop: 48, paddingLeft: 16, paddingRight: 16, paddingBottom: 6,
+          flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          {/* Header buttons: mismas dimensiones (40×40), mismo background
+              neutro, mismo color ink-1. Tono unificado — el botón "+" ya no
+              compite con el contenido. */}
+          <button
+            onClick={onClose}
+            onKeyDown={function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (onClose) onClose(); } }}
+            aria-label="Volver"
+            className="mtx-tap"
+            style={{
+              width: 40, height: 40, borderRadius: 999, border: 0, padding: 0,
+              background: 'rgba(255,255,255,0.06)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--ink-1)', cursor: 'pointer',
+            }}>
+            <IcChevL size={18} stroke="currentColor" strokeWidth={2}/>
+          </button>
+          <button
+            onClick={function () { setAddOpen(true); }}
+            onKeyDown={function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAddOpen(true); } }}
+            aria-label="Agregar a la agenda"
+            className="mtx-tap"
+            style={{
+              width: 40, height: 40, borderRadius: 999, border: 0, padding: 0,
+              background: 'rgba(255,255,255,0.06)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--ink-1)', cursor: 'pointer',
+            }}>
+            <IcPlus size={18} stroke="currentColor" strokeWidth={2}/>
+          </button>
+        </div>
 
-          {/* Header ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── */}
-          <div style={{
-            padding: '0 20px 16px',
-            display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
-            borderBottom: '0.5px solid rgba(255,255,255,0.05)',
-            marginBottom: 6, flexShrink: 0,
-          }}>
-            <div>
-              <div style={{
-                fontSize: 9.5, color: 'var(--ink-4)',
-                letterSpacing: '0.16em', textTransform: 'uppercase',
-                fontWeight: 600, marginBottom: 4, fontFamily: 'var(--ff-sans)',
-              }}>{dayLabel}</div>
-              <h2 id={titleId} style={{
-                margin: 0, fontSize: 24, fontWeight: 700,
-                color: 'var(--ink-1)', letterSpacing: '-0.025em',
-                fontFamily: 'var(--ff-display, var(--ff-sans))', lineHeight: 1.1,
-              }}>Agenda</h2>
-            </div>
+        {/* ── Título + stat pill ─────────────────────────────────────────── */}
+        <div style={{
+          padding: '4px 20px 14px',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              padding: '6px 12px', borderRadius: 999,
-              background: events.length > 0 ? 'rgba(61,255,209,0.06)' : 'rgba(255,255,255,0.04)',
-              border: '0.5px solid ' + (events.length > 0 ? 'rgba(61,255,209,0.20)' : 'rgba(255,255,255,0.08)'),
-              fontSize: 10.5, fontWeight: 600,
-              color: events.length > 0 ? 'var(--neon)' : 'var(--ink-3)',
-              fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
-            }}>{statLabel}{pendingFloating > 0 ? ' · ' + pendingFloating + ' sin hora' : ''}</div>
+              fontSize: 9.5, color: 'var(--ink-4)',
+              letterSpacing: '0.16em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 4, fontFamily: 'var(--ff-sans)',
+            }}>{dayLabel}</div>
+            <h2 id={titleId} style={{
+              margin: 0, fontSize: 28, fontWeight: 700,
+              color: 'var(--ink-1)', letterSpacing: '-0.025em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))', lineHeight: 1.1,
+              marginBottom: 6,
+            }}>Agenda</h2>
+            <div style={{
+              fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.4,
+              letterSpacing: '-0.005em', fontFamily: 'var(--ff-sans)',
+              maxWidth: 260,
+            }}>El plan que tu coach orquesta · {isToday ? 'hoy' : (dayOffset > 0 ? 'próximamente' : 'historial')}.</div>
           </div>
+          <div style={{
+            padding: '6px 12px', borderRadius: 999,
+            background: events.length > 0 ? 'rgba(61,255,209,0.06)' : 'rgba(255,255,255,0.04)',
+            border: '0.5px solid ' + (events.length > 0 ? 'rgba(61,255,209,0.20)' : 'rgba(255,255,255,0.08)'),
+            fontSize: 10.5, fontWeight: 600,
+            color: events.length > 0 ? 'var(--neon)' : 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
+          }}>{statLabel}</div>
+        </div>
 
-          {/* Propuestas del coach ── ── ── ── ── ── ── ── ── ── ── ── ── */}
-          {proposals.length > 0 && (
-            <div style={{ padding: '10px 16px 6px', flexShrink: 0 }}>
-              <div style={{
-                fontSize: 9.5, color: 'var(--ink-4)',
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                fontWeight: 700, marginBottom: 10,
-                display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--ff-sans)',
-              }}>
-                <IcSparkles size={11} stroke="var(--neon)" strokeWidth={1.8}/>
-                <span>COACH MENTEX</span>
-              </div>
-              {proposals.map(function (p) {
-                return <ProposalCard key={p.id} proposal={p} onAccept={handleAccept} onDismiss={handleDismiss}/>;
-              })}
-            </div>
-          )}
+        {/* ── Scroll horizontal de días ──────────────────────────────────── */}
+        <DayPillsRow selectedOffset={dayOffset} onSelect={setDayOffset} dayCounts={dayCounts}/>
+
+        {/* ── Scrollable content ─────────────────────────────────────────── */}
+        <div className="mtx-no-scrollbar" style={{
+          flex: 1, overflowY: 'auto', paddingTop: 6, paddingBottom: 36,
+        }}>
+
+          {/* Sección "COACH MENTEX" (proposals) REMOVIDA 2026-05-14.
+              Razón: las burbujas "Ventana de enfoque" / "Cierre reflexivo"
+              robaban demasiado espacio vertical y empujaban el timeline
+              abajo del fold. Conceptualmente son notificaciones del coach,
+              no entradas del plan del día. El store (__mtxIAAgenda.proposals)
+              + ProposalCard se mantienen — pronto se renderizan en
+              NotificationsSheet con el mismo design. Hoy: hidden aquí. */}
 
           {/* Timeline de eventos ── ── ── ── ── ── ── ── ── ── ── ── ── */}
           <div style={{ padding: '6px 20px 14px', flexShrink: 0 }}>
@@ -941,11 +1285,19 @@
               )}
             </div>
 
-            {/* Integración Google Calendar */}
-            {!calendarConnected
-              ? <CalendarConnectBanner onConnect={handleConnect}/>
-              : <CalendarSyncedBadge onDisconnect={handleDisconn}/>
-            }
+            {/* Nota informativa Calendar: aparece SOLO si no conectaste Calendar,
+                NO bloquea el resto. La conexión real vive en Integraciones (Fase 4). */}
+            {!calendarConnected && isToday && (
+              <div style={{
+                padding: '10px 12px', borderRadius: 12, marginBottom: 14,
+                background: 'rgba(155,138,255,0.04)',
+                border: '0.5px solid rgba(155,138,255,0.16)',
+                fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5,
+                fontFamily: 'var(--ff-sans)',
+              }}>
+                💡 Conecta Google o Apple Calendar desde <span style={{ color: '#9b8aff', fontWeight: 600 }}>Integraciones</span> para ver tus eventos reales aquí.
+              </div>
+            )}
 
             {/* Eventos */}
             {sorted.length === 0 ? (
@@ -955,30 +1307,15 @@
                 fontFamily: 'var(--ff-sans)', lineHeight: 1.6,
               }}>
                 <div style={{ fontSize: 24, marginBottom: 10 }}>✨</div>
-                Tu día está libre.{'\n'}Pídele al coach que te ayude a planificarlo.
+                {isToday
+                  ? <>Tu día está libre.<br/>Pídele al coach que te ayude a planificarlo.</>
+                  : (dayOffset > 0
+                    ? <>El coach todavía no ha planificado este día.<br/>Llegará más cerca de la fecha.</>
+                    : <>Sin actividad registrada este día.</>
+                  )}
               </div>
             ) : timelineRows}
           </div>
-
-          {/* Recordatorios sin hora — solo los que no tienen HH:MM válido */}
-          {floatingReminders.length > 0 && (
-            <div style={{ padding: '2px 20px 8px', flexShrink: 0 }}>
-              <div style={{
-                fontSize: 9.5, color: 'var(--ink-4)',
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                fontWeight: 700, marginBottom: 8,
-                display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--ff-sans)',
-              }}>
-                <IcBell size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
-                <span>SIN HORA · {pendingFloating} PENDIENTE{pendingFloating === 1 ? '' : 'S'}</span>
-              </div>
-              {floatingReminders.map(function (r) {
-                return (
-                  <ReminderRow key={r.id} reminder={r} onToggle={handleToggle} onDelete={handleDelRem}/>
-                );
-              })}
-            </div>
-          )}
 
           {/* Footer */}
           <div style={{
@@ -991,12 +1328,821 @@
             <span>Coach Mentex está observando tu día</span>
           </div>
         </div>
+
+        {/* Sheets superpuestos */}
+        {detailItem && (
+          <AgendaItemDetailSheet
+            item={detailItem}
+            isToday={isToday}
+            onClose={function() { setDetailItem(null); }}
+            onCloseAgenda={function() { setDetailItem(null); if (onClose) onClose(); }}
+            onReminderToggle={handleToggle}
+            onDeleteReminder={handleDelRem}
+          />
+        )}
+        {addOpen && (
+          <AddReminderSheet
+            open={addOpen}
+            onClose={function() { setAddOpen(false); }}
+          />
+        )}
       </div>
     );
   }
 
 
+  // ── AgendaItemDetailSheet ────────────────────────────────────────────────
+  // Drawer brutal y estético al click en cualquier item del timeline.
+  // Muestra: header con icon + tipo + tiempo, descripción/notas, source,
+  // y actions contextuales (toggle reminder, ver en Calendar, cancelar Mentex).
+  function AgendaItemDetailSheet(props) {
+    var item = props.item;
+    var isToday = props.isToday;
+    var onClose = props.onClose;
+    // onCloseAgenda: cierra TODO el AgendaSheet (no solo este detail).
+    // Lo usa "Iniciar ahora" para dar paso al ContentDetailScreen / player
+    // fullscreen que viven a nivel shell.
+    var onCloseAgenda = props.onCloseAgenda || onClose;
+    var onReminderToggle = props.onReminderToggle;
+    var onDeleteReminder = props.onDeleteReminder;
+
+    var onCloseRef = React.useRef(onClose);
+    React.useEffect(function() { onCloseRef.current = onClose; });
+    React.useEffect(function() {
+      var onKey = function(e) {
+        if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
+        var t = e.target; var tag = (t && t.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+        onCloseRef.current();
+      };
+      window.addEventListener('keydown', onKey);
+      return function() { window.removeEventListener('keydown', onKey); };
+    }, []);
+    React.useEffect(function() {
+      var prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return function() { document.body.style.overflow = prev; };
+    }, []);
+
+    var backdropDownRef = React.useRef(false);
+    var handleBackdropDown = function(e) { backdropDownRef.current = e.target === e.currentTarget; };
+    var handleBackdropClick = function(e) {
+      if (e.target === e.currentTarget && backdropDownRef.current) onCloseRef.current();
+      backdropDownRef.current = false;
+    };
+
+    var toast = (window.useToast) ? window.useToast() : { show: function() {} };
+
+    var sourceMeta = (function() {
+      if (item.source === 'mentex')   return { label: 'Agendado por Mentex', accent: 'var(--neon)',  emoji: '✦' };
+      if (item.source === 'calendar') return { label: 'Desde tu Calendar',    accent: '#4285F4',     emoji: 'G' };
+      if (item.source === 'reminder') return { label: 'Recordatorio diario',  accent: '#a78bfa',     emoji: '🔔' };
+      return { label: 'Item de agenda', accent: 'var(--ink-2)', emoji: '·' };
+    })();
+    var typeStyleObj = eventTypeStyle(item.type);
+
+    var portalRoot = (typeof document !== 'undefined')
+      ? document.getElementById('mtx-overlay-root')
+      : null;
+    if (!portalRoot) return null;
+
+    var endTimeMin = parseTimeToMin(item.time) + (item.durationMin || 30);
+    var endHour = Math.floor(endTimeMin / 60);
+    var endMinStr = String(endTimeMin % 60).padStart(2, '0');
+    var endTimeStr = endHour + ':' + endMinStr;
+
+    var content = (
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 220,
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        animation: 'mtx-fade-up .25s ease',
+      }} onMouseDown={handleBackdropDown} onClick={handleBackdropClick}>
+        <div onClick={function(e) { e.stopPropagation(); }}
+          role="dialog" aria-modal="true" aria-label={'Detalle: ' + item.title}
+          className="mtx-no-scrollbar"
+          style={{
+            background: 'rgba(15,19,19,0.96)',
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+            borderTop: '0.5px solid rgba(255,255,255,0.10)',
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            padding: '14px 20px 28px',
+            boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+            maxHeight: '88%', overflow: 'auto',
+            animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+          }}>
+          {/* Grabber */}
+          <div aria-hidden="true" style={{
+            width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+            background: 'rgba(255,255,255,0.16)',
+          }}/>
+
+          {/* Header con large time + source pill */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+            <div aria-hidden="true" style={{
+              width: 60, height: 60, borderRadius: 16, flexShrink: 0,
+              background: 'linear-gradient(135deg, ' + typeStyleObj.dot + '20, ' + typeStyleObj.dot + '04)',
+              border: '0.5px solid ' + typeStyleObj.dot + '40',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              color: typeStyleObj.dot,
+              boxShadow: '0 0 16px ' + typeStyleObj.dot + '20',
+            }}>
+              <span style={{
+                fontSize: 18, fontWeight: 800,
+                fontFamily: 'var(--ff-display, var(--ff-sans))',
+                letterSpacing: '-0.025em',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1,
+              }}>{item.time}</span>
+              <span style={{
+                fontSize: 9, marginTop: 2,
+                opacity: 0.7, fontWeight: 600,
+              }}>{formatDuration(item.durationMin || 30)}</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 9.5, fontWeight: 700,
+                color: sourceMeta.accent,
+                letterSpacing: '0.10em', textTransform: 'uppercase',
+                marginBottom: 6,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}>
+                <span aria-hidden="true">{sourceMeta.emoji}</span>
+                <span>{sourceMeta.label}</span>
+              </div>
+              <div style={{
+                fontSize: 17, fontWeight: 700, color: 'var(--ink-1)',
+                letterSpacing: '-0.018em',
+                fontFamily: 'var(--ff-display, var(--ff-sans))',
+                lineHeight: 1.2,
+                marginBottom: 6,
+              }}>{item.title}</div>
+              <div style={{
+                fontSize: 11.5, color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{item.time} – {endTimeStr}</div>
+            </div>
+            <button onClick={onClose} aria-label="Cerrar"
+              className="mtx-tap"
+              style={{
+                width: 32, height: 32, borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                color: 'var(--ink-2)', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, fontSize: 13,
+              }}>✕</button>
+          </div>
+
+          {/* Type pill + recurrence */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 18, flexWrap: 'wrap',
+          }}>
+            {typeStyleObj.label && (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999,
+                background: typeStyleObj.bg,
+                border: '0.5px solid ' + typeStyleObj.border,
+                fontSize: 10, fontWeight: 700,
+                color: typeStyleObj.dot, letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--ff-sans)',
+              }}>{typeStyleObj.label}</span>
+            )}
+            {item.recurrence === 'daily' && (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999,
+                background: 'rgba(155,138,255,0.08)',
+                border: '0.5px solid rgba(155,138,255,0.20)',
+                fontSize: 10, fontWeight: 600,
+                color: '#9b8aff', letterSpacing: '0.04em',
+                fontFamily: 'var(--ff-sans)',
+              }}>Diario</span>
+            )}
+            {item.source === 'reminder' && item.completed && (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999,
+                background: 'rgba(61,255,209,0.10)',
+                border: '0.5px solid rgba(61,255,209,0.30)',
+                fontSize: 10, fontWeight: 700,
+                color: 'var(--neon)', letterSpacing: '0.05em',
+                fontFamily: 'var(--ff-sans)',
+              }}>✓ Completado</span>
+            )}
+          </div>
+
+          {/* Description / context block */}
+          {(item.description || item.notes) && (
+            <div style={{
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(255,255,255,0.025)',
+              border: '0.5px solid rgba(255,255,255,0.05)',
+              marginBottom: 18,
+            }}>
+              <div style={{
+                fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.55,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{item.description || item.notes}</div>
+            </div>
+          )}
+
+          {/* Why it's on your day (for Mentex events) */}
+          {item.source === 'mentex' && (
+            <div style={{
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(61,255,209,0.04)',
+              border: '0.5px solid rgba(61,255,209,0.16)',
+              marginBottom: 18,
+            }}>
+              <div className="mtx-eyebrow" style={{ fontSize: 9, color: 'var(--neon)', marginBottom: 6 }}>
+                POR QUÉ ESTÁ EN TU DÍA
+              </div>
+              <div style={{
+                fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>
+                {item.type === 'mentex'
+                  ? 'Tu coach detectó esta ventana cognitiva ideal y la reservó para enfoque profundo.'
+                  : 'Tu coach agendó este momento basándose en tu ritmo y prioridades del día.'}
+              </div>
+            </div>
+          )}
+
+          {/* Actions footer contextuales */}
+          {item.source === 'reminder' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={function() {
+                  if (onDeleteReminder) onDeleteReminder(item.id);
+                  toast.show({ message: 'Recordatorio eliminado', duration: 1400 });
+                  onClose();
+                }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '12px 14px', borderRadius: 14,
+                  background: 'rgba(255,107,107,0.06)',
+                  border: '0.5px solid rgba(255,107,107,0.24)',
+                  color: '#ff8b8b',
+                  fontSize: 12.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Eliminar</button>
+              {/* CTA reactivo según measureKind:
+                  - 'timer' (con duración)   → Iniciar timer (ActivityRunner)
+                  - 'check' o legacy (sin)   → Completar / Desmarcar (toggle) */}
+              {item.measureKind === 'timer' && item.durationMin ? (
+                <button
+                  onClick={function() {
+                    if (!window.__mtxActivityRunner) {
+                      toast.show({ message: 'Timer no disponible', duration: 1400 });
+                      return;
+                    }
+                    onCloseAgenda();
+                    window.__mtxActivityRunner.open({
+                      id: 'reminder-' + item.id,
+                      label: item.title,
+                      title: item.title,
+                      kind: 'Tarea',
+                      accent: '#3dffd1',
+                      runnerType: 'timer',
+                      metricType: 'duration',
+                      metricValue: item.durationMin,
+                      metricUnit: 'min',
+                      dur: item.durationMin + ' min',
+                      fromAgenda: true,
+                    });
+                  }}
+                  aria-label={'Iniciar timer de ' + item.durationMin + ' minutos'}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', flex: 2,
+                    padding: '12px 14px', borderRadius: 14, border: 0,
+                    background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                    color: '#0a1410',
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                    boxShadow: '0 4px 14px -2px rgba(61,255,209,0.42)',
+                  }}>▶ Iniciar · {item.durationMin} min</button>
+              ) : (
+                <button
+                  onClick={function() {
+                    if (onReminderToggle) onReminderToggle(item.id);
+                    toast.show({
+                      message: item.completed ? 'Marcado como pendiente' : '✓ Completado',
+                      duration: 1400,
+                    });
+                    onClose();
+                  }}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', flex: 2,
+                    padding: '12px 14px', borderRadius: 14, border: 0,
+                    background: item.completed
+                      ? 'rgba(255,255,255,0.04)'
+                      : 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                    color: item.completed ? 'var(--ink-2)' : '#0a1410',
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                    boxShadow: !item.completed ? '0 4px 14px -2px rgba(61,255,209,0.42)' : 'none',
+                    border: item.completed ? '0.5px solid rgba(255,255,255,0.08)' : 0,
+                  }}>{item.completed ? '↶ Desmarcar' : '✓ Completar'}</button>
+              )}
+            </div>
+          )}
+
+          {item.source === 'calendar' && (
+            <button
+              onClick={function() {
+                toast.show({ message: 'Abriendo en Calendar…', duration: 1400 });
+                onClose();
+              }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer', width: '100%',
+                padding: '12px 14px', borderRadius: 14,
+                background: 'rgba(66,133,244,0.10)',
+                border: '0.5px solid rgba(66,133,244,0.30)',
+                color: '#5b9cf7',
+                fontSize: 13, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+              }}>Ver en Calendar →</button>
+          )}
+
+          {item.source === 'mentex' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={function() {
+                  toast.show({ message: 'Bloque cancelado', duration: 1400 });
+                  onClose();
+                }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '12px 14px', borderRadius: 14,
+                  background: 'rgba(255,107,107,0.06)',
+                  border: '0.5px solid rgba(255,107,107,0.24)',
+                  color: '#ff8b8b',
+                  fontSize: 12.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Cancelar bloque</button>
+              {isToday && (
+                <button
+                  onClick={function() {
+                    // Conectar con el flujo real de contenido / sesión / timer:
+                    //   1. exploreId | playable.contentId → abre ContentDetailScreen
+                    //      en Explorar (modal de contenido fullscreen — mismo
+                    //      patrón que HomeActive → "Mi aprendizaje del día").
+                    //   2. playable.kind === 'session' → arranca la sesión
+                    //      ritual (apps + rutinas + tiempo).
+                    //   3. measureKind === 'timer' (reminder con duración) →
+                    //      abre ActivityRunner fullscreen pomodoro-style.
+                    //   4. default → toast informativo.
+                    // En 1-3 cerramos toda la Agenda para que el destino sea visible.
+                    var p = item.playable;
+                    var itemId = item.exploreId
+                      || (p && p.contentId)
+                      || null;
+                    if (itemId) {
+                      onCloseAgenda();
+                      window.dispatchEvent(new CustomEvent('mtx:open-item-from-community', {
+                        detail: { itemId: itemId },
+                      }));
+                      return;
+                    }
+                    if (p && p.kind === 'session') {
+                      onCloseAgenda();
+                      window.dispatchEvent(new CustomEvent('mtx:start-ritual-session', {
+                        detail: { source: 'agenda', itemId: item.id },
+                      }));
+                      toast.show({ message: '✦ Iniciando sesión ritual…', duration: 1600 });
+                      return;
+                    }
+                    if (item.measureKind === 'timer' && item.durationMin && window.__mtxActivityRunner) {
+                      onCloseAgenda();
+                      window.__mtxActivityRunner.open({
+                        id: 'reminder-' + item.id,
+                        label: item.title,
+                        title: item.title,
+                        kind: 'Tarea',
+                        accent: '#3dffd1',
+                        runnerType: 'timer',
+                        metricType: 'duration',
+                        metricValue: item.durationMin,
+                        metricUnit: 'min',
+                        dur: item.durationMin + ' min',
+                        fromAgenda: true,
+                      });
+                      return;
+                    }
+                    toast.show({ message: '✦ Iniciando…', duration: 1400 });
+                    onClose();
+                  }}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', flex: 2,
+                    padding: '12px 14px', borderRadius: 14, border: 0,
+                    background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                    color: '#0a1410',
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                    boxShadow: '0 4px 14px -2px rgba(61,255,209,0.42)',
+                  }}>▶ {item.playable && item.playable.label ? item.playable.label : 'Iniciar ahora'}</button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+    return window.ReactDOM ? window.ReactDOM.createPortal(content, portalRoot) : content;
+  }
+
+
   // ── AddReminderSheet ──────────────────────────────────────────────────────
+  // Duración presets para el modo Timer (pomodoro y derivados). Custom abre
+  // un picker sheet bonito para elegir un valor en minutos (1–240).
+  var DURATION_PRESETS = [15, 25, 45, 60];
+
+  // ── PickerSheetShell ──────────────────────────────────────────────────────
+  // Shell compartido para TimePickerSheet y DurationPickerSheet. Bottom-up
+  // con backdrop blur, grabber arriba, body + footer con Cancelar/Listo.
+  // Portal a 'mtx-overlay-root' con zIndex 240 (por encima de AddReminderSheet
+  // que vive en zIndex 110 dentro del Agenda zIndex 100).
+  function PickerSheetShell(props) {
+    var open       = props.open;
+    var titleLabel = props.title;
+    var subtitle   = props.subtitle;
+    var children   = props.children;
+    var onClose    = props.onClose;
+    var onConfirm  = props.onConfirm;
+    var confirmDisabled = props.confirmDisabled;
+
+    var onCloseRef = React.useRef(onClose);
+    React.useEffect(function() { onCloseRef.current = onClose; });
+
+    // Patrón mousedown-then-click: el backdrop solo cierra si el gesto
+    // empezó EN el backdrop. Sin esto el click event del trigger button
+    // burbujea via portal virtual tree y cierra el sheet recién montado.
+    var backdropDownRef = React.useRef(false);
+    var handleBackdropDown = function(e) { backdropDownRef.current = e.target === e.currentTarget; };
+    var handleBackdropClick = function(e) {
+      if (e.target === e.currentTarget && backdropDownRef.current && onCloseRef.current) {
+        onCloseRef.current();
+      }
+      backdropDownRef.current = false;
+    };
+
+    React.useEffect(function() {
+      if (!open) return;
+      var onKey = function(e) {
+        if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
+        var t = e.target; var tag = (t && t.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+        if (onCloseRef.current) onCloseRef.current();
+      };
+      window.addEventListener('keydown', onKey);
+      return function() { window.removeEventListener('keydown', onKey); };
+    }, [open]);
+
+    var portalRoot = (typeof document !== 'undefined')
+      ? document.getElementById('mtx-overlay-root') : null;
+    if (!open || !portalRoot) return null;
+
+    var content = (
+      <div role="presentation" style={{
+        position: 'absolute', inset: 0, zIndex: 240,
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        background: 'rgba(0,0,0,0.62)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        animation: 'mtx-fade-in .22s ease',
+      }} onMouseDown={handleBackdropDown} onClick={handleBackdropClick}>
+        <div onClick={function(e) { e.stopPropagation(); }}
+          role="dialog" aria-modal="true" aria-label={titleLabel}
+          style={{
+            background: 'rgba(15,19,19,0.97)',
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+            borderTop: '0.5px solid rgba(255,255,255,0.10)',
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            padding: '12px 20px 24px',
+            boxShadow: '0 -24px 60px rgba(0,0,0,0.65)',
+            display: 'flex', flexDirection: 'column', gap: 16,
+            animation: 'mtx-fade-up .34s cubic-bezier(.4,1.4,.5,1)',
+          }}>
+          <div aria-hidden="true" style={{
+            width: 36, height: 4, borderRadius: 999, margin: '0 auto 0',
+            background: 'rgba(255,255,255,0.16)',
+          }}/>
+          <div>
+            <div style={{
+              fontSize: 9.5, color: 'var(--ink-4)',
+              letterSpacing: '0.16em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 4, fontFamily: 'var(--ff-sans)',
+            }}>{titleLabel}</div>
+            <h3 style={{
+              margin: 0, fontSize: 17, fontWeight: 600,
+              color: 'var(--ink-1)', letterSpacing: '-0.015em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+            }}>{subtitle}</h3>
+          </div>
+          {children}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
+            <button
+              onClick={onClose}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                padding: '10px 18px', borderRadius: 999,
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                background: 'transparent', color: 'var(--ink-3)',
+                fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+              }}>Cancelar</button>
+            <button
+              onClick={onConfirm}
+              disabled={confirmDisabled}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: confirmDisabled ? 'not-allowed' : 'pointer',
+                padding: '10px 22px', borderRadius: 999,
+                border: '0.5px solid ' + (confirmDisabled ? 'rgba(255,255,255,0.06)' : 'rgba(61,255,209,0.40)'),
+                background: confirmDisabled
+                  ? 'rgba(255,255,255,0.02)'
+                  : 'linear-gradient(180deg,rgba(61,255,209,0.20),rgba(61,255,209,0.08))',
+                color: confirmDisabled ? 'var(--ink-4)' : 'var(--neon)',
+                fontSize: 13.5, fontWeight: 700, fontFamily: 'var(--ff-sans)',
+                boxShadow: confirmDisabled ? 'none' : '0 0 0 1px rgba(61,255,209,0.20),inset 0 0 14px rgba(61,255,209,0.08)',
+                opacity: confirmDisabled ? 0.6 : 1,
+              }}>Listo</button>
+          </div>
+        </div>
+      </div>
+    );
+    return window.ReactDOM ? window.ReactDOM.createPortal(content, portalRoot) : content;
+  }
+
+  // ── TimePickerSheet ────────────────────────────────────────────────────────
+  // Picker custom para HH:MM. Dos columnas scroll-y (Hora / Minuto). Cada
+  // columna highlights el valor seleccionado con accent neon sutil. Minuto
+  // en steps de 5 (00, 05, ..., 55) — suficiente granularidad para tareas.
+  function TimePickerSheet(props) {
+    var open    = props.open;
+    var value   = props.value || '09:00';
+    var onClose = props.onClose;
+    var onSelect = props.onSelect;
+
+    var initParts = (value || '09:00').split(':');
+    var initH = parseInt(initParts[0], 10) || 9;
+    var initM = parseInt(initParts[1], 10) || 0;
+    // Redondear el minuto al multiplo de 5 más cercano
+    initM = Math.round(initM / 5) * 5;
+    if (initM === 60) initM = 0;
+
+    var hState = React.useState(initH);
+    var hour = hState[0]; var setHour = hState[1];
+    var mState = React.useState(initM);
+    var minute = mState[0]; var setMinute = mState[1];
+
+    React.useEffect(function() {
+      if (!open) return;
+      setHour(initH); setMinute(initM);
+    }, [open, value]);
+
+    var hours = [];
+    for (var i = 0; i < 24; i++) hours.push(i);
+    var minutes = [];
+    for (var j = 0; j < 60; j += 5) minutes.push(j);
+
+    function _pad(n) { return n < 10 ? '0' + n : String(n); }
+    var period = hour >= 12 ? 'PM' : 'AM';
+    var hour12 = hour % 12 || 12;
+    var previewStr = _pad(hour12) + ':' + _pad(minute) + ' ' + period;
+
+    function _handleConfirm() {
+      if (onSelect) onSelect(_pad(hour) + ':' + _pad(minute));
+      if (onClose) onClose();
+    }
+
+    return (
+      <PickerSheetShell
+        open={open}
+        title="HORA"
+        subtitle="¿A qué hora?"
+        onClose={onClose}
+        onConfirm={_handleConfirm}>
+        {/* Preview grande del tiempo seleccionado */}
+        <div style={{
+          textAlign: 'center', padding: '6px 0 2px',
+          fontSize: 30, fontWeight: 700,
+          color: 'var(--neon)',
+          fontFamily: 'var(--ff-display, var(--ff-sans))',
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.02em',
+          textShadow: '0 0 24px rgba(61,255,209,0.35)',
+        }}>{previewStr}</div>
+
+        {/* Dos columnas: Hora · Minuto */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ColumnPicker
+            label="Hora"
+            options={hours}
+            value={hour}
+            onChange={setHour}
+            format={function(v) { var h12 = v % 12 || 12; return _pad(h12) + ' ' + (v >= 12 ? 'pm' : 'am'); }}
+          />
+          <ColumnPicker
+            label="Minuto"
+            options={minutes}
+            value={minute}
+            onChange={setMinute}
+            format={function(v) { return _pad(v); }}
+          />
+        </div>
+      </PickerSheetShell>
+    );
+  }
+
+  // ── ColumnPicker ──────────────────────────────────────────────────────────
+  // Columna scroll-y de chips. Auto-scroll al item seleccionado al abrir.
+  function ColumnPicker(props) {
+    var label    = props.label;
+    var options  = props.options;
+    var value    = props.value;
+    var onChange = props.onChange;
+    var format   = props.format || function(v) { return String(v); };
+
+    var listRef = React.useRef(null);
+    React.useEffect(function() {
+      if (!listRef.current) return;
+      var idx = options.indexOf(value);
+      if (idx < 0) return;
+      var el = listRef.current.children[idx];
+      if (el && el.scrollIntoView) {
+        try { el.scrollIntoView({ block: 'center', behavior: 'instant' }); }
+        catch (_) { el.scrollIntoView({ block: 'center' }); }
+      }
+    }, [value]);
+
+    return (
+      <div>
+        <div style={{
+          fontSize: 9.5, color: 'var(--ink-4)',
+          letterSpacing: '0.14em', textTransform: 'uppercase',
+          fontWeight: 600, marginBottom: 6, fontFamily: 'var(--ff-sans)',
+          textAlign: 'center',
+        }}>{label}</div>
+        <div ref={listRef} className="mtx-no-scrollbar" style={{
+          height: 170, overflowY: 'auto',
+          padding: '8px 0',
+          borderRadius: 14,
+          border: '0.5px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.02)',
+          WebkitMaskImage: 'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+          maskImage: 'linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%)',
+          display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          {options.map(function(opt) {
+            var active = opt === value;
+            return (
+              <button
+                key={opt}
+                onClick={function() { onChange(opt); }}
+                aria-pressed={active}
+                aria-label={label + ' ' + format(opt)}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  border: 0, background: 'transparent',
+                  padding: '7px 12px', borderRadius: 8,
+                  color: active ? 'var(--neon)' : 'var(--ink-3)',
+                  fontSize: active ? 17 : 14,
+                  fontWeight: active ? 700 : 500,
+                  fontFamily: 'var(--ff-sans)',
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
+                  textAlign: 'center',
+                  transition: 'color .15s, font-size .15s, font-weight .15s',
+                  textShadow: active ? '0 0 14px rgba(61,255,209,0.5)' : 'none',
+                }}>{format(opt)}</button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── DurationPickerSheet ────────────────────────────────────────────────────
+  // Picker custom para minutos de duración. Presets pomodoro + slider custom.
+  function DurationPickerSheet(props) {
+    var open    = props.open;
+    var value   = props.value || 25;
+    var onClose = props.onClose;
+    var onSelect = props.onSelect;
+
+    var valState = React.useState(value);
+    var v = valState[0]; var setV = valState[1];
+    React.useEffect(function() {
+      if (open) setV(value);
+    }, [open, value]);
+
+    var presets = [10, 15, 25, 45, 60, 90, 120];
+
+    function _handleConfirm() {
+      if (v < 1 || v > 240) return;
+      if (onSelect) onSelect(v);
+      if (onClose) onClose();
+    }
+
+    return (
+      <PickerSheetShell
+        open={open}
+        title="DURACIÓN"
+        subtitle="¿Cuánto te concentras?"
+        onClose={onClose}
+        onConfirm={_handleConfirm}
+        confirmDisabled={v < 1 || v > 240}>
+        {/* Preview grande de los minutos */}
+        <div style={{
+          textAlign: 'center', padding: '4px 0 2px',
+          color: 'var(--neon)',
+          fontFamily: 'var(--ff-display, var(--ff-sans))',
+          fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
+          textShadow: '0 0 24px rgba(61,255,209,0.35)',
+        }}>
+          <span style={{ fontSize: 36, fontWeight: 700 }}>{v}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 6, opacity: 0.7 }}>min</span>
+        </div>
+
+        {/* Slider 1–240 */}
+        <div>
+          <input
+            type="range"
+            min={1} max={240} step={1}
+            value={v}
+            onChange={function(e) { setV(parseInt(e.target.value, 10) || 1); }}
+            aria-label="Duración en minutos"
+            style={{
+              width: '100%', accentColor: 'var(--neon)', cursor: 'pointer',
+            }}/>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            fontSize: 9.5, color: 'var(--ink-4)', marginTop: 2,
+            fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '0.04em',
+          }}>
+            <span>1 min</span><span>240 min</span>
+          </div>
+        </div>
+
+        {/* Presets pomodoro */}
+        <div>
+          <div style={{
+            fontSize: 9.5, color: 'var(--ink-4)',
+            letterSpacing: '0.14em', textTransform: 'uppercase',
+            fontWeight: 600, marginBottom: 8, fontFamily: 'var(--ff-sans)',
+          }}>PRESETS POMODORO</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {presets.map(function(p) {
+              var active = v === p;
+              return (
+                <button
+                  key={p}
+                  onClick={function() { setV(p); }}
+                  aria-pressed={active}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', flex: '1 1 0', minWidth: 56,
+                    padding: '9px 10px', borderRadius: 10,
+                    border: '0.5px solid ' + (active ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.08)'),
+                    background: active ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.025)',
+                    color: active ? 'var(--neon)' : 'var(--ink-3)',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>{p} min</button>
+              );
+            })}
+          </div>
+        </div>
+      </PickerSheetShell>
+    );
+  }
+
+
+  // Día de la semana: 0=Domingo según JS Date.getDay(), pero la fila visual
+  // empieza en Lunes para coherencia LATAM. Mapping local 0..6 ↔ JS day:
+  //   index 0='L'→JS 1, 1='M'→2, 2='X'→3, 3='J'→4, 4='V'→5, 5='S'→6, 6='D'→0
+  var WEEKDAYS = [
+    { i: 0, label: 'L', full: 'Lunes',     jsDay: 1 },
+    { i: 1, label: 'M', full: 'Martes',    jsDay: 2 },
+    { i: 2, label: 'X', full: 'Miércoles', jsDay: 3 },
+    { i: 3, label: 'J', full: 'Jueves',    jsDay: 4 },
+    { i: 4, label: 'V', full: 'Viernes',   jsDay: 5 },
+    { i: 5, label: 'S', full: 'Sábado',    jsDay: 6 },
+    { i: 6, label: 'D', full: 'Domingo',   jsDay: 0 },
+  ];
+
   function AddReminderSheet(props) {
     var open    = props.open;
     var onClose = props.onClose;
@@ -1006,8 +2152,35 @@
     var title = titleState[0]; var setTitle = titleState[1];
     var timeState  = React.useState('09:00');
     var time  = timeState[0];  var setTime  = timeState[1];
-    var dailyState = React.useState(false);
-    var daily = dailyState[0]; var setDaily = dailyState[1];
+
+    // Tipo de medición:
+    //   'check' → tarea simple, se completa con un tap en el checkbox del
+    //             timeline. Para cosas como "Llamar a mamá", "Hidratarse".
+    //   'timer' → tarea con duración: al "Iniciar ahora" arranca el
+    //             ActivityRunner fullscreen (pomodoro-style). Para cosas
+    //             como "Trabajar concentrado 30 min", "Estudio profundo".
+    var measureState = React.useState('check');
+    var measure = measureState[0]; var setMeasure = measureState[1];
+
+    // Duración (solo aplica si measure === 'timer'). Presets pomodoro.
+    var durationState = React.useState(25);
+    var durationMin = durationState[0]; var setDurationMin = durationState[1];
+
+    // Frecuencia:
+    //   'once'     → una sola vez (default)
+    //   'daily'    → todos los días
+    //   'weekdays' → días específicos elegidos (Set de indices 0–6)
+    var freqState = React.useState('once');
+    var freq = freqState[0]; var setFreq = freqState[1];
+    var weekdaysState = React.useState(function () { return new Set(); });
+    var weekdaysSel = weekdaysState[0]; var setWeekdaysSel = weekdaysState[1];
+
+    // Pickers custom: TimePickerSheet y DurationPickerSheet montados desde
+    // aquí en lugar del input time nativo y window.prompt.
+    var timePickerOpenState = React.useState(false);
+    var timePickerOpen = timePickerOpenState[0]; var setTimePickerOpen = timePickerOpenState[1];
+    var durPickerOpenState = React.useState(false);
+    var durPickerOpen = durPickerOpenState[0]; var setDurPickerOpen = durPickerOpenState[1];
 
     var titleId  = React.useId ? React.useId() : 'add-reminder-title';
     var inputRef = React.useRef(null);
@@ -1016,30 +2189,79 @@
     var onCloseRef = React.useRef(onClose);
     React.useEffect(function () { onCloseRef.current = onClose; });
 
+    // Reset del form SOLO cuando el sheet se abre/cierra — NO en cambios
+    // de los pickers (eso bloquearía la selección porque cada apertura del
+    // TimePickerSheet rebote el form a defaults).
     React.useEffect(function () {
       if (!open) return;
-      setTitle(''); setTime('09:00'); setDaily(false);
+      setTitle(''); setTime('09:00');
+      setMeasure('check'); setDurationMin(25);
+      setFreq('once'); setWeekdaysSel(new Set());
+      setTimePickerOpen(false); setDurPickerOpen(false);
       var t = setTimeout(function () {
         if (inputRef.current) { try { inputRef.current.focus(); } catch (_) {} }
       }, 280);
+      if (sheetRef.current) { try { sheetRef.current.focus({ preventScroll: true }); } catch (_) {} }
+      return function () { clearTimeout(t); };
+    }, [open]);
+
+    // ESC listener separado — reactivo a los pickers para staged-close.
+    React.useEffect(function () {
+      if (!open) return;
       var onKey = function (e) {
         if (e.key !== 'Escape') return;
+        if (timePickerOpen) { setTimePickerOpen(false); return; }
+        if (durPickerOpen)  { setDurPickerOpen(false);  return; }
         if (onCloseRef.current) onCloseRef.current();
       };
       window.addEventListener('keydown', onKey);
-      if (sheetRef.current) { try { sheetRef.current.focus({ preventScroll: true }); } catch (_) {} }
-      return function () { clearTimeout(t); window.removeEventListener('keydown', onKey); };
-    }, [open]);
+      return function () { window.removeEventListener('keydown', onKey); };
+    }, [open, timePickerOpen, durPickerOpen]);
 
     if (!open) return null;
 
-    var canCreate = title.trim().length > 0;
+    // Validación: título obligatorio + si freq='weekdays' al menos un día.
+    var canCreate = title.trim().length > 0
+      && (freq !== 'weekdays' || weekdaysSel.size > 0);
+
+    function _toggleWeekday(i) {
+      setWeekdaysSel(function (prev) {
+        var next = new Set(prev);
+        if (next.has(i)) next.delete(i); else next.add(i);
+        return next;
+      });
+    }
+
+    // Formatea "HH:MM" 24h → "9:00 am / 3:30 pm" para preview en el botón.
+    function _fmtTime12(t) {
+      if (!t || typeof t !== 'string') return t;
+      var p = t.split(':');
+      var h = parseInt(p[0], 10) || 0;
+      var m = parseInt(p[1], 10) || 0;
+      var period = h >= 12 ? 'pm' : 'am';
+      var h12 = h % 12 || 12;
+      return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + period;
+    }
 
     var handleCreate = function () {
       if (!canCreate) return;
-      var reminder = { title: title.trim(), time: time, recurrence: daily ? 'daily' : null };
+      // Shape compatible con el store legacy ({recurrence: 'daily'|null}) +
+      // nuevos campos (measureKind, durationMin, recurrence: 'weekdays',
+      // weekdays: number[]). Esto preserva los reminders existentes intactos.
+      var recurrenceVal = freq === 'daily'    ? 'daily'
+                       :  freq === 'weekdays' ? 'weekdays'
+                                              : null;
+      var reminder = {
+        title: title.trim(),
+        time: time,
+        measureKind: measure,
+        recurrence: recurrenceVal,
+      };
+      if (measure === 'timer') reminder.durationMin = durationMin;
+      if (freq === 'weekdays') reminder.weekdays = Array.from(weekdaysSel).sort();
       if (window.__mtxIAAgenda) window.__mtxIAAgenda.addReminder(reminder);
-      toast.show({ message: '✓ Recordatorio creado · ' + reminder.title, duration: 2000 });
+      var icon = measure === 'timer' ? '▶' : '✓';
+      toast.show({ message: icon + ' ' + reminder.title + ' creado', duration: 1800 });
       onClose && onClose();
     };
 
@@ -1080,12 +2302,12 @@
               fontSize: 9.5, color: 'var(--ink-4)',
               letterSpacing: '0.16em', textTransform: 'uppercase',
               fontWeight: 600, marginBottom: 4, fontFamily: 'var(--ff-sans)',
-            }}>NUEVO RECORDATORIO</div>
+            }}>NUEVA TAREA</div>
             <h3 id={titleId} style={{
               margin: 0, fontSize: 18, fontWeight: 600,
               color: 'var(--ink-1)', letterSpacing: '-0.015em',
               fontFamily: 'var(--ff-display, var(--ff-sans))',
-            }}>¿Qué te recuerdo?</h3>
+            }}>¿Qué vas a agendar?</h3>
           </div>
 
           <input
@@ -1094,11 +2316,11 @@
             value={title}
             onChange={function (e) { setTitle(e.target.value); }}
             onKeyDown={function (e) {
-              if (e.key === 'Enter' && !e.shiftKey && title.trim()) {
+              if (e.key === 'Enter' && !e.shiftKey && canCreate) {
                 e.preventDefault(); handleCreate();
               }
             }}
-            placeholder="Ej: Beber agua, llamar a..."
+            placeholder={measure === 'timer' ? 'Ej: Trabajar concentrado, estudiar…' : 'Ej: Beber agua, llamar a…'}
             maxLength={80}
             style={{
               appearance: 'none', padding: '12px 14px', borderRadius: 12,
@@ -1118,6 +2340,66 @@
             }}
           />
 
+          {/* ── Tipo de medición ─────────────────────────────────────────
+              "Marca" → tarea simple, se completa con un tap del checkbox
+              en el timeline (existing behavior). "Tiempo" → tarea con
+              duración, al iniciar abre el ActivityRunner fullscreen
+              (pomodoro-style). Selector con accent suave (ink en activo,
+              no neon dominante) — el accent neon se reserva para CTAs. */}
+          <div>
+            <div style={{
+              fontSize: 10, color: 'var(--ink-4)',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 8, fontFamily: 'var(--ff-sans)',
+            }}>TIPO</div>
+            <div role="radiogroup" aria-label="Tipo de medición"
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { id: 'check', label: 'Marca',  icon: '✓', help: 'Marcar al completar' },
+                { id: 'timer', label: 'Tiempo', icon: '▶', help: 'Inicia un timer fullscreen' },
+              ].map(function (opt) {
+                var active = measure === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={function () { setMeasure(opt.id); }}
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={opt.label + ' · ' + opt.help}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '10px 12px', borderRadius: 12,
+                      border: '0.5px solid ' + (active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)'),
+                      background: active ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)',
+                      color: active ? 'var(--ink-1)' : 'var(--ink-3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10,
+                      textAlign: 'left', fontFamily: 'var(--ff-sans)',
+                      boxShadow: 'none',
+                      transition: 'background .18s, border-color .18s, color .18s',
+                    }}>
+                    <span aria-hidden="true" style={{
+                      width: 26, height: 26, borderRadius: 8,
+                      background: active ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.035)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, fontWeight: 700,
+                      color: active ? 'var(--ink-1)' : 'var(--ink-4)',
+                      flexShrink: 0,
+                    }}>{opt.icon}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.005em' }}>{opt.label}</span>
+                      <span style={{ fontSize: 10, color: 'var(--ink-4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {opt.help}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Hora + Duración (Duración solo si measure === 'timer')
+              Ambos abren un PickerSheet custom — no input nativo, no prompt. */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
@@ -1125,47 +2407,127 @@
                 letterSpacing: '0.12em', textTransform: 'uppercase',
                 fontWeight: 600, marginBottom: 6, fontFamily: 'var(--ff-sans)',
               }}>HORA</div>
-              <input
-                type="time"
-                value={time}
-                onChange={function (e) { setTime(e.target.value); }}
-                style={{
-                  appearance: 'none', WebkitAppearance: 'none',
-                  width: '100%', height: 44, boxSizing: 'border-box',
-                  padding: '0 14px', borderRadius: 12,
-                  border: '0.5px solid rgba(255,255,255,0.10)',
-                  background: 'rgba(255,255,255,0.03)',
-                  color: 'var(--ink-1)', fontSize: 14, fontFamily: 'var(--ff-sans)',
-                  fontVariantNumeric: 'tabular-nums', outline: 'none', colorScheme: 'dark',
-                }}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 10, color: 'var(--ink-4)',
-                letterSpacing: '0.12em', textTransform: 'uppercase',
-                fontWeight: 600, marginBottom: 6, fontFamily: 'var(--ff-sans)',
-              }}>FRECUENCIA</div>
               <button
-                onClick={function () { setDaily(function (d) { return !d; }); }}
-                aria-pressed={daily}
-                aria-label={daily ? 'Desactivar diario' : 'Repetir cada día'}
+                onClick={function(e) {
+                  // stopPropagation crítico: sin esto, React Portal propaga
+                  // el click event al backdrop del TimePickerSheet recién
+                  // montado vía el virtual DOM tree, y el backdrop dispara
+                  // su onClose en el mismo tick → picker abre y cierra.
+                  e.stopPropagation();
+                  setTimePickerOpen(true);
+                }}
+                aria-label={'Elegir hora (actual ' + _fmtTime12(time) + ')'}
                 className="mtx-tap"
                 style={{
                   appearance: 'none', cursor: 'pointer',
                   width: '100%', height: 44, boxSizing: 'border-box',
                   padding: '0 14px', borderRadius: 12,
-                  border: '0.5px solid ' + (daily ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.10)'),
-                  background: daily
-                    ? 'linear-gradient(180deg,rgba(61,255,209,0.16),rgba(61,255,209,0.04))'
-                    : 'rgba(255,255,255,0.03)',
-                  color: daily ? 'var(--neon)' : 'var(--ink-2)',
-                  fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: daily ? '0 0 0 1px rgba(61,255,209,0.18),inset 0 0 12px rgba(61,255,209,0.06)' : 'none',
-                  transition: 'background .2s, border-color .2s, color .2s',
-                }}>{daily ? '✓ Diario' : 'Una vez'}</button>
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--ink-1)', fontSize: 14, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.01em',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                <span>{_fmtTime12(time)}</span>
+                <span aria-hidden="true" style={{ fontSize: 11, color: 'var(--ink-4)' }}>⌃</span>
+              </button>
             </div>
+            {measure === 'timer' && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10, color: 'var(--ink-4)',
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  fontWeight: 600, marginBottom: 6, fontFamily: 'var(--ff-sans)',
+                }}>DURACIÓN</div>
+                <button
+                  onClick={function(e) {
+                    e.stopPropagation();
+                    setDurPickerOpen(true);
+                  }}
+                  aria-label={'Elegir duración (actual ' + durationMin + ' minutos)'}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    width: '100%', height: 44, boxSizing: 'border-box',
+                    padding: '0 14px', borderRadius: 12,
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    background: 'rgba(255,255,255,0.03)',
+                    color: 'var(--ink-1)', fontSize: 14, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.01em',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                  <span>{durationMin} min</span>
+                  <span aria-hidden="true" style={{ fontSize: 11, color: 'var(--ink-4)' }}>⌃</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Frecuencia: Una vez · Diario · Días específicos ───────── */}
+          <div>
+            <div style={{
+              fontSize: 10, color: 'var(--ink-4)',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              fontWeight: 600, marginBottom: 8, fontFamily: 'var(--ff-sans)',
+            }}>FRECUENCIA</div>
+            <div role="radiogroup" aria-label="Frecuencia"
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+              {[
+                { id: 'once',     label: 'Una vez' },
+                { id: 'daily',    label: 'Diario' },
+                { id: 'weekdays', label: 'Días' },
+              ].map(function (opt) {
+                var active = freq === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={function () { setFreq(opt.id); }}
+                    role="radio"
+                    aria-checked={active}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '10px 8px', borderRadius: 10,
+                      border: '0.5px solid ' + (active ? 'rgba(61,255,209,0.40)' : 'rgba(255,255,255,0.10)'),
+                      background: active ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.03)',
+                      color: active ? 'var(--neon)' : 'var(--ink-2)',
+                      fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+                    }}>{opt.label}</button>
+                );
+              })}
+            </div>
+            {freq === 'weekdays' && (
+              <div style={{
+                marginTop: 10, display: 'grid',
+                gridTemplateColumns: 'repeat(7, 1fr)', gap: 6,
+              }}>
+                {WEEKDAYS.map(function (d) {
+                  var on = weekdaysSel.has(d.i);
+                  return (
+                    <button
+                      key={d.i}
+                      onClick={function () { _toggleWeekday(d.i); }}
+                      aria-pressed={on}
+                      aria-label={d.full}
+                      className="mtx-tap"
+                      style={{
+                        appearance: 'none', cursor: 'pointer',
+                        height: 38, padding: 0, borderRadius: 10,
+                        border: '0.5px solid ' + (on ? 'rgba(61,255,209,0.45)' : 'rgba(255,255,255,0.10)'),
+                        background: on
+                          ? 'linear-gradient(180deg,rgba(61,255,209,0.18),rgba(61,255,209,0.04))'
+                          : 'rgba(255,255,255,0.03)',
+                        color: on ? 'var(--neon)' : 'var(--ink-3)',
+                        fontSize: 13, fontWeight: 700, fontFamily: 'var(--ff-sans)',
+                        letterSpacing: '0.04em',
+                        boxShadow: on ? '0 0 0 1px rgba(61,255,209,0.20),inset 0 0 10px rgba(61,255,209,0.08)' : 'none',
+                      }}>{d.label}</button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
@@ -1200,6 +2562,20 @@
               }}>Crear</button>
           </div>
         </div>
+
+        {/* Pickers superpuestos al sheet — zIndex 240 > 110 del sheet */}
+        <TimePickerSheet
+          open={timePickerOpen}
+          value={time}
+          onSelect={setTime}
+          onClose={function() { setTimePickerOpen(false); }}
+        />
+        <DurationPickerSheet
+          open={durPickerOpen}
+          value={durationMin}
+          onSelect={setDurationMin}
+          onClose={function() { setDurPickerOpen(false); }}
+        />
       </div>
     );
   }
@@ -1249,44 +2625,14 @@
 
         <div style={{ padding: '0 20px' }}>
           {reminders.length === 0 ? (
-            <div style={{
-              padding: '14px 18px', borderRadius: 14,
-              border: '1px dashed rgba(61,255,209,0.30)',
-              background: 'rgba(61,255,209,0.03)',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 999,
-                background: 'rgba(61,255,209,0.12)',
-                border: '0.5px solid rgba(61,255,209,0.30)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--neon)', flexShrink: 0,
-              }}>
-                <IcBell size={14} stroke="currentColor" strokeWidth={1.8}/>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)',
-                  fontFamily: 'var(--ff-sans)', letterSpacing: '-0.005em',
-                }}>Aún sin recordatorios</div>
-                <div style={{
-                  fontSize: 12, color: 'var(--ink-3)', fontFamily: 'var(--ff-sans)', marginTop: 2,
-                }}>El coach Mentex hará seguimiento de los que agregues.</div>
-              </div>
-              <button
-                onClick={function () { setAddOpen(true); }}
-                aria-label="Agregar primer recordatorio"
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  padding: '8px 14px', borderRadius: 999,
-                  border: '0.5px solid rgba(61,255,209,0.40)',
-                  background: 'linear-gradient(180deg,rgba(61,255,209,0.18),rgba(61,255,209,0.06))',
-                  color: 'var(--neon)', fontSize: 12, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-                  boxShadow: '0 0 0 1px rgba(61,255,209,0.16),inset 0 0 12px rgba(61,255,209,0.06)',
-                  flexShrink: 0,
-                }}>Agregar</button>
-            </div>
+            window.MtxAddMoreCard
+              ? <window.MtxAddMoreCard
+                  onClick={function () { setAddOpen(true); }}
+                  title="Agregar recordatorio"
+                  subtitle="El coach Mentex hará seguimiento de los que agregues"
+                  neutral
+                />
+              : null
           ) : (
             <div style={{
               padding: '4px 12px', borderRadius: 16,

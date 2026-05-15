@@ -302,12 +302,13 @@ function _formatScheduledTime(time) {
 //   - Si la activity está pendiente → abre VideoSheet de detalle primero.
 //   - Si la activity NO tiene contenido en Explorar (ej. journaling, gratitud)
 //     → toast "próximamente" (Fase C/D habilitará ActivityRunner).
-function ActivityRow({ a, onOpenPlayer, onRemove }) {
-  const handleRemove = onRemove ? (e) => {
-    e.stopPropagation();
-    onRemove();
-  } : null;
-
+// onRemove eliminado intencionalmente (2026-05-14): los items fromExplore
+// agregados desde HomeInactive ya no muestran un botón ✕ inline para
+// "Quitar del ritual" — esa acción ahora vive en el ContentDetailScreen
+// (botón "✓ Agendado" hace toggle desagendar). Esto da consistencia visual
+// con las activities normales del ritual, que siempre muestran botón Play
+// al frente.
+function ActivityRow({ a, onOpenPlayer }) {
   // Hora asignada por el agente IA — null si no hay hora programada
   const _useScheduledTime = (typeof window !== 'undefined' && window.useScheduledTime) || (() => null);
   const scheduledTime = _useScheduledTime(a.id);
@@ -431,18 +432,10 @@ function ActivityRow({ a, onOpenPlayer, onRemove }) {
 
       {a.playing ? (
         <Waveform bars={4} h={14} accent="var(--neon)"/>
-      ) : a.fromExplore && handleRemove ? (
-        <button onClick={handleRemove} aria-label="Quitar del ritual" className="mtx-tap" style={{
-          width:32, height:32, borderRadius:999, border:0, flexShrink:0,
-          background:'rgba(255,255,255,0.04)',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          cursor:'pointer', color:'var(--ink-3)',
-          transition:'background .15s, color .15s',
-        }}>
-          <IcClose size={13} stroke="currentColor" strokeWidth={2}/>
-        </button>
       ) : (
         // Botón con anillo SVG superpuesto al play/check.
+        // Aplica a TODAS las activities, incluyendo fromExplore — la
+        // desagendar live ahora en ContentDetailScreen (botón Agendado).
         //   • effectiveDone → ring lleno al 100% + IcCheck (revisable)
         //   • partialPct > 0 → ring al % cumplido + IcPlay (continuar)
         //   • sin progreso → ring invisible + IcPlay (empezar)
@@ -1154,6 +1147,7 @@ function HomeActive({
   tweaks,
   onNotif = () => {},
   notifCount = 0,
+  onAgenda = () => {},
   blockedApps = [],
   plannedMinutes = 45,
   selectedRoutineIds = [],
@@ -1276,7 +1270,7 @@ function HomeActive({
                    'Dominas tu mente.';
 
   return (
-    <div style={{ paddingTop:60, paddingBottom:160, animation:'mtx-fade-up .4s ease both' }}>
+    <div style={{ paddingTop:60, paddingBottom:96, animation:'mtx-fade-up .4s ease both' }}>
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div style={{ padding:'8px 20px 12px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', position:'relative' }}>
@@ -1338,6 +1332,16 @@ function HomeActive({
             }}
           >
             <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>
+          </button>
+          {/* Experimento: botón Agenda entre Coach y Notificaciones. Abre el
+              AgendaSheet existente del coach (vía onAgenda lifted al shell). */}
+          <button onClick={onAgenda} aria-label="Agenda" className="mtx-tap" style={{
+            position:'relative', width:44, height:44, borderRadius:999,
+            background:'var(--glass-2)', border:'0.5px solid var(--glass-stroke)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            color:'var(--ink-1)', cursor:'pointer', flexShrink:0,
+          }}>
+            <IcCalendar size={19} stroke="var(--ink-1)" strokeWidth={1.6}/>
           </button>
           <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
             position:'relative', width:44, height:44, borderRadius:999,
@@ -1569,7 +1573,6 @@ function HomeActive({
               key={extra.id}
               a={_extraToActivity(extra)}
               onOpenPlayer={onOpenPlayer}
-              onRemove={() => window.__mtxRitual?.remove(extra.id)}
             />
           ))}
           {window.MtxAddMoreCard && ritualExtras.length === 0 && (
@@ -1582,13 +1585,6 @@ function HomeActive({
           )}
         </div>
       </div>
-
-      {/* ── CARD 5 · Recordatorios (single source con la agenda IA) ─────
-          HomeRemindersCard vive en screens/ia-agenda.jsx. Lee/escribe del
-          mismo store __mtxIAAgenda.reminders que la agenda + el coach IA,
-          así un reminder agregado aquí aparece en la agenda y el coach
-          puede marcar auto-completed por eventos del día. */}
-      {window.HomeRemindersCard && <window.HomeRemindersCard/>}
 
       {/* AddContentScreen overlay para el ritual del día. Se monta a nivel
           del HomeActive (no global) — solo tiene sentido en la sesión activa

@@ -626,12 +626,427 @@ function BannerCarousel({
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// ── LearnTodaySection — "Aprende hoy" ─────────────────────────────────────
+// El user, al diseñar su ritual del día, también elige QUÉ quiere aprender.
+// 4 filas curadas: hero "Imperdibles para hoy" (cards anchas estilo Explorar
+// "Imperdibles para ti") + 3 filas standard por tipo (audiolibros, meditaciones,
+// charlas). Cada card tiene patrón dual-tap:
+//   - tap en cuerpo  → abre detalle en Explorar (dispatch 'mtx:open-item-from-community',
+//                      el shell cambia tab='explore' y abre ContentDetailScreen).
+//   - tap en bolita  → toggle quick-add al ritual (window.__mtxRitual.add/remove)
+//                      con e.stopPropagation() para no propagar al cuerpo.
+//
+// La bolita reutiliza el lenguaje visual de SelectableContentCard (explore-flow.jsx
+// línea 7293), el cuerpo reutiliza el de ExploreContentCard / ExploreHeroCard.
+// Estado checked reactive: la sección entera suscribe una sola vez a
+// 'mtx:ritual-changed' y pasa el Set de ids agregados a cada card (evita N listeners).
+// ──────────────────────────────────────────────────────────────────────────
+
+function _openExploreItem(itemId) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('mtx:open-item-from-community', {
+    detail: { itemId: itemId },
+  }));
+}
+
+// ── LearnTodayHeroCard ─────────────────────────────────────────────────────
+// Clon del ExploreHeroCard (explore-flow.jsx:462) — mismo width:300 height:210,
+// full-bleed cover con vignette, kind chip top-left, título grande overlay
+// bottom. ÚNICA diferencia: la bolita top-right es quick-add (+/✓) en lugar
+// del botón Play, porque aquí el rol del usuario es decidir qué agregar a su
+// ritual del día (no reproducir directamente). El cuerpo de la card sigue
+// abriendo el ContentDetailScreen vía dispatch.
+function LearnTodayHeroCard({ item, isAdded, onToggle }) {
+  const accent = item.accent || '#3dffd1';
+
+  const handleToggle = (e) => {
+    if (e) e.stopPropagation();
+    onToggle && onToggle(item);
+  };
+
+  return (
+    <div
+      onClick={() => _openExploreItem(item.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          _openExploreItem(item.id);
+        }
+      }}
+      className="mtx-glass mtx-tap"
+      aria-label={`${item.title} — ${item.author}. ${isAdded ? 'En tu día' : 'Toca el ícono + para agregar a tu día'}`}
+      style={{
+        width: 300, height: 210, flexShrink: 0,
+        scrollSnapAlign: 'start',
+        borderRadius: 22, overflow: 'hidden',
+        border: `0.5px solid ${isAdded ? accent + '66' : accent + '33'}`,
+        boxShadow: isAdded
+          ? `0 0 0 1px ${accent}40, 0 16px 40px -14px ${accent}80`
+          : `0 0 0 0.5px ${accent}1a, 0 16px 40px -16px ${accent}55`,
+        position: 'relative', cursor: 'pointer',
+        background: item.bg,
+        transition: 'box-shadow .25s, border-color .25s',
+      }}
+    >
+      {/* Cover image */}
+      {item.cover && (
+        <img src={item.cover} alt="" loading="lazy" style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%', objectFit: 'cover',
+          opacity: 0.55,
+          filter: 'saturate(0.95) contrast(1.05)',
+        }}/>
+      )}
+
+      {/* Bottom-up dark gradient + accent tint (idéntico a ExploreHeroCard) */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.78) 100%), radial-gradient(60% 80% at 80% 0%, ${accent}25, transparent 60%)`,
+        mixBlendMode: 'normal',
+      }}/>
+
+      {/* Kind chip top-left */}
+      <div style={{
+        position: 'absolute', top: 14, left: 14, zIndex: 2,
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
+        textTransform: 'uppercase', color: accent,
+        padding: '4px 9px', borderRadius: 999,
+        background: 'rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        border: `0.5px solid ${accent}40`,
+      }}>
+        {(window.CONTENT_TYPES && window.CONTENT_TYPES.find(t => t.id === item.type)?.label) || item.type}
+      </div>
+
+      {/* Quick-add bolita top-right — substitye el play icon del ExploreHeroCard */}
+      <button
+        onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            handleToggle(e);
+          }
+        }}
+        aria-label={isAdded ? `Quitar ${item.title} de tu día` : `Agregar ${item.title} a tu día`}
+        aria-pressed={isAdded}
+        className="mtx-tap"
+        style={{
+          appearance: 'none', cursor: 'pointer',
+          position: 'absolute', top: 14, right: 14, zIndex: 6,
+          width: 36, height: 36, padding: 0, borderRadius: 999,
+          background: isAdded ? accent : 'rgba(0,0,0,0.55)',
+          border: isAdded
+            ? `0.5px solid ${accent}`
+            : `0.5px solid ${accent}55`,
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: isAdded ? '#0a1410' : accent,
+          boxShadow: isAdded
+            ? `0 0 18px ${accent}aa, 0 0 0 4px ${accent}22`
+            : 'none',
+          transition: 'background .18s, border-color .18s, box-shadow .25s, transform .2s, color .18s',
+        }}
+      >
+        {isAdded
+          ? <IcCheck size={16} stroke="currentColor" strokeWidth={2.8}/>
+          : <IcPlus size={17} stroke="currentColor" strokeWidth={2.4}/>}
+      </button>
+
+      {/* Bottom overlay: title + author + duration (idéntico a ExploreHeroCard) */}
+      <div style={{
+        position: 'absolute', left: 16, right: 16, bottom: 14, zIndex: 2,
+        display: 'flex', flexDirection: 'column', gap: 5,
+      }}>
+        <div style={{
+          fontSize: 18, fontWeight: 700, color: '#fff',
+          letterSpacing: '-0.02em', lineHeight: 1.18,
+          textShadow: '0 2px 12px rgba(0,0,0,0.65)',
+          fontFamily: 'var(--ff-display)',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+        }}>
+          {item.title}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'rgba(255,255,255,0.78)' }}>
+          <span style={{ fontWeight: 500 }}>{item.author}</span>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
+            <IcClock size={10} stroke="currentColor"/>
+            {item.dur}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LearnTodayStandardCard ─────────────────────────────────────────────────
+// Card compacta para las filas de tipo (audiolibros, meditaciones, charlas).
+// Lenguaje visual de ExploreContentCard + la bolita "+" de SelectableContentCard.
+function LearnTodayStandardCard({ item, isAdded, onToggle }) {
+  const accent = item.accent || '#3dffd1';
+
+  const handleToggle = (e) => {
+    if (e) e.stopPropagation();
+    onToggle && onToggle(item);
+  };
+
+  return (
+    <div
+      onClick={() => _openExploreItem(item.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          _openExploreItem(item.id);
+        }
+      }}
+      className="mtx-glass mtx-tap"
+      aria-label={`${item.title} — ${item.author}. ${isAdded ? 'En tu día' : 'Toca el ícono + para agregar a tu día'}`}
+      style={{
+        width: 172, flexShrink: 0, scrollSnapAlign: 'start',
+        borderRadius: 18, overflow: 'hidden', cursor: 'pointer',
+        border: isAdded
+          ? `0.5px solid ${accent}66`
+          : '0.5px solid var(--glass-stroke)',
+        background: 'var(--glass-1)',
+        boxShadow: isAdded
+          ? `0 0 0 1px ${accent}33, 0 14px 36px -12px ${accent}55`
+          : 'var(--shadow-card)',
+        position: 'relative',
+        transition: 'box-shadow .25s, border-color .25s',
+      }}
+    >
+      {/* Cover */}
+      <div style={{
+        height: 130, position: 'relative', overflow: 'hidden',
+        display: 'flex', alignItems: 'flex-end', padding: 12,
+        background: item.bg,
+      }}>
+        {item.cover && (
+          <img src={item.cover} alt="" loading="lazy" style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%', objectFit: 'cover',
+            opacity: 0.78, filter: 'saturate(0.9) contrast(1.05)',
+          }}/>
+        )}
+        <div style={{ position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.6) 100%)' }}/>
+        <div style={{ position: 'absolute', inset: 0,
+          background: `linear-gradient(135deg, ${accent}22, transparent 60%)`,
+          mixBlendMode: 'soft-light' }}/>
+
+        {/* Kind tag top-left */}
+        <div style={{
+          position: 'absolute', top: 10, left: 10, zIndex: 2,
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: accent,
+          padding: '3px 8px', borderRadius: 999,
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+          border: `0.5px solid ${accent}40`,
+        }}>
+          {(window.CONTENT_TYPES && window.CONTENT_TYPES.find(t => t.id === item.type)?.label) || item.type}
+        </div>
+
+        {/* Quick-add bolita top-right */}
+        <button
+          onClick={handleToggle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggle(e);
+            }
+          }}
+          aria-label={isAdded ? `Quitar ${item.title} de tu día` : `Agregar ${item.title} a tu día`}
+          aria-pressed={isAdded}
+          className="mtx-tap"
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            position: 'absolute', top: 8, right: 8, zIndex: 6,
+            width: 32, height: 32, padding: 0, borderRadius: '50%',
+            background: isAdded ? accent : 'rgba(0,0,0,0.55)',
+            border: isAdded
+              ? `0.5px solid ${accent}`
+              : `0.5px solid ${accent}55`,
+            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: isAdded ? '#0a1410' : accent,
+            boxShadow: isAdded
+              ? `0 0 16px ${accent}99, 0 0 0 4px ${accent}1f`
+              : 'none',
+            transition: 'background .18s, border-color .18s, box-shadow .25s, transform .2s, color .18s',
+          }}
+        >
+          {isAdded
+            ? <IcCheck size={14} stroke="currentColor" strokeWidth={2.8}/>
+            : <IcPlus size={15} stroke="currentColor" strokeWidth={2.4}/>}
+        </button>
+
+        {/* Duration bottom-left */}
+        <div style={{
+          position: 'relative', zIndex: 2,
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '3px 8px', borderRadius: 6,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
+          fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.92)',
+          fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em',
+        }}>
+          <IcClock size={9} stroke="currentColor"/>
+          {item.dur}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '12px 14px' }}>
+        <div style={{
+          fontSize: 13, fontWeight: 700, color: 'var(--ink-1)',
+          letterSpacing: '-0.01em', lineHeight: 1.28,
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          marginBottom: 4, minHeight: 32,
+        }}>
+          {item.title}
+        </div>
+        <div style={{
+          fontSize: 11, color: 'var(--ink-3)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {item.author}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LearnTodayRow({ title, eyebrow, items, ritualIds, onToggle, variant = 'standard' }) {
+  if (!items || items.length === 0) return null;
+  const Card = variant === 'hero' ? LearnTodayHeroCard : LearnTodayStandardCard;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <MtxSectionHead title={title} eyebrow={eyebrow}/>
+      <div
+        className="mtx-scroll-x mtx-no-scrollbar"
+        style={{
+          display: 'flex', gap: 12,
+          overflowX: 'auto', overflowY: 'hidden',
+          padding: variant === 'hero' ? '6px 20px 14px' : '4px 20px 12px',
+          scrollSnapType: 'x mandatory',
+          scrollPaddingLeft: 20,
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {items.map((it) => (
+          <Card
+            key={it.id}
+            item={it}
+            isAdded={ritualIds.has(it.id)}
+            onToggle={onToggle}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LearnTodaySection() {
+  // Subscribe ONCE al ritual store. Re-render del Set en cada change.
+  const [_tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const onChange = () => setTick((t) => t + 1);
+    window.addEventListener('mtx:ritual-changed', onChange);
+    return () => window.removeEventListener('mtx:ritual-changed', onChange);
+  }, []);
+
+  const ritualIds = React.useMemo(() => {
+    if (!window.__mtxRitual) return new Set();
+    return new Set(window.__mtxRitual.list().map((x) => x.id));
+  }, [_tick]);
+
+  // useToast: SIEMPRE llamado (convención post-CAR para hook count estable —
+  // si en un render window.useToast existe y en otro no, el number of hook
+  // calls cambia y React crashea).
+  const _useToastFn = (typeof window.useToast === 'function')
+    ? window.useToast
+    : function() { return { show: function() {} }; };
+  const toast = _useToastFn();
+
+  const handleToggle = React.useCallback((item) => {
+    if (!window.__mtxRitual) return;
+    if (window.__mtxRitual.has(item.id)) {
+      window.__mtxRitual.remove(item.id);
+      toast.show && toast.show('Quitado de tu día');
+    } else {
+      const ok = window.__mtxRitual.add({
+        id: item.id, title: item.title, author: item.author,
+        kind: (window.CONTENT_TYPES && window.CONTENT_TYPES.find(t => t.id === item.type)?.label) || item.type,
+        dur: item.dur, accent: item.accent,
+        cover: item.cover, bg: item.bg, exploreId: item.id,
+      });
+      if (ok) toast.show && toast.show('Añadido a tu día');
+    }
+  }, [toast]);
+
+  // Si EXPLORE_CONTENT aún no cargó, no renderizar (graceful)
+  const EC = (typeof window !== 'undefined' && window.EXPLORE_CONTENT) || [];
+  if (EC.length === 0) return null;
+
+  // Curaduría hero: 5 imperdibles handpicked (más adelante el coach IA cura)
+  const heroIds = ['c-habitos', 'c-deepwork', 'c-jobs', 'c-respira', 'c-disciplina'];
+  const heroItems = heroIds.map((id) => EC.find((c) => c.id === id)).filter(Boolean);
+
+  // Filas por tipo: solo disponibles, máx 6 por fila
+  const audiobooks  = EC.filter((c) => c.type === 'audiobook'  && c.status === 'available').slice(0, 6);
+  const meditations = EC.filter((c) => c.type === 'meditation' && c.status === 'available').slice(0, 6);
+  const talks       = EC.filter((c) => c.type === 'talk'       && c.status === 'available').slice(0, 6);
+
+  return (
+    <div style={{ marginTop: 26 }}>
+      <LearnTodayRow
+        title="Imperdibles para hoy"
+        eyebrow="Curado por tu coach"
+        items={heroItems}
+        ritualIds={ritualIds}
+        onToggle={handleToggle}
+        variant="hero"
+      />
+      <LearnTodayRow
+        title="Audiolibros para hoy"
+        eyebrow="Lo que vale tu enfoque"
+        items={audiobooks}
+        ritualIds={ritualIds}
+        onToggle={handleToggle}
+      />
+      <LearnTodayRow
+        title="Meditaciones recomendadas"
+        eyebrow="Para regresar al centro"
+        items={meditations}
+        ritualIds={ritualIds}
+        onToggle={handleToggle}
+      />
+      <LearnTodayRow
+        title="Charlas cortas del día"
+        eyebrow="15 min, una idea grande"
+        items={talks}
+        ritualIds={ritualIds}
+        onToggle={handleToggle}
+      />
+    </div>
+  );
+}
+
 // ── HomeInactive — el home rediseñado ───────────────────────────────────────
 // Foco único: planificar el ritual del día (tiempo + apps + rutinas) y
 // arrancar la jornada con un CTA reactivo.
 function HomeInactive({
   tweaks, state, setState,
-  onCustom, onNotif = () => {}, notifCount = 0,
+  onCustom, onNotif = () => {}, notifCount = 0, onAgenda = () => {},
   // Phase 5.1 — Acceso rápido al coach IA desde HomeInactive. El user puede
   // pedirle al coach que le planifique la rutina antes de iniciar sesión —
   // promesa core de Mentex (planificación automática). Reusa el patrón del
@@ -831,7 +1246,7 @@ function HomeInactive({
           aria-label="Abrir coach Mentex"
           className="mtx-tap"
           style={{
-            position:'absolute', top:78, right:70,
+            position:'absolute', top:78, right:122,
             width:44, height:44, borderRadius:999,
             background:'rgba(10,14,12,0.45)',
             border:'0.5px solid rgba(255,255,255,0.18)',
@@ -844,6 +1259,22 @@ function HomeInactive({
           }}
         >
           <IcSparkles size={18} stroke="currentColor" strokeWidth={1.7}/>
+        </button>
+        {/* Experimento: botón Agenda en medio entre Coach y Notificaciones.
+            Abre el AgendaSheet existente vía onAgenda prop (lift al shell). */}
+        <button onClick={onAgenda} aria-label="Agenda" className="mtx-tap" style={{
+          position:'absolute', top:78, right:70,
+          width:44, height:44, borderRadius:999,
+          background:'rgba(10,14,12,0.45)',
+          border:'0.5px solid rgba(255,255,255,0.18)',
+          backdropFilter:'blur(20px) saturate(160%)',
+          WebkitBackdropFilter:'blur(20px) saturate(160%)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:'#fff', cursor:'pointer', flexShrink:0,
+          boxShadow:'inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.3)',
+          zIndex:5,
+        }}>
+          <IcCalendar size={19} stroke="currentColor" strokeWidth={1.6}/>
         </button>
         <button onClick={onNotif} aria-label="Notificaciones" className="mtx-tap" style={{
           position:'absolute', top:78, right:18,
@@ -1099,20 +1530,15 @@ function HomeInactive({
         </div>
       </div>
 
-      {/* ── Recordatorios ──────────────────────────────────────────────────
-          Phase 5.1 — Mismos recordatorios que aparecen en HomeActive y
-          AgendaSheet, single-source desde __mtxIAAgenda. El user puede
-          arrancar el día con sus reminders pendientes ya visibles, y el
-          coach IA puede agendarle nuevos desde el chat. NO duplicamos el
-          componente — montamos el mismo HomeRemindersCard que vive en
-          screens/ia-agenda.jsx y se exporta a window.
-          marginTop:32 iguala el spacing entre secciones que tiene "Mejora
-          tu concentración" → "Apps a bloquear" arriba en la página. */}
-      {window.HomeRemindersCard && (
-        <div>
-          <window.HomeRemindersCard/>
-        </div>
-      )}
+      {/* ── Aprende hoy ──────────────────────────────────────────────────
+          4 filas curadas con dual-tap:
+            - tap cuerpo  → abre detalle en Explorar (ContentDetailScreen)
+            - tap bolita  → quick-add al ritual (__mtxRitual store), el
+                            item aparece en HomeActive "Mi aprendizaje
+                            del día" y en la Agenda sin sheets ni modals.
+          Reemplaza la antigua sección de Recordatorios (que sigue viva
+          en AgendaSheet via __mtxIAAgenda store, single-source). */}
+      <LearnTodaySection/>
 
       {/* ── Aviso contextual: falta el tiempo ────────────────────────────────
           Aparece SOLO cuando el user ha seleccionado al menos una app para
