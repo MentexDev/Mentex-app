@@ -66,6 +66,28 @@
       "output_tokens": 0,
       "files": 2,
       "note": "incremental merge: ia-settings.jsx + mentex-icons.jsx semantic nodes"
+    },
+    {
+      "date": "2026-05-12T02:19:19.786635+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 17,
+      "kind": "ast-only-update",
+      "note": "IA Fase 2 + audit \u2014 code-only AST update on 17 changed files"
+    },
+    {
+      "date": "2026-05-12T04:25:04.926083+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 4,
+      "kind": "ast-only-update",
+      "note": "Fase 3+4 IA + CAR audit \u2014 code-only AST update on 4 changed files"
+    },
+    {
+      "date": "2026-05-16T22:55:42.208053+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 21
     }
   ],
   "total_input_tokens": 7000,
