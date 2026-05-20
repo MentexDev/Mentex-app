@@ -93,8 +93,10 @@ function useGlobalPlayer() {
 //
 // Listeners:
 //   mtx:expand-player       — tap en mini player → openPlayer(item)
-//   mtx:explore-open-item   — emitido por Comunidad/Perfil para abrir sheet
-//                             de un item de Explorar.
+// Nota: 'mtx:explore-open-item' antes vivía aquí y abría el VideoSheet legacy.
+// Ahora ExploreScreen (explore-flow.jsx) lo escucha y rutea al
+// ContentDetailScreen full-screen vía nav.push('content-detail') — patrón
+// unificado con los taps internos de Explorar. No agregar el listener aquí.
 function GlobalPlayerOverlay() {
   const { activeItem, mode, queueOpen } = useGlobalPlayer();
   const aq = (typeof window !== 'undefined' && window.useActiveQueue)
@@ -137,22 +139,8 @@ function GlobalPlayerOverlay() {
     return () => window.removeEventListener('mtx:expand-player', handler);
   }, []);
 
-  // Listener: abrir sheet de un item por id (desde Comunidad/Perfil)
-  React.useEffect(() => {
-    const handler = (e) => {
-      const itemId = e.detail && e.detail.itemId;
-      if (!itemId) return;
-      const EC = window.EXPLORE_CONTENT || [];
-      const it = EC.find(c => c.id === itemId);
-      if (!it) return;
-      // Si es coming-soon, ExploreScreen maneja eso aparte. El global player
-      // sólo reacciona a items reproducibles.
-      if (it.status === 'coming-soon') return;
-      window.__mtxGlobalPlayer?.openSheet(it);
-    };
-    window.addEventListener('mtx:explore-open-item', handler);
-    return () => window.removeEventListener('mtx:explore-open-item', handler);
-  }, []);
+  // Listener 'mtx:explore-open-item' ELIMINADO — antes abría VideoSheet legacy.
+  // Ahora ExploreScreen lo escucha y rutea al ContentDetailScreen full-screen.
 
   const VideoSheet = (typeof window !== 'undefined' && window.VideoSheet) || null;
   const VideoPlayerFullscreen = (typeof window !== 'undefined' && window.VideoPlayerFullscreen) || null;

@@ -322,6 +322,82 @@
       _emit();
     },
 
+    // Volver a ejecutar una task completada (success o dismissed) — re-runs it
+    replayHistory: function(id) {
+      var h = _state.history.find(function(t) { return t.id === id; });
+      if (!h) return;
+      _state.active = _state.active.concat([{
+        id:               _genId('tk-act'),
+        workflowId:       h.workflowId,
+        title:            h.title,
+        icon:             h.icon,
+        category:         h.category,
+        startedAt:        Date.now(),
+        progress:         10,
+        currentStep:      'Re-ejecutando…',
+        totalSteps:       3,
+        currentStepIndex: 1,
+      }]);
+      _emit();
+    },
+
+    // Cancelar task activa — mueve al historial con status 'dismissed'
+    cancelActive: function(id) {
+      var t = _state.active.find(function(a) { return a.id === id; });
+      if (!t) return;
+      _state.active = _state.active.filter(function(a) { return a.id !== id; });
+      _state.history = [{
+        id:         _genId('tk-hist'),
+        workflowId: t.workflowId,
+        title:      t.title,
+        icon:       t.icon,
+        category:   t.category,
+        ranAt:      Date.now(),
+        status:     'dismissed',
+        durationMs: t.startedAt ? Date.now() - t.startedAt : null,
+        message:    'Cancelada por el usuario',
+      }].concat(_state.history);
+      _emit();
+    },
+
+    // Cancelar task programada — la remueve sin agregar al historial
+    // (todavía no se ejecutó, no es ejecución cancelada sino programación cancelada).
+    cancelScheduled: function(id) {
+      var t = _state.scheduled.find(function(s) { return s.id === id; });
+      if (!t) return;
+      _state.scheduled = _state.scheduled.filter(function(s) { return s.id !== id; });
+      _emit();
+    },
+
+    // Reprogramar task — actualiza scheduledAt (recibe ts en ms)
+    rescheduleScheduled: function(id, newScheduledAt) {
+      _state.scheduled = _state.scheduled.map(function(s) {
+        if (s.id !== id) return s;
+        return Object.assign({}, s, { scheduledAt: newScheduledAt });
+      });
+      _emit();
+    },
+
+    // Ejecutar una task programada inmediatamente (skip al active)
+    runScheduledNow: function(id) {
+      var t = _state.scheduled.find(function(s) { return s.id === id; });
+      if (!t) return;
+      _state.scheduled = _state.scheduled.filter(function(s) { return s.id !== id; });
+      _state.active = _state.active.concat([{
+        id:               _genId('tk-act'),
+        workflowId:       t.workflowId,
+        title:            t.title,
+        icon:             t.icon,
+        category:         t.category,
+        startedAt:        Date.now(),
+        progress:         8,
+        currentStep:      'Iniciando ahora…',
+        totalSteps:       3,
+        currentStepIndex: 1,
+      }]);
+      _emit();
+    },
+
     // Tick interno (llamado desde TasksSheet useEffect cada 1s) — avanza
     // progress de active tasks y mueve a historial cuando llegan a 100.
     tickActive: function() {
@@ -387,11 +463,19 @@ function useIATasks() {
 
 function ActiveTaskCard(props) {
   var t = props.task;
+  var onOpen = props.onOpen;
   var accent = window.__mtxIATasks.getAccent(t.category);
   var elapsed = window.__mtxIATasks.formatDuration(Date.now() - (t.startedAt || Date.now()));
 
   return (
-    <div style={{
+    <div
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={onOpen ? function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={onOpen ? 'Ver detalle de tarea: ' + t.title : undefined}
+      className={onOpen ? 'mtx-tap' : undefined}
+      style={{
       padding: '14px 14px 12px',
       borderRadius: 16,
       background: 'linear-gradient(135deg, ' + accent + '0d, ' + accent + '02)',
@@ -399,6 +483,7 @@ function ActiveTaskCard(props) {
       animation: 'mtx-fade-up .25s ease both',
       position: 'relative',
       overflow: 'hidden',
+      cursor: onOpen ? 'pointer' : 'default',
     }}>
       {/* Shimmer animation bar arriba — indica "vivo" */}
       <div style={{
@@ -418,16 +503,11 @@ function ActiveTaskCard(props) {
           color: accent,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 19, lineHeight: 1,
-          boxShadow: '0 0 14px ' + accent + '24',
+          // Halo glow estático (cheap GPU box-shadow) — antes había un pulse
+          // animation infinito que en 60fps mobile era pesado y se acumulaba
+          // con múltiples active tasks. Ahora solo un resplandor sutil.
+          boxShadow: '0 0 14px ' + accent + '40, 0 0 0 1px ' + accent + '24',
         }}>
-          {/* Halo pulse decorativo */}
-          <div style={{
-            position: 'absolute', inset: -3, borderRadius: 14,
-            border: '1px solid ' + accent,
-            opacity: 0.5,
-            animation: 'mtxTaskPulseHalo 1.6s ease-out infinite',
-            pointerEvents: 'none',
-          }}/>
           <span role="img" aria-hidden="true" style={{ position: 'relative' }}>{t.icon}</span>
         </div>
 
@@ -504,18 +584,27 @@ function ActiveTaskCard(props) {
 
 function ScheduledTaskCard(props) {
   var t = props.task;
+  var onOpen = props.onOpen;
   var accent = window.__mtxIATasks.getAccent(t.category);
   var countdown = window.__mtxIATasks.formatRelative(t.scheduledAt);
   var timeOfDay = window.__mtxIATasks.formatTime(t.scheduledAt);
 
   return (
-    <div style={{
+    <div
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={onOpen ? function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={onOpen ? 'Ver detalle de tarea programada: ' + t.title : undefined}
+      className={onOpen ? 'mtx-tap' : undefined}
+      style={{
       padding: '12px 14px',
       borderRadius: 14,
       background: 'rgba(255,255,255,0.025)',
       border: '0.5px solid rgba(255,255,255,0.06)',
       display: 'flex', alignItems: 'center', gap: 12,
       animation: 'mtx-fade-up .25s ease both',
+      cursor: onOpen ? 'pointer' : 'default',
     }}>
       {/* Icon tile (más sutil que active) */}
       <div style={{
@@ -577,15 +666,24 @@ function PendingTaskCard(props) {
   var t = props.task;
   var onApprove = props.onApprove;
   var onDismiss = props.onDismiss;
+  var onOpen = props.onOpen;
   var accent = window.__mtxIATasks.getAccent(t.category);
 
   return (
-    <div style={{
+    <div
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={onOpen ? function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={onOpen ? 'Ver detalle: ' + t.title + ' (espera tu OK)' : undefined}
+      className={onOpen ? 'mtx-tap' : undefined}
+      style={{
       padding: '14px 14px 12px',
       borderRadius: 16,
       background: 'linear-gradient(135deg, rgba(255,200,80,0.06), rgba(255,200,80,0.01))',
       border: '0.5px solid rgba(255,200,80,0.28)',
       animation: 'mtx-fade-up .25s ease both',
+      cursor: onOpen ? 'pointer' : 'default',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
         {/* Icon */}
@@ -683,8 +781,8 @@ function PendingTaskCard(props) {
         </div>
         <div style={{ flex: 1 }}/>
         <button
-          onClick={onDismiss}
-          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDismiss(); } }}
+          onClick={function(e) { e.stopPropagation(); onDismiss(); }}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onDismiss(); } }}
           aria-label="Rechazar"
           className="mtx-tap"
           style={{
@@ -698,8 +796,8 @@ function PendingTaskCard(props) {
             letterSpacing: '-0.005em',
           }}>Rechazar</button>
         <button
-          onClick={onApprove}
-          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onApprove(); } }}
+          onClick={function(e) { e.stopPropagation(); onApprove(); }}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onApprove(); } }}
           aria-label="Aprobar"
           className="mtx-tap"
           style={{
@@ -725,6 +823,7 @@ function PendingTaskCard(props) {
 function HistoryTaskItem(props) {
   var t = props.task;
   var onRetry = props.onRetry;
+  var onOpen = props.onOpen;
   var accent = window.__mtxIATasks.getAccent(t.category);
   var isError = t.status === 'error';
   var isDismissed = t.status === 'dismissed';
@@ -737,7 +836,14 @@ function HistoryTaskItem(props) {
                   : '✓';
 
   return (
-    <div style={{
+    <div
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={onOpen ? function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={onOpen ? 'Ver detalle: ' + t.title + ' (' + t.status + ')' : undefined}
+      className={onOpen ? 'mtx-tap' : undefined}
+      style={{
       padding: '10px 12px',
       borderRadius: 12,
       background: 'rgba(255,255,255,0.02)',
@@ -745,6 +851,7 @@ function HistoryTaskItem(props) {
       display: 'flex', alignItems: 'center', gap: 10,
       animation: 'mtx-fade-up .2s ease both',
       opacity: isDismissed ? 0.55 : 1,
+      cursor: onOpen ? 'pointer' : 'default',
     }}>
       {/* Status indicator (left bar) */}
       <div style={{
@@ -789,7 +896,7 @@ function HistoryTaskItem(props) {
       {/* Right: time + duration / retry CTA */}
       {isError && onRetry ? (
         <button
-          onClick={onRetry}
+          onClick={function(e) { e.stopPropagation(); onRetry(); }}
           aria-label="Reintentar"
           className="mtx-tap"
           style={{
@@ -830,8 +937,25 @@ function HistoryTaskItem(props) {
 function TasksSheet(props) {
   var onClose = props.onClose;
 
-  useIATasks();  // suscribirse a cambios (return value no se usa — la
-                 // suscripción dispara force-render y leemos vía live getters)
+  useIATasks();  // suscribirse a cambios
+
+  // HOOKS FIRST (post-audit Fase 3+4 pattern) — declarar todos los hooks
+  // ANTES del early return, para evitar hook count mismatch.
+  var subState = React.useState('active');
+  var sub = subState[0]; var setSub = subState[1];
+
+  // Detail sheet: click en una card → ve timeline + entregables + actions
+  var detailTaskState = React.useState(null);
+  var detailTask = detailTaskState[0]; var setDetailTask = detailTaskState[1];
+
+  // New task sheet: "+" en header → launcher de skills/workflows
+  var newTaskOpenState = React.useState(false);
+  var newTaskOpen = newTaskOpenState[0]; var setNewTaskOpen = newTaskOpenState[1];
+
+  // Filter dentro de Historial: Todas | Completadas | Errores | Descartadas
+  var historyFilterState = React.useState('all');
+  var historyFilter = historyFilterState[0]; var setHistoryFilter = historyFilterState[1];
+
   if (!window.__mtxIATasks) return null;
 
   var stats   = window.__mtxIATasks.getStats();
@@ -840,8 +964,15 @@ function TasksSheet(props) {
   var pending = window.__mtxIATasks.getPending();
   var history = window.__mtxIATasks.getHistory();
 
-  var subState = React.useState(active.length > 0 ? 'active' : pending.length > 0 ? 'pending' : 'scheduled');
-  var sub = subState[0]; var setSub = subState[1];
+  // Cuando los datos cambian, re-sincronizar el sub-tab inicial sólo en mount.
+  // (Antes el initialState dependía de live data, lo que causaba que el primer
+  // render con todo vacío te dejaba en 'scheduled' aunque luego llegaran active.)
+  React.useEffect(function() {
+    if (sub === 'active' && active.length === 0) {
+      if (pending.length > 0) setSub('pending');
+      else if (scheduled.length > 0) setSub('scheduled');
+    }
+  }, []);  // solo on mount
 
   // useToast siempre llamado (hook count estable) — post-audit Fase 2
   var _useToast = window.useToast || function() { return { show: function() {} }; };
@@ -901,6 +1032,31 @@ function TasksSheet(props) {
     setSub('active');
     setTimeout(function() { delete retryLockRef.current[t.id]; }, 800);
   };
+  var handleReplay = function(t) {
+    window.__mtxIATasks.replayHistory(t.id);
+    toast.show({ message: '✦ Re-ejecutando "' + t.title + '"', duration: 1800 });
+    setSub('active');
+  };
+  var handleCancelActive = function(t) {
+    window.__mtxIATasks.cancelActive(t.id);
+    toast.show({ message: '"' + t.title + '" cancelada', duration: 1600 });
+  };
+  var handleCancelScheduled = function(t) {
+    window.__mtxIATasks.cancelScheduled(t.id);
+    toast.show({ message: 'Programación de "' + t.title + '" cancelada', duration: 1800 });
+  };
+  var handleRunScheduledNow = function(t) {
+    window.__mtxIATasks.runScheduledNow(t.id);
+    toast.show({ message: '✦ "' + t.title + '" iniciada', duration: 1800 });
+    setSub('active');
+  };
+  var handleReschedule = function(t, newTs) {
+    window.__mtxIATasks.rescheduleScheduled(t.id, newTs);
+    toast.show({
+      message: 'Reprogramada · ' + window.__mtxIATasks.formatRelative(newTs),
+      duration: 2000,
+    });
+  };
 
   var SUB_TABS = [
     { id: 'active',    label: 'Activas',     count: stats.active,    accent: 'var(--neon)' },
@@ -909,13 +1065,19 @@ function TasksSheet(props) {
     { id: 'history',   label: 'Historial',   count: stats.history,   accent: '#5dd3ff' },
   ];
 
+  var openDetail = function(task, kind) {
+    setDetailTask({ task: task, kind: kind });
+  };
+
   var content;
   if (sub === 'active') {
     content = active.length === 0
       ? (<TasksEmptyState icon="⚡" title="Nada corriendo ahora" desc="Cuando un workflow se ejecute, lo verás aquí en vivo con su progreso."/>)
       : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {active.map(function(t) { return <ActiveTaskCard key={t.id} task={t}/>; })}
+          {active.map(function(t) {
+            return <ActiveTaskCard key={t.id} task={t} onOpen={function() { openDetail(t, 'active'); }}/>;
+          })}
         </div>
       );
   } else if (sub === 'pending') {
@@ -930,6 +1092,7 @@ function TasksSheet(props) {
                 task={t}
                 onApprove={function() { handleApprove(t); }}
                 onDismiss={function() { handleDismiss(t); }}
+                onOpen={function() { openDetail(t, 'pending'); }}
               />
             );
           })}
@@ -940,25 +1103,74 @@ function TasksSheet(props) {
       ? (<TasksEmptyState icon="🕐" title="Sin tasks programadas" desc="Activa workflows con trigger cron para verlos aquí."/>)
       : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {scheduled.map(function(t) { return <ScheduledTaskCard key={t.id} task={t}/>; })}
-        </div>
-      );
-  } else {
-    content = history.length === 0
-      ? (<TasksEmptyState icon="📜" title="Sin historial todavía" desc="Las ejecuciones recientes aparecerán aquí."/>)
-      : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {history.map(function(t) {
-            return (
-              <HistoryTaskItem
-                key={t.id}
-                task={t}
-                onRetry={t.status === 'error' ? function() { handleRetry(t); } : null}
-              />
-            );
+          {scheduled.map(function(t) {
+            return <ScheduledTaskCard key={t.id} task={t} onOpen={function() { openDetail(t, 'scheduled'); }}/>;
           })}
         </div>
       );
+  } else {
+    // Historial — agrega filter pills internas (Todas · Completadas · Errores)
+    var filteredHistory = historyFilter === 'all' ? history
+                        : historyFilter === 'success' ? history.filter(function(t) { return t.status === 'success'; })
+                        : historyFilter === 'error'   ? history.filter(function(t) { return t.status === 'error'; })
+                        : history.filter(function(t) { return t.status === 'dismissed'; });
+    var counts = {
+      all:       history.length,
+      success:   history.filter(function(t) { return t.status === 'success'; }).length,
+      error:     history.filter(function(t) { return t.status === 'error'; }).length,
+      dismissed: history.filter(function(t) { return t.status === 'dismissed'; }).length,
+    };
+    var FILTERS = [
+      { id: 'all',       label: 'Todas',       accent: 'var(--ink-2)' },
+      { id: 'success',   label: 'Completadas', accent: 'var(--neon)' },
+      { id: 'error',     label: 'Errores',     accent: '#ff8b8b' },
+      { id: 'dismissed', label: 'Descartadas', accent: 'var(--ink-3)' },
+    ];
+    content = (
+      <div>
+        <div className="mtx-scroll-x" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          {FILTERS.map(function(f) {
+            var isActive = historyFilter === f.id;
+            return (
+              <button key={f.id}
+                onClick={function() { setHistoryFilter(f.id); }}
+                aria-pressed={isActive}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '5px 11px', borderRadius: 999,
+                  border: '0.5px solid ' + (isActive ? f.accent + '40' : 'rgba(255,255,255,0.06)'),
+                  background: isActive ? 'rgba(255,255,255,0.04)' : 'transparent',
+                  color: isActive ? f.accent : 'var(--ink-3)',
+                  fontSize: 10.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                  flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                }}>
+                {f.label}
+                <span style={{ opacity: 0.6, fontVariantNumeric: 'tabular-nums' }}>{counts[f.id]}</span>
+              </button>
+            );
+          })}
+        </div>
+        {filteredHistory.length === 0
+          ? (<TasksEmptyState icon="📜" title={'Sin ' + (historyFilter === 'all' ? 'historial todavía' : FILTERS.find(function(f) { return f.id === historyFilter; }).label.toLowerCase())} desc="Las ejecuciones recientes aparecerán aquí."/>)
+          : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {filteredHistory.map(function(t) {
+                return (
+                  <HistoryTaskItem
+                    key={t.id}
+                    task={t}
+                    onRetry={t.status === 'error' ? function() { handleRetry(t); } : null}
+                    onOpen={function() { openDetail(t, 'history'); }}
+                  />
+                );
+              })}
+            </div>
+          )}
+      </div>
+    );
   }
 
   // Portal a mtx-overlay-root
@@ -981,11 +1193,15 @@ function TasksSheet(props) {
         @keyframes mtxTaskDotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.4); opacity:0.6; } }
       `}</style>
 
-      {/* Header con back + title + (spacer) */}
+      {/* Header con back + título + "Nueva tarea" (esquina opuesta).
+          Nota conceptual: estas son tareas DEL COACH, no del usuario —
+          workflows automáticos, peticiones que el coach hizo o quiere hacer,
+          y ejecuciones programadas. "Nueva tarea" permite pedirle al coach
+          que ejecute algo manualmente. */}
       <div style={{
         flexShrink: 0,
         paddingTop: 48, paddingLeft: 16, paddingRight: 16, paddingBottom: 6,
-        display: 'flex', alignItems: 'center', gap: 12,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>
         <button
           onClick={onClose}
@@ -1004,10 +1220,29 @@ function TasksSheet(props) {
             <path d="M15 6l-6 6 6 6"/>
           </svg>
         </button>
-        <div style={{ width: 40 }}/>
+        <button
+          onClick={function() { setNewTaskOpen(true); }}
+          aria-label="Nueva tarea para el coach"
+          className="mtx-tap"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 13px', borderRadius: 999, border: 0,
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.16), rgba(61,255,209,0.04))',
+            color: 'var(--neon)', cursor: 'pointer',
+            fontSize: 12, fontWeight: 700,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            border: '0.5px solid rgba(61,255,209,0.32)',
+          }}>
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}
+               strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          Nueva tarea
+        </button>
       </div>
 
-      {/* Title + total counter */}
+      {/* Title + total counter — copy clarifica que son acciones DEL COACH */}
       <div style={{
         padding: '4px 20px 16px',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -1015,7 +1250,7 @@ function TasksSheet(props) {
         borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         marginBottom: 12,
       }}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div className="mtx-eyebrow" style={{
             fontSize: 9.5, color: 'var(--ink-4)',
             letterSpacing: '0.16em',
@@ -1027,7 +1262,16 @@ function TasksSheet(props) {
             color: 'var(--ink-1)', letterSpacing: '-0.025em',
             fontFamily: 'var(--ff-display, var(--ff-sans))',
             lineHeight: 1.1,
+            marginBottom: 6,
           }}>Actividad</h2>
+          <div style={{
+            fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.4,
+            letterSpacing: '-0.005em',
+            fontFamily: 'var(--ff-sans)',
+            maxWidth: 280,
+          }}>
+            Lo que tu coach está ejecutando, programó, o espera tu aprobación.
+          </div>
         </div>
         <div style={{
           padding: '6px 12px', borderRadius: 999,
@@ -1037,6 +1281,8 @@ function TasksSheet(props) {
           color: stats.pending > 0 ? '#ffc850' : 'var(--neon)',
           fontFamily: 'var(--ff-sans)',
           fontVariantNumeric: 'tabular-nums',
+          flexShrink: 0,
+          marginLeft: 12,
         }}>
           {stats.pending > 0
             ? stats.pending + ' pendiente' + (stats.pending === 1 ? '' : 's')
@@ -1098,10 +1344,943 @@ function TasksSheet(props) {
       }}>
         {content}
       </div>
+
+      {/* TaskDetailSheet (click en cualquier card) */}
+      {detailTask && (
+        <TaskDetailSheet
+          task={detailTask.task}
+          kind={detailTask.kind}
+          onClose={function() { setDetailTask(null); }}
+          onApprove={handleApprove}
+          onDismiss={handleDismiss}
+          onRetry={handleRetry}
+          onReplay={handleReplay}
+          onCancelActive={handleCancelActive}
+          onCancelScheduled={handleCancelScheduled}
+          onRunNow={handleRunScheduledNow}
+          onReschedule={handleReschedule}
+        />
+      )}
+
+      {/* NewTaskSheet (botón "+" en header) */}
+      {newTaskOpen && (
+        <NewTaskSheet onClose={function() { setNewTaskOpen(false); }}/>
+      )}
     </div>
   );
 
   return window.ReactDOM ? window.ReactDOM.createPortal(sheet, portalRoot) : sheet;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _generateTaskTimeline — genera mock timeline de logs/thinking realista
+// basado en task.icon + task.workflowId. En backend real esto se reemplaza
+// por las trazas reales del agente (thinking blocks + tool calls + results).
+// ═══════════════════════════════════════════════════════════════════════════
+function _generateTaskTimeline(task, kind) {
+  var now = Date.now();
+  var startedAt = task.startedAt || task.ranAt || task.requestedAt || task.scheduledAt || now;
+  var events = [];
+
+  // Eventos comunes
+  if (kind === 'scheduled') {
+    events.push({ ts: startedAt - 60_000, kind: 'system', text: 'Trigger ' + (task.triggerLabel || 'cron') + ' programado' });
+    events.push({ ts: startedAt - 1_000,   kind: 'system', text: 'Esperando hora de ejecución' });
+    return events;
+  }
+
+  if (kind === 'pending') {
+    events.push({ ts: startedAt,           kind: 'thinking', text: 'Detecté contexto: ' + (task.description || 'oportunidad para automatizar') });
+    events.push({ ts: startedAt + 4_000,   kind: 'thinking', text: 'Preparé la acción y necesito tu OK antes de ejecutar' });
+    if (task.action && task.action.preview) {
+      events.push({ ts: startedAt + 5_000, kind: 'output',   text: 'Preview: ' + task.action.preview });
+    }
+    events.push({ ts: startedAt + 6_000,   kind: 'system',   text: 'Esperando aprobación del usuario…' });
+    return events;
+  }
+
+  // Active or history — generar timeline basado en el workflow
+  events.push({ ts: startedAt, kind: 'system', text: 'Iniciada por trigger ' + (task.triggerLabel || 'cron') });
+
+  // Steps específicos por tipo de workflow
+  var wf = task.workflowId || '';
+  if (wf.indexOf('daily-briefing') >= 0) {
+    events.push({ ts: startedAt + 1_000,  kind: 'tool',     text: 'calendar.list({range: "today"})' });
+    events.push({ ts: startedAt + 2_500,  kind: 'result',   text: '14 eventos encontrados' });
+    events.push({ ts: startedAt + 3_200,  kind: 'thinking', text: 'Cruzando eventos con tus 3 prioridades semanales…' });
+    events.push({ ts: startedAt + 4_000,  kind: 'tool',     text: 'memory.recall({query: "prioridades de la semana"})' });
+    events.push({ ts: startedAt + 5_000,  kind: 'result',   text: '3 metas activas, 1 en riesgo' });
+    events.push({ ts: startedAt + 6_500,  kind: 'thinking', text: 'Generando resumen con tono motivacional + 3 prioridades del día' });
+  } else if (wf.indexOf('hydration') >= 0) {
+    events.push({ ts: startedAt + 200,    kind: 'tool',     text: 'notifications.send({channel: "push", body: "..."})' });
+    events.push({ ts: startedAt + 380,    kind: 'result',   text: '✓ Notificación entregada' });
+  } else if (wf.indexOf('evening-ritual') >= 0 || wf.indexOf('wind-down') >= 0) {
+    events.push({ ts: startedAt + 500,    kind: 'tool',     text: 'health.read({metric: "stress", window: "today"})' });
+    events.push({ ts: startedAt + 1_200,  kind: 'result',   text: 'Stress alto detectado vs ayer' });
+    events.push({ ts: startedAt + 1_500,  kind: 'thinking', text: 'Sugeriré meditación de sueño de 8 min en lugar de la de 4' });
+  } else if (wf.indexOf('instagram') >= 0) {
+    events.push({ ts: startedAt + 400,    kind: 'tool',     text: 'memory.recall({query: "reflexión más resonante de la semana"})' });
+    events.push({ ts: startedAt + 800,    kind: 'thinking', text: 'Adaptando insight a formato Instagram visual + caption corta' });
+    events.push({ ts: startedAt + 1_100,  kind: 'tool',     text: 'instagram.create_post({image: ..., caption: ...})' });
+    if (task.status === 'error') {
+      events.push({ ts: startedAt + 1_200, kind: 'error',   text: 'API rate limit (429). Backoff sugerido: 15 min.' });
+    } else {
+      events.push({ ts: startedAt + 2_000, kind: 'result',  text: '✓ Post creado y agendado' });
+    }
+  } else if (wf.indexOf('session-journal') >= 0) {
+    events.push({ ts: startedAt + 600,    kind: 'tool',     text: 'session.get_last_completed()' });
+    events.push({ ts: startedAt + 1_500,  kind: 'thinking', text: 'Generando 3 preguntas reflexivas basadas en lo que trabajaste' });
+    events.push({ ts: startedAt + 3_200,  kind: 'tool',     text: 'knowledge.create_note({folder: "Journal"})' });
+    events.push({ ts: startedAt + 7_800,  kind: 'result',   text: '✓ Reflexión guardada en Conocimiento' });
+  } else if (wf.indexOf('weekly-review') >= 0) {
+    events.push({ ts: startedAt + 400,    kind: 'tool',     text: 'analytics.get_week_summary()' });
+    events.push({ ts: startedAt + 1_500,  kind: 'thinking', text: 'Comparando con tus goals trimestrales' });
+    events.push({ ts: startedAt + 2_800,  kind: 'tool',     text: 'notion.create_page({db: "Weekly Reviews"})' });
+  }
+
+  // Final event
+  if (kind === 'active') {
+    var lastTs = events.length ? events[events.length - 1].ts : startedAt;
+    events.push({ ts: lastTs + 800, kind: 'thinking', text: task.currentStep || 'Ejecutando…' });
+  } else if (kind === 'history') {
+    var endTs = startedAt + (task.durationMs || 1000);
+    if (task.status === 'error') {
+      // El error ya está en events si fue instagram; si no, agregar uno genérico
+      var hasError = events.some(function(e) { return e.kind === 'error'; });
+      if (!hasError) {
+        events.push({ ts: endTs - 200, kind: 'error',  text: task.message || 'Error desconocido' });
+      }
+    } else {
+      events.push({ ts: endTs, kind: 'success', text: task.message || '✓ Completada' });
+    }
+  }
+
+  return events;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _generateTaskDeliverables — entregables mock basado en el tipo de task
+// ═══════════════════════════════════════════════════════════════════════════
+function _generateTaskDeliverables(task) {
+  var wf = task.workflowId || '';
+  var del = [];
+  if (wf.indexOf('daily-briefing') >= 0) {
+    del.push({ icon: '📄', label: 'Resumen del día.md',     kind: 'doc',      size: '2.4 KB' });
+    del.push({ icon: '📅', label: '3 bloques agendados',    kind: 'calendar', meta: 'Ver en Google Calendar' });
+  } else if (wf.indexOf('instagram') >= 0 && task.status !== 'error') {
+    del.push({ icon: '🖼️', label: 'Post-imagen.png',        kind: 'image',    size: '486 KB' });
+    del.push({ icon: '📝', label: 'Caption.txt',            kind: 'doc',      size: '0.3 KB' });
+  } else if (wf.indexOf('session-journal') >= 0) {
+    del.push({ icon: '📔', label: 'Reflexión 2026-05-11.md', kind: 'doc',     size: '3.1 KB' });
+  } else if (wf.indexOf('weekly-review') >= 0) {
+    del.push({ icon: '📊', label: 'Weekly Review · Sem 19.md', kind: 'doc',  size: '5.7 KB' });
+    del.push({ icon: '🔗', label: 'Página en Notion',       kind: 'link',     meta: 'notion.so/...' });
+  } else if (task.type === 'post-social') {
+    del.push({ icon: '🧵', label: 'Thread completo (4 tweets)', kind: 'doc', size: '1.2 KB' });
+  } else if (task.type === 'calendar-block') {
+    del.push({ icon: '📅', label: 'Evento Calendar (preview)', kind: 'calendar', meta: task.action && task.action.when });
+  }
+  return del;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TaskDetailSheet — click en cualquier card abre este sheet con timeline,
+// entregables descargables y actions contextuales.
+// ═══════════════════════════════════════════════════════════════════════════
+function TaskDetailSheet(props) {
+  var task = props.task;
+  var kind = props.kind;  // 'active' | 'pending' | 'scheduled' | 'history'
+  var onClose = props.onClose;
+  var onApprove = props.onApprove;
+  var onDismiss = props.onDismiss;
+  var onRetry = props.onRetry;
+  var onReplay = props.onReplay;
+  var onCancelActive = props.onCancelActive;
+  var onCancelScheduled = props.onCancelScheduled;
+  var onRunNow = props.onRunNow;
+  var onReschedule = props.onReschedule;
+
+  // Reprogram picker state (inline expand)
+  var reprogramOpenState = React.useState(false);
+  var reprogramOpen = reprogramOpenState[0]; var setReprogramOpen = reprogramOpenState[1];
+  // Inline cancel confirm
+  var confirmCancelState = React.useState(false);
+  var confirmCancel = confirmCancelState[0]; var setConfirmCancel = confirmCancelState[1];
+
+  // ESC + body scroll + backdrop drag-release (post-audit Fase 3+4 pattern)
+  var onCloseRef = React.useRef(onClose);
+  React.useEffect(function() { onCloseRef.current = onClose; });
+  React.useEffect(function() {
+    var onKey = function(e) {
+      if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
+      var t = e.target; var tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, []);
+  React.useEffect(function() {
+    var prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return function() { document.body.style.overflow = prev; };
+  }, []);
+  var backdropDownRef = React.useRef(false);
+  var handleBackdropDown = function(e) { backdropDownRef.current = e.target === e.currentTarget; };
+  var handleBackdropClick = function(e) {
+    if (e.target === e.currentTarget && backdropDownRef.current) onCloseRef.current();
+    backdropDownRef.current = false;
+  };
+
+  var _useToast = window.useToast || function() { return { show: function() {} }; };
+  var toast = _useToast();
+
+  var accent = window.__mtxIATasks.getAccent(task.category);
+  var timeline = _generateTaskTimeline(task, kind);
+  var deliverables = _generateTaskDeliverables(task);
+
+  var handleDownload = function(d) {
+    toast.show({ message: '✦ ' + d.label + ' descargando…', duration: 1600 });
+  };
+  var handleViewLink = function(d) {
+    toast.show({ message: 'Abriendo ' + (d.meta || d.label) + '…', duration: 1400 });
+  };
+
+  // Status badge color/text por kind
+  var statusInfo = (function() {
+    if (kind === 'active')    return { color: 'var(--neon)', label: 'EJECUTANDO' };
+    if (kind === 'pending')   return { color: '#ffc850',     label: 'ESPERA TU OK' };
+    if (kind === 'scheduled') return { color: '#9b8aff',     label: 'PROGRAMADA' };
+    if (kind === 'history' && task.status === 'success') return { color: 'var(--neon)', label: 'COMPLETADA' };
+    if (kind === 'history' && task.status === 'error')   return { color: '#ff8b8b',     label: 'ERROR' };
+    if (kind === 'history' && task.status === 'dismissed') return { color: 'var(--ink-3)', label: 'DESCARTADA' };
+    return { color: 'var(--ink-3)', label: 'TASK' };
+  })();
+
+  var portalRoot = (typeof document !== 'undefined')
+    ? document.getElementById('mtx-overlay-root')
+    : null;
+  if (!portalRoot) return null;
+
+  var content = (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 220,
+      background: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      animation: 'mtx-fade-up .25s ease',
+    }} onMouseDown={handleBackdropDown} onClick={handleBackdropClick}>
+      <div onClick={function(e) { e.stopPropagation(); }}
+        role="dialog" aria-modal="true" aria-label={'Detalle de tarea: ' + task.title}
+        className="mtx-no-scrollbar"
+        style={{
+          background: 'rgba(15,19,19,0.96)',
+          backdropFilter: 'blur(28px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+          borderTop: '0.5px solid rgba(255,255,255,0.10)',
+          borderTopLeftRadius: 28, borderTopRightRadius: 28,
+          padding: '14px 20px 28px',
+          boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+          maxHeight: '92%', overflow: 'auto',
+          animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+        }}>
+        {/* Grabber */}
+        <div aria-hidden="true" style={{
+          width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+          background: 'rgba(255,255,255,0.16)',
+        }}/>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
+          <div aria-hidden="true" style={{
+            width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+            background: 'linear-gradient(135deg, ' + accent + '28, ' + accent + '08)',
+            border: '0.5px solid ' + accent + '40',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22,
+            boxShadow: '0 0 14px ' + accent + '24',
+          }}>{task.icon}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.018em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+              marginBottom: 3,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{task.title}</div>
+            <div style={{
+              fontSize: 10, fontWeight: 700,
+              color: statusInfo.color,
+              letterSpacing: '0.10em',
+              marginBottom: 4,
+            }}>{statusInfo.label}</div>
+            {task.description && (
+              <div style={{
+                fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.45,
+                letterSpacing: '-0.005em',
+              }}>{task.description}</div>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"
+            className="mtx-tap"
+            style={{
+              width: 32, height: 32, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.06)',
+              color: 'var(--ink-2)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, fontSize: 13,
+            }}>✕</button>
+        </div>
+
+        {/* Active: progress bar grande */}
+        {kind === 'active' && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+              marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+                Paso {(task.currentStepIndex || 1)}/{(task.totalSteps || 1)} · {task.currentStep || 'Procesando…'}
+              </div>
+              <div style={{
+                fontSize: 13, fontWeight: 700, color: accent,
+                fontFamily: 'var(--ff-display, var(--ff-sans))',
+                fontVariantNumeric: 'tabular-nums',
+              }}>{Math.round(task.progress || 0)}%</div>
+            </div>
+            <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              <div style={{
+                width: (task.progress || 0) + '%', height: '100%',
+                background: 'linear-gradient(90deg, ' + accent + ', ' + accent + 'cc)',
+                borderRadius: 999,
+                transition: 'width .6s cubic-bezier(.4,1.4,.5,1)',
+                boxShadow: '0 0 8px ' + accent + '60',
+              }}/>
+            </div>
+          </div>
+        )}
+
+        {/* Pending: action preview + Aprobar/Rechazar */}
+        {kind === 'pending' && task.action && task.action.preview && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 14,
+            background: 'rgba(255,200,80,0.06)',
+            border: '0.5px solid rgba(255,200,80,0.20)',
+            marginBottom: 18,
+          }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, color: '#ffc850', marginBottom: 6 }}>
+              VISTA PREVIA DE LA ACCIÓN
+            </div>
+            <div style={{
+              fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              fontStyle: 'italic',
+            }}>{task.action.preview}</div>
+          </div>
+        )}
+
+        {/* Scheduled: trigger info */}
+        {kind === 'scheduled' && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 14,
+            background: 'rgba(155,138,255,0.06)',
+            border: '0.5px solid rgba(155,138,255,0.20)',
+            marginBottom: 18,
+          }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, color: '#9b8aff', marginBottom: 6 }}>
+              TRIGGER
+            </div>
+            <div style={{
+              fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5,
+              fontFamily: 'var(--ff-sans)',
+            }}>{task.triggerLabel || 'Programada'}</div>
+            <div style={{
+              fontSize: 11, color: 'var(--ink-4)', marginTop: 4,
+              fontFamily: 'var(--ff-sans)',
+            }}>{window.__mtxIATasks.formatRelative(task.scheduledAt)}</div>
+          </div>
+        )}
+
+        {/* Timeline de logs / thinking */}
+        <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 8 }}>
+          {kind === 'scheduled' ? 'PLAN DE EJECUCIÓN' : 'LOG DEL AGENTE'}
+        </div>
+        <div style={{
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.02)',
+          border: '0.5px solid rgba(255,255,255,0.05)',
+          marginBottom: 18,
+          overflow: 'hidden',
+        }}>
+          {timeline.map(function(e, i) {
+            var evColor = e.kind === 'thinking' ? 'var(--ink-3)'
+                        : e.kind === 'tool'     ? '#5dd3ff'
+                        : e.kind === 'result'   ? 'var(--ink-2)'
+                        : e.kind === 'output'   ? 'var(--ink-2)'
+                        : e.kind === 'success'  ? 'var(--neon)'
+                        : e.kind === 'error'    ? '#ff8b8b'
+                        : 'var(--ink-4)';
+            var evIcon = e.kind === 'thinking' ? '◌'
+                       : e.kind === 'tool'     ? '⚒'
+                       : e.kind === 'result'   ? '↳'
+                       : e.kind === 'output'   ? '↳'
+                       : e.kind === 'success'  ? '✓'
+                       : e.kind === 'error'    ? '✕'
+                       : '·';
+            var isMono = e.kind === 'tool';
+            return (
+              <div key={e.ts + ':' + i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '9px 12px',
+                borderTop: i > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+              }}>
+                <div aria-hidden="true" style={{
+                  width: 18, fontSize: 11, color: evColor, flexShrink: 0,
+                  textAlign: 'center', marginTop: 1, fontWeight: 700,
+                }}>{evIcon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: isMono ? 10.5 : 11.5,
+                    color: evColor, lineHeight: 1.45,
+                    fontFamily: isMono ? 'ui-monospace, SF Mono, Menlo, monospace' : 'var(--ff-sans)',
+                    letterSpacing: isMono ? 0 : '-0.005em',
+                    fontStyle: e.kind === 'thinking' ? 'italic' : 'normal',
+                    wordBreak: 'break-word',
+                  }}>{e.text}</div>
+                  <div style={{
+                    fontSize: 9.5, color: 'var(--ink-4)', marginTop: 2,
+                    fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>{window.__mtxIATasks.formatTime(e.ts)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Entregables (si los hay) */}
+        {deliverables.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 8 }}>
+              ENTREGABLES
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {deliverables.map(function(d, i) {
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.025)',
+                    border: '0.5px solid rgba(255,255,255,0.06)',
+                  }}>
+                    <div aria-hidden="true" style={{
+                      width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                      background: 'rgba(255,255,255,0.04)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 15,
+                    }}>{d.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12.5, fontWeight: 600, color: 'var(--ink-1)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{d.label}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 1 }}>
+                        {d.size || d.meta || ''}
+                      </div>
+                    </div>
+                    <button
+                      onClick={function() {
+                        if (d.kind === 'link' || d.kind === 'calendar') handleViewLink(d);
+                        else handleDownload(d);
+                      }}
+                      className="mtx-tap"
+                      aria-label={(d.kind === 'link' || d.kind === 'calendar' ? 'Ver' : 'Descargar') + ' ' + d.label}
+                      style={{
+                        appearance: 'none', cursor: 'pointer',
+                        padding: '6px 12px', borderRadius: 999, border: 0,
+                        background: 'rgba(61,255,209,0.10)',
+                        border: '0.5px solid rgba(61,255,209,0.30)',
+                        color: 'var(--neon)',
+                        fontSize: 11, fontWeight: 700,
+                        fontFamily: 'var(--ff-sans)',
+                        flexShrink: 0,
+                      }}>
+                      {d.kind === 'link' || d.kind === 'calendar' ? 'Ver' : 'Descargar'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Actions footer contextuales por kind */}
+        {kind === 'active' && !confirmCancel && (
+          <button onClick={function() { setConfirmCancel(true); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer', width: '100%',
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(255,107,107,0.06)',
+              border: '0.5px solid rgba(255,107,107,0.24)',
+              color: '#ff8b8b',
+              fontSize: 13, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>✕  Cancelar tarea</button>
+        )}
+        {kind === 'active' && confirmCancel && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 14,
+            background: 'rgba(255,107,107,0.06)',
+            border: '0.5px solid rgba(255,107,107,0.30)',
+          }}>
+            <div style={{
+              fontSize: 12, color: '#ff8b8b', marginBottom: 10,
+              fontWeight: 600, textAlign: 'center',
+            }}>¿Cancelar "{task.title}"? El coach detendrá la ejecución.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={function() { setConfirmCancel(false); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '9px 12px', borderRadius: 11,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  color: 'var(--ink-2)',
+                  fontSize: 12, fontWeight: 600,
+                }}>Mantener</button>
+              <button onClick={function() { if (onCancelActive) onCancelActive(task); setConfirmCancel(false); onClose(); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '9px 12px', borderRadius: 11,
+                  background: 'rgba(255,107,107,0.16)',
+                  border: '0.5px solid rgba(255,107,107,0.40)',
+                  color: '#ff8b8b',
+                  fontSize: 12, fontWeight: 700,
+                }}>Sí, cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {kind === 'pending' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button onClick={function() { if (onDismiss) onDismiss(task); onClose(); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '12px 14px', borderRadius: 14,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  color: 'var(--ink-2)',
+                  fontSize: 13, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Rechazar</button>
+              <button onClick={function() { if (onApprove) onApprove(task); onClose(); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 2,
+                  padding: '12px 14px', borderRadius: 14, border: 0,
+                  background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                  color: '#0a1410',
+                  fontSize: 13, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                  boxShadow: '0 4px 14px -2px rgba(61,255,209,0.42)',
+                }}>✦ Aprobar y ejecutar</button>
+            </div>
+          </div>
+        )}
+
+        {kind === 'scheduled' && !reprogramOpen && !confirmCancel && (
+          <div>
+            <button onClick={function() { if (onRunNow) onRunNow(task); onClose(); }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer', width: '100%',
+                padding: '12px 14px', borderRadius: 14, border: 0,
+                background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                color: '#0a1410',
+                fontSize: 13, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+                marginBottom: 8,
+                boxShadow: '0 4px 14px -2px rgba(61,255,209,0.42)',
+              }}>▶  Ejecutar ahora</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={function() { setReprogramOpen(true); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '11px 12px', borderRadius: 13,
+                  background: 'rgba(155,138,255,0.06)',
+                  border: '0.5px solid rgba(155,138,255,0.28)',
+                  color: '#9b8aff',
+                  fontSize: 12, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                }}>🕐  Reprogramar</button>
+              <button onClick={function() { setConfirmCancel(true); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '11px 12px', borderRadius: 13,
+                  background: 'rgba(255,107,107,0.06)',
+                  border: '0.5px solid rgba(255,107,107,0.24)',
+                  color: '#ff8b8b',
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {kind === 'scheduled' && reprogramOpen && (
+          <div style={{
+            padding: '14px 14px', borderRadius: 14,
+            background: 'rgba(155,138,255,0.06)',
+            border: '0.5px solid rgba(155,138,255,0.28)',
+          }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, color: '#9b8aff', marginBottom: 10 }}>
+              REPROGRAMAR
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { label: 'En 15 minutos',    ms: 15 * 60 * 1000 },
+                { label: 'En 1 hora',         ms: 60 * 60 * 1000 },
+                { label: 'En 3 horas',        ms: 3 * 60 * 60 * 1000 },
+                { label: 'Mañana a esta hora', ms: 24 * 60 * 60 * 1000 },
+                { label: 'En 1 semana',       ms: 7 * 24 * 60 * 60 * 1000 },
+              ].map(function(o) {
+                return (
+                  <button key={o.label}
+                    onClick={function() {
+                      if (onReschedule) onReschedule(task, Date.now() + o.ms);
+                      setReprogramOpen(false);
+                      onClose();
+                    }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                      padding: '10px 12px', borderRadius: 11,
+                      background: 'rgba(255,255,255,0.025)',
+                      border: '0.5px solid rgba(255,255,255,0.06)',
+                      color: 'var(--ink-1)',
+                      fontSize: 12.5, fontWeight: 600,
+                      fontFamily: 'var(--ff-sans)',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                    <span>{o.label}</span>
+                    <span style={{ color: 'var(--ink-4)', fontSize: 11 }}>›</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={function() { setReprogramOpen(false); }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer', width: '100%',
+                padding: '9px 12px', borderRadius: 11,
+                background: 'transparent',
+                color: 'var(--ink-3)',
+                fontSize: 11.5, fontWeight: 600,
+                marginTop: 8,
+                border: 0,
+              }}>Volver</button>
+          </div>
+        )}
+
+        {kind === 'scheduled' && confirmCancel && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 14,
+            background: 'rgba(255,107,107,0.06)',
+            border: '0.5px solid rgba(255,107,107,0.30)',
+          }}>
+            <div style={{
+              fontSize: 12, color: '#ff8b8b', marginBottom: 10,
+              fontWeight: 600, textAlign: 'center',
+            }}>¿Cancelar la programación de "{task.title}"?</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={function() { setConfirmCancel(false); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '9px 12px', borderRadius: 11,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  color: 'var(--ink-2)',
+                  fontSize: 12, fontWeight: 600,
+                }}>Mantener</button>
+              <button onClick={function() { if (onCancelScheduled) onCancelScheduled(task); setConfirmCancel(false); onClose(); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer', flex: 1,
+                  padding: '9px 12px', borderRadius: 11,
+                  background: 'rgba(255,107,107,0.16)',
+                  border: '0.5px solid rgba(255,107,107,0.40)',
+                  color: '#ff8b8b',
+                  fontSize: 12, fontWeight: 700,
+                }}>Sí, cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {kind === 'history' && task.status === 'error' && (
+          <button onClick={function() { if (onRetry) onRetry(task); onClose(); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer', width: '100%',
+              padding: '12px 14px', borderRadius: 14, border: 0,
+              background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+              color: '#0a1410',
+              fontSize: 13, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              boxShadow: '0 4px 14px -2px rgba(61,255,209,0.42)',
+            }}>↻  Reintentar</button>
+        )}
+
+        {kind === 'history' && task.status === 'success' && (
+          <button onClick={function() { if (onReplay) onReplay(task); onClose(); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer', width: '100%',
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              color: 'var(--ink-2)',
+              fontSize: 13, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>↻  Volver a ejecutar</button>
+        )}
+
+        {kind === 'history' && task.status === 'dismissed' && (
+          <button onClick={function() { if (onReplay) onReplay(task); onClose(); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer', width: '100%',
+              padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+              color: 'var(--ink-2)',
+              fontSize: 13, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>▶  Ejecutar de nuevo</button>
+        )}
+      </div>
+    </div>
+  );
+  return window.ReactDOM ? window.ReactDOM.createPortal(content, portalRoot) : content;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NewTaskSheet — "+ Nueva tarea" launcher. Permite al user pedirle al coach
+// que ejecute un workflow oficial, active una skill, o haga una petición libre.
+// ═══════════════════════════════════════════════════════════════════════════
+function NewTaskSheet(props) {
+  var onClose = props.onClose;
+  var requestState = React.useState('');
+  var request = requestState[0]; var setRequest = requestState[1];
+
+  var onCloseRef = React.useRef(onClose);
+  React.useEffect(function() { onCloseRef.current = onClose; });
+  React.useEffect(function() {
+    var onKey = function(e) {
+      if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
+      var t = e.target; var tag = (t && t.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, []);
+  React.useEffect(function() {
+    var prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return function() { document.body.style.overflow = prev; };
+  }, []);
+
+  var _useToast = window.useToast || function() { return { show: function() {} }; };
+  var toast = _useToast();
+
+  // Workflows activos (oficiales + propios)
+  var workflows = (window.__mtxIAWorkflows && window.__mtxIAWorkflows.getOfficialWorkflows)
+    ? window.__mtxIAWorkflows.getOfficialWorkflows().filter(function(w) { return w.enabled; }).slice(0, 5)
+    : [];
+
+  var runWorkflow = function(wf) {
+    toast.show({ message: '✦ Ejecutando "' + wf.title + '"…', duration: 1800 });
+    onClose();
+  };
+  var sendRequest = function() {
+    if (!request.trim()) return;
+    toast.show({ message: '✦ Petición enviada al coach', duration: 1800 });
+    setRequest('');
+    onClose();
+  };
+
+  var portalRoot = (typeof document !== 'undefined')
+    ? document.getElementById('mtx-overlay-root')
+    : null;
+  if (!portalRoot) return null;
+
+  var content = (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 230,
+      background: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      animation: 'mtx-fade-up .25s ease',
+    }} onClick={function(e) { if (e.target === e.currentTarget) onClose(); }}>
+      <div onClick={function(e) { e.stopPropagation(); }}
+        role="dialog" aria-modal="true" aria-label="Nueva tarea para el coach"
+        className="mtx-no-scrollbar"
+        style={{
+          background: 'rgba(15,19,19,0.96)',
+          backdropFilter: 'blur(28px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+          borderTop: '0.5px solid rgba(255,255,255,0.10)',
+          borderTopLeftRadius: 28, borderTopRightRadius: 28,
+          padding: '14px 20px 28px',
+          boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
+          maxHeight: '88%', overflow: 'auto',
+          animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
+        }}>
+        <div aria-hidden="true" style={{
+          width: 36, height: 4, borderRadius: 999, margin: '0 auto 14px',
+          background: 'rgba(255,255,255,0.16)',
+        }}/>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
+          <div aria-hidden="true" style={{
+            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06)) ',
+            border: '0.5px solid rgba(61,255,209,0.36)',
+            color: 'var(--neon)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 19, fontWeight: 700,
+            boxShadow: '0 0 14px rgba(61,255,209,0.24)',
+          }}>+</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.018em',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+              marginBottom: 3,
+            }}>Nueva tarea</div>
+            <div style={{
+              fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.45,
+              letterSpacing: '-0.005em',
+            }}>Pídele al coach que ejecute un workflow o haz una petición personalizada.</div>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"
+            className="mtx-tap"
+            style={{
+              width: 32, height: 32, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.06)',
+              color: 'var(--ink-2)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, fontSize: 13,
+            }}>✕</button>
+        </div>
+
+        {/* Custom request textarea */}
+        <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 8 }}>
+          PETICIÓN PERSONALIZADA
+        </div>
+        <textarea
+          value={request}
+          onChange={function(e) { setRequest(e.target.value); }}
+          placeholder='Ej: "Resúmeme las 3 prioridades para mañana", "Investiga qué dijo Tim Ferriss sobre journaling"…'
+          rows={4}
+          maxLength={500}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            appearance: 'none', outline: 'none',
+            background: 'rgba(0,0,0,0.20)',
+            border: '0.5px solid rgba(255,255,255,0.06)',
+            borderRadius: 14,
+            padding: '12px 14px',
+            color: 'var(--ink-1)',
+            fontSize: 13, lineHeight: 1.5,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            resize: 'none',
+            marginBottom: 8,
+          }}
+        />
+        <button onClick={sendRequest} disabled={!request.trim()}
+          className="mtx-tap"
+          style={{
+            appearance: 'none', cursor: request.trim() ? 'pointer' : 'not-allowed',
+            width: '100%', padding: '11px 14px', borderRadius: 13, border: 0,
+            background: request.trim()
+              ? 'linear-gradient(135deg, var(--neon), #1ad9ad)'
+              : 'rgba(255,255,255,0.04)',
+            color: request.trim() ? '#0a1410' : 'var(--ink-4)',
+            fontSize: 13, fontWeight: 700,
+            fontFamily: 'var(--ff-sans)',
+            opacity: request.trim() ? 1 : 0.5,
+            marginBottom: 20,
+            boxShadow: request.trim() ? '0 4px 14px -2px rgba(61,255,209,0.42)' : 'none',
+          }}>
+          ✦ Enviar al coach
+        </button>
+
+        {/* Workflows activos para invocar */}
+        {workflows.length > 0 && (
+          <>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 8 }}>
+              O EJECUTA UN WORKFLOW AHORA
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {workflows.map(function(wf) {
+                return (
+                  <button key={wf.id}
+                    onClick={function() { runWorkflow(wf); }}
+                    aria-label={'Ejecutar ' + wf.title}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '11px 12px', borderRadius: 14,
+                      background: 'rgba(255,255,255,0.025)',
+                      border: '0.5px solid rgba(255,255,255,0.06)',
+                      transition: 'all .2s',
+                    }}>
+                    <div aria-hidden="true" style={{
+                      width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                      background: 'rgba(255,255,255,0.04)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16,
+                    }}>{wf.icon || '⚙️'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12.5, fontWeight: 700, color: 'var(--ink-1)',
+                        letterSpacing: '-0.012em',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{wf.title}</div>
+                      <div style={{
+                        fontSize: 10.5, color: 'var(--ink-4)', marginTop: 1,
+                      }}>Ejecutar ahora</div>
+                    </div>
+                    <div aria-hidden="true" style={{
+                      color: 'var(--ink-4)', fontSize: 13, flexShrink: 0,
+                    }}>›</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+  return window.ReactDOM ? window.ReactDOM.createPortal(content, portalRoot) : content;
 }
 
 

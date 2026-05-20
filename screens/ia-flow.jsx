@@ -555,10 +555,9 @@ function IAHeader(props) {
         {/* Fase 2.4: Tasks icon — actividad del coach (active/pending/scheduled/history).
             Componente window.IATasksIcon vive en screens/ia-tasks.jsx con su propio
             badge dinámico (pending count amber o active running dot neon). */}
+        {/* Agenda extraída del IA (ahora vive en Home header) — el coach no
+            necesita botón propio porque la agenda es global, no de la sesión. */}
         {window.IATasksIcon && <window.IATasksIcon onClick={onTasks}/>}
-        <IAIconButton aria-label="Agenda del día" onClick={onAgenda}>
-          <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
-        </IAIconButton>
         <IAIconButton aria-label="Nueva conversación" onClick={onNewChat}>
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
         </IAIconButton>
@@ -2405,14 +2404,14 @@ function IAHubHeader(props) {
         <IcList size={16} stroke="currentColor" strokeWidth={1.7}/>
       </IAIconButton>
       <div style={{ flex: 1 }}/>
-      {/* Fase 2.4: Tasks icon — actividad del coach */}
-      {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
+      {/* Orden de izquierda a derecha post-reorder: Nueva → Agenda → Tasks → Settings.
+          Tasks queda contiguo a Settings (ambos invocan paneles "del coach"),
+          Agenda en el medio (acceso rápido al día), Nueva en el extremo
+          izquierdo del cluster derecho (acción más frecuente, fácil de tappear). */}
       <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
         <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
       </IAIconButton>
-      <IAIconButton aria-label="Agenda del día" onClick={props.onAgenda}>
-        <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
-      </IAIconButton>
+      {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
       <IAIconButton aria-label="Configuración del asistente" onClick={props.onSettings}>
         <IcSettings size={15} stroke="currentColor" strokeWidth={1.6}/>
       </IAIconButton>
@@ -2482,14 +2481,8 @@ function IAChatHeader(props) {
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
         </IAIconButton>
 
-        {/* Agenda solo en chat de sesión activa — acceso rápido al timeline
-            del día sin salir del coach. En chats normales del tab IA, este
-            slot no aparece (header queda con solo back+title+nuevo). */}
-        {isSessionScope && (
-          <IAIconButton aria-label="Agenda del día" onClick={props.onAgenda}>
-            <IcCalendar size={15} stroke="currentColor" strokeWidth={1.7}/>
-          </IAIconButton>
-        )}
+        {/* Agenda extraída del IA — ahora vive en Home header (global), no
+            dentro del chat. Reduces clutter en sesión activa también. */}
       </div>
     </div>
   );

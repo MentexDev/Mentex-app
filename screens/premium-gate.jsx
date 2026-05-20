@@ -381,6 +381,11 @@
           @keyframes mtxPremiumC2 { 0%{transform:translateY(-16px) rotate(0);opacity:0} 8%{opacity:1} 100%{transform:translateY(1060px) rotate(210deg);opacity:0} }
           @keyframes mtxPremiumTextIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
           @keyframes mtxPremiumCTAIn  { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes mtxFloatA { 0%,100%{transform:translateY(0px) rotate(-4deg)} 50%{transform:translateY(-11px) rotate(4deg)} }
+          @keyframes mtxFloatB { 0%,100%{transform:translateY(0px) rotate(6deg)}  50%{transform:translateY(-8px)  rotate(-5deg)} }
+          @keyframes mtxFloatC { 0%,100%{transform:translateY(0px) rotate(0deg)}  50%{transform:translateY(-14px) rotate(8deg)} }
+          @keyframes mtxFloatD { 0%,100%{transform:translateY(0px) rotate(-6deg)} 50%{transform:translateY(-9px)  rotate(3deg)} }
+          @keyframes mtxItemIn  { from{opacity:0;transform:scale(0.4)} to{opacity:1;transform:scale(1)} }
         `}</style>
 
         {/* Bokeh background blobs */}
@@ -432,13 +437,38 @@
               WebkitBackdropFilter:'blur(24px)',
               border:'0.5px solid rgba(255,255,255,0.07)',
               display:'flex', alignItems:'center', justifyContent:'center',
+              position:'relative', overflow:'hidden',
             }}>
+              {/* Floating items — libros, headphones, ideas */}
+              {[
+                { emoji:'📚', size:30, top:'11%',  left:'12%',  anim:'mtxFloatA', dur:3.8, delay:0.6  },
+                { emoji:'🎧', size:26, top:'9%',   right:'13%', anim:'mtxFloatB', dur:4.1, delay:1.1  },
+                { emoji:'🧠', size:24, top:'36%',  left:'7%',   anim:'mtxFloatC', dur:3.5, delay:0.3  },
+                { emoji:'✨', size:22, top:'67%',  left:'11%',  anim:'mtxFloatD', dur:4.4, delay:0.9  },
+                { emoji:'📖', size:28, top:'70%',  right:'10%', anim:'mtxFloatA', dur:3.9, delay:0.2  },
+                { emoji:'💡', size:24, top:'35%',  right:'8%',  anim:'mtxFloatB', dur:4.2, delay:1.4  },
+                { emoji:'🌟', size:20, top:'20%',  left:'42%',  anim:'mtxFloatC', dur:3.3, delay:0.7  },
+                { emoji:'🎯', size:22, top:'77%',  left:'40%',  anim:'mtxFloatD', dur:4.0, delay:0.4  },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  position:'absolute',
+                  top:item.top, left:item.left, right:item.right,
+                  fontSize:item.size,
+                  lineHeight:1,
+                  pointerEvents:'none',
+                  animation:`mtxItemIn .55s cubic-bezier(.175,.885,.32,1.275) ${item.delay + 0.5}s both, ${item.anim} ${item.dur}s ease-in-out ${item.delay}s infinite`,
+                  willChange:'transform, opacity',
+                  filter:'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                }}>{item.emoji}</div>
+              ))}
+
               {/* Neon check badge */}
               <div style={{
                 width:70, height:70, borderRadius:999,
                 background:'linear-gradient(145deg, #3dffd1, #1dc9a0)',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 animation:'mtxPremiumBadge .82s cubic-bezier(.175,.885,.32,1.275) .35s both, mtxPremiumGlow 2.6s ease-in-out 1.2s infinite',
+                position:'relative', zIndex:1,
               }}>
                 <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
                   <path d="M8 17.5L14.5 24L26 12" stroke="#050706" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"/>
@@ -465,21 +495,24 @@
           }}>
             Tu suscripción está activa.<br/>Bienvenido a Mentex Premium.
           </p>
-          <button
-            type="button"
-            onClick={handleStart}
-            className="mtx-tap"
-            style={{
-              width:'100%', padding:'17px 24px',
-              borderRadius:100, border:'none', cursor:'pointer',
-              background:'var(--ink-1)', color:'#030a07',
-              fontSize:16, fontWeight:800,
-              fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-              animation:'mtxPremiumCTAIn .5s ease 1.22s both',
-            }}
-          >
-            Comenzar a escuchar
-          </button>
+          <div style={{ display:'flex', justifyContent:'center', animation:'mtxPremiumCTAIn .5s ease 1.22s both' }}>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="mtx-tap"
+              style={{
+                padding:'16px 52px',
+                borderRadius:100, border:'none', cursor:'pointer',
+                background:'linear-gradient(135deg, #3dffd1 0%, #1dc9a0 100%)',
+                color:'#030a07',
+                fontSize:16, fontWeight:800,
+                fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
+                boxShadow:'0 0 28px rgba(61,255,209,0.45), 0 4px 16px rgba(61,255,209,0.25)',
+              }}
+            >
+              Comenzar a escuchar
+            </button>
+          </div>
         </div>
       </div>
     );

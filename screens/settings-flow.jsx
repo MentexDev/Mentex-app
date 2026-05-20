@@ -3572,157 +3572,16 @@ var _COMPLETED_TYPE_EMOJI = {
   SERIES:       '🎬',
 };
 
-// ── ContentDetailSheet ────────────────────────────────────────────────────────
-// Hook de integración con Explorar: window.__mtxPlayContent(item) se llama al reproducir.
-// Explorar puede registrar su handler con: window.__mtxPlayContent = (item) => { ... }
-function ContentDetailSheet({ item, onClose }) {
-  const toast  = window.useToast ? window.useToast() : { show: () => {} };
-  const color  = _COMPLETED_TYPE_COLOR[item.type] || 'var(--neon)';
-  const emoji  = _COMPLETED_TYPE_EMOJI[item.type] || '📖';
-  const sheetRef    = React.useRef(null);
-  const touchStartY = React.useRef(null);
-
-  const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
-  const onTouchMove  = (e) => {
-    if (touchStartY.current === null || !sheetRef.current) return;
-    const dy = Math.max(0, e.touches[0].clientY - touchStartY.current);
-    sheetRef.current.style.transform = `translateY(${Math.min(dy, 260)}px)`;
-  };
-  const onTouchEnd = (e) => {
-    const dy = touchStartY.current !== null ? e.changedTouches[0].clientY - touchStartY.current : 0;
-    touchStartY.current = null;
-    if (sheetRef.current) sheetRef.current.style.transform = '';
-    if (dy > 100) onClose();
-  };
-
-  const handlePlay = () => {
-    if (typeof window.__mtxPlayContent === 'function') {
-      window.__mtxPlayContent(item);
-    } else {
-      toast.show({ message: `Reproduciendo: ${item.title}`, duration: 2200 });
-    }
-    onClose();
-  };
-
-  const handleSave = () => {
-    toast.show({ message: 'Guardado en tu biblioteca', duration: 1800 });
-    onClose();
-  };
-
-  const overlayRoot = typeof document !== 'undefined' ? document.getElementById('mtx-overlay-root') : null;
-  if (!overlayRoot) return null;
-
-  return ReactDOM.createPortal(
-    <div style={{ position:'absolute', inset:0, zIndex:168, display:'flex', alignItems:'flex-end' }}>
-      <style>{`@keyframes cdsUp { from{transform:translateY(100%);} to{transform:translateY(0);} }`}</style>
-
-      {/* Backdrop */}
-      <div onClick={onClose} role="button" tabIndex={-1} aria-label="Cerrar"
-        onKeyDown={e => e.key === 'Escape' && onClose()}
-        style={{
-          position:'absolute', inset:0,
-          background:'rgba(0,0,0,0.60)',
-          backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
-        }}/>
-
-      {/* Sheet */}
-      <div ref={sheetRef}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        style={{
-          position:'relative', zIndex:1, width:'100%',
-          background:'linear-gradient(180deg, rgba(14,20,18,0.99) 0%, rgba(9,13,12,1) 100%)',
-          borderTopLeftRadius:28, borderTopRightRadius:28,
-          border:'0.5px solid rgba(255,255,255,0.08)', borderBottom:'none',
-          animation:'cdsUp .30s cubic-bezier(.22,1,.36,1) both',
-          transition:'transform 0.08s linear',
-          padding:'0 0 40px',
-        }}>
-
-        {/* Drag handle */}
-        <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:8 }}>
-          <div style={{ width:36, height:4, borderRadius:999, background:'rgba(255,255,255,0.16)' }}/>
-        </div>
-
-        {/* Hero — portada grande con gradiente del tipo */}
-        <div style={{
-          margin:'6px 20px 20px',
-          height:160, borderRadius:22,
-          background:`linear-gradient(145deg, ${color}28 0%, rgba(8,11,10,0.95) 100%)`,
-          border:`0.5px solid ${color}22`,
-          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10,
-          position:'relative', overflow:'hidden',
-        }}>
-          {/* Glow radial */}
-          <div style={{
-            position:'absolute', top:'-30%', left:'50%', transform:'translateX(-50%)',
-            width:180, height:180, borderRadius:'50%',
-            background:`radial-gradient(circle, ${color}18 0%, transparent 70%)`,
-            pointerEvents:'none',
-          }}/>
-          <div style={{ fontSize:52, lineHeight:1 }}>{emoji}</div>
-          <div style={{
-            fontSize:9, fontWeight:800, letterSpacing:'0.10em', textTransform:'uppercase',
-            color, padding:'3px 10px', borderRadius:999,
-            background:`${color}18`, border:`0.5px solid ${color}30`,
-          }}>{item.type}</div>
-        </div>
-
-        {/* Info */}
-        <div style={{ padding:'0 22px 24px' }}>
-          <div style={{ fontSize:20, fontWeight:800, color:'var(--ink-1)', letterSpacing:'-0.028em', fontFamily:'var(--ff-display)', marginBottom:4, lineHeight:1.2 }}>
-            {item.title}
-          </div>
-          <div style={{ fontSize:13.5, color:'rgba(255,255,255,0.40)', marginBottom:14, letterSpacing:'-0.01em' }}>
-            {item.author}
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:24 }}>
-            <div style={{
-              display:'flex', alignItems:'center', gap:5,
-              padding:'5px 11px', borderRadius:999,
-              background:'rgba(255,255,255,0.05)', border:'0.5px solid rgba(255,255,255,0.09)',
-            }}>
-              <IcClock size={11} stroke="rgba(255,255,255,0.40)" strokeWidth={2}/>
-              <span style={{ fontSize:12, color:'rgba(255,255,255,0.45)', fontWeight:600 }}>{item.duration}</span>
-            </div>
-            <div style={{
-              display:'flex', alignItems:'center', gap:5,
-              padding:'5px 11px', borderRadius:999,
-              background:'rgba(61,255,209,0.06)', border:'0.5px solid rgba(61,255,209,0.14)',
-            }}>
-              <IcCheck size={11} stroke="var(--neon)" strokeWidth={2.8}/>
-              <span style={{ fontSize:12, color:'rgba(61,255,209,0.80)', fontWeight:600 }}>Completado · {item.date}</span>
-            </div>
-          </div>
-
-          {/* CTAs */}
-          <button onClick={handlePlay} className="mtx-tap" tabIndex={0} style={{
-            width:'100%', height:52, borderRadius:15, border:'none', cursor:'pointer',
-            background:'linear-gradient(135deg, var(--neon) 0%, rgba(61,255,209,0.88) 100%)',
-            color:'#050706', fontSize:15.5, fontWeight:800,
-            fontFamily:'var(--ff-display)', letterSpacing:'-0.015em',
-            boxShadow:'0 4px 28px rgba(61,255,209,0.32)',
-            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-            marginBottom:10,
-          }}>
-            <IcPlay size={16} stroke="#050706"/>
-            Escuchar de nuevo
-          </button>
-          <button onClick={handleSave} className="mtx-tap" tabIndex={0} style={{
-            width:'100%', height:44, borderRadius:13, cursor:'pointer',
-            background:'rgba(255,255,255,0.04)', border:'0.5px solid rgba(255,255,255,0.08)',
-            color:'rgba(255,255,255,0.50)', fontSize:14, fontWeight:600,
-            fontFamily:'var(--ff-sans)', letterSpacing:'-0.01em',
-          }}>Guardar en playlist</button>
-        </div>
-      </div>
-    </div>,
-    overlayRoot
-  );
-}
-
 // ── ProgresosSubScreen ────────────────────────────────────────────────────────
 function ProgresosSubScreen({ onBack }) {
-  const [activeContent, setActiveContent] = React.useState(null);
+  // Tap en un item completado → abre ContentDetailScreen en Explorar
+  // vía window.__mtxPlayContent (cierra Settings, switchea tab, dispatch
+  // mtx:open-item-from-community → ExploreScreen → nav.push content-detail).
+  const openContent = React.useCallback((item) => {
+    if (typeof window.__mtxPlayContent === 'function') {
+      window.__mtxPlayContent(item);
+    }
+  }, []);
 
   return (
     <SubScreen title="Mi aprendizaje" onBack={onBack}>
@@ -3786,9 +3645,9 @@ function ProgresosSubScreen({ onBack }) {
           const color = _COMPLETED_TYPE_COLOR[item.type] || 'var(--neon)';
           const emoji = _COMPLETED_TYPE_EMOJI[item.type] || '📖';
           return (
-            <div key={item.id} onClick={() => setActiveContent(item)}
+            <div key={item.id} onClick={() => openContent(item)}
               role="button" tabIndex={0} aria-label={item.title}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setActiveContent(item)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContent(item); } }}
               className="mtx-tap"
               style={{
                 display:'flex', alignItems:'center', gap:13,
@@ -3834,10 +3693,6 @@ function ProgresosSubScreen({ onBack }) {
         })}
       </div>
       <div style={{ height:40 }}/>
-
-      {activeContent && (
-        <ContentDetailSheet item={activeContent} onClose={() => setActiveContent(null)}/>
-      )}
     </SubScreen>
   );
 }
