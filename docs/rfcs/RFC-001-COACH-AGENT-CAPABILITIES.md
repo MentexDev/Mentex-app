@@ -1,6 +1,6 @@
 # RFC-001 — Coach Agent Capabilities
 
-> **Estado:** DRAFT v1.0 · **Fecha:** 2026-05-26 · **Owner:** Diego (founder Mentex)
+> **Estado:** ✅ SEALED v1.0 · **Fecha sello:** 2026-05-26 · **Owner:** Diego (founder Mentex)
 > **Audiencia:** Brandon (dev externo backend), equipo de diseño Mentex, futuras sesiones de IA que asistan a Diego.
 
 ---
@@ -23,7 +23,7 @@
 
 | Versión | Fecha | Cambio | Sellado por |
 |---|---|---|---|
-| 1.0-DRAFT | 2026-05-26 | RFC inicial. 3 capas de tools (Core/Extended/Visionario), 20 tipos de artefactos, UX timeline Manus-style, roadmap por fases. | Diego ⏳ |
+| **1.0** | 2026-05-26 | RFC inicial sellado. 3 capas de tools (Core/Extended/Visionario), 20 tipos de artefactos, UX timeline Manus-style, roadmap por fases. Decisiones de sello: orden Fase C aprobado, `browse_act` confirmado prioridad año 1 visible en roadmap, `crisis_handle` requiere RFC-002 dedicado antes de implementar. | ✅ Diego · 2026-05-26 |
 
 ---
 
@@ -997,14 +997,13 @@ Lista mínima de scenarios que `__mtxCoach.__debug.simulateScenario(name)` debe 
 3. ⏳ Iniciar Fase A (frontend mock) — sprint dedicado de 2-3 semanas.
 4. ⏳ Coordinar con Brandon: este RFC define qué tools backend necesita el Coach. Brandon implementa contraparte en `04-AI-COACH.md`.
 
-### 15.A — Preguntas abiertas para Diego
+### 15.A — Decisiones del sello (2026-05-26)
 
-1. **¿Sello esta versión 1.0 ahora o quieres iterar antes?** Si iteramos: ¿qué sección necesita más trabajo?
-2. **¿El orden del roadmap Fase C (Extended) te calza?** (document_render → image_generate → web_search → web_fetch → integrate_action → extended_think.)
-3. **¿`browse_act` es prioridad año 1 o lo retrasamos?** Es lo más complejo de Fase D pero es el killer feature.
-4. **¿Algún tool más que se nos pasa?** (Recordatorio del catálogo: 20 tools en 3 capas, ¿falta alguna?)
-5. **¿Algún artefacto más que se nos pasa?** (20 tipos catalogados, ¿falta alguno?)
-6. **¿El crisis_handle protocolo te parece suficiente o requiere RFC propio?** Por sensibilidad recomiendo RFC propio antes de implementar.
+1. **Sello v1.0:** ✅ Aprobado por Diego. Arrancamos Fase A inmediatamente.
+2. **Orden Fase C:** ✅ Aprobado tal como propuesto (document_render → image_generate → web_search → web_fetch → integrate_action → extended_think).
+3. **`browse_act` (Capa Visionaria):** ✅ Confirmado como prioridad año 1, killer feature. Se mantiene en Fase D pero queda **explícitamente visible** en el roadmap (§8.4 y §8.5). RFC propio requerido antes de construir — sprint dedicado.
+4. **`crisis_handle`:** ✅ Requiere **RFC-002 dedicado** antes de implementar. Por sensibilidad clínica + legal + UX. Ver [`RFC-002-CRISIS-HANDLE-PROTOCOL.md`](./RFC-002-CRISIS-HANDLE-PROTOCOL.md) (placeholder creado el día del sello).
+5. **Tools adicionales / artefactos adicionales:** queda abierto para PRs futuros (regla del §14 — agregar es legítimo, borrar selladas requiere bandera *Deprecated*).
 
 ---
 
