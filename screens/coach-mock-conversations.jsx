@@ -647,21 +647,55 @@
     scenario: scenario,
   };
 
-  // ── Auto-load opcional ──────────────────────────────────────────────────
-  // En dev queremos que se carguen automáticamente al primer mount del IA tab
-  // para que el History tenga ejemplos visibles. Si no quieres auto-load,
-  // setea window.__mtxCoachMocksAutoLoad = false ANTES de cargar este script.
+  // ── Auto-load ROBUSTO (fix race condition Babel-standalone) ──────────────
+  // Problema previo: requestAnimationFrame solo se ejecutaba 1 vez. Si
+  // __mtxIAChat aún no estaba listo (Babel-standalone es async al transformar
+  // archivos grandes), se perdía la carga silenciosamente.
+  //
+  // Solución: poll con backoff hasta ~5 segundos. Si __mtxIAChat aparece,
+  // cargar; si no, log warning. También engancha a window.load como trigger
+  // redundante.
+  //
+  // Para desactivar: setea window.__mtxCoachMocksAutoLoad = false ANTES de
+  // cargar este script.
+  function _attemptAutoLoad(attempt) {
+    if (typeof window === 'undefined') return;
+    if (window.__mtxCoachMocksAutoLoad === false) return;
+    if (window.__mtxCoachMocksLoaded) return; // idempotencia
+
+    if (window.__mtxIAChat) {
+      var n = load();
+      window.__mtxCoachMocksLoaded = true;
+      if (n > 0) {
+        console.info('[mtxCoachMocks] OK Cargadas', n, 'conversaciones mock al historial. Abre el History (icono lista, header IA) para verlas.');
+      } else {
+        console.info('[mtxCoachMocks] Ya estaban cargadas (idempotencia)');
+      }
+      return;
+    }
+
+    // Poll con backoff: 50ms, 100ms, 200ms, 400ms, 800ms, 1600ms (max ~5s)
+    var delay = Math.min(50 * Math.pow(2, attempt), 1600);
+    if (attempt < 10) {
+      setTimeout(function() { _attemptAutoLoad(attempt + 1); }, delay);
+    } else {
+      console.warn('[mtxCoachMocks] WARN __mtxIAChat nunca apareció. Ejecuta manualmente: window.__mtxCoachMocks.load()');
+    }
+  }
+
   if (typeof window !== 'undefined' && window.__mtxCoachMocksAutoLoad !== false) {
-    // Esperar al next tick para que __mtxIAChat esté seguro disponible
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(function() {
-        if (window.__mtxIAChat) {
-          var n = load();
-          if (n > 0) {
-            console.info('[mtxCoachMocks] Cargadas', n, 'conversaciones mock al historial. Abre el sheet de History en la IA tab para verlas.');
-          }
-        }
-      });
+    _attemptAutoLoad(0);
+
+    // Trigger redundante en window.load — si poll falla por algún motivo, esto
+    // cacha el race entre Babel y el DOM.
+    if (typeof document !== 'undefined') {
+      if (document.readyState === 'complete') {
+        setTimeout(function() { _attemptAutoLoad(0); }, 200);
+      } else {
+        window.addEventListener('load', function() {
+          setTimeout(function() { _attemptAutoLoad(0); }, 100);
+        }, { once: true });
+      }
     }
   }
 
