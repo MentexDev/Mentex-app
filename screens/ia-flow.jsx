@@ -835,6 +835,23 @@ function IAMessageBubble(props) {
   var artifacts = Array.isArray(msg.artifacts) ? msg.artifacts : [];
   var hasArtifacts = artifacts.length > 0 && state === 'done';
 
+  // RFC-001 §5.1 — steps del timeline si los hay
+  // Reglas:
+  //   • Si state === 'reasoning', el timeline tiene prioridad (suplanta TypingDots).
+  //   • Si state === 'done' y todos los steps están done/cancelled, mostramos
+  //     el timeline ANTES del content del bubble (como contexto del trabajo).
+  //   • Si state === 'done' y no hay steps, ocultamos timeline (fallback al texto solo).
+  var steps = Array.isArray(msg.steps) ? msg.steps : [];
+  var hasSteps = steps.length > 0;
+  // Sólo NO mostramos timeline si hay exactamente 1 step en done con duración <800ms
+  // (caída a respuesta directa sin trabajo visible).
+  var shouldShowTimeline = hasSteps && !(
+    steps.length === 1 &&
+    steps[0].status === 'done' &&
+    steps[0].startedAt && steps[0].completedAt &&
+    (steps[0].completedAt - steps[0].startedAt) < 800
+  );
+
   return (
     <div style={{
       display: 'flex', justifyContent: 'flex-start',
@@ -859,7 +876,27 @@ function IAMessageBubble(props) {
         display: 'flex', flexDirection: 'column', gap: 10,
         maxWidth: 'calc(100% - 36px)',
       }}>
-        {/* Text bubble — compacto */}
+        {/* RFC-001 §5.1 — CoachTimeline FUERA del bubble, alineado al inicio
+            del column (después del avatar). Se muestra cuando hay steps que
+            agreguen valor visible (>1 step, o step >800ms, o state==='reasoning'
+            con steps active). Caída elegante a TypingDots si no hay steps. */}
+        {shouldShowTimeline && typeof window !== 'undefined' && window.CoachTimeline && (
+          <div style={{
+            alignSelf: 'stretch',
+            padding: '4px 2px 2px',
+            marginBottom: state === 'done' ? 2 : 6,
+          }}>
+            <window.CoachTimeline
+              steps={steps}
+              sessionId={msg.id}
+            />
+          </div>
+        )}
+
+        {/* Text bubble — compacto. Solo se muestra si hay content que mostrar
+            (cuando state==='reasoning' sin steps, los TypingDots viven aquí;
+            cuando hay steps con state==='reasoning', el timeline los reemplaza). */}
+        {(state !== 'reasoning' || !shouldShowTimeline) && (
         <div style={{
           alignSelf: 'flex-start',
           maxWidth: '92%',
@@ -932,6 +969,7 @@ function IAMessageBubble(props) {
             </div>
           )}
         </div>
+        )}
 
         {/* Artifacts — FUERA del bubble, full width del column.
             Image, Voice, Content card, Calendar, Reminder.

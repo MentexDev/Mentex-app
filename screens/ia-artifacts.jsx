@@ -706,18 +706,575 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 6. IAArtifactPlanCard — plan semanal/mensual (RFC-001 §5.2 #1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // El artefacto más rico del coach: un plan tocable con timeline mini de días,
+  // items por día con icon, notas explicativas y CTAs primario+secundario.
+  // Diseñado para sentirse como una página de diario, no como una tabla.
+  //
+  // Shape:
+  //   {
+  //     kind: 'plan_card',
+  //     title: 'Tu semana — del 21 al 27',
+  //     icon: '📓' | other emoji,
+  //     days: [
+  //       { label: 'Lun', items: [{ icon: '◐'|'⚡'|'◯'|'✈️', text: '...' }] },
+  //     ],
+  //     notes?: ['...', '...'],
+  //     primaryAction?: { label: 'Agendarlo todo', value: 'commit_all' },
+  //     secondaryAction?: { label: 'Ajustar', value: 'edit' }
+  //   }
+  function IAArtifactPlanCard(props) {
+    var art = props.artifact || {};
+    var title = art.title || 'Tu plan';
+    var icon = art.icon || '📓';
+    var days = Array.isArray(art.days) ? art.days : [];
+    var notes = Array.isArray(art.notes) ? art.notes : [];
+    var primaryAction = art.primaryAction;
+    var secondaryAction = art.secondaryAction;
+
+    var expandedState = React.useState(true);
+    var expanded = expandedState[0];
+    var setExpanded = expandedState[1];
+
+    function handleAction(action) {
+      if (!action) return;
+      window.dispatchEvent(new CustomEvent('mtx:coach-artifact-action', {
+        detail: { kind: 'plan_card', value: action.value, artifact: art },
+      }));
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Header — tap para colapsar */}
+        <button
+          type="button"
+          onClick={function() { setExpanded(function(v) { return !v; }); }}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(function(v) { return !v; }); } }}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Colapsar plan' : 'Expandir plan'}
+          className="mtx-tap"
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            width: '100%', padding: '14px 16px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'transparent', border: 0,
+            color: 'inherit', textAlign: 'left',
+          }}>
+          <span style={{ fontSize: 17, flexShrink: 0 }} aria-hidden="true">{icon}</span>
+          <div style={{
+            flex: 1, minWidth: 0,
+            fontSize: 13.5, fontWeight: 600,
+            color: 'var(--ink-1)',
+            letterSpacing: '-0.005em',
+            fontFamily: 'var(--ff-sans)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{title}</div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+              transition: 'transform .2s',
+              flexShrink: 0,
+            }}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {expanded && (
+          <div style={{
+            padding: '0 16px 14px',
+            display: 'flex', flexDirection: 'column', gap: 10,
+            animation: 'mtx-fade-up .3s ease both',
+          }}>
+            {/* Days timeline */}
+            {days.map(function(day, idx) {
+              var isCriticalDay = (day.items || []).some(function(it) { return it.icon === '⚡'; });
+              return (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  paddingTop: 8,
+                  borderTop: idx > 0 ? '0.5px solid rgba(255,255,255,0.05)' : 'none',
+                }}>
+                  {/* Day label */}
+                  <div style={{
+                    flexShrink: 0,
+                    width: 32,
+                    fontSize: 11, fontWeight: 700,
+                    color: isCriticalDay ? 'var(--neon)' : 'var(--ink-3)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '0.03em',
+                    textTransform: 'uppercase',
+                    paddingTop: 1,
+                  }}>{day.label}</div>
+                  {/* Items */}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {(day.items || []).map(function(item, i) {
+                      return (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 7,
+                          fontSize: 12.5,
+                          color: 'var(--ink-2)',
+                          fontFamily: 'var(--ff-sans)',
+                          letterSpacing: '-0.005em',
+                          lineHeight: 1.4,
+                        }}>
+                          <span style={{
+                            flexShrink: 0, marginTop: 1,
+                            opacity: item.icon === '◯' ? 0.4 : 0.85,
+                            color: item.icon === '⚡' ? 'var(--neon)' : 'inherit',
+                          }} aria-hidden="true">{item.icon || '◐'}</span>
+                          <span style={{ flex: 1, minWidth: 0 }}>{item.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Notes */}
+            {notes.length > 0 && (
+              <div style={{
+                marginTop: 6,
+                padding: '10px 12px',
+                background: 'rgba(155,138,255,0.05)',
+                borderRadius: 10,
+                borderLeft: '2px solid rgba(155,138,255,0.40)',
+                display: 'flex', flexDirection: 'column', gap: 5,
+              }}>
+                {notes.map(function(note, i) {
+                  return (
+                    <div key={i} style={{
+                      fontSize: 11.5,
+                      color: 'var(--ink-2)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      lineHeight: 1.5,
+                      display: 'flex', gap: 6,
+                    }}>
+                      <span style={{ color: 'rgba(155,138,255,0.6)', flexShrink: 0 }}>•</span>
+                      <span>{note}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Actions */}
+            {(primaryAction || secondaryAction) && (
+              <div style={{
+                display: 'flex', gap: 8,
+                marginTop: 4,
+              }}>
+                {secondaryAction && (
+                  <button
+                    type="button"
+                    onClick={function() { handleAction(secondaryAction); }}
+                    onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(secondaryAction); } }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      flex: 1, padding: '8px 14px',
+                      borderRadius: 999,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '0.5px solid rgba(255,255,255,0.10)',
+                      color: 'var(--ink-2)',
+                      fontSize: 12, fontWeight: 600,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                    }}>{secondaryAction.label}</button>
+                )}
+                {primaryAction && (
+                  <button
+                    type="button"
+                    onClick={function() { handleAction(primaryAction); }}
+                    onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(primaryAction); } }}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      flex: 2, padding: '8px 16px',
+                      borderRadius: 999, border: 0,
+                      background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                      color: '#0a1410',
+                      fontSize: 12, fontWeight: 700,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      boxShadow: '0 4px 12px -2px rgba(61,255,209,0.32)',
+                    }}>{primaryAction.label}</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. IAArtifactConfirmationCard — confirmación antes de acción externa
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Aparece cuando el coach va a hacer algo "fuera de Mentex" (reservar, comprar,
+  // mandar mensaje, conectar integración). NUNCA pide confirmación para acciones
+  // locales reversibles (agregar a Ritual, programar reminder, etc.). Ver
+  // RFC-001 §5.3.
+  //
+  // Shape:
+  //   {
+  //     kind: 'confirmation_card',
+  //     preface?: 'Antes de hacerlo:',
+  //     bullets: ['Reservar Yoga Flow', 'Casa del Yoga · Sáb 9am', ...],
+  //     primaryAction: { label: 'Adelante, hazlo', value: 'confirm' },
+  //     secondaryAction: { label: 'Cancelar', value: 'cancel' },
+  //     resolved?: 'confirmed' | 'cancelled'   // si ya fue resuelto
+  //   }
+  function IAArtifactConfirmationCard(props) {
+    var art = props.artifact || {};
+    var preface = art.preface || 'Antes de hacerlo:';
+    var bullets = Array.isArray(art.bullets) ? art.bullets : [];
+    var primaryAction = art.primaryAction || { label: 'Adelante', value: 'confirm' };
+    var secondaryAction = art.secondaryAction || { label: 'Cancelar', value: 'cancel' };
+    var resolved = art.resolved;
+
+    function handleAction(action) {
+      if (resolved) return;
+      window.dispatchEvent(new CustomEvent('mtx:coach-artifact-action', {
+        detail: { kind: 'confirmation_card', value: action.value, artifact: art },
+      }));
+    }
+
+    var isResolved = !!resolved;
+    var resolvedLabel = resolved === 'confirmed'
+      ? '✓ Confirmaste — el coach está procediendo'
+      : resolved === 'cancelled'
+        ? 'Cancelaste — no se hizo nada'
+        : '';
+
+    return (
+      <div style={{
+        borderRadius: 16,
+        background: 'rgba(255,200,80,0.04)',
+        border: '0.5px solid rgba(255,200,80,0.22)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+        opacity: isResolved ? 0.65 : 1,
+        transition: 'opacity .3s',
+      }}>
+        {/* Preface */}
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: '#ffc850',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}>{preface}</div>
+
+        {/* Bullets */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 7,
+          marginBottom: 14,
+        }}>
+          {bullets.map(function(bullet, i) {
+            return (
+              <div key={i} style={{
+                display: 'flex', gap: 9, alignItems: 'flex-start',
+                fontSize: 13, lineHeight: 1.45,
+                color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>
+                <span style={{
+                  color: 'rgba(255,200,80,0.7)',
+                  flexShrink: 0,
+                  paddingTop: 1,
+                  fontSize: 11,
+                }} aria-hidden="true">☞</span>
+                <span style={{ flex: 1, minWidth: 0 }}>{bullet}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Resolved status (if resolved) */}
+        {isResolved && (
+          <div style={{
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: resolved === 'confirmed' ? 'rgba(61,255,209,0.06)' : 'rgba(255,255,255,0.03)',
+            border: '0.5px solid ' + (resolved === 'confirmed' ? 'rgba(61,255,209,0.20)' : 'rgba(255,255,255,0.08)'),
+            fontSize: 12,
+            color: resolved === 'confirmed' ? 'var(--neon)' : 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            fontWeight: 600,
+            textAlign: 'center',
+          }}>{resolvedLabel}</div>
+        )}
+
+        {/* Actions — solo si no está resuelto */}
+        {!isResolved && (
+          <div style={{
+            display: 'flex', gap: 8,
+          }}>
+            <button
+              type="button"
+              onClick={function() { handleAction(secondaryAction); }}
+              onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(secondaryAction); } }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '9px 14px',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                color: 'var(--ink-2)',
+                fontSize: 12.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{secondaryAction.label}</button>
+            <button
+              type="button"
+              onClick={function() { handleAction(primaryAction); }}
+              onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(primaryAction); } }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 2, padding: '9px 16px',
+                borderRadius: 999, border: 0,
+                background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                color: '#0a1410',
+                fontSize: 12.5, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                boxShadow: '0 4px 14px -2px rgba(61,255,209,0.38)',
+              }}>{primaryAction.label}</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 8. IAArtifactRecommendationCard — recomendación enriquecida (RFC §5.2 #2)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Versión RFC-aligned del recommendation. Diferente al 'content' existente
+  // (legacy) — incluye razón explícita ("por qué te lo recomiendo") y CTAs
+  // primario + secundario. Funciona standalone o dentro de un recommendation_list.
+  //
+  // Shape:
+  //   {
+  //     kind: 'recommendation_card',
+  //     itemId?: string,                 // resuelve cover/título desde EXPLORE_CONTENT
+  //     item?: {                         // o item inline
+  //       title, author, kind, durationMin, cover, accent, isPremium
+  //     },
+  //     reason?: string,                 // 'Porque ayer mencionaste...'
+  //     primaryAction?: { label: 'Reproducir', value: 'play' },
+  //     secondaryAction?: { label: 'Guardar', value: 'save' }
+  //   }
+  function IAArtifactRecommendationCard(props) {
+    var art = props.artifact || {};
+    var item = art.item;
+
+    // Resolver desde EXPLORE_CONTENT si itemId está presente
+    if (!item && art.itemId && typeof window !== 'undefined' && window.EXPLORE_CONTENT) {
+      item = window.EXPLORE_CONTENT.find(function(c) { return c && c.id === art.itemId; });
+    }
+
+    if (!item) {
+      return (
+        <div style={{
+          padding: 14, borderRadius: 12,
+          background: 'rgba(255,255,255,0.03)',
+          border: '0.5px dashed rgba(255,255,255,0.10)',
+          fontSize: 12, color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+        }}>Contenido recomendado no disponible.</div>
+      );
+    }
+
+    var reason = art.reason;
+    var primaryAction = art.primaryAction || { label: 'Reproducir', value: 'play' };
+    var secondaryAction = art.secondaryAction;
+
+    var accent = item.accent || 'var(--neon)';
+    var kindLabel = item.kind === 'audiobook' ? 'Audiolibro'
+                  : item.kind === 'meditation' ? 'Meditación'
+                  : item.kind === 'talk' ? 'Charla'
+                  : item.kind === 'sound' ? 'Sonido'
+                  : item.kind === 'series' ? 'Serie'
+                  : item.kind === 'podcast' ? 'Podcast'
+                  : '';
+    var duration = item.durationMin ? item.durationMin + ' min' : '';
+
+    function handleAction(action) {
+      if (!action) return;
+      window.dispatchEvent(new CustomEvent('mtx:coach-artifact-action', {
+        detail: { kind: 'recommendation_card', value: action.value, artifact: art, item: item },
+      }));
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.03)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Top section: cover + info */}
+        <div style={{ display: 'flex', gap: 12, padding: 12 }}>
+          {/* Cover */}
+          <div style={{
+            width: 72, height: 72,
+            borderRadius: 10, flexShrink: 0,
+            background: item.bg_gradient || ('linear-gradient(135deg, ' + accent + '40, ' + accent + '15)'),
+            backgroundImage: item.cover_url ? 'url(' + item.cover_url + ')' : (item.bg_gradient || undefined),
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
+            padding: 6,
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 4px 12px -4px rgba(0,0,0,0.4)',
+          }}>
+            {item.isPremium && (
+              <span style={{
+                padding: '2px 6px',
+                background: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: 4,
+                fontSize: 8, fontWeight: 700,
+                color: 'rgba(255,200,80,0.9)',
+                letterSpacing: '0.05em',
+              }}>PRO</span>
+            )}
+          </div>
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{
+              fontSize: 10.5, fontWeight: 700,
+              color: accent,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--ff-sans)',
+            }}>{kindLabel}</div>
+            <div style={{
+              fontSize: 13.5, fontWeight: 600,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.3,
+              maxHeight: '2.6em',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+            }}>{item.title}</div>
+            <div style={{
+              fontSize: 11.5,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
+            }}>
+              {item.author && <span>{item.author}</span>}
+              {item.author && duration && <span style={{ opacity: 0.5 }}>·</span>}
+              {duration && <span>{duration}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Reason callout */}
+        {reason && (
+          <div style={{
+            margin: '0 12px',
+            padding: '8px 10px',
+            background: 'rgba(155,138,255,0.05)',
+            borderRadius: 8,
+            borderLeft: '2px solid rgba(155,138,255,0.40)',
+            fontSize: 11.5,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            lineHeight: 1.5,
+            fontStyle: 'italic',
+          }}>{reason}</div>
+        )}
+
+        {/* Actions */}
+        <div style={{
+          display: 'flex', gap: 8,
+          padding: '10px 12px 12px',
+        }}>
+          {secondaryAction && (
+            <button
+              type="button"
+              onClick={function() { handleAction(secondaryAction); }}
+              onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(secondaryAction); } }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '7px 12px',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                color: 'var(--ink-2)',
+                fontSize: 11.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{secondaryAction.label}</button>
+          )}
+          <button
+            type="button"
+            onClick={function() { handleAction(primaryAction); }}
+            onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(primaryAction); } }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              flex: secondaryAction ? 2 : 1, padding: '7px 14px',
+              borderRadius: 999, border: 0,
+              background: 'linear-gradient(135deg, ' + accent + ', ' + accent + 'cc)',
+              color: '#0a1410',
+              fontSize: 11.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              boxShadow: '0 4px 12px -2px ' + accent + '50',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            }}>
+            <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1.5 L10 6 L3 10.5 Z" fill="currentColor"/>
+            </svg>
+            {primaryAction.label}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // IAArtifact — router por kind
   // ═══════════════════════════════════════════════════════════════════════════
   function IAArtifact(props) {
     var art = props.artifact;
     if (!art || !art.kind) return null;
     switch (art.kind) {
-      case 'image':    return <IAArtifactImage artifact={art}/>;
-      case 'voice':    return <IAArtifactVoice artifact={art}/>;
-      case 'content':  return <IAArtifactContent artifact={art}/>;
-      case 'calendar': return <IAArtifactCalendar artifact={art}/>;
-      case 'reminder': return <IAArtifactReminder artifact={art}/>;
-      default:         return null;
+      case 'image':                return <IAArtifactImage artifact={art}/>;
+      case 'voice':                return <IAArtifactVoice artifact={art}/>;
+      case 'content':              return <IAArtifactContent artifact={art}/>;
+      case 'calendar':             return <IAArtifactCalendar artifact={art}/>;
+      case 'reminder':             return <IAArtifactReminder artifact={art}/>;
+      // RFC-001 Semana 1 — 3 artefactos críticos
+      case 'plan_card':            return <IAArtifactPlanCard artifact={art}/>;
+      case 'confirmation_card':    return <IAArtifactConfirmationCard artifact={art}/>;
+      case 'recommendation_card':  return <IAArtifactRecommendationCard artifact={art}/>;
+      default:                     return null;
     }
   }
 
@@ -730,5 +1287,9 @@
     IAArtifactContent: IAArtifactContent,
     IAArtifactCalendar: IAArtifactCalendar,
     IAArtifactReminder: IAArtifactReminder,
+    // RFC-001 Semana 1
+    IAArtifactPlanCard: IAArtifactPlanCard,
+    IAArtifactConfirmationCard: IAArtifactConfirmationCard,
+    IAArtifactRecommendationCard: IAArtifactRecommendationCard,
   });
 })();
