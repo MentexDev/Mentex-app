@@ -854,28 +854,58 @@ function IAMessageBubble(props) {
 
   return (
     <div style={{
-      display: 'flex', justifyContent: 'flex-start',
-      padding: '0 16px 14px',
-      gap: 8,
+      // Manus-style layout: avatar+nombre arriba como header row, content debajo
+      // alineado bajo el nombre (no a la derecha del avatar). Se siente más como
+      // un mensaje firmado que un chat de IM.
+      display: 'flex', flexDirection: 'column',
+      padding: '0 16px 18px',
+      gap: 10,
       animation: 'mtx-fade-up .3s ease both',
     }}>
-      {/* Avatar pequeño */}
+      {/* Coach header row: avatar circular pequeño + nombre lowercase + chip "Coach" */}
       <div style={{
-        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(155,138,255,0.10))',
-        border: '0.5px solid rgba(61,255,209,0.30)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 14, lineHeight: 1, marginTop: 2,
+        display: 'flex', alignItems: 'center', gap: 8,
+        marginBottom: -2,  // visual tightening al primer elemento del content
       }}>
-        <span role="img" aria-hidden="true">🌿</span>
+        <div style={{
+          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.28), rgba(155,138,255,0.12))',
+          border: '0.5px solid rgba(61,255,209,0.32)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, lineHeight: 1,
+          boxShadow: '0 2px 6px -2px rgba(61,255,209,0.30)',
+        }}>
+          <span role="img" aria-hidden="true">🌿</span>
+        </div>
+        <span style={{
+          fontSize: 13, fontWeight: 600,
+          color: 'var(--ink-1)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+        }}>mentex</span>
+        <span style={{
+          padding: '1.5px 7px',
+          borderRadius: 999,
+          border: '0.5px solid rgba(255,255,255,0.12)',
+          background: 'rgba(255,255,255,0.025)',
+          fontSize: 9.5, fontWeight: 600,
+          color: 'rgba(255,255,255,0.55)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '0.02em',
+        }}>Coach</span>
       </div>
 
-      {/* Content column: bubble + artifacts como siblings stack vertical */}
+      {/* Content column: timeline + bubble + artifacts + sugerencias.
+          paddingLeft = avatar_size (22) + gap (8) = 30 — alinea con el texto
+          del nombre del coach (visual hang). */}
       <div style={{
         flex: 1, minWidth: 0,
         display: 'flex', flexDirection: 'column', gap: 10,
-        maxWidth: 'calc(100% - 36px)',
+        paddingLeft: 30,
       }}>
+        {/* Wrapper para mantener compat con el código existente que asume
+            este nivel de anidamiento (timeline + bubble + artifacts). */}
+        {(function() { return null; })()}
         {/* RFC-001 §5.1 — CoachTimeline FUERA del bubble, alineado al inicio
             del column (después del avatar). Se muestra cuando hay steps que
             agreguen valor visible (>1 step, o step >800ms, o state==='reasoning'
@@ -931,16 +961,45 @@ function IAMessageBubble(props) {
               Algo se interrumpió. Vuelve a intentar.
             </div>
           )}
+        </div>
+        )}
 
-          {/* Quick action chips — siguen DENTRO del bubble (micro-acciones
-              ligadas al texto). Tap dispara mtx:ia-chip-tap consumido por
-              IAScreen para llenar el draft del input. */}
-          {Array.isArray(msg.chips) && msg.chips.length > 0 && state === 'done' && (
+        {/* Artifacts — FUERA del bubble, full width del column.
+            Image, Voice, Content card, Calendar, Reminder, Plan, Confirmation, Recommendation.
+            Componentes en screens/ia-artifacts.jsx (window.IAArtifact). */}
+        {hasArtifacts && window.IAArtifact && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 8,
+            alignSelf: 'stretch',
+          }}>
+            {artifacts.map(function(art, i) {
+              return <window.IAArtifact key={i} artifact={art}/>;
+            })}
+          </div>
+        )}
+
+        {/* "Para seguir" — sección de follow-ups estilo Manus AI.
+            FUERA del bubble (no atado al texto), lista vertical de CTAs con
+            icon 💬 + texto + chevron →. Más prominente que los chips inline
+            anteriores; le da peso a la próxima acción posible sin saturar.
+            Tap dispara mtx:ia-chip-tap (consumido por IAScreen para llenar el
+            draft del input). */}
+        {Array.isArray(msg.chips) && msg.chips.length > 0 && state === 'done' && (
+          <div style={{
+            marginTop: 4,
+            paddingTop: 4,
+          }}>
             <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: 6,
-              marginTop: 12,
-              paddingTop: 10,
-              borderTop: '0.5px solid rgba(255,255,255,0.06)',
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.32)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.02em',
+              marginBottom: 8,
+              paddingLeft: 2,
+              fontWeight: 500,
+            }}>Para seguir</div>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 4,
             }}>
               {msg.chips.map(function(chip, i) {
                 return (
@@ -951,37 +1010,61 @@ function IAMessageBubble(props) {
                         detail: { label: chip },
                       }));
                     }}
+                    onKeyDown={function(e) {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        window.dispatchEvent(new CustomEvent('mtx:ia-chip-tap', {
+                          detail: { label: chip },
+                        }));
+                      }
+                    }}
                     className="mtx-tap"
-                    aria-label={'Acción rápida · ' + chip}
+                    aria-label={'Sugerencia · ' + chip}
                     style={{
                       appearance: 'none', cursor: 'pointer',
-                      padding: '6px 12px', borderRadius: 999,
-                      border: '0.5px solid rgba(61,255,209,0.22)',
-                      background: 'rgba(61,255,209,0.04)',
-                      color: 'var(--neon)',
-                      fontSize: 11.5, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%',
+                      padding: '10px 12px', borderRadius: 11,
+                      border: '0.5px solid rgba(255,255,255,0.06)',
+                      background: 'rgba(255,255,255,0.018)',
+                      color: 'var(--ink-1)',
+                      fontSize: 12.5, fontWeight: 500,
                       fontFamily: 'var(--ff-sans)',
                       letterSpacing: '-0.005em',
-                      transition: 'background .2s, border-color .2s',
-                    }}>{chip}</button>
-                  );
+                      textAlign: 'left',
+                      transition: 'background .18s ease, border-color .18s ease, transform .12s ease',
+                    }}
+                    onMouseEnter={function(e) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                    }}
+                    onMouseLeave={function(e) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.018)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                    }}>
+                    {/* Icon: chat bubble outline minimalista */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke="rgba(255,255,255,0.45)" strokeWidth="1.6"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{ flexShrink: 0 }}
+                      aria-hidden="true">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                    <span style={{
+                      flex: 1, minWidth: 0,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>{chip}</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                      stroke="rgba(255,255,255,0.35)" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{ flexShrink: 0 }}
+                      aria-hidden="true">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+                );
               })}
             </div>
-          )}
-        </div>
-        )}
-
-        {/* Artifacts — FUERA del bubble, full width del column.
-            Image, Voice, Content card, Calendar, Reminder.
-            Componentes en screens/ia-artifacts.jsx (window.IAArtifact). */}
-        {hasArtifacts && window.IAArtifact && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 8,
-            alignSelf: 'stretch',
-          }}>
-            {artifacts.map(function(art, i) {
-              return <window.IAArtifact key={i} artifact={art}/>;
-            })}
           </div>
         )}
       </div>
