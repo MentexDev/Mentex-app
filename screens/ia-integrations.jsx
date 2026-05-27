@@ -1332,6 +1332,23 @@ function EnhancedIntegrationsTab() {
   var handleClose = React.useCallback(function() { setDetailIt(null); }, []);
   var handleOpen = React.useCallback(function(it) { setDetailIt(it); }, []);
 
+  // ── B9 Sprint A.6 — listener mtx:open-integration-detail ────────────────
+  // Permite al coach (via artifact integration_action_card) abrir directamente
+  // el detail sheet de una integración. Useful flow: coach pide conectar
+  // Apple Health → user tappea CTA → bridge dispatch → este listener abre el
+  // sheet sin que el user tenga que navegar manualmente.
+  React.useEffect(function() {
+    function onOpen(e) {
+      var integId = e && e.detail && e.detail.integrationId;
+      if (!integId || !window.__mtxIAIntegrations) return;
+      var catalog = window.__mtxIAIntegrations.getCatalog();
+      var match = catalog.find(function(c) { return c.id === integId; });
+      if (match) setDetailIt(match);
+    }
+    window.addEventListener('mtx:open-integration-detail', onOpen);
+    return function() { window.removeEventListener('mtx:open-integration-detail', onOpen); };
+  }, []);
+
   if (!window.__mtxIAIntegrations) return null;
 
   var catalog = window.__mtxIAIntegrations.getCatalog();

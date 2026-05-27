@@ -2839,8 +2839,9 @@
         setError('Mermaid no está cargado.');
         return;
       }
+      // Cleanup flag: si el component unmount o code cambia, no escribimos.
+      var alive = true;
       try {
-        // Init mermaid una vez (idempotente)
         if (!window.__mtxMermaidInited) {
           window.mermaid.initialize({
             startOnLoad: false,
@@ -2861,20 +2862,35 @@
           });
           window.__mtxMermaidInited = true;
         }
-        // Render
+        // Mermaid v10 puede dejar nodos temporales en <body> por su detector
+        // de ancho. Si el id ya existe, eliminarlo para evitar colisión silenciosa.
+        var existingNode = document.getElementById(idRef.current + '-svg');
+        if (existingNode && existingNode.parentNode) {
+          existingNode.parentNode.removeChild(existingNode);
+        }
         window.mermaid.render(idRef.current + '-svg', code).then(function(result) {
-          if (containerRef.current) {
-            containerRef.current.innerHTML = result.svg;
-            setRendered(true);
-          }
+          if (!alive || !containerRef.current) return;
+          // Defensive: container debe estar limpio antes del innerHTML
+          containerRef.current.innerHTML = result.svg;
+          setRendered(true);
         }).catch(function(err) {
+          if (!alive) return;
           console.warn('[mermaid] render error', err);
           setError('No pude dibujar el diagrama.');
         });
       } catch (e) {
         console.warn('[mermaid] init error', e);
-        setError('Error al cargar el diagrama.');
+        if (alive) setError('Error al cargar el diagrama.');
       }
+      // Cleanup en unmount
+      return function() {
+        alive = false;
+        // Remove any stray mermaid nodes that may have leaked to <body>
+        var stray = document.getElementById(idRef.current + '-svg');
+        if (stray && stray.parentNode) {
+          try { stray.parentNode.removeChild(stray); } catch (_) {}
+        }
+      };
     }, [code]);
 
     return (
@@ -2894,13 +2910,19 @@
             marginBottom: 10,
           }}>{title}</div>
         )}
-        <div ref={containerRef}
+        {/* Wrapper React-managed con placeholder/error como SIBLINGS del container
+            SVG. El container SVG es leaf-only (sin children React) — esto evita
+            el crash clásico: si dejábamos {Dibujando} como child y luego hacíamos
+            container.innerHTML = svg, React quedaba con virtual DOM inconsistente
+            y al re-render lanzaba NotFoundError → pantalla negra.
+            FIX B5-bonus (post-feedback Diego): SVG container es leaf-only. */}
+        <div
           style={{
+            position: 'relative',
             minHeight: rendered ? 'auto' : 100,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             overflow: 'auto', maxWidth: '100%',
-          }}
-          aria-label={title || 'Diagrama'}>
+          }}>
           {!rendered && !error && (
             <div style={{
               fontSize: 11, color: 'var(--ink-3)',
@@ -2917,6 +2939,17 @@
               fontStyle: 'italic',
             }}>{error}</div>
           )}
+          {/* SVG-only container — siempre presente, leaf-only para mermaid */}
+          <div ref={containerRef}
+            style={{
+              width: '100%',
+              display: rendered ? 'flex' : 'none',
+              alignItems: 'center', justifyContent: 'center',
+            }}
+            aria-label={title || 'Diagrama'}
+            // suppressHydrationWarning previene avisos cuando innerHTML mutate
+            suppressHydrationWarning={true}
+          />
         </div>
         {caption && (
           <div style={{
@@ -2946,30 +2979,94 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // A.5.1 IAArtifactSourceList — resultados web_search (RFC §A1)
+  // A.5.1 / B1 (Sprint A.6) — IAArtifactSourceList
   // ═══════════════════════════════════════════════════════════════════════════
+  // Diferenciador legendario vs ChatGPT/Claude:
+  //   • SCOPE WELLNESS — banner sutil que indica filtrado curado
+  //   • Source dorada cuando matchea con memoria del user
+  //   • memoryConnection section debajo del listado
+  //   • Empty state amigable si query no matchea catálogo
+  //
   // Shape:
   //   {
   //     kind: 'source_list',
   //     query?: 'cómo dormir mejor',
+  //     topicLabel?: 'Sueño',
+  //     scopeNote?: 'mensaje cuando no hay sources curadas',
   //     sources: [{
-  //       title: '...',
-  //       snippet: '...',
-  //       url: 'https://...',
-  //       domain?: 'hubermanlab.com',
-  //       favicon?: '🔬' | emoji,
-  //       accent?: '#3dffd1',
-  //       relevance?: 0.92
-  //     }]
+  //       title, snippet, url, domain?, favicon?, accent?, author?
+  //     }],
+  //     memoryConnection?: {
+  //       memoryLabel, memoryAge, relevantSourceIdx, summary
+  //     }
   //   }
   function IAArtifactSourceList(props) {
     var art = props.artifact || {};
     var query = art.query;
+    var topicLabel = art.topicLabel;
+    var scopeNote = art.scopeNote;
     var sources = Array.isArray(art.sources) ? art.sources : [];
-    if (sources.length === 0) return null;
+    var memoryConnection = art.memoryConnection;
+    var connectedIdx = memoryConnection ? memoryConnection.relevantSourceIdx : -1;
 
     function handleOpen(source) {
       _emitArtifactAction('source_list', 'open_source', art, { source: source });
+    }
+    function handleSummarizeTop() {
+      // Toma la source destacada (memory match) o la primera; dispara web_fetch
+      // sobre ella para resumirla con memoryConnection del artículo.
+      var topSource = sources[connectedIdx >= 0 ? connectedIdx : 0];
+      if (!topSource) return;
+      _emitArtifactAction('source_list', 'summarize_top', art, { source: topSource });
+    }
+
+    // Empty state amigable cuando scope wellness no matchea
+    if (sources.length === 0) {
+      return (
+        <div style={{
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.025)',
+          border: '0.5px dashed rgba(255,255,255,0.12)',
+          padding: '14px 16px',
+          animation: 'mtx-fade-up .35s ease both',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            marginBottom: 8,
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,0.4)" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span style={{
+              fontSize: 11, fontWeight: 700,
+              color: 'var(--ink-3)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--ff-sans)',
+            }}>Sin fuentes curadas</span>
+          </div>
+          {query && (
+            <div style={{
+              fontSize: 12.5,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              fontStyle: 'italic',
+              marginBottom: 8,
+            }}>"{query}"</div>
+          )}
+          {scopeNote && (
+            <div style={{
+              fontSize: 12, lineHeight: 1.5,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>{scopeNote}</div>
+          )}
+        </div>
+      );
     }
 
     return (
@@ -2980,12 +3077,13 @@
         animation: 'mtx-fade-up .35s ease both',
         overflow: 'hidden',
       }}>
+        {/* Header: query + count + scope chip */}
         {query && (
           <div style={{
-            padding: '10px 14px',
+            padding: '11px 14px',
             display: 'flex', alignItems: 'center', gap: 8,
             borderBottom: '0.5px solid rgba(255,255,255,0.06)',
-            background: 'rgba(61,255,209,0.02)',
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.04) 0%, transparent 100%)',
           }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
               stroke="var(--neon)" strokeWidth="2"
@@ -2994,7 +3092,7 @@
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <span style={{
-              fontSize: 11, fontWeight: 600,
+              fontSize: 11.5, fontWeight: 600,
               color: 'var(--ink-2)',
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
@@ -3011,9 +3109,42 @@
             }}>{sources.length}</span>
           </div>
         )}
+
+        {/* Scope wellness chip — diferenciador */}
+        <div style={{
+          padding: '8px 14px',
+          background: 'rgba(61,255,209,0.04)',
+          borderBottom: '0.5px solid rgba(61,255,209,0.12)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke="var(--neon)" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span style={{
+            fontSize: 10.5, fontWeight: 700,
+            color: 'rgba(61,255,209,0.85)',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+          }}>Filtrado para tu bienestar</span>
+          {topicLabel && (
+            <span style={{
+              marginLeft: 'auto',
+              fontSize: 10, fontWeight: 600,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.02em',
+            }}>· {topicLabel}</span>
+          )}
+        </div>
+
+        {/* Sources list */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {sources.map(function(s, i) {
             var accent = s.accent || 'var(--neon)';
+            var isConnected = i === connectedIdx;
             return (
               <button key={i}
                 type="button"
@@ -3024,31 +3155,46 @@
                 style={{
                   appearance: 'none', cursor: 'pointer',
                   display: 'flex', alignItems: 'flex-start', gap: 10,
-                  padding: '11px 14px',
-                  background: 'transparent', border: 0,
+                  padding: isConnected ? '12px 14px' : '11px 14px',
+                  background: isConnected ? accent + '0a' : 'transparent',
+                  border: 0,
                   borderTop: i > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                  borderLeft: isConnected ? '2px solid ' + accent : '2px solid transparent',
                   color: 'inherit', textAlign: 'left',
-                  transition: 'background .15s',
+                  transition: 'background .15s, border-color .15s',
+                  position: 'relative',
                 }}
-                onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
-                onMouseLeave={function(e) { e.currentTarget.style.background = 'transparent'; }}>
+                onMouseEnter={function(e) { if (!isConnected) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
+                onMouseLeave={function(e) { if (!isConnected) e.currentTarget.style.background = 'transparent'; }}>
+                {/* Star prefix for connected source — vs bullet/favicon */}
+                {isConnected && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 12, right: 10,
+                    fontSize: 11, fontWeight: 700,
+                    color: accent,
+                    letterSpacing: '0.05em',
+                  }}>★</div>
+                )}
                 <div style={{
-                  width: 26, height: 26, borderRadius: 6,
+                  width: 28, height: 28, borderRadius: 7,
                   flexShrink: 0,
-                  background: accent + '15',
-                  border: '0.5px solid ' + accent + '30',
+                  background: accent + '18',
+                  border: '0.5px solid ' + accent + (isConnected ? '50' : '30'),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13,
+                  fontSize: 14,
                   marginTop: 1,
+                  boxShadow: isConnected ? '0 0 10px ' + accent + '25' : 'none',
+                  transition: 'box-shadow .25s',
                 }} aria-hidden="true">{s.favicon || '🌐'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 13, fontWeight: 600,
+                    fontSize: 13, fontWeight: isConnected ? 700 : 600,
                     color: 'var(--ink-1)',
                     fontFamily: 'var(--ff-sans)',
                     letterSpacing: '-0.005em',
                     lineHeight: 1.35,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    paddingRight: isConnected ? 18 : 0,
                   }}>{s.title}</div>
                   {s.snippet && (
                     <div style={{
@@ -3063,27 +3209,109 @@
                       overflow: 'hidden',
                     }}>{s.snippet}</div>
                   )}
-                  {s.domain && (
-                    <div style={{
-                      marginTop: 4,
-                      fontSize: 10.5,
-                      color: accent,
-                      fontFamily: 'var(--ff-sans)',
-                      letterSpacing: '0.005em',
-                      fontWeight: 600,
-                    }}>{s.domain}</div>
-                  )}
+                  <div style={{
+                    marginTop: 5,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: 10.5,
+                    fontFamily: 'var(--ff-sans)',
+                  }}>
+                    {s.domain && (
+                      <span style={{
+                        color: accent,
+                        letterSpacing: '0.005em',
+                        fontWeight: 600,
+                      }}>{s.domain}</span>
+                    )}
+                    {s.author && (
+                      <>
+                        <span style={{ color: 'var(--ink-3)', opacity: 0.45 }}>·</span>
+                        <span style={{
+                          color: 'var(--ink-3)',
+                          fontStyle: 'italic',
+                        }}>{s.author}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                  stroke="rgba(255,255,255,0.35)" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round"
-                  style={{ flexShrink: 0, marginTop: 4 }} aria-hidden="true">
-                  <line x1="7" y1="17" x2="17" y2="7"/>
-                  <polyline points="7 7 17 7 17 17"/>
-                </svg>
               </button>
             );
           })}
+        </div>
+
+        {/* Memory connection — debajo del listado, el diferenciador real */}
+        {memoryConnection && (
+          <div style={{
+            padding: '11px 14px',
+            background: 'linear-gradient(135deg, rgba(155,138,255,0.08) 0%, transparent 100%)',
+            borderTop: '0.5px solid rgba(155,138,255,0.25)',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+          }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: '50%',
+              flexShrink: 0,
+              background: 'rgba(155,138,255,0.20)',
+              border: '0.5px solid rgba(155,138,255,0.45)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }} aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="rgba(155,138,255,0.95)" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h5a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 14.5 2z"/>
+                <line x1="7" y1="9" x2="17" y2="9"/>
+                <line x1="7" y1="14" x2="17" y2="14"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700,
+                color: 'rgba(155,138,255,0.85)',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--ff-sans)',
+                marginBottom: 3,
+              }}>Desde tu memoria</div>
+              <div style={{
+                fontSize: 12, lineHeight: 1.5,
+                color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{memoryConnection.summary}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Action row: Resumir la mejor source */}
+        <div style={{
+          padding: '9px 14px',
+          borderTop: '0.5px solid rgba(255,255,255,0.05)',
+          background: 'rgba(0,0,0,0.12)',
+        }}>
+          <button type="button"
+            onClick={handleSummarizeTop}
+            className="mtx-tap"
+            aria-label="Resumir la mejor fuente"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: '100%',
+              padding: '7px 14px', borderRadius: 999,
+              background: 'rgba(155,138,255,0.15)',
+              border: '0.5px solid rgba(155,138,255,0.38)',
+              color: 'rgba(220,210,255,0.95)',
+              fontSize: 11.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            {connectedIdx >= 0 ? 'Resumir la que te aplica' : 'Resumir la mejor'}
+          </button>
         </div>
       </div>
     );
@@ -3091,8 +3319,13 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // A.5.2 IAArtifactArticleSummary — resumen de artículo web_fetch (RFC §A1)
+  // A.5.2 / B2 (Sprint A.6) — IAArtifactArticleSummary
   // ═══════════════════════════════════════════════════════════════════════════
+  // Resumen de artículo web_fetch. Diferenciador clave vs ChatGPT/Claude:
+  // sección "memoryConnection" que cita una memoria persistida del user y la
+  // enlaza al highlight más relevante del artículo. Eso convierte el resumen
+  // en acción personalizada (no info genérica).
+  //
   // Shape:
   //   {
   //     kind: 'article_summary',
@@ -3103,7 +3336,15 @@
   //     highlights: ['...', '...'],
   //     originalUrl: 'https://...',
   //     domain?: 'hubermanlab.com',
-  //     accent?: '#3dffd1'
+  //     favicon?: '🧠',
+  //     accent?: '#3dffd1',
+  //     memoryConnection?: {            // B2: la conexión que diferencia
+  //       memoryLabel: 'Mi meta dormir 7h consistente',
+  //       memoryAge: 'hace 2 semanas',
+  //       memoryType: 'goal',
+  //       relevantHighlightIdx: 2,
+  //       summary: 'Te recuerdo que mencionaste...'
+  //     }
   //   }
   function IAArtifactArticleSummary(props) {
     var art = props.artifact || {};
@@ -3114,74 +3355,96 @@
     var highlights = Array.isArray(art.highlights) ? art.highlights : [];
     var url = art.originalUrl;
     var domain = art.domain;
+    var favicon = art.favicon;
     var accent = art.accent || '#9b8aff';
+    var memoryConnection = art.memoryConnection;
 
     function handleOpen() {
       _emitArtifactAction('article_summary', 'open_original', art, { url: url });
     }
+    function handleSave() {
+      _emitArtifactAction('article_summary', 'save_library', art);
+    }
+    function handleApply() {
+      _emitArtifactAction('article_summary', 'apply_to_plan', art);
+    }
+
+    var connectedIdx = memoryConnection ? memoryConnection.relevantHighlightIdx : -1;
 
     return (
       <div style={{
         borderRadius: 14,
         background: 'rgba(255,255,255,0.025)',
         border: '0.5px solid rgba(255,255,255,0.08)',
-        padding: '14px 16px',
+        padding: '0',
         animation: 'mtx-fade-up .35s ease both',
+        overflow: 'hidden',
       }}>
-        {/* Meta row */}
+        {/* Header: favicon + domain badge + reading time */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px 0',
+          display: 'flex', alignItems: 'center', gap: 10,
           marginBottom: 10,
-          fontSize: 10.5,
-          color: 'var(--ink-3)',
-          fontFamily: 'var(--ff-sans)',
-          letterSpacing: '0.02em',
-          flexWrap: 'wrap',
         }}>
-          <span style={{
-            padding: '2px 8px', borderRadius: 999,
-            background: accent + '12',
-            border: '0.5px solid ' + accent + '28',
-            color: accent,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            fontSize: 9.5,
-          }}>Artículo</span>
-          {readingTime && <span>📖 {readingTime}</span>}
-          {publishedAt && <span style={{ opacity: 0.6 }}>· {publishedAt}</span>}
-          {domain && (
-            <span style={{
-              marginLeft: 'auto',
-              fontWeight: 600,
-              color: 'var(--ink-2)',
-            }}>{domain}</span>
+          {favicon && (
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              flexShrink: 0,
+              background: accent + '18',
+              border: '0.5px solid ' + accent + '30',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14,
+            }} aria-hidden="true">{favicon}</div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {domain && (
+              <div style={{
+                fontSize: 10.5, fontWeight: 700,
+                color: accent,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--ff-sans)',
+              }}>{domain}</div>
+            )}
+            <div style={{
+              marginTop: 1,
+              display: 'flex', gap: 6, alignItems: 'center',
+              fontSize: 10.5,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.01em',
+            }}>
+              {readingTime && <span>📖 {readingTime} lectura</span>}
+              {publishedAt && <><span style={{ opacity: 0.5 }}>·</span><span>{publishedAt}</span></>}
+            </div>
+          </div>
+        </div>
+
+        {/* Title + author */}
+        <div style={{ padding: '0 16px 14px' }}>
+          <div style={{
+            fontSize: 15, fontWeight: 700,
+            color: 'var(--ink-1)',
+            fontFamily: 'Georgia, "New York", serif',
+            letterSpacing: '-0.01em',
+            lineHeight: 1.3,
+            marginBottom: author ? 4 : 0,
+          }}>{title}</div>
+          {author && (
+            <div style={{
+              fontSize: 12,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              fontStyle: 'italic',
+            }}>por {author}</div>
           )}
         </div>
-        {/* Title */}
-        <div style={{
-          fontSize: 15, fontWeight: 700,
-          color: 'var(--ink-1)',
-          fontFamily: 'Georgia, "New York", serif',
-          letterSpacing: '-0.01em',
-          lineHeight: 1.3,
-          marginBottom: 4,
-        }}>{title}</div>
-        {/* Author */}
-        {author && (
-          <div style={{
-            fontSize: 12,
-            color: 'var(--ink-3)',
-            fontFamily: 'var(--ff-sans)',
-            letterSpacing: '-0.005em',
-            marginBottom: 14,
-            fontStyle: 'italic',
-          }}>por {author}</div>
-        )}
-        {/* Highlights */}
+
+        {/* Highlights — el highlight conectado a memoria queda destacado */}
         {highlights.length > 0 && (
           <div style={{
-            paddingTop: author ? 0 : 10,
+            padding: '12px 16px 14px',
             borderTop: '0.5px solid rgba(255,255,255,0.05)',
           }}>
             <div style={{
@@ -3191,120 +3454,264 @@
               textTransform: 'uppercase',
               fontFamily: 'var(--ff-sans)',
               marginBottom: 10,
-              paddingTop: 10,
             }}>Lo más relevante</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {highlights.map(function(h, i) {
+                var isConnected = i === connectedIdx;
                 return (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 9,
-                    fontSize: 12.5, lineHeight: 1.55,
-                    color: 'var(--ink-2)',
-                    fontFamily: 'var(--ff-sans)',
-                    letterSpacing: '-0.005em',
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: isConnected ? '8px 10px' : '0',
+                    borderRadius: isConnected ? 10 : 0,
+                    background: isConnected ? accent + '0d' : 'transparent',
+                    border: isConnected ? '0.5px solid ' + accent + '35' : 'none',
+                    boxShadow: isConnected ? '0 0 12px ' + accent + '14' : 'none',
+                    transition: 'background .25s, border-color .25s',
                   }}>
                     <span style={{
                       color: accent,
-                      flexShrink: 0, paddingTop: 1,
-                      fontSize: 11,
-                    }} aria-hidden="true">▸</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{h}</span>
+                      flexShrink: 0, paddingTop: isConnected ? 3 : 1,
+                      fontSize: isConnected ? 13 : 11,
+                      fontWeight: 700,
+                    }} aria-hidden="true">{isConnected ? '★' : '▸'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12.5, lineHeight: 1.55,
+                        color: isConnected ? 'var(--ink-1)' : 'var(--ink-2)',
+                        fontFamily: 'var(--ff-sans)',
+                        letterSpacing: '-0.005em',
+                        fontWeight: isConnected ? 500 : 400,
+                      }}>{h}</div>
+                      {isConnected && (
+                        <div style={{
+                          marginTop: 4,
+                          fontSize: 10, fontWeight: 700,
+                          color: accent,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                        }}>Conecta contigo</div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
-        {/* Open original */}
-        {url && (
+
+        {/* Memory connection — el diferenciador real */}
+        {memoryConnection && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'linear-gradient(135deg, ' + accent + '0a 0%, transparent 100%)',
+            borderTop: '0.5px solid ' + accent + '25',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              {/* Brain icon */}
+              <div style={{
+                width: 24, height: 24, borderRadius: '50%',
+                flexShrink: 0,
+                background: accent + '20',
+                border: '0.5px solid ' + accent + '45',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }} aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke={accent} strokeWidth="1.8"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h5a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 14.5 2z"/>
+                  <line x1="7" y1="9" x2="17" y2="9"/>
+                  <line x1="7" y1="14" x2="17" y2="14"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: accent,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--ff-sans)',
+                  marginBottom: 4,
+                }}>Desde tu memoria</div>
+                <div style={{
+                  fontSize: 12.5, lineHeight: 1.5,
+                  color: 'var(--ink-1)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                }}>{memoryConnection.summary}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action row: Leer · Guardar · Aplicar */}
+        <div style={{
+          padding: '10px 14px',
+          borderTop: '0.5px solid rgba(255,255,255,0.05)',
+          background: 'rgba(0,0,0,0.12)',
+          display: 'flex', gap: 8,
+        }}>
+          {url && (
+            <button type="button"
+              onClick={handleOpen}
+              className="mtx-tap"
+              aria-label="Leer el artículo completo"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1,
+                padding: '7px 10px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                color: 'var(--ink-2)',
+                fontSize: 11.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              }}>
+              Leer
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="7" y1="17" x2="17" y2="7"/>
+                <polyline points="7 7 17 7 17 17"/>
+              </svg>
+            </button>
+          )}
           <button type="button"
-            onClick={handleOpen}
+            onClick={handleSave}
             className="mtx-tap"
+            aria-label="Guardar a biblioteca"
             style={{
               appearance: 'none', cursor: 'pointer',
-              marginTop: 14, width: '100%',
-              padding: '8px 14px', borderRadius: 999,
+              flex: 1,
+              padding: '7px 10px', borderRadius: 999,
               background: 'rgba(255,255,255,0.04)',
               border: '0.5px solid rgba(255,255,255,0.10)',
               color: 'var(--ink-2)',
               fontSize: 11.5, fontWeight: 600,
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
-            Leer el artículo completo
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.2"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <line x1="7" y1="17" x2="17" y2="7"/>
-              <polyline points="7 7 17 7 17 17"/>
-            </svg>
-          </button>
-        )}
+            }}>Guardar</button>
+          <button type="button"
+            onClick={handleApply}
+            className="mtx-tap"
+            aria-label="Pídeme aplicarlo a tu plan"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              flex: 1.2,
+              padding: '7px 10px', borderRadius: 999,
+              background: accent + '18',
+              border: '0.5px solid ' + accent + '40',
+              color: accent === '#ffffff' ? 'var(--ink-1)' : accent,
+              fontSize: 11.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>Aplicarlo</button>
+        </div>
       </div>
     );
   }
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // A.5.3 IAArtifactThinkingPanel — razonamiento expandido (RFC §A1)
+  // A.5.3 / B4 — IAArtifactThinkingPanel — razonamiento expandido
   // ═══════════════════════════════════════════════════════════════════════════
-  // Diferente al step "Pensando profundamente" en timeline — éste muestra el
-  // RAZONAMIENTO DETALLADO en un panel colapsable después del bubble del coach.
+  // Refinado en Sprint A.6 (B4) con:
+  //   • Estado 'thinking' (LIVE) — muestra "decantando" con thoughts apareciendo
+  //     progresivamente. Se transiciona a 'done' cuando el coach termina.
+  //   • Niveles de profundidad: 'shallow'(4s) | 'medium'(10s) | 'deep'(20s)
+  //   • Animación de bullets aparecen uno por uno con stagger natural
+  //   • Cuando termina (state==='done'), colapsa pero queda expandible
+  //   • Mientras live: panel NO es colapsable (no perderse el think)
   //
   // Shape:
   //   {
   //     kind: 'thinking_panel',
-  //     summary?: 'Tomé en cuenta tu sueño, tu agenda y tu historial',
-  //     reasoning: 'Punto 1: ...\n\nPunto 2: ...',
+  //     state?: 'thinking' | 'done',  // default 'done' por backward compat
+  //     summary?: 'Tomé en cuenta tu sueño...',
+  //     reasoning?: 'Punto 1: ...\n\nPunto 2: ...',   // texto completo final
+  //     thoughts?: ['Conectando A con B', 'Buscando patrón en C', ...],  // live steps
+  //     thoughtIndex?: number,  // cuántos thoughts mostrar ya (live, controlled)
   //     durationMs?: 8500,
   //     depth?: 'shallow' | 'medium' | 'deep'
   //   }
   function IAArtifactThinkingPanel(props) {
     var art = props.artifact || {};
+    var state = art.state || 'done';
     var summary = art.summary;
     var reasoning = art.reasoning || '';
+    var thoughts = Array.isArray(art.thoughts) ? art.thoughts : [];
+    var thoughtIndex = typeof art.thoughtIndex === 'number'
+      ? art.thoughtIndex
+      : thoughts.length;
     var durationMs = art.durationMs;
     var depth = art.depth || 'medium';
+    var isLive = state === 'thinking';
 
-    var expandedState = React.useState(false);
+    var expandedState = React.useState(isLive); // live: auto-expandido. done: colapsado.
     var expanded = expandedState[0];
     var setExpanded = expandedState[1];
+
+    // Cuando transicione de live a done, colapsar automáticamente
+    var prevStateRef = React.useRef(state);
+    React.useEffect(function() {
+      if (prevStateRef.current === 'thinking' && state === 'done') {
+        setExpanded(false);
+      }
+      prevStateRef.current = state;
+    }, [state]);
 
     var depthColor = depth === 'deep' ? '#ffc850' : depth === 'shallow' ? '#9b8aff' : '#3dffd1';
     var depthLabel = depth === 'deep' ? 'Profundo' : depth === 'shallow' ? 'Rápido' : 'Reflexivo';
 
+    // Live: panel se siente animado (background sutil pulse + border más visible)
+    var liveBg = isLive
+      ? 'linear-gradient(135deg, ' + depthColor + '08 0%, transparent 100%)'
+      : 'rgba(255,255,255,0.02)';
+    var liveBorder = isLive
+      ? '0.5px solid ' + depthColor + '40'
+      : '0.5px dashed rgba(255,255,255,0.12)';
+
+    // Visible thoughts (live: controlled progressively, done: full or empty)
+    var visibleThoughts = isLive ? thoughts.slice(0, thoughtIndex) : (expanded ? thoughts : []);
+
     return (
       <div style={{
         borderRadius: 12,
-        background: 'rgba(255,255,255,0.02)',
-        border: '0.5px dashed rgba(255,255,255,0.12)',
-        animation: 'mtx-fade-up .35s ease both',
+        background: liveBg,
+        border: liveBorder,
+        animation: isLive ? 'mtx-fade-up .35s ease both, mtx-think-breathe 3.5s ease-in-out infinite' : 'mtx-fade-up .35s ease both',
         overflow: 'hidden',
+        transition: 'background .4s ease, border-color .4s ease',
       }}>
         <button type="button"
-          onClick={function() { setExpanded(function(v) { return !v; }); }}
-          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(function(v) { return !v; }); } }}
+          onClick={function() { if (!isLive) setExpanded(function(v) { return !v; }); }}
+          onKeyDown={function(e) { if (!isLive && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setExpanded(function(v) { return !v; }); } }}
           className="mtx-tap"
           aria-expanded={expanded}
-          aria-label={expanded ? 'Ocultar mi razonamiento' : 'Ver mi razonamiento'}
+          aria-label={isLive ? 'Pensando…' : (expanded ? 'Ocultar mi razonamiento' : 'Ver mi razonamiento')}
+          disabled={isLive}
           style={{
-            appearance: 'none', cursor: 'pointer',
+            appearance: 'none', cursor: isLive ? 'default' : 'pointer',
             width: '100%',
             padding: '11px 14px',
             background: 'transparent', border: 0,
             color: 'inherit', textAlign: 'left',
             display: 'flex', alignItems: 'center', gap: 9,
           }}>
-          {/* Brain icon */}
+          {/* Brain icon — pulsa cuando live */}
           <div style={{
-            width: 20, height: 20, borderRadius: '50%',
-            background: depthColor + '15',
-            border: '0.5px solid ' + depthColor + '30',
+            width: 22, height: 22, borderRadius: '50%',
+            background: depthColor + '18',
+            border: '0.5px solid ' + depthColor + (isLive ? '55' : '30'),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
+            animation: isLive ? 'mtx-think-brain-pulse 1.8s ease-in-out infinite' : 'none',
+            boxShadow: isLive ? '0 0 12px ' + depthColor + '40' : 'none',
+            transition: 'box-shadow .4s ease',
           }} aria-hidden="true">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
               stroke={depthColor} strokeWidth="1.7"
               strokeLinecap="round" strokeLinejoin="round">
               <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h5a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 14.5 2z"/>
@@ -3318,7 +3725,7 @@
               color: 'var(--ink-2)',
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
-            }}>{summary || 'Cómo lo pensé'}</div>
+            }}>{isLive ? 'Decantando…' : (summary || 'Cómo lo pensé')}</div>
             <div style={{
               marginTop: 2,
               display: 'flex', gap: 8, alignItems: 'center',
@@ -3338,20 +3745,88 @@
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(durationMs / 1000).toFixed(1)}s</span>
                 </>
               )}
+              {isLive && thoughts.length > 0 && (
+                <>
+                  <span style={{ opacity: 0.5 }}>·</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{thoughtIndex} / {thoughts.length}</span>
+                </>
+              )}
             </div>
           </div>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-            stroke="rgba(255,255,255,0.40)" strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round"
-            style={{
-              transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
-              transition: 'transform .2s',
+          {!isLive && (
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,0.40)" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+                transition: 'transform .2s',
+                flexShrink: 0,
+              }} aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          )}
+          {isLive && (
+            <div style={{
+              display: 'inline-flex', gap: 3,
+              alignItems: 'center',
               flexShrink: 0,
             }} aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
+              {[0, 1, 2].map(function(i) {
+                return (
+                  <div key={i} style={{
+                    width: 4, height: 4, borderRadius: 999,
+                    background: depthColor,
+                    opacity: 0.7,
+                    animation: 'mtx-think-dot ' + (1.4 + i * 0.15) + 's ease-in-out infinite',
+                    animationDelay: (i * 0.15) + 's',
+                  }}/>
+                );
+              })}
+            </div>
+          )}
         </button>
-        {expanded && (
+
+        {/* Live thoughts — aparecen progresivamente con stagger */}
+        {isLive && visibleThoughts.length > 0 && (
+          <div style={{
+            padding: '0 14px 14px',
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}>
+            {visibleThoughts.map(function(thought, i) {
+              var isLatest = i === visibleThoughts.length - 1;
+              return (
+                <div key={thought + '-' + i} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '0.5px solid rgba(255,255,255,0.05)',
+                  borderRadius: 8,
+                  animation: 'mtx-think-thought-in .35s cubic-bezier(0.16, 1, 0.3, 1) both',
+                }}>
+                  <div style={{
+                    flexShrink: 0, marginTop: 5,
+                    width: 5, height: 5, borderRadius: '50%',
+                    background: isLatest ? depthColor : 'rgba(255,255,255,0.3)',
+                    boxShadow: isLatest ? '0 0 6px ' + depthColor : 'none',
+                    animation: isLatest ? 'mtx-vc-dot-pulse 1.2s ease-in-out infinite' : 'none',
+                  }}/>
+                  <div style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: 12, lineHeight: 1.45,
+                    color: isLatest ? 'var(--ink-1)' : 'var(--ink-2)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    fontStyle: 'italic',
+                    transition: 'color .3s',
+                  }}>{thought}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Done: reasoning expanded */}
+        {!isLive && expanded && reasoning && (
           <div style={{
             padding: '12px 14px 14px',
             borderTop: '0.5px solid rgba(255,255,255,0.05)',
@@ -3524,119 +3999,223 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // A.5.5 IAArtifactBrowseProgressCard — el coach navegando por ti (RFC §A1)
+  // A.5.5 / B5 (REFACTOR) — IAArtifactBrowseProgressCard
   // ═══════════════════════════════════════════════════════════════════════════
-  // EL ARTIFACT MÁS RICO. Muestra al coach navegando un sitio web en tu nombre.
-  // Cada step puede tener un mini screenshot mock (gradient placeholder).
+  // EL ARTIFACT MÁS RICO. Muestra al coach navegando un sitio web inline en el
+  // chat — sin overlay fullscreen. Cada step puede mostrar un thumbnail inline
+  // (mock SVG ahora, screenshots reales del Playwright cuando llegue backend).
+  //
+  // Diseño post-feedback Diego: clean, sin ceremonia, estilo extensión Claude
+  // Code. Thumbnails pequeños 80x60 al lado del label de cada step done/active.
   //
   // Shape:
   //   {
   //     kind: 'browse_progress_card',
-  //     site?: 'casadelyoga.co',
-  //     intent: 'Reservar Yoga Flow del sábado',
+  //     state?: 'live' | 'done' | 'cancelled',  // default 'done' por backward compat
+  //     site?: 'bodytech.com.co',
+  //     brand?: 'bodytech' | 'cal' | 'amazon' | ... (para emoji + color del header)
+  //     intent: 'Reservar clase de yoga',
   //     steps: [
-  //       { label: 'Abrí el sitio', status: 'done' | 'active' | 'pending' | 'failed' },
-  //       { label: 'Encontré la clase', status: 'done', detail?: 'Yoga Flow 9am' },
+  //       {
+  //         label: 'Abriendo bodytech.com.co',
+  //         status: 'done' | 'active' | 'pending' | 'failed' | 'cancelled',
+  //         screenshot?: '<svg>...</svg>',  // SVG raw del thumbnail (mock o real)
+  //         detail?: 'sub-label opcional bajo el label',
+  //       },
   //     ],
-  //     result?: {
-  //       title: '✓ Reservada',
-  //       confirmation: '#YF-20260530',
-  //       extras?: ['Te recordaré a las 8:35', 'Pago $15 procesado']
-  //     }
+  //     bookingRef?: 'BT-2845',  // mostrado en footer si state==='done'
+  //     currentStepIdx?: 2,      // para destacar visualmente el step activo
   //   }
   function IAArtifactBrowseProgressCard(props) {
     var art = props.artifact || {};
-    var site = art.site;
+    var state = art.state || 'done';
+    var site = art.site || 'navegando…';
     var intent = art.intent;
     var steps = Array.isArray(art.steps) ? art.steps : [];
-    var result = art.result;
+    var bookingRef = art.bookingRef;
+    var isLive = state === 'live';
+    var isCancelled = state === 'cancelled';
+    var isDone = state === 'done';
+
+    // Auto-colapso: cuando done, thumbnails se ocultan por default (modo
+    // compacto) y user puede expandir manual. Cuando live, siempre visibles.
+    // Cuando cancelled, ocultas por default también.
+    var expandedState = React.useState(isLive); // live → true desde el inicio
+    var expanded = expandedState[0]; var setExpanded = expandedState[1];
+
+    // Cuando transiciona de live → done, colapsa automáticamente.
+    var prevStateRef = React.useRef(state);
+    React.useEffect(function() {
+      if (prevStateRef.current === 'live' && state === 'done') {
+        setExpanded(false);
+      }
+      if (prevStateRef.current !== 'live' && state === 'live') {
+        setExpanded(true);
+      }
+      prevStateRef.current = state;
+    }, [state]);
+
+    // Gate: ¿mostramos thumbnails inline? Live siempre. Done solo si expanded.
+    var showThumbnails = isLive || (isDone && expanded);
+
+    // Emoji favicon por brand
+    var brandEmoji = (function() {
+      switch (art.brand) {
+        case 'bodytech': return '💪';
+        case 'cal': return '📅';
+        case 'amazon': return '📦';
+        case 'booking': return '🏨';
+        default: return '🌐';
+      }
+    })();
+
+    function handleCancel() {
+      // Dispatch cancel — el runner escucha y aborta + actualiza state a 'cancelled'
+      if (window.__mtxBrowseActRunner && props.msgId) {
+        window.__mtxBrowseActRunner.cancel(props.msgId);
+      }
+      // Emit event para que listeners externos sepan (analytics, etc.)
+      _emitArtifactAction('browse_progress_card', 'cancel', art);
+    }
 
     return (
       <div style={{
         borderRadius: 14,
         background: 'rgba(255,255,255,0.025)',
-        border: '0.5px solid rgba(255,255,255,0.08)',
+        border: '0.5px solid ' + (isLive ? 'rgba(61,255,209,0.25)' : 'rgba(255,255,255,0.08)'),
         animation: 'mtx-fade-up .35s ease both',
         overflow: 'hidden',
+        boxShadow: isLive ? '0 0 24px rgba(61,255,209,0.06)' : 'none',
+        transition: 'border-color .3s, box-shadow .3s',
       }}>
-        {/* Browser-style header */}
+        {/* Header: favicon emoji + URL + chip status */}
         <div style={{
           padding: '10px 14px',
           display: 'flex', alignItems: 'center', gap: 10,
           borderBottom: '0.5px solid rgba(255,255,255,0.05)',
           background: 'rgba(0,0,0,0.20)',
         }}>
-          {/* Traffic lights mock */}
+          {/* Traffic lights mock — sutil */}
           <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,95,86,0.55)' }}/>
-            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,189,46,0.55)' }}/>
-            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(39,201,63,0.55)' }}/>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,95,86,0.55)' }}/>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,189,46,0.55)' }}/>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(39,201,63,0.55)' }}/>
           </div>
+          {/* URL bar */}
           <div style={{
             flex: 1, minWidth: 0,
             padding: '4px 10px', borderRadius: 6,
             background: 'rgba(255,255,255,0.06)',
             fontSize: 10.5,
-            color: 'var(--ink-3)',
+            color: 'var(--ink-2)',
             fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
             letterSpacing: '0.01em',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <span style={{ color: 'var(--neon)' }}>🔒</span> {site || 'navegando…'}
+            <span aria-hidden="true">🔒</span>
+            <span>{site}</span>
           </div>
+          {/* Status chip — varía por state */}
           <span style={{
             fontSize: 9, fontWeight: 700,
-            color: 'var(--neon)',
-            letterSpacing: '0.06em',
+            color: isLive ? 'var(--neon)' : isCancelled ? 'rgba(255,160,160,0.85)' : 'rgba(255,255,255,0.45)',
+            letterSpacing: '0.08em',
             textTransform: 'uppercase',
             fontFamily: 'var(--ff-sans)',
             flexShrink: 0,
-          }}>EN VIVO</span>
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            {isLive && (
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: 'var(--neon)',
+                boxShadow: '0 0 6px var(--neon)',
+                animation: 'mtx-coach-step-pulse 1.2s ease-in-out infinite',
+                display: 'inline-block',
+              }}/>
+            )}
+            {isLive ? 'EN VIVO' : isCancelled ? 'CANCELADO' : 'COMPLETADO'}
+          </span>
         </div>
 
-        {/* Intent + steps */}
-        <div style={{ padding: '12px 14px' }}>
-          {intent && (
-            <div style={{
-              fontSize: 12, fontWeight: 600,
-              color: 'var(--ink-2)',
-              fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              marginBottom: 12,
-              fontStyle: 'italic',
-            }}>"{intent}"</div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {steps.map(function(step, i) {
-              var status = step.status || 'pending';
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 10,
-                  padding: '3px 0',
+        {/* Intent (subtitle) */}
+        {intent && (
+          <div style={{
+            padding: '11px 14px 4px',
+            fontSize: 12.5, fontWeight: 600,
+            color: 'var(--ink-1)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            fontStyle: 'italic',
+          }}>"{intent}"</div>
+        )}
+
+        {/* Steps timeline con thumbnails inline */}
+        <div style={{
+          padding: '8px 14px 14px',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          {steps.map(function(step, i) {
+            var status = step.status || 'pending';
+            var isLastStep = i === steps.length - 1;
+            var isCurrentLive = isLive && status === 'active';
+
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                position: 'relative',
+                animation: status === 'done' || status === 'active'
+                  ? 'mtx-fade-up .3s cubic-bezier(0.16, 1, 0.3, 1) both'
+                  : 'none',
+                opacity: status === 'pending' ? 0.45 : 1,
+                transition: 'opacity .3s',
+              }}>
+                {/* Status dot + vertical line connector.
+                    El conector vive como position:absolute desde el dot
+                    extendiéndose por todo el alto del row — así toca el
+                    siguiente dot sin importar si el row tiene thumbnail grande
+                    o solo label. Antes era flex-1 que se quedaba corto. */}
+                <div style={{
+                  position: 'relative',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  flexShrink: 0, paddingTop: 2,
+                  alignSelf: 'stretch',
                 }}>
-                  {/* Status dot */}
                   <div style={{
-                    width: 12, height: 12, borderRadius: '50%',
-                    flexShrink: 0, marginTop: 3,
-                    background: status === 'done' ? 'rgba(255,255,255,0.10)'
+                    width: 14, height: 14, borderRadius: '50%',
+                    position: 'relative', zIndex: 1,
+                    background: status === 'done' ? 'rgba(61,255,209,0.18)'
                              : status === 'active' ? 'var(--neon)'
+                             : status === 'cancelled' ? 'transparent'
                              : status === 'failed' ? 'rgba(255,139,139,0.15)'
                              : 'transparent',
                     border: '0.5px solid ' + (
-                      status === 'done' ? 'rgba(255,255,255,0.20)'
-                    : status === 'active' ? 'rgba(61,255,209,0.7)'
+                      status === 'done' ? 'rgba(61,255,209,0.5)'
+                    : status === 'active' ? 'rgba(61,255,209,0.85)'
+                    : status === 'cancelled' ? 'rgba(255,160,160,0.35)'
                     : status === 'failed' ? 'rgba(255,139,139,0.55)'
                     : 'rgba(255,255,255,0.20)'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     animation: status === 'active' ? 'mtx-coach-step-pulse 1.2s ease-in-out infinite' : 'none',
-                    boxShadow: status === 'active' ? '0 0 6px rgba(61,255,209,0.5)' : 'none',
+                    boxShadow: status === 'active' ? '0 0 8px rgba(61,255,209,0.5)' : 'none',
+                    transition: 'background .25s, border-color .25s, box-shadow .25s',
                   }}>
                     {status === 'done' && (
-                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none"
-                        stroke="rgba(255,255,255,0.85)" strokeWidth="3.5"
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                        stroke="rgba(61,255,209,0.95)" strokeWidth="3.5"
                         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12"/>
                       </svg>
+                    )}
+                    {/* Cancelled step: dash horizontal (no X — la X confunde
+                        con "fallido". Dash indica claramente "no se ejecutó"). */}
+                    {status === 'cancelled' && (
+                      <div style={{
+                        width: 6, height: 1.5,
+                        borderRadius: 1,
+                        background: 'rgba(255,160,160,0.55)',
+                      }}/>
                     )}
                     {status === 'failed' && (
                       <svg width="6" height="6" viewBox="0 0 24 24" fill="none"
@@ -3647,74 +4226,179 @@
                       </svg>
                     )}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Connector line — vertical TOCANDO el siguiente dot.
+                      Position absolute desde el bottom del dot (y=16) hasta
+                      el bottom del row (extiende todo el alto sobrante). El
+                      siguiente row arranca con su dot pegado a esta línea. */}
+                  {!isLastStep && (
                     <div style={{
-                      fontSize: 12.5, lineHeight: 1.4,
-                      color: status === 'done' ? 'var(--ink-2)'
-                          : status === 'active' ? 'var(--ink-1)'
-                          : status === 'failed' ? '#ff8b8b'
-                          : 'var(--ink-3)',
-                      fontFamily: 'var(--ff-sans)',
-                      letterSpacing: '-0.005em',
-                      fontWeight: status === 'active' ? 600 : 500,
-                    }}>{step.label}</div>
-                    {step.detail && (
-                      <div style={{
-                        marginTop: 2,
-                        fontSize: 11, lineHeight: 1.4,
-                        color: 'var(--ink-3)',
-                        fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
-                        letterSpacing: '0.01em',
-                        opacity: 0.85,
-                      }}>{step.detail}</div>
-                    )}
-                  </div>
+                      position: 'absolute',
+                      top: 18,        // justo bajo el dot (paddingTop 2 + dot 14 + 2 gap)
+                      bottom: -8,     // empuja hasta tocar el siguiente row (gap 8 entre rows)
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 1,
+                      background: status === 'done'
+                        ? 'rgba(61,255,209,0.25)'
+                        : 'rgba(255,255,255,0.10)',
+                      transition: 'background .25s',
+                    }}/>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Content: label arriba, thumbnail screenshot DEBAJO ancho.
+                    Diego (post-feedback v2): thumbnail va abajo del label y
+                    grande abarcando casi todo el ancho — NO al lado. */}
+                <div style={{ flex: 1, minWidth: 0, paddingBottom: isLastStep ? 0 : 8 }}>
+                  {/* Texto del step */}
+                  <div style={{
+                    fontSize: 13, lineHeight: 1.4,
+                    color: status === 'done' ? 'var(--ink-1)'
+                        : status === 'active' ? 'var(--ink-1)'
+                        : status === 'cancelled' ? 'rgba(255,160,160,0.75)'
+                        : 'var(--ink-3)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    fontWeight: status === 'active' ? 600 : 500,
+                  }}>{step.label}{isCurrentLive && '…'}</div>
+                  {step.detail && (
+                    <div style={{
+                      marginTop: 2,
+                      fontSize: 11, lineHeight: 1.4,
+                      color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+                      letterSpacing: '0.01em',
+                      opacity: 0.85,
+                    }}>{step.detail}</div>
+                  )}
+                  {/* Thumbnail screenshot DEBAJO, full-width.
+                      Visible solo cuando:
+                      - step done o active (no en pending/cancelled)
+                      - HAY screenshot disponible
+                      - showThumbnails: true (live siempre, done solo si user expandió)
+                      Esto es el auto-colapso: cuando termina el flow, vuelve al
+                      modo compacto y user tiene botón "Ver capturas" para
+                      re-expandir si quiere ver las pruebas visuales. */}
+                  {step.screenshot && (status === 'done' || status === 'active') && showThumbnails && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        width: '100%',
+                        aspectRatio: '320 / 200',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#fff',
+                        border: '0.5px solid ' + (status === 'active'
+                          ? 'rgba(61,255,209,0.45)'
+                          : 'rgba(255,255,255,0.10)'),
+                        boxShadow: status === 'active'
+                          ? '0 0 16px rgba(61,255,209,0.18), 0 4px 12px -4px rgba(0,0,0,0.45)'
+                          : '0 4px 12px -4px rgba(0,0,0,0.35)',
+                        animation: 'mtx-fade-up .35s cubic-bezier(0.16, 1, 0.3, 1) both',
+                        transition: 'border-color .25s, box-shadow .25s',
+                      }}
+                      dangerouslySetInnerHTML={{ __html: step.screenshot }}
+                      aria-label={'Captura del paso: ' + step.label}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Result */}
-        {result && (
+        {/* Toggle expandir/colapsar capturas — solo done con screenshots disponibles.
+            Mientras live no aparece (no se puede colapsar mid-flight). */}
+        {isDone && steps.some(function(s) { return s.screenshot && (s.status === 'done' || s.status === 'active'); }) && (
+          <button
+            type="button"
+            onClick={function() { setExpanded(function(v) { return !v; }); }}
+            className="mtx-tap"
+            aria-label={expanded ? 'Ocultar capturas' : 'Ver capturas'}
+            aria-expanded={expanded}
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: '100%',
+              padding: '9px 14px',
+              borderTop: '0.5px solid rgba(255,255,255,0.05)',
+              background: 'rgba(255,255,255,0.015)',
+              border: 0,
+              color: 'rgba(255,255,255,0.55)',
+              fontSize: 11, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.02em',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              transition: 'background .15s, color .15s',
+            }}
+            onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--ink-2)'; }}
+            onMouseLeave={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.015)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform .2s' }}
+              aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+            <span>{expanded ? 'Ocultar capturas' : 'Ver capturas del navegador'}</span>
+          </button>
+        )}
+
+        {/* Footer: bookingRef + acción (solo state==='done') */}
+        {state === 'done' && bookingRef && (
           <div style={{
-            padding: '12px 14px',
+            padding: '11px 14px',
             background: 'rgba(61,255,209,0.05)',
             borderTop: '0.5px solid rgba(61,255,209,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10,
           }}>
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              fontSize: 12.5, fontWeight: 700,
-              color: 'var(--neon)',
+              fontSize: 11, fontWeight: 600,
+              color: 'rgba(61,255,209,0.85)',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
               fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              marginBottom: result.extras && result.extras.length > 0 ? 7 : 0,
-            }}>
-              <span>{result.title}</span>
-              {result.confirmation && (
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--ink-3)',
-                  fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
-                  fontWeight: 600,
-                }}>{result.confirmation}</span>
-              )}
-            </div>
-            {Array.isArray(result.extras) && result.extras.map(function(ex, i) {
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 7,
-                  fontSize: 11.5, lineHeight: 1.45,
-                  color: 'var(--ink-2)',
-                  fontFamily: 'var(--ff-sans)',
-                  letterSpacing: '-0.005em',
-                  paddingTop: i > 0 ? 3 : 0,
-                }}>
-                  <span style={{ color: 'var(--neon)', flexShrink: 0, opacity: 0.7 }}>·</span>
-                  <span>{ex}</span>
-                </div>
-              );
-            })}
+            }}>Código de reserva</div>
+            <div style={{
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--neon)',
+              fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+              letterSpacing: '0.02em',
+            }}>{bookingRef}</div>
+          </div>
+        )}
+
+        {/* Botón Detener inline — visible solo cuando live */}
+        {isLive && (
+          <div style={{
+            padding: '10px 14px',
+            borderTop: '0.5px solid rgba(255,255,255,0.05)',
+            background: 'rgba(0,0,0,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10,
+          }}>
+            <div style={{
+              fontSize: 10.5,
+              color: 'rgba(255,255,255,0.45)',
+              fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+              letterSpacing: '0.02em',
+            }}>El coach está trabajando…</div>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="mtx-tap"
+              aria-label="Detener la acción"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                padding: '5px 12px', borderRadius: 999,
+                background: 'rgba(255,160,160,0.10)',
+                border: '0.5px solid rgba(255,160,160,0.32)',
+                color: 'rgba(255,180,180,0.95)',
+                fontSize: 11, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                transition: 'background .18s, border-color .18s',
+              }}>Detener</button>
           </div>
         )}
       </div>
@@ -3756,7 +4440,13 @@
       return m + ':' + (ss < 10 ? '0' + ss : ss);
     }
 
+    // B7 Sprint A.6: si el voice overlay fullscreen existe y el action es
+    // "reopen" o "mute", lo despacha allá. Mantiene retrocompat para tests.
     function handleAction(value) {
+      if (value === 'reopen' && window.__mtxVoiceCall) {
+        window.__mtxVoiceCall.open(null, art.openPrompt || '');
+        return;
+      }
       _emitArtifactAction('voice_call_overlay', value, art);
     }
 
@@ -3876,15 +4566,34 @@
         )}
         {state === 'ended' && (
           <div style={{
-            padding: '8px 12px',
-            background: 'rgba(0,0,0,0.20)',
-            borderRadius: 8,
-            fontSize: 11.5,
-            color: 'var(--ink-3)',
-            fontFamily: 'var(--ff-sans)',
-            letterSpacing: '-0.005em',
-            textAlign: 'center',
-          }}>Duración: {fmtSec(durationSec)} · Hablamos cuando quieras de nuevo.</div>
+            display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              background: 'rgba(0,0,0,0.20)',
+              borderRadius: 8,
+              fontSize: 11.5,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              textAlign: 'center',
+            }}>Duración: {fmtSec(durationSec)} · Hablamos cuando quieras de nuevo.</div>
+            {/* B7: reabrir la llamada — útil si el user colgó pero quiere retomar */}
+            {window.__mtxVoiceCall && (
+              <button type="button"
+                onClick={function() { handleAction('reopen'); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '8px 14px', borderRadius: 999,
+                  background: 'rgba(61,255,209,0.10)',
+                  border: '0.5px solid rgba(61,255,209,0.30)',
+                  color: 'rgba(220,255,245,0.95)',
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Iniciar nueva llamada</button>
+            )}
+          </div>
         )}
       </div>
     );
@@ -4081,7 +4790,7 @@
       case 'article_summary':          return <IAArtifactArticleSummary artifact={art}/>;
       case 'thinking_panel':           return <IAArtifactThinkingPanel artifact={art}/>;
       case 'integration_action_card':  return <IAArtifactIntegrationActionCard artifact={art}/>;
-      case 'browse_progress_card':     return <IAArtifactBrowseProgressCard artifact={art}/>;
+      case 'browse_progress_card':     return <IAArtifactBrowseProgressCard artifact={art} msgId={props.msgId}/>;
       case 'voice_call_overlay':       return <IAArtifactVoiceCallOverlay artifact={art}/>;
       case 'screen_share_preview':     return <IAArtifactScreenSharePreview artifact={art}/>;
       default:                     return null;
@@ -4103,6 +4812,27 @@
       '@keyframes mtx-progress-fill {',
       '  from { width: 0%; }',
       '  /* to defined inline via style.width */',
+      '}',
+      // B4 — keyframes para thinking_panel live
+      // Decantando: panel breathing sutil
+      '@keyframes mtx-think-breathe {',
+      '  0%, 100% { background-position: 0% 50%; }',
+      '  50% { background-position: 100% 50%; }',
+      '}',
+      // Brain icon pulse — escala + glow expandido
+      '@keyframes mtx-think-brain-pulse {',
+      '  0%, 100% { transform: scale(1); box-shadow: 0 0 12px rgba(255,255,255,0.05); }',
+      '  50% { transform: scale(1.06); box-shadow: 0 0 18px currentColor; }',
+      '}',
+      // Dots del header — pulso individual con stagger
+      '@keyframes mtx-think-dot {',
+      '  0%, 100% { opacity: 0.3; transform: scale(0.85); }',
+      '  50% { opacity: 1; transform: scale(1.15); }',
+      '}',
+      // Thought entry — slide-up suave con bounce mínimo
+      '@keyframes mtx-think-thought-in {',
+      '  from { opacity: 0; transform: translateY(8px) scale(0.97); }',
+      '  to { opacity: 1; transform: translateY(0) scale(1); }',
       '}',
     ].join('\n');
     document.head.appendChild(style);

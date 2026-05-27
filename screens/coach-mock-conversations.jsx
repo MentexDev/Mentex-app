@@ -842,6 +842,349 @@
     })();
 
 
+
+    // ─── 16. RESERVA YOGA BODYTECH — browse_act completado (Sprint A.6 · B5) ─
+    // Conv que muestra cómo se ve el resultado FINAL de un browse_act exitoso:
+    // confirmation_card + overlay + bookingRef + browse_progress_card histórico.
+    // Permite a Diego ver el output sin tener que disparar el flow en vivo.
+    (function() {
+      var base = _hoursAgo(48);
+      var plan = window.__mtxBrowseActPlanFlow
+        ? window.__mtxBrowseActPlanFlow('Reservame yoga lunes 7am en Bodytech')
+        : null;
+      var bookingRef = (plan && plan.bookingRef) || 'BT-2845';
+      conversations.push({
+        id: 'conv-mock-browse-yoga-bodytech',
+        title: 'Yoga reservada en Bodytech',
+        createdAt: base, updatedAt: base + 22000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-16-1',
+            'Resérvame yoga en Bodytech para el lunes a las 7am, por favor.',
+            base),
+          _assistantMsg('msg-mock-16-2',
+            'Encontré opciones que te calzan. Antes de ejecutar, revisa los detalles abajo. Si confirmas, te muestro paso a paso lo que hago — puedes cancelar en cualquier momento.',
+            base + 8200,
+            {
+              steps: [
+                _step('step-1', 'web_search', { startedAt: base + 800, durationMs: 1700, rawInput: { query: 'opciones cercanas' } }),
+                _step('step-2', 'memory_recall', { startedAt: base + 2500, durationMs: 1000, rawInput: { query: 'preferencias previas' } }),
+                _step('step-3', 'extended_think', { startedAt: base + 3500, durationMs: 1400 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'confirmation_card',
+                  title: 'Confirmar antes de ejecutar',
+                  subtitle: 'Reservar clase de yoga en bodytech.com.co',
+                  fields: [
+                    { label: 'Acción', value: 'Reservar clase de yoga' },
+                    { label: 'Sitio', value: 'bodytech.com.co' },
+                    { label: 'Horario', value: 'Lunes · 7:00 AM' },
+                  ],
+                  confirmLabel: 'Sí, procede',
+                  cancelLabel: 'Cancelar',
+                  // Tap "Sí, procede" en esta card del histórico abre el overlay
+                  // browse_act real (mismo flow que en una conv nueva). El
+                  // browseActPlan ride-along es lo que dispara el overlay.
+                  browseActPlan: plan || {
+                    site: 'bodytech.com.co',
+                    brand: 'bodytech',
+                    intent: 'Reservar clase de yoga',
+                    bookingRef: bookingRef,
+                    prompt: 'yoga bodytech lunes 7am',
+                    steps: [
+                      { label: 'Abriendo bodytech.com.co…', screenshot: 'homepage', durationMs: 1500 },
+                      { label: 'Buscando clases de yoga…', screenshot: 'search', screenshotOpts: { query: 'yoga lunes' }, durationMs: 2100 },
+                      { label: 'Encontré horario disponible · 7:00 AM', screenshot: 'detail', durationMs: 1800 },
+                      { label: 'Confirmando con tus datos…', screenshot: 'form', durationMs: 1700 },
+                      { label: '✓ Reserva confirmada', screenshot: 'confirm', screenshotOpts: { bookingRef: bookingRef }, durationMs: 1400, final: true },
+                    ],
+                  },
+                },
+              ],
+              chips: ['Sí, procede', '¿Hay opción más temprano?', 'Cancelar'],
+            }
+          ),
+          // Mensaje post-flow: cómo se ve después de que el user confirmó
+          // y el overlay completó. Esto es el output canónico de
+          // onComplete del bridge.
+          _assistantMsg('msg-mock-16-3',
+            '✓ Listo. Reservar clase de yoga en bodytech.com.co.\n\nCuando quieras te lo agrego a tu Agenda.',
+            base + 22000,
+            {
+              artifacts: [
+                {
+                  kind: 'browse_progress_card',
+                  state: 'done',
+                  site: 'bodytech.com.co',
+                  brand: 'bodytech',
+                  intent: 'Reservar clase de yoga',
+                  bookingRef: bookingRef,
+                  steps: [
+                    { label: 'Abriendo bodytech.com.co', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'homepage', brand: 'bodytech' }) },
+                    { label: 'Buscando clases de yoga', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'search', brand: 'bodytech', query: 'yoga lunes' }) },
+                    { label: 'Encontré horario · 7:00 AM', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'detail', brand: 'bodytech' }) },
+                    { label: 'Confirmando con tus datos', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'form', brand: 'bodytech' }) },
+                    { label: 'Reserva confirmada', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'confirm', brand: 'bodytech', bookingRef: bookingRef }) },
+                  ],
+                },
+              ],
+              chips: ['Agregar a Agenda', '¿Qué llevar?', 'Reservar otra clase'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 16-S. WEB SEARCH HRV — source_list + scope wellness (Sprint A.6 · B1) ──
+    // Conv histórica que muestra cómo se ve el source_list con scope wellness,
+    // 5 fuentes curadas, source dorada (★) por memoryConnection.
+    (function() {
+      var base = _hoursAgo(60);
+      conversations.push({
+        id: 'conv-mock-web-search-hrv',
+        title: '¿Qué dice la ciencia sobre HRV?',
+        createdAt: base, updatedAt: base + 9000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-ws-1',
+            'Busca qué dice la ciencia sobre HRV y recuperación.',
+            base),
+          _assistantMsg('msg-mock-ws-2',
+            'Filtré las 5 fuentes más sólidas sobre HRV / Recuperación. Marqué con ★ la que conecta con algo que ya tengo de ti.',
+            base + 9000,
+            {
+              steps: [
+                _step('step-1', 'web_search', { startedAt: base + 500, durationMs: 1700, rawInput: { query: 'HRV scope:wellness' } }),
+                _step('step-2', 'memory_recall', { startedAt: base + 2200, durationMs: 1100, rawInput: { query: 'memorias sobre recuperación HRV' } }),
+              ],
+              artifacts: [
+                {
+                  kind: 'source_list',
+                  query: 'qué dice la ciencia sobre HRV y recuperación',
+                  topicLabel: 'HRV / Recuperación',
+                  sources: [
+                    { title: 'HRV: what your variability really means', snippet: 'Whoop research — por qué HRV es el mejor indicador de readiness disponible hoy.', domain: 'whoop.com', favicon: '⌚', accent: '#10b981', author: 'Whoop Science' },
+                    { title: 'Track HRV, not just heart rate', snippet: 'Andrew Huberman — explicación clínica de qué causa subidas y bajadas día a día.', domain: 'hubermanlab.com', favicon: '🔬', accent: '#9b8aff', author: 'Andrew Huberman' },
+                    { title: 'Cold exposure raises HRV 12-18%', snippet: 'Meta-análisis 2024: protocolos de frío de 2-3 min sostenidos elevan HRV measurable.', domain: 'pubmed.ncbi.nlm.nih.gov', favicon: '📚', accent: '#0066ff', author: 'PubMed' },
+                    { title: 'Why your HRV crashes on Mondays', snippet: 'Atlantic — la jet-lag emocional de empezar semana y cómo blindarse contra ella.', domain: 'theatlantic.com', favicon: '🎩', accent: '#003580', author: 'Arthur C. Brooks' },
+                    { title: 'Breath protocols that move HRV', snippet: 'Box breathing 4-4-4-4 sostenido 5 min eleva HRV en menos de una sesión.', domain: 'breathwrk.com', favicon: '💨', accent: '#3dffd1', author: 'Breathwrk Research' },
+                  ],
+                  memoryConnection: {
+                    memoryLabel: 'Mi HRV cae los lunes después del finde',
+                    memoryAge: 'hace 3 semanas',
+                    relevantSourceIdx: 3,
+                    summary: 'Te recuerdo: "Mi HRV cae los lunes después del finde" — hace 3 semanas. La fuente marcada con ★ es la que mejor te aplica.',
+                  },
+                },
+              ],
+              chips: ['Resumir la del Atlantic', '¿Y la del frío?', 'Aplicar todo a mi semana'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 16-A. LEER ARTÍCULO HUBERMAN — article_summary + memoria (Sprint A.6 · B2) ──
+    // Muestra cómo se ve el artifact con la "memoryConnection" — el diferenciador
+    // brutal vs ChatGPT/Claude. El highlight #3 queda destacado con border accent
+    // porque conecta con la memoria del user.
+    (function() {
+      var base = _hoursAgo(36);
+      conversations.push({
+        id: 'conv-mock-web-fetch-huberman',
+        title: 'Sueño según Huberman',
+        createdAt: base, updatedAt: base + 11000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-wf-1',
+            'Léeme esto y dime qué me sirve a mí: https://hubermanlab.com/optimizing-sleep',
+            base),
+          _assistantMsg('msg-mock-wf-2',
+            'Lo leí. Te marqué el punto que más te aplica — conecta con algo que ya tenía guardado de ti.',
+            base + 11000,
+            {
+              steps: [
+                _step('step-1', 'web_fetch', { startedAt: base + 500, durationMs: 2200, rawInput: { url: 'hubermanlab.com/optimizing-sleep' } }),
+                _step('step-2', 'memory_recall', { startedAt: base + 2700, durationMs: 1300, rawInput: { query: 'metas o patrones de sueño previos' } }),
+                _step('step-3', 'extended_think', { startedAt: base + 4000, durationMs: 2400 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'article_summary',
+                  title: 'Optimizing your sleep: science-backed protocols',
+                  author: 'Andrew Huberman',
+                  readingTime: '14 min',
+                  domain: 'hubermanlab.com',
+                  favicon: '🧠',
+                  accent: '#9b8aff',
+                  originalUrl: 'https://hubermanlab.com/optimizing-sleep',
+                  highlights: [
+                    'Exposición a luz solar 10 minutos antes de las 9am ancla tu ritmo circadiano por 24h.',
+                    'La cafeína después de las 12pm reduce sueño profundo en ~30%, aunque sientas que "duermes igual".',
+                    'Un ritual de 60 min antes de dormir (luz cálida + lectura + sin pantallas) reduce latencia un 40%.',
+                  ],
+                  memoryConnection: {
+                    memoryLabel: 'Quiero dormir 7h consistente esta semana',
+                    memoryAge: 'hace 2 semanas',
+                    memoryType: 'goal',
+                    relevantHighlightIdx: 2,
+                    summary: 'Te recuerdo que mencionaste: "Quiero dormir 7h consistente esta semana" hace 2 semanas. El punto 3 del autor encaja directamente con eso.',
+                  },
+                },
+              ],
+              chips: ['Aplica el ritual de 60 min a mi noche', '¿Qué hago con la cafeína?', 'Guarda para releer'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 16-B. EXTENDED THINK PROFUNDO — thinking_panel done (Sprint A.6 · B4) ──
+    // Conv histórica que muestra cómo se ve el thinking_panel en estado 'done'
+    // (post-think). Permite ver el panel colapsado con depth=deep y expandirlo
+    // para leer el reasoning completo. Para ver el modo LIVE hay que disparar
+    // un prompt fresh del simulator (ej. "por qué siento ansiedad los domingos").
+    (function() {
+      var base = _hoursAgo(72);
+      conversations.push({
+        id: 'conv-mock-extended-think-domingos',
+        title: '¿Por qué siento ansiedad los domingos?',
+        createdAt: base, updatedAt: base + 25000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-think-1',
+            '¿Por qué siento ansiedad los domingos? Piensa profundo, no quiero la respuesta obvia.',
+            base),
+          _assistantMsg('msg-mock-think-2',
+            'Te voy a decir algo que tu Memoria me dice y que tal vez no estés conectando. Mira mi razonamiento si quieres entender cómo llegué a esto.\n\nLo que veo: tu ansiedad de domingo NO es por la semana que viene. Es por la semana que termina. Estás cargando lo que NO cerraste el viernes. El domingo es el día donde tu cuerpo finalmente baja la guardia y el cuerpo te entrega la factura.',
+            base + 25000,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', { startedAt: base + 600, durationMs: 1600, rawInput: { query: 'patrones domingos últimos 60 días' } }),
+                _step('step-2', 'extended_think', { startedAt: base + 2200, durationMs: 20000 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'thinking_panel',
+                  state: 'done',
+                  summary: 'Cómo pensé esto',
+                  depth: 'deep',
+                  durationMs: 20000,
+                  thoughts: [
+                    'Empezando por leer tu historial completo de los últimos 30 días…',
+                    'Identificando ciclos no obvios en tu energía y descanso…',
+                    'Cruzando con tu personalidad y lo que ya sabes de ti…',
+                    'Descartando soluciones que ya probaste y no funcionaron…',
+                    'Buscando la pieza que conecta todo esto…',
+                    'Verificando si mi lectura tiene sentido contigo…',
+                    'Tengo algo que decirte que vale la pena pensar.',
+                  ],
+                  reasoning: 'Empecé por leer tu historial completo — los últimos 30 días, no solo esta semana.\n\nIdentifiqué patrones que no son obvios: tu ansiedad de domingo correlaciona con un viernes incompleto, no con el lunes que viene. Tu sueño se rompe la noche del sábado, no la del domingo como creías.\n\nDespués crucé esto con lo que sé de tu personalidad: te recuperas mejor con cierre que con anticipación. Eso descarta la solución obvia de "preparar el lunes el domingo".\n\nDescarté lo que ya probaste: dormir más temprano (no ayudó), meditar el domingo (alivio temporal), planear la semana (postergación).\n\nFinalmente miré la pieza que conecta: el viernes a las 5pm dejas conversaciones abiertas, decisiones colgadas, mensajes sin responder. El domingo es cuando tu cuerpo finalmente baja la guardia y eso aparece.\n\nLa conclusión: el cambio que necesitas no está en el domingo. Está en cómo cierras el viernes.',
+                },
+              ],
+              chips: ['Cómo cierro mejor el viernes', '¿Y si trabajo el sábado?', 'Recuérdamelo el viernes'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 17. AGENDAR CITA DENTISTA — browse_act con Cal.com (Sprint A.6 · B5) ─
+    (function() {
+      var base = _hoursAgo(90);
+      var plan = window.__mtxBrowseActPlanFlow
+        ? window.__mtxBrowseActPlanFlow('Agéndame cita con el dentista esta semana')
+        : null;
+      var bookingRef = (plan && plan.bookingRef) || 'CAL-4521';
+      conversations.push({
+        id: 'conv-mock-browse-cita-dentista',
+        title: 'Cita dental agendada',
+        createdAt: base, updatedAt: base + 20000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-17-1',
+            'Agéndame cita con el dentista esta semana, en la tarde si se puede.',
+            base),
+          _assistantMsg('msg-mock-17-2',
+            'Tengo dos opciones que se ajustan a tu agenda. Antes de agendar, confirma los detalles. Tu última visita fue hace 7 meses.',
+            base + 7500,
+            {
+              steps: [
+                _step('step-1', 'web_search', { startedAt: base + 600, durationMs: 1700 }),
+                _step('step-2', 'memory_recall', { startedAt: base + 2300, durationMs: 1100, rawInput: { query: 'última cita dental' } }),
+                _step('step-3', 'extended_think', { startedAt: base + 3400, durationMs: 1400 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'confirmation_card',
+                  title: 'Confirmar antes de agendar',
+                  subtitle: 'Agendar cita médica en cal.com',
+                  fields: [
+                    { label: 'Acción', value: 'Agendar cita médica' },
+                    { label: 'Sitio', value: 'cal.com' },
+                    { label: 'Profesional', value: 'Dra. María Salinas' },
+                    { label: 'Propuesta', value: 'Jueves · 3:30 PM' },
+                  ],
+                  confirmLabel: 'Sí, procede',
+                  cancelLabel: 'Cancelar',
+                  browseActPlan: plan || {
+                    site: 'cal.com',
+                    brand: 'cal',
+                    intent: 'Agendar cita médica',
+                    bookingRef: bookingRef,
+                    prompt: 'cita dentista esta semana tarde',
+                    steps: [
+                      { label: 'Abriendo cal.com…', screenshot: 'homepage', durationMs: 1300 },
+                      { label: 'Buscando profesionales disponibles…', screenshot: 'search', screenshotOpts: { query: 'esta semana' }, durationMs: 2000 },
+                      { label: 'Encontré horario que te calza', screenshot: 'detail', durationMs: 1700 },
+                      { label: 'Completando tus datos…', screenshot: 'form', durationMs: 1600 },
+                      { label: '✓ Cita agendada', screenshot: 'confirm', screenshotOpts: { bookingRef: bookingRef }, durationMs: 1300, final: true },
+                    ],
+                  },
+                },
+              ],
+              chips: ['Sí, procede', '¿Otro día?', 'Cancelar'],
+            }
+          ),
+          _assistantMsg('msg-mock-17-3',
+            '✓ Listo. Agendar cita médica en cal.com.\n\nCuando quieras te lo agrego a tu Agenda.',
+            base + 20000,
+            {
+              artifacts: [
+                {
+                  kind: 'browse_progress_card',
+                  state: 'done',
+                  site: 'cal.com',
+                  brand: 'cal',
+                  intent: 'Agendar cita médica',
+                  bookingRef: bookingRef,
+                  steps: [
+                    { label: 'Abriendo cal.com', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'homepage', brand: 'cal' }) },
+                    { label: 'Buscando profesionales disponibles', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'search', brand: 'cal', query: 'esta semana' }) },
+                    { label: 'Encontré horario que te calza', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'detail', brand: 'cal' }) },
+                    { label: 'Completando tus datos', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'form', brand: 'cal' }) },
+                    { label: 'Cita agendada', status: 'done',
+                      screenshot: window.__mtxBrowseActScreenshot && window.__mtxBrowseActScreenshot({ type: 'confirm', brand: 'cal', bookingRef: bookingRef }) },
+                  ],
+                },
+              ],
+              chips: ['Agregar a Agenda', 'Cómo prepararme', 'Recordarme un día antes'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
     return conversations;
   }
 
@@ -871,6 +1214,9 @@
         updatedAt: conv.updatedAt,
         messages: conv.messages,
         pinned: !!conv.pinned,
+        // silent: true → NO secuestra _currentId si el user tenía
+        // una conversación real activa restaurada desde localStorage (B10).
+        silent: true,
       });
       loaded += 1;
     });

@@ -201,6 +201,50 @@
     var artifact = detail.artifact || {};
 
     if (value === 'confirm') {
+      // B5 REFACTOR (Sprint A.6): si el artifact trae un browseActPlan,
+      // inyectamos un nuevo mensaje del coach con un browse_progress_card LIVE
+      // y arrancamos el runner para actualizarlo paso a paso. Sin overlay
+      // fullscreen — todo inline en el chat estilo Claude Code extension.
+      if (artifact.browseActPlan && window.__mtxBrowseActRunner) {
+        var plan = artifact.browseActPlan;
+        var convId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId();
+        if (!convId) {
+          _toast('No hay conversación activa.', { kind: 'warn' });
+          return;
+        }
+        // Crea un nuevo mensaje del coach que contendrá el card live
+        var asstMsg = window.__mtxIAChat.addMessage(convId, {
+          role: 'assistant',
+          content: 'Ejecutando ' + plan.intent.toLowerCase() + '… te muestro paso a paso.',
+          state: 'done',
+          artifacts: [], // Se llena por el runner
+        });
+        // Arranca el runner — actualiza el msg con browse_progress_card live
+        window.__mtxBrowseActRunner.start({
+          convId: convId,
+          msgId: asstMsg.id,
+          plan: plan,
+          onComplete: function(finishedPlan) {
+            // Al completar exitosamente, inyectar OTRO mensaje breve del coach
+            // con la confirmación + CTA (el card live ya quedó visible arriba
+            // con state='done' y el bookingRef en su footer).
+            window.__mtxIAChat.addMessage(convId, {
+              role: 'assistant',
+              content: '✓ Listo. ' + finishedPlan.intent + ' completada.\n\nCuando quieras te lo agrego a tu Agenda.',
+              state: 'done',
+              chips: ['Agregar a Agenda', '¿Qué llevar?', 'Reservar otra'],
+            });
+          },
+          onCancel: function() {
+            window.__mtxIAChat.addMessage(convId, {
+              role: 'assistant',
+              content: 'Detenido. No se completó la acción. Si quieres retomar o cambiar de opción, dime.',
+              state: 'done',
+            });
+          },
+        });
+        return;
+      }
       _toast('Confirmado. El coach está procediendo.', { kind: 'success' });
       // Marcar el artifact como resolved=confirmed
       window.dispatchEvent(new CustomEvent('mtx:confirmation-resolved', {
@@ -366,6 +410,146 @@
   }
 
 
+  // ─── source_list (B1 Sprint A.6) ────────────────────────────────────────
+  // Acciones:
+  //   • open_source → window.open en nueva pestaña (vs deep-link iOS)
+  //   • summarize_top → dispara nuevo prompt al engine con la source elegida
+  //     usando el flow web_fetch (B2) → article_summary con memoryConnection
+  function handleSourceList(detail) {
+    var value = detail.value;
+    var source = detail.source;
+
+    if (value === 'open_source' && source && source.domain) {
+      // Source no trae URL completo en mock (solo domain) — abre el dominio raíz
+      var url = source.url || ('https://' + source.domain);
+      try { window.open(url, '_blank', 'noopener,noreferrer'); }
+      catch (_) { _toast('No pude abrir el enlace', { kind: 'warn' }); }
+      return;
+    }
+    if (value === 'summarize_top' && source) {
+      // Dispara un nuevo flow web_fetch sobre la URL elegida → el coach
+      // generará un article_summary con memoryConnection (B2 + B1 chain)
+      var convId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId();
+      if (!convId) return;
+      var srcUrl = source.url || ('https://' + (source.domain || 'sitio.com'));
+      var prompt = 'Léeme y resúmeme esto: ' + srcUrl;
+      window.__mtxIAChat.addMessage(convId, {
+        role: 'user', content: prompt, state: 'done',
+      });
+      var asstMsg = window.__mtxIAChat.addMessage(convId, {
+        role: 'assistant', content: '', state: 'reasoning',
+      });
+      if (window.__mtxCoachEngine) {
+        window.__mtxCoachEngine.generate({
+          convId: convId,
+          msgId: asstMsg.id,
+          prompt: prompt,
+          mode: 'fresh',
+        });
+      }
+      return;
+    }
+  }
+
+
+  // ─── article_summary (B2 Sprint A.6) ────────────────────────────────────
+  // Acciones del resumen de artículo:
+  //   • open_original → window.open en nueva pestaña (vs deep-link iOS)
+  //   • save_library → mock por ahora (placeholder para post-MVP biblioteca)
+  //   • apply_to_plan → injecta nuevo user msg al chat pidiendo aplicar
+  function handleArticleSummary(detail) {
+    var value = detail.value;
+    var artifact = detail.artifact || {};
+    var url = (detail.url) || artifact.originalUrl;
+
+    if (value === 'open_original' && url) {
+      try { window.open(url, '_blank', 'noopener,noreferrer'); }
+      catch (_) { _toast('No pude abrir el enlace', { kind: 'warn' }); }
+      return;
+    }
+    if (value === 'save_library') {
+      // Placeholder: por ahora mock + toast. Post-MVP: store de biblioteca real.
+      _toast('Guardado en tu biblioteca', { kind: 'success' });
+      // Si el user tiene memoria activa, autoSave el título como referencia
+      if (window.__mtxMemoryStore && artifact.title) {
+        try {
+          window.__mtxMemoryStore.save({
+            type: 'context',
+            label: 'Leí: "' + artifact.title + '"',
+            value: artifact.author ? 'por ' + artifact.author : '',
+            source: 'auto',
+          });
+        } catch (_) {}
+      }
+      return;
+    }
+    if (value === 'apply_to_plan') {
+      // Inyecta un user msg para que el coach proponga cómo aplicar este
+      // artículo al plan del user. El flow natural sigue desde ahí.
+      var convId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId();
+      if (!convId || !window.__mtxIAChat) return;
+      var prompt = 'Aplica los puntos de este artículo a mi plan: "' + (artifact.title || 'el artículo') + '"';
+      window.__mtxIAChat.addMessage(convId, {
+        role: 'user',
+        content: prompt,
+        state: 'done',
+      });
+      // Disparar el engine para que responda
+      var asstMsg = window.__mtxIAChat.addMessage(convId, {
+        role: 'assistant',
+        content: '',
+        state: 'reasoning',
+      });
+      if (window.__mtxCoachEngine) {
+        window.__mtxCoachEngine.generate({
+          convId: convId,
+          msgId: asstMsg.id,
+          prompt: prompt,
+          mode: 'fresh',
+        });
+      }
+      return;
+    }
+  }
+
+
+  // ─── integration_action_card — connect / sync / open ────────────────────
+  // Sprint A.6 · B9: el coach puede pedirle al user que conecte una integración
+  // (Apple Health, Google Cal, etc.) desde el chat. El value sigue patrón
+  // 'connect:<id>' | 'sync:<id>' | 'open:<id>' | 'dismiss'.
+  function handleIntegrationActionCard(detail) {
+    var value = detail.value || '';
+    if (value === 'dismiss') return;
+    var parts = value.split(':');
+    var op = parts[0]; var integId = parts[1];
+    if (!op || !integId) return;
+
+    if (op === 'connect') {
+      // Dispatch para abrir el detail sheet de la integración en Settings.
+      // Si Settings no está abierto, el listener navega allá primero.
+      window.dispatchEvent(new CustomEvent('mtx:open-integration-detail', {
+        detail: { integrationId: integId },
+      }));
+      _toast('Abriendo Apple Health', { kind: 'info' });
+      return;
+    }
+    if (op === 'sync') {
+      // Resync inmediato del wearable store sin abrir sheet
+      if (integId === 'appleHealth' && window.__mtxWearableStore) {
+        var ok = window.__mtxWearableStore.resync();
+        _toast(ok ? 'Sincronizando Apple Health' : 'Apple Health no está conectada', { kind: ok ? 'info' : 'warn' });
+      }
+      return;
+    }
+    if (op === 'open') {
+      window.dispatchEvent(new CustomEvent('mtx:open-integration-detail', {
+        detail: { integrationId: integId },
+      }));
+      return;
+    }
+  }
+
+
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENT LISTENER GLOBAL
   // ═══════════════════════════════════════════════════════════════════════════
@@ -406,6 +590,30 @@
       case 'video_inline':
         handleVideoInline(detail);
         break;
+      // Sprint A.6 · B9 — integration_action_card
+      case 'integration_action_card':
+        handleIntegrationActionCard(detail);
+        break;
+      // B2 (Sprint A.6) — article_summary actions
+      case 'article_summary':
+        handleArticleSummary(detail);
+        break;
+      // B1 (Sprint A.6) — source_list actions
+      case 'source_list':
+        handleSourceList(detail);
+        break;
+      // B5 REFACTOR — cancel inline del browse_progress_card live.
+      // El handler primary del cancel es la llamada directa al runner desde
+      // el artifact (sync immediate). Este case es defensive: si alguien dispara
+      // el event desde otra surface sin tener acceso al runner, igual aborta.
+      case 'browse_progress_card':
+        if (detail.value === 'cancel' && window.__mtxBrowseActRunner) {
+          // Si detail.msgId vino, cancelar ese específico; si no, mejor effort.
+          if (detail.msgId) {
+            window.__mtxBrowseActRunner.cancel(detail.msgId);
+          }
+        }
+        break;
       // Artifacts informativos sin acciones (insight, stats, quote, progress,
       // comparison, timeline, mermaid, loading, audio): no-op por diseño
       default:
@@ -429,6 +637,12 @@
     handleMapMini: handleMapMini,
     handleImageInline: handleImageInline,
     handleVideoInline: handleVideoInline,
+    // Sprint A.6 · B9
+    handleIntegrationActionCard: handleIntegrationActionCard,
+    // Sprint A.6 · B2
+    handleArticleSummary: handleArticleSummary,
+    // Sprint A.6 · B1
+    handleSourceList: handleSourceList,
     // Helpers expuestos para tests
     _parseTimeFromText: _parseTimeFromText,
     _dayOffsetFromLabel: _dayOffsetFromLabel,

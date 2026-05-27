@@ -80,7 +80,120 @@
     },
   };
 
+  // ── Persistencia cross-session a localStorage (B10 Sprint A.6) ────────────
+  // Por qué: sin esto el coach es amnésico cada refresh. Backend sí persiste
+  // (Imperial Gateway memory.semantic.*), localStorage replica la misma
+  // garantía en frontend. Cuando llegue Brandon, su API es drop-in replacement
+  // del localStorage — mismo shape exacto.
+  //
+  // Schema v1 — { v: 1, agent, memory, knowledge, channels, integrations,
+  //               customInstructions, memorySettings, persistedAt }
+  // Schema bump → migrar en _hydrate sin perder data.
+  //
+  // Quota: localStorage ~5MB. Si write falla por QuotaExceededError,
+  // hacemos un round agresivo de archive (memorias menos usadas) y reintento.
+  var _PERSIST_KEY = '__mtxIAConfig:v1';
+  var _PERSIST_DEBOUNCE_MS = 300;
+  var _persistTimer = null;
+  var _hydrated = false;
+
+  function _persistNow() {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      var payload = {
+        v: 1,
+        agent: _state.agent,
+        memory: _state.memory,
+        knowledge: _state.knowledge,
+        channels: _state.channels,
+        integrations: _state.integrations,
+        customInstructions: _state.customInstructions,
+        memorySettings: _state.memorySettings,
+        persistedAt: Date.now(),
+      };
+      window.localStorage.setItem(_PERSIST_KEY, JSON.stringify(payload));
+    } catch (err) {
+      // QuotaExceededError → archive más agresivo y reintentar 1 vez
+      if (err && (err.name === 'QuotaExceededError' || err.code === 22)) {
+        try {
+          // Archive todas las memorias auto con usageCount=0 más viejas
+          var trimmed = _state.memory.slice().sort(function(a, b) {
+            return (a.usageCount || 0) - (b.usageCount || 0) ||
+                   (a.createdAt || 0) - (b.createdAt || 0);
+          });
+          var nToArchive = Math.ceil(trimmed.length * 0.2);
+          for (var i = 0; i < nToArchive && i < trimmed.length; i++) {
+            if (!trimmed[i].pinned) trimmed[i].archived = true;
+          }
+          window.localStorage.setItem(_PERSIST_KEY, JSON.stringify({
+            v: 1,
+            agent: _state.agent,
+            memory: _state.memory,
+            knowledge: _state.knowledge,
+            channels: _state.channels,
+            integrations: _state.integrations,
+            customInstructions: _state.customInstructions,
+            memorySettings: _state.memorySettings,
+            persistedAt: Date.now(),
+          }));
+        } catch (_) { /* localStorage roto / disabled — degradación silenciosa */ }
+      }
+    }
+  }
+
+  function _persistDebounced() {
+    if (_persistTimer) clearTimeout(_persistTimer);
+    _persistTimer = setTimeout(_persistNow, _PERSIST_DEBOUNCE_MS);
+  }
+
+  // Aplica decay: memorias sin uso > decayDays pasan a archived.
+  // Pinned NUNCA decae. Llamado en cada hydrate (al cargar la página).
+  function _applyDecay() {
+    var settings = _state.memorySettings || {};
+    var days = settings.decayDays || 90;
+    if (days <= 0) return; // decay desactivado
+    var cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    var changed = false;
+    _state.memory.forEach(function(m) {
+      if (m.archived || m.pinned) return;
+      var lastTouch = m.lastUsed || m.createdAt || 0;
+      if (lastTouch < cutoff) {
+        m.archived = true;
+        m.updatedAt = Date.now();
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  function _hydrate() {
+    if (_hydrated) return;
+    _hydrated = true;
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      var raw = window.localStorage.getItem(_PERSIST_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || parsed.v !== 1) return; // schema desconocido — ignorar
+      // Merge defensivo: solo sobrescribe lo que existe en payload
+      if (parsed.agent)              _state.agent              = Object.assign({}, _state.agent, parsed.agent);
+      if (Array.isArray(parsed.memory)) _state.memory           = parsed.memory;
+      if (parsed.knowledge)          _state.knowledge          = Object.assign({}, _state.knowledge, parsed.knowledge);
+      if (parsed.channels)           _state.channels           = Object.assign({}, _state.channels, parsed.channels);
+      if (parsed.integrations)       _state.integrations       = Object.assign({}, _state.integrations, parsed.integrations);
+      if (parsed.customInstructions) _state.customInstructions = Object.assign({}, _state.customInstructions, parsed.customInstructions);
+      if (parsed.memorySettings)     _state.memorySettings     = Object.assign({}, _state.memorySettings, parsed.memorySettings);
+
+      // Aplica decay tras hydrate (memorias antiguas no tocadas → archived)
+      _applyDecay();
+    } catch (_) { /* JSON corrupto / parse fail — empezar fresh */ }
+  }
+
+  // Hydrate inmediatamente al cargar el IIFE (antes de que cualquier componente monte)
+  _hydrate();
+
   function _emit() {
+    _persistDebounced();
     window.dispatchEvent(new CustomEvent('mtx:ia-config-changed', {
       detail: { snapshot: JSON.parse(JSON.stringify(_state)) },
     }));
@@ -411,12 +524,50 @@
       _emit();
     },
 
+    // ── Persistence helpers (B10) ────────────────────────────────────────
+    // Diagnóstico: cuándo se persistió la última vez y cuántas memorias decayed.
+    getPersistInfo: function() {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return { persisted: false, persistedAt: null, sizeBytes: 0 };
+      }
+      try {
+        var raw = window.localStorage.getItem(_PERSIST_KEY);
+        if (!raw) return { persisted: false, persistedAt: null, sizeBytes: 0 };
+        var parsed = JSON.parse(raw);
+        return {
+          persisted: true,
+          persistedAt: parsed.persistedAt || null,
+          sizeBytes: raw.length,
+          schemaVersion: parsed.v,
+        };
+      } catch (_) {
+        return { persisted: false, persistedAt: null, sizeBytes: 0 };
+      }
+    },
+
+    // Force flush — escribe ahora mismo sin debounce. Usado por exportData
+    // para garantizar que el dump incluye los últimos cambios.
+    forceFlush: function() {
+      if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+      _persistNow();
+    },
+
+    // Aplica decay manualmente. Útil si el user fuerza una limpieza desde
+    // settings. Normalmente decay se aplica solo en hydrate.
+    applyDecayNow: function() {
+      var changed = _applyDecay();
+      if (changed) _emit();
+      return changed;
+    },
+
     // Privacy
     exportData: function() {
+      window.__mtxIAConfig.forceFlush();
       var data = {
         config: _state,
         conversations: (window.__mtxIAChat ? window.__mtxIAChat.list() : []),
         exportedAt: new Date().toISOString(),
+        persistInfo: window.__mtxIAConfig.getPersistInfo(),
       };
       return data;
     },
@@ -444,9 +595,48 @@
         maxActive: 50,
         decayDays: 90,
       };
+      // Limpia localStorage también — sin esto el próximo refresh resucitaría
+      // lo recién borrado (bug clásico de stores duales).
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try { window.localStorage.removeItem(_PERSIST_KEY); } catch (_) {}
+      }
       _emit();
     },
   };
+
+  // ── Alias diagnóstico __mtxMemoryStore (RFC §4 catalog) ─────────────────────
+  // El RFC nombra al store de memoria como __mtxMemoryStore. Para que el nombre
+  // esté presente y sirva como façade limpio en DevTools / future contracts:
+  //   __mtxMemoryStore.list({archived:false}) → memorias activas
+  //   __mtxMemoryStore.save({type,label,value,source}) → save manual
+  //   __mtxMemoryStore.recall(query) → semantic search local
+  //   __mtxMemoryStore.forget(id) → remove
+  //   __mtxMemoryStore.diagnostics() → persist info + stats
+  // Cuando llegue backend, este façade se cambia internamente a fetch() y los
+  // callers no se enteran.
+  if (typeof window !== 'undefined') {
+    window.__mtxMemoryStore = {
+      list: function(filter) { return window.__mtxIAConfig.listMemories(filter); },
+      save: function(opts) {
+        var src = (opts && opts.source) || 'manual';
+        if (src === 'auto')       return window.__mtxIAConfig.autoSaveMemory(opts);
+        if (src === 'user-asked') return window.__mtxIAConfig.userAskedSaveMemory(opts);
+        return window.__mtxIAConfig._saveMemory(opts);
+      },
+      recall: function(query) { return window.__mtxIAConfig.searchMemories(query); },
+      forget: function(id) { window.__mtxIAConfig.removeMemory(id); },
+      pin: function(id, p) { window.__mtxIAConfig.pinMemory(id, p); },
+      markUsed: function(id) { window.__mtxIAConfig.markMemoryUsed(id); },
+      stats: function() { return window.__mtxIAConfig.getMemoryStats(); },
+      diagnostics: function() {
+        return Object.assign({},
+          window.__mtxIAConfig.getPersistInfo(),
+          { stats: window.__mtxIAConfig.getMemoryStats() }
+        );
+      },
+      flush: function() { window.__mtxIAConfig.forceFlush(); },
+    };
+  }
 })();
 
 

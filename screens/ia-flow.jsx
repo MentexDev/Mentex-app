@@ -41,7 +41,88 @@
   var _conversations = [];   // [{ id, title, createdAt, updatedAt, messages, pinned }]
   var _currentId = null;
 
+  // ── Persistencia cross-session (B10 Sprint A.6) ────────────────────────────
+  // Persiste SOLO conversaciones reales del user (no las mock con prefix
+  // 'conv-mock-*'). Al hydrate, los mocks se vuelven a inyectar idempotente
+  // por id desde coach-mock-conversations.jsx (no se duplican).
+  //
+  // Schema v1: { v:1, conversations:[non-mock], currentId, persistedAt }
+  // Cuando llegue backend, esto se reemplaza por GET /v1/conversations.
+  var _PERSIST_KEY = '__mtxIAChat:v1';
+  var _PERSIST_DEBOUNCE_MS = 400;
+  var _persistTimer = null;
+  var _hydrated = false;
+
+  function _isMockId(id) {
+    return typeof id === 'string' && id.indexOf('conv-mock-') === 0;
+  }
+
+  function _persistNow() {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      var nonMock = _conversations.filter(function(c) { return !_isMockId(c.id); });
+      var payload = {
+        v: 1,
+        conversations: nonMock,
+        currentId: _isMockId(_currentId) ? null : _currentId,
+        persistedAt: Date.now(),
+      };
+      window.localStorage.setItem(_PERSIST_KEY, JSON.stringify(payload));
+    } catch (err) {
+      // Quota → archivamos mensajes de las conversaciones más viejas
+      // manteniendo el último mensaje user+assistant como preview
+      if (err && (err.name === 'QuotaExceededError' || err.code === 22)) {
+        try {
+          var sorted = _conversations.filter(function(c) { return !_isMockId(c.id); })
+                                      .sort(function(a, b) { return (a.updatedAt || 0) - (b.updatedAt || 0); });
+          var trimmed = sorted.map(function(c, idx) {
+            if (idx > sorted.length - 5 || c.pinned) return c; // mantén las últimas 5 y pinned full
+            var msgs = c.messages || [];
+            var lastTwo = msgs.slice(-2);
+            return Object.assign({}, c, { messages: lastTwo, _truncated: true });
+          });
+          window.localStorage.setItem(_PERSIST_KEY, JSON.stringify({
+            v: 1,
+            conversations: trimmed,
+            currentId: _isMockId(_currentId) ? null : _currentId,
+            persistedAt: Date.now(),
+          }));
+        } catch (_) { /* localStorage roto — degradación silenciosa */ }
+      }
+    }
+  }
+
+  function _persistDebounced() {
+    if (_persistTimer) clearTimeout(_persistTimer);
+    _persistTimer = setTimeout(_persistNow, _PERSIST_DEBOUNCE_MS);
+  }
+
+  function _hydrate() {
+    if (_hydrated) return;
+    _hydrated = true;
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      var raw = window.localStorage.getItem(_PERSIST_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || parsed.v !== 1) return;
+      if (Array.isArray(parsed.conversations)) {
+        // Filtra cualquier mock que se haya colado en el payload (defensivo)
+        _conversations = parsed.conversations.filter(function(c) {
+          return c && c.id && !_isMockId(c.id);
+        });
+      }
+      if (parsed.currentId && !_isMockId(parsed.currentId)) {
+        _currentId = parsed.currentId;
+      }
+    } catch (_) { /* parse fail — empezar fresh */ }
+  }
+
+  // Hydrate inmediato al cargar el IIFE
+  _hydrate();
+
   function _emit() {
+    _persistDebounced();
     window.dispatchEvent(new CustomEvent('mtx:ia-chat-changed', {
       detail: { count: _conversations.length, currentId: _currentId },
     }));
@@ -84,7 +165,15 @@
         pinned: !!s.pinned,
       };
       _conversations = [conv].concat(_conversations);
-      _currentId = id;
+      // Si seed.silent es true (mock loader post-hydrate), NO sobrescribe el
+      // _currentId que viene del localStorage. Sin esto, los 15 mocks que se
+      // cargan al startup secuestrarían el currentId del user persistido.
+      if (!s.silent) {
+        _currentId = id;
+      } else if (_currentId === null) {
+        // Si no había nada persistido, el primer mock sí se vuelve current
+        _currentId = id;
+      }
       _emit();
       return conv;
     },
@@ -172,6 +261,22 @@
     _reset: function() {
       _conversations = [];
       _currentId = null;
+      _emit();
+    },
+
+    // ── B11 — replace messages atomic ─────────────────────────────────────
+    // Permite truncar + reemplazar la lista de mensajes (usado por
+    // engine.editUserMessage → fork del chat al editar un prompt user).
+    // Atómico: un solo _emit, evita estados intermedios visibles.
+    _replaceMessages: function(convId, newMessages) {
+      if (!Array.isArray(newMessages)) return;
+      _conversations = _conversations.map(function(c) {
+        if (c.id !== convId) return c;
+        return Object.assign({}, c, {
+          messages: newMessages.slice(),
+          updatedAt: Date.now(),
+        });
+      });
       _emit();
     },
   };
@@ -431,18 +536,46 @@ function _mockAssistantReply(userContent) {
 }
 
 // Reproduce el ciclo reasoning → streaming → done sobre un mensaje existente.
-// Usa setTimeout en cadena (no setInterval) para que cada paso sea cancelable
-// al unmount via el flag _alive de la closure. La cancelación viva en el
-// caller — esta función no decide cuándo abortar.
+//
+// B11 (Sprint A.6): delega al __mtxCoachEngine si está disponible (motor
+// multi-turn con regenerate/stop/continue/context-awareness). Si el engine
+// no está cargado (carga async de Babel-standalone), cae al flow legacy
+// inline para no romper el chat.
+//
+// El flag _alive sigue siendo el contract caller→callee: el componente que
+// ejecuta este flow puede unmount y la cancelación se respeta. El engine
+// también expone cancel(msgId) que puede ser invocado desde botón Stop UI.
 function _runMockResponse(convId, msgId, userContent, _alive) {
   var store = window.__mtxIAChat;
   if (!store) return;
 
-  // ── RFC-001 Addendum A · A2 — Simulación runtime de tools ──────────────
-  // Si el simulador detecta un scenario aplicable al prompt (ej. "plánnea
-  // mi semana", "reservame", "cómo dormí"), ejecuta steps progresivos del
-  // timeline + emite artifact + después arranca el streaming del reply.
-  // Si NO hay scenario, cae al flow original (artifact detection + reply).
+  // ── B11 — motor multi-turn con context awareness ──────────────────────
+  if (window.__mtxCoachEngine && typeof window.__mtxCoachEngine.generate === 'function') {
+    var handle = window.__mtxCoachEngine.generate({
+      convId: convId,
+      msgId: msgId,
+      prompt: userContent,
+      mode: 'fresh',
+    });
+    // Polling de _alive: si el caller marca unmount, cancelamos el stream
+    // del engine. Sin esto, el engine seguiría streamando texto a un
+    // mensaje que el caller dejó de monitorear.
+    var aliveCheckId = setInterval(function() {
+      if (!_alive()) {
+        clearInterval(aliveCheckId);
+        if (handle && handle.cancel) handle.cancel();
+      } else if (!window.__mtxCoachEngine.isActive(msgId)) {
+        // Stream completó solo → liberamos el check
+        clearInterval(aliveCheckId);
+      }
+    }, 200);
+    return;
+  }
+
+  // ── Fallback legacy (engine no cargado): flow original conservado ──────
+  // Si por alguna razón el engine no está disponible, mantenemos el flow
+  // original con simulator + setInterval inline. Garantiza que el chat
+  // nunca queda mudo.
   var simulator = window.__mtxCoachSimulator;
   var simulatorScenario = simulator ? simulator.detect(userContent) : null;
 
@@ -456,9 +589,6 @@ function _runMockResponse(convId, msgId, userContent, _alive) {
       _alive: _alive,
       onComplete: function(replyText, artifact, steps) {
         if (!_alive()) return;
-        // Después de steps done, arrancar streaming del texto del coach.
-        // Mantenemos los steps en el msg (ya están done) — el timeline queda
-        // visible como historial de lo que el coach hizo.
         store.updateMessage(convId, msgId, { state: 'streaming', content: '' });
         var i = 0;
         var streamId = setInterval(function() {
@@ -478,11 +608,7 @@ function _runMockResponse(convId, msgId, userContent, _alive) {
     return;
   }
 
-  // ── Fallback: flow original (sin scenario detectado) ────────────────────
-  // Step 1: reasoning (typing dots) — 600ms
   store.updateMessage(convId, msgId, { state: 'reasoning' });
-
-  // Legacy artifact detection (Fase 1.2 — image/voice/content/etc).
   var artifact = _detectArtifactFromUser(userContent);
   var artifactReply = artifact ? _replyForArtifact(artifact) : null;
 
@@ -826,9 +952,229 @@ function IAEmptyState(props) {
 }
 
 
+// ═══════════════════════════════════════════════════════════════════════════
+// B11 — IAUserMessageBubble: bubble del user EDITABLE
+// ═══════════════════════════════════════════════════════════════════════════
+// Replica patrón Claude/ChatGPT: tap en el bubble propio abre modo edición
+// inline. Save → engine.editUserMessage() → fork del chat (trunca y regenera).
+// Cancel → vuelve al state original sin cambios.
+//
+// Affordance del icono pencil aparece al hover (desktop) o siempre sutil
+// (mobile). El edit no es destructivo: si cancelas, el contenido original
+// queda intacto. Replicamos el feedback visual de los grandes:
+//   • Hover: ligera elevation + pencil icon
+//   • Editing: textarea con autoFocus + Save/Cancel buttons
+//   • Saved: animación mt-fade-up del nuevo bubble + assistant regenerado
+function IAUserMessageBubble(props) {
+  var msg = props.msg;
+  var convId = props.convId;
+  var editingState = React.useState(false);
+  var editing = editingState[0]; var setEditing = editingState[1];
+  var draftState = React.useState(msg.content || '');
+  var draft = draftState[0]; var setDraft = draftState[1];
+  var textareaRef = React.useRef(null);
+  var hoverState = React.useState(false);
+  var hover = hoverState[0]; var setHover = hoverState[1];
+
+  // Cuando cambia el msg externamente (regenerate, edit que viene de otro
+  // bubble en la misma conv) — re-sincroniza el draft.
+  React.useEffect(function() {
+    if (!editing) setDraft(msg.content || '');
+  }, [msg.content, editing]);
+
+  // Autofocus al entrar a edit
+  React.useEffect(function() {
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus();
+      // Posiciona el cursor al final
+      var len = textareaRef.current.value.length;
+      textareaRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
+
+  function startEdit() {
+    if (!window.__mtxCoachEngine) return; // no engine → no edit (degrada)
+    setDraft(msg.content || '');
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft(msg.content || '');
+  }
+
+  function saveEdit() {
+    var newContent = String(draft || '').trim();
+    if (!newContent) { cancelEdit(); return; }
+    if (newContent === msg.content) { cancelEdit(); return; }
+    if (window.__mtxCoachEngine && window.__mtxCoachEngine.editUserMessage) {
+      window.__mtxCoachEngine.editUserMessage(convId, msg.id, newContent);
+    }
+    setEditing(false);
+  }
+
+  function handleKeyDown(e) {
+    // Cmd/Ctrl+Enter → save (rápido)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      saveEdit();
+      return;
+    }
+    // Escape → cancel
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+      return;
+    }
+    // Enter solo → newline (NO save — patrón Claude/ChatGPT)
+  }
+
+  if (editing) {
+    return (
+      <div style={{
+        display: 'flex', justifyContent: 'flex-end',
+        padding: '0 16px 10px',
+        animation: 'mtx-fade-up .2s ease both',
+      }}>
+        <div style={{
+          maxWidth: '92%', width: '92%',
+          padding: '10px 14px', borderRadius: 18,
+          borderBottomRightRadius: 6,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.13), rgba(61,255,209,0.04))',
+          border: '0.5px solid rgba(61,255,209,0.32)',
+          boxShadow: '0 8px 20px -12px rgba(61,255,209,0.32)',
+        }}>
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={function(e) { setDraft(e.target.value); }}
+            onKeyDown={handleKeyDown}
+            rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+            aria-label="Editar tu mensaje"
+            style={{
+              width: '100%', minHeight: 60,
+              background: 'transparent', border: 0, outline: 'none',
+              color: 'var(--ink-1)',
+              fontSize: 13.5, lineHeight: 1.45,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              resize: 'none',
+            }}/>
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', gap: 8,
+            marginTop: 8, paddingTop: 8,
+            borderTop: '0.5px solid rgba(61,255,209,0.16)',
+          }}>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="mtx-tap"
+              aria-label="Cancelar edición"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                padding: '5px 12px', borderRadius: 999,
+                background: 'transparent',
+                border: '0.5px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.65)',
+                fontSize: 11.5, fontWeight: 500,
+                fontFamily: 'var(--ff-sans)',
+              }}>Cancelar</button>
+            <button
+              type="button"
+              onClick={saveEdit}
+              className="mtx-tap"
+              aria-label="Guardar edición y regenerar respuesta"
+              disabled={!draft.trim() || draft.trim() === (msg.content || '').trim()}
+              style={{
+                appearance: 'none',
+                cursor: (!draft.trim() || draft.trim() === (msg.content || '').trim()) ? 'not-allowed' : 'pointer',
+                padding: '5px 14px', borderRadius: 999,
+                background: 'rgba(61,255,209,0.18)',
+                border: '0.5px solid rgba(61,255,209,0.38)',
+                color: 'rgba(220,255,245,0.95)',
+                fontSize: 11.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                opacity: (!draft.trim() || draft.trim() === (msg.content || '').trim()) ? 0.4 : 1,
+                transition: 'opacity .15s',
+              }}>Guardar y regenerar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'flex-end',
+      padding: '0 16px 10px',
+      animation: 'mtx-fade-up .25s ease both',
+      position: 'relative',
+    }}
+    onMouseEnter={function() { setHover(true); }}
+    onMouseLeave={function() { setHover(false); }}>
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 6,
+        maxWidth: '88%',
+      }}>
+        {/* Edit pencil — solo si engine activo. Visible siempre sutil en mobile,
+            hover-only en desktop. Tap → entra a modo edit. */}
+        {window.__mtxCoachEngine && (
+          <button
+            type="button"
+            onClick={startEdit}
+            className="mtx-tap"
+            aria-label="Editar mensaje"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              alignSelf: 'center',
+              width: 24, height: 24, borderRadius: 999,
+              background: hover ? 'rgba(61,255,209,0.10)' : 'transparent',
+              border: '0.5px solid ' + (hover ? 'rgba(61,255,209,0.28)' : 'transparent'),
+              color: hover ? 'rgba(61,255,209,0.85)' : 'rgba(255,255,255,0.30)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              opacity: hover ? 1 : 0.6,
+              transition: 'opacity .18s, background .18s, border-color .18s, color .18s',
+            }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z"/>
+            </svg>
+          </button>
+        )}
+        <div style={{
+          padding: '10px 14px', borderRadius: 18,
+          borderBottomRightRadius: 6,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.09), rgba(61,255,209,0.03))',
+          border: '0.5px solid rgba(61,255,209,0.16)',
+          color: 'var(--ink-1)',
+          fontSize: 13.5, lineHeight: 1.45,
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          boxShadow: '0 6px 14px -10px rgba(61,255,209,0.18)',
+        }}>
+          {msg.content}
+          {msg.editedAt && (
+            <span style={{
+              display: 'block', marginTop: 4,
+              fontSize: 10, color: 'rgba(255,255,255,0.32)',
+              fontStyle: 'italic',
+              fontFamily: 'var(--ff-sans)',
+            }}>editado</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── IAMessageBubble — render de un mensaje (user o assistant) ──────────────
 // Estados visuales:
-//   • role=user: bubble derecha, fondo neon-tint
+//   • role=user: bubble derecha, fondo neon-tint (delegado a IAUserMessageBubble)
 //   • role=assistant + state=reasoning: bubble izquierda con typing dots
 //   • role=assistant + state=streaming: bubble izquierda con texto + cursor
 //   • role=assistant + state=done: bubble izquierda con texto plano
@@ -839,38 +1185,29 @@ function IAMessageBubble(props) {
   var state = msg.state || 'done';
 
   if (isUser) {
-    return (
-      <div style={{
-        display: 'flex', justifyContent: 'flex-end',
-        padding: '0 16px 10px',
-        animation: 'mtx-fade-up .25s ease both',
-      }}>
-        <div style={{
-          maxWidth: '82%',
-          padding: '10px 14px', borderRadius: 18,
-          borderBottomRightRadius: 6,
-          // Tinte neon más sutil — antes 0.16/0.06 con border 0.28 y glow
-          // 0.4 se sentía muy intenso. Ahora más calmado, manteniendo el
-          // affordance visual de "tu mensaje" con neon tint pero sin
-          // dominar visualmente la conversación.
-          background: 'linear-gradient(135deg, rgba(61,255,209,0.09), rgba(61,255,209,0.03))',
-          border: '0.5px solid rgba(61,255,209,0.16)',
-          color: 'var(--ink-1)',
-          fontSize: 13.5, lineHeight: 1.45,
-          fontFamily: 'var(--ff-sans)',
-          letterSpacing: '-0.005em',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          boxShadow: '0 6px 14px -10px rgba(61,255,209,0.18)',
-        }}>{msg.content}</div>
-      </div>
-    );
+    return <IAUserMessageBubble msg={msg} convId={props.convId}/>;
   }
 
   // Assistant — columna flex con bubble (texto+chips) + artifacts como siblings.
   // Bubble se mantiene compacto (max ~88% del column), pero artifacts ocupan
   // todo el ancho disponible para tener espacio sin competir con el texto.
+  //
+  // B4 (Sprint A.6) — algunos artifacts son LIVE durante 'reasoning' (no esperan
+  // a done). Ej: thinking_panel con state='thinking' debe verse mientras el
+  // coach está pensando. Cada artifact "live-capable" se marca aquí:
   var artifacts = Array.isArray(msg.artifacts) ? msg.artifacts : [];
-  var hasArtifacts = artifacts.length > 0 && state === 'done';
+  function _isLiveCapable(a) {
+    if (!a || !a.kind) return false;
+    // Lista de artifacts que pueden renderizar durante reasoning/streaming
+    if (a.kind === 'thinking_panel' && a.state === 'thinking') return true;
+    // B5 REFACTOR: browse_progress_card en estado live también renderiza
+    // mientras el msg está en reasoning (el card es el contenedor del flow).
+    if (a.kind === 'browse_progress_card' && (a.state === 'live' || a.state === 'cancelled')) return true;
+    return false;
+  }
+  var hasArtifacts = artifacts.length > 0 && (
+    state === 'done' || artifacts.some(_isLiveCapable)
+  );
 
   // RFC-001 §5.1 — steps del timeline si los hay
   // Reglas:
@@ -1006,6 +1343,14 @@ function IAMessageBubble(props) {
         </div>
         )}
 
+        {/* B11 — Action row: Regenerate · Continue · Stop. Solo en assistant.
+            Vive fuera del bubble (sibling) para no apretar el texto.
+            Visible siempre que el engine esté cargado (gates internos del
+            componente filtran por state). */}
+        {msg.role === 'assistant' && props.convId && (
+          <CoachMessageActions msg={msg} convId={props.convId}/>
+        )}
+
         {/* Artifacts — FUERA del bubble, full width del column.
             Image, Voice, Content card, Calendar, Reminder, Plan, Confirmation, Recommendation.
             Componentes en screens/ia-artifacts.jsx (window.IAArtifact). */}
@@ -1015,7 +1360,7 @@ function IAMessageBubble(props) {
             alignSelf: 'stretch',
           }}>
             {artifacts.map(function(art, i) {
-              return <window.IAArtifact key={i} artifact={art}/>;
+              return <window.IAArtifact key={i} artifact={art} msgId={msg.id}/>;
             })}
           </div>
         )}
@@ -1110,6 +1455,129 @@ function IAMessageBubble(props) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// B11 — Action row del bubble del coach (Regenerate / Continue / Stop)
+// ═══════════════════════════════════════════════════════════════════════════
+// Aparece BAJO el bubble del coach cuando msg.state === 'done' (regenerate +
+// continue) o cuando state === 'streaming'/'reasoning' (stop). Ultraminimalista
+// — iconos 11px en row horizontal con label visible solo en hover/focus.
+//
+// Acciones:
+//   • Stop ⏹     — visible durante reasoning/streaming. Cancela el stream del
+//                  motor y marca el mensaje como [detenido].
+//   • Regenerate ↻ — visible cuando state==='done'. Re-genera con seed+1
+//                    para producir una variación distinta del reply.
+//   • Continue ⤺  — visible cuando state==='done' Y msg.wasStopped Y el reply
+//                    quedó truncado. Reanuda desde donde se cortó.
+function CoachMessageActions(props) {
+  var msg = props.msg;
+  var convId = props.convId;
+  var state = msg.state || 'done';
+  var engine = (typeof window !== 'undefined') ? window.__mtxCoachEngine : null;
+  if (!engine) return null;
+
+  var isStreaming = state === 'reasoning' || state === 'streaming';
+  var isDone = state === 'done';
+  var canContinue = isDone && msg.wasStopped;
+
+  function handleStop(e) {
+    e.stopPropagation();
+    engine.cancel(msg.id);
+  }
+  function handleRegenerate(e) {
+    e.stopPropagation();
+    engine.regenerate(convId, msg.id);
+  }
+  function handleContinue(e) {
+    e.stopPropagation();
+    engine.continueMsg(convId, msg.id);
+  }
+
+  // Botón base — circular ghost minimalista
+  function ActionBtn(opts) {
+    var hoverState = React.useState(false);
+    var isHover = hoverState[0]; var setHover = hoverState[1];
+    return (
+      <button
+        type="button"
+        onClick={opts.onClick}
+        onMouseEnter={function() { setHover(true); }}
+        onMouseLeave={function() { setHover(false); }}
+        onFocus={function() { setHover(true); }}
+        onBlur={function() { setHover(false); }}
+        aria-label={opts.label}
+        className="mtx-tap"
+        style={{
+          appearance: 'none',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 9px', borderRadius: 999,
+          background: isHover ? 'rgba(255,255,255,0.06)' : 'transparent',
+          border: '0.5px solid ' + (isHover ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'),
+          color: opts.tint || 'rgba(255,255,255,0.55)',
+          cursor: 'pointer',
+          fontSize: 10.5, fontWeight: 500,
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          transition: 'background .18s ease, color .18s ease, border-color .18s ease',
+        }}>
+        {opts.icon}
+        <span>{opts.label}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 6,
+      marginTop: 6,
+      animation: 'mtx-fade-up .25s ease both',
+    }}>
+      {isStreaming && (
+        <ActionBtn
+          onClick={handleStop}
+          label="Detener"
+          tint="rgba(255,160,160,0.75)"
+          icon={
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+            </svg>
+          }
+        />
+      )}
+      {isDone && (
+        <ActionBtn
+          onClick={handleRegenerate}
+          label="Regenerar"
+          icon={
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          }
+        />
+      )}
+      {canContinue && (
+        <ActionBtn
+          onClick={handleContinue}
+          label="Continuar"
+          tint="rgba(61,255,209,0.75)"
+          icon={
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -2655,6 +3123,12 @@ function IAScreen(props) {
           onClose={function() { setShareOpen(false); }}
         />
       )}
+
+      {/* Sprint A.6 · B7 — Voice call overlay vive al nivel de MentexApp
+          (no aquí). Razón: JSX no resuelve `<window.CoachVoiceCallOverlay/>`
+          correctamente — necesita identifier capitalizado. Montado en
+          Mentex Home.html junto a GlobalPlayerOverlay y demás globales para
+          que pueda abrirse desde Home/Explore/Profile además de IA. */}
 
       {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
     </div>
