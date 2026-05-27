@@ -437,32 +437,67 @@ function _mockAssistantReply(userContent) {
 function _runMockResponse(convId, msgId, userContent, _alive) {
   var store = window.__mtxIAChat;
   if (!store) return;
+
+  // ── RFC-001 Addendum A · A2 — Simulación runtime de tools ──────────────
+  // Si el simulador detecta un scenario aplicable al prompt (ej. "plánnea
+  // mi semana", "reservame", "cómo dormí"), ejecuta steps progresivos del
+  // timeline + emite artifact + después arranca el streaming del reply.
+  // Si NO hay scenario, cae al flow original (artifact detection + reply).
+  var simulator = window.__mtxCoachSimulator;
+  var simulatorScenario = simulator ? simulator.detect(userContent) : null;
+
+  if (simulatorScenario && simulator) {
+    simulator.run({
+      store: store,
+      convId: convId,
+      msgId: msgId,
+      scenario: simulatorScenario,
+      userContent: userContent,
+      _alive: _alive,
+      onComplete: function(replyText, artifact, steps) {
+        if (!_alive()) return;
+        // Después de steps done, arrancar streaming del texto del coach.
+        // Mantenemos los steps en el msg (ya están done) — el timeline queda
+        // visible como historial de lo que el coach hizo.
+        store.updateMessage(convId, msgId, { state: 'streaming', content: '' });
+        var i = 0;
+        var streamId = setInterval(function() {
+          if (!_alive()) { clearInterval(streamId); return; }
+          var step = /[.!?\n]/.test(replyText[i]) ? 5 : 3;
+          i = Math.min(replyText.length, i + step);
+          store.updateMessage(convId, msgId, { content: replyText.slice(0, i) });
+          if (i >= replyText.length) {
+            clearInterval(streamId);
+            var patch = { state: 'done' };
+            if (artifact) patch.artifacts = [artifact];
+            store.updateMessage(convId, msgId, patch);
+          }
+        }, 22);
+      },
+    });
+    return;
+  }
+
+  // ── Fallback: flow original (sin scenario detectado) ────────────────────
   // Step 1: reasoning (typing dots) — 600ms
   store.updateMessage(convId, msgId, { state: 'reasoning' });
 
-  // ── Artifact detection (Fase 1.2) ───────────────────────────────────────
-  // Si el user pide imagen/audio/recomendación/agenda/recordatorio,
-  // detectamos el tipo de artifact ANTES de empezar a stream. El texto del
-  // assistant se reemplaza por uno corto que enmarca el artifact. El
-  // artifact se attacha cuando el streaming termina (state=done).
+  // Legacy artifact detection (Fase 1.2 — image/voice/content/etc).
   var artifact = _detectArtifactFromUser(userContent);
   var artifactReply = artifact ? _replyForArtifact(artifact) : null;
 
   setTimeout(function() {
     if (!_alive()) return;
-    // Step 2: streaming — texto aparece char-by-char
     var fullText = artifactReply || _mockAssistantReply(userContent);
     var i = 0;
     store.updateMessage(convId, msgId, { state: 'streaming', content: '' });
     var streamId = setInterval(function() {
       if (!_alive()) { clearInterval(streamId); return; }
-      // Avance variable según puntuación para sentirse natural
       var step = /[.!?\n]/.test(fullText[i]) ? 5 : 3;
       i = Math.min(fullText.length, i + step);
       store.updateMessage(convId, msgId, { content: fullText.slice(0, i) });
       if (i >= fullText.length) {
         clearInterval(streamId);
-        // Attach artifact al state=done (Fase 1.2)
         var patch = { state: 'done' };
         if (artifact) patch.artifacts = [artifact];
         store.updateMessage(convId, msgId, patch);
@@ -551,6 +586,8 @@ function IAHeader(props) {
           badge={conversationCount > 0 ? conversationCount : null}>
           <IcList size={16} stroke="currentColor" strokeWidth={1.7}/>
         </IAIconButton>
+        {/* RFC-001 Addendum A · A5 — Cost meter chip (sutil, junto a History) */}
+        {window.CoachCostMeter && <window.CoachCostMeter/>}
         <div style={{ flex: 1 }}/>
         {/* Fase 2.4: Tasks icon — actividad del coach (active/pending/scheduled/history).
             Componente window.IATasksIcon vive en screens/ia-tasks.jsx con su propio
@@ -961,6 +998,11 @@ function IAMessageBubble(props) {
               Algo se interrumpió. Vuelve a intentar.
             </div>
           )}
+
+          {/* RFC-001 Addendum A · A8 — Feedback inline (👍/👎) en mensajes done */}
+          {state === 'done' && window.CoachMessageFeedback && msg.role === 'assistant' && props.convId && (
+            <window.CoachMessageFeedback msg={msg} convId={props.convId}/>
+          )}
         </div>
         )}
 
@@ -1097,6 +1139,7 @@ function IATypingDots() {
 // ── IAMessages — lista de mensajes de la conversación actual ────────────────
 function IAMessages(props) {
   var messages = props.messages || [];
+  var convId = props.convId;
   var rootRef = React.useRef(null);
 
   // Auto-scroll al fondo. CRÍTICO: scrollear MANUALMENTE el contenedor con
@@ -1127,7 +1170,7 @@ function IAMessages(props) {
     // del chat (antes con paddingTop:4 se sentía apretado al título).
     <div ref={rootRef} style={{ paddingTop: 18, paddingBottom: 8 }}>
       {messages.map(function(msg) {
-        return <IAMessageBubble key={msg.id} msg={msg}/>;
+        return <IAMessageBubble key={msg.id} msg={msg} convId={convId}/>;
       })}
     </div>
   );
@@ -1328,9 +1371,15 @@ function IAHistorySheet(props) {
   var currentId = props.currentId != null ? props.currentId : nav.currentId;
   var onSelect = props.onSelect;
 
+  // RFC-001 Addendum A · A7 — search input local
+  var queryState = React.useState('');
+  var query = queryState[0];
+  var setQuery = queryState[1];
+
   // ESC para cerrar (consistencia con resto de modales)
   React.useEffect(function() {
     if (!open) return;
+    if (open) setQuery('');  // reset search al abrir
     var onKey = function(e) {
       if (e.key !== 'Escape') return;
       var t = e.target;
@@ -1344,11 +1393,16 @@ function IAHistorySheet(props) {
 
   if (!open) return null;
 
+  // Filtrar por query si helpers están disponibles
+  var filteredConvs = (typeof window !== 'undefined' && window.__mtxCoachExtras && window.__mtxCoachExtras.searchConversations)
+    ? window.__mtxCoachExtras.searchConversations(conversations, query)
+    : conversations;
+
   // Agrupar por fecha relativa al day-start de hoy
   var now = new Date();
   var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   var yesterdayStart = todayStart - 86400000;
-  var sortedConvs = conversations.slice().sort(function(a, b) { return b.updatedAt - a.updatedAt; });
+  var sortedConvs = filteredConvs.slice().sort(function(a, b) { return b.updatedAt - a.updatedAt; });
   var groups = { hoy: [], ayer: [], anteriores: [] };
   sortedConvs.forEach(function(c) {
     if (c.updatedAt >= todayStart) groups.hoy.push(c);
@@ -1418,11 +1472,76 @@ function IAHistorySheet(props) {
           }}>Historial</h2>
         </div>
 
+        {/* RFC-001 Addendum A · A7 — Search input */}
+        {conversations.length > 2 && (
+          <div style={{ padding: '0 20px 12px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="rgba(255,255,255,0.45)" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ flexShrink: 0 }} aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                value={query}
+                onChange={function(e) { setQuery(e.target.value); }}
+                placeholder="Buscar en tus conversaciones"
+                aria-label="Buscar en historial"
+                style={{
+                  appearance: 'none',
+                  flex: 1, minWidth: 0,
+                  background: 'transparent', border: 0, outline: 0,
+                  color: 'var(--ink-1)',
+                  fontSize: 13,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  padding: 0,
+                }}/>
+              {query && (
+                <button type="button"
+                  onClick={function() { setQuery(''); }}
+                  aria-label="Limpiar búsqueda"
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    padding: 4, borderRadius: 4,
+                    background: 'transparent', border: 0,
+                    color: 'rgba(255,255,255,0.45)',
+                    flexShrink: 0,
+                  }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.2"
+                    strokeLinecap="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
         {conversations.length === 0 && (
           <div style={{ padding: '36px 20px 12px', textAlign: 'center' }}>
             <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5, maxWidth: 260, margin: '0 auto' }}>
               Aún no tienes conversaciones. Tu primer mensaje aparecerá aquí.
+            </div>
+          </div>
+        )}
+
+        {/* No results de search */}
+        {conversations.length > 0 && filteredConvs.length === 0 && query && (
+          <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+              Sin resultados para "{query}".
             </div>
           </div>
         )}
@@ -2414,6 +2533,21 @@ function IAScreen(props) {
     }, 100);
   };
 
+  // ── RFC-001 Addendum A — hooks ANTES del early return (HOOKS FIRST) ─────
+  // A4 — Tutorial overlay (primera vez)
+  var tutorialState = React.useState(function() {
+    return !!(typeof window !== 'undefined' && window.CoachOnboardingTutorial
+      && window.CoachOnboardingTutorial.shouldShow
+      && window.CoachOnboardingTutorial.shouldShow());
+  });
+  var showTutorial = tutorialState[0];
+  var setShowTutorial = tutorialState[1];
+
+  // A6 — Share sheet state
+  var shareSheetState = React.useState(false);
+  var shareOpen = shareSheetState[0];
+  var setShareOpen = shareSheetState[1];
+
   // ── Render ───────────────────────────────────────────────────────────────
   // FREE GATE (Fase 1.4): si user no es premium, reemplazamos TODA la tab IA
   // por la pantalla locked. Reactivo a mtx:onboarding-changed — cuando user
@@ -2471,6 +2605,7 @@ function IAScreen(props) {
         onAgenda={handleAgenda}
         onOpenHistory={function() { setHistoryOpen(true); }}
         onTasks={function() { setTasksOpen(true); }}
+        onShare={current ? function() { setShareOpen(true); } : undefined}
       />
 
       <div style={{
@@ -2480,7 +2615,7 @@ function IAScreen(props) {
         {(!current || current.messages.length === 0) ? (
           <IAEmptyChatHint/>
         ) : (
-          <IAMessages messages={current.messages}/>
+          <IAMessages messages={current.messages} convId={current.id}/>
         )}
       </div>
 
@@ -2505,6 +2640,20 @@ function IAScreen(props) {
       {/* Fase 2.4: TasksSheet también desde chat view */}
       {tasksOpen && window.TasksSheet && (
         <window.TasksSheet onClose={function() { setTasksOpen(false); }}/>
+      )}
+
+      {/* RFC-001 Addendum A · A4 — Onboarding tutorial primera vez */}
+      {showTutorial && window.CoachOnboardingTutorial && (
+        <window.CoachOnboardingTutorial onClose={function() { setShowTutorial(false); }}/>
+      )}
+
+      {/* RFC-001 Addendum A · A6 — Share sheet (montado a portal en window) */}
+      {window.CoachShareSheet && current && (
+        <window.CoachShareSheet
+          open={shareOpen}
+          conversation={current}
+          onClose={function() { setShareOpen(false); }}
+        />
       )}
 
       {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
@@ -2597,6 +2746,21 @@ function IAChatHeader(props) {
 
         {/* Fase 2.4: Tasks icon también disponible en chat header */}
         {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
+
+        {/* RFC-001 Addendum A · A6 — Share conversation */}
+        {props.onShare && (
+          <IAIconButton aria-label="Compartir conversación" onClick={props.onShare}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="1.7"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </IAIconButton>
+        )}
 
         <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
           <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>

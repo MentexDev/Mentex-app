@@ -2934,6 +2934,1102 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ╔═════════════════════════════════════════════════════════════════════════╗
+  // ║  RFC-001 ADDENDUM A · SPRINT A.5 — 7 ARTIFACTS ESPECIALIZADOS           ║
+  // ║  source_list · article_summary · thinking_panel                          ║
+  // ║  integration_action_card · browse_progress_card                          ║
+  // ║  voice_call_overlay · screen_share_preview                               ║
+  // ║                                                                          ║
+  // ║  Estos artifacts cubren los flows de Fase C/D del RFC. UI completa      ║
+  // ║  mockeada — cuando llegue backend, solo cambia el origen del data.       ║
+  // ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.1 IAArtifactSourceList — resultados web_search (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'source_list',
+  //     query?: 'cómo dormir mejor',
+  //     sources: [{
+  //       title: '...',
+  //       snippet: '...',
+  //       url: 'https://...',
+  //       domain?: 'hubermanlab.com',
+  //       favicon?: '🔬' | emoji,
+  //       accent?: '#3dffd1',
+  //       relevance?: 0.92
+  //     }]
+  //   }
+  function IAArtifactSourceList(props) {
+    var art = props.artifact || {};
+    var query = art.query;
+    var sources = Array.isArray(art.sources) ? art.sources : [];
+    if (sources.length === 0) return null;
+
+    function handleOpen(source) {
+      _emitArtifactAction('source_list', 'open_source', art, { source: source });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+        overflow: 'hidden',
+      }}>
+        {query && (
+          <div style={{
+            padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 8,
+            borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+            background: 'rgba(61,255,209,0.02)',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="var(--neon)" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span style={{
+              fontSize: 11, fontWeight: 600,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              flex: 1, minWidth: 0,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              fontStyle: 'italic',
+            }}>"{query}"</span>
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.05em',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{sources.length}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {sources.map(function(s, i) {
+            var accent = s.accent || 'var(--neon)';
+            return (
+              <button key={i}
+                type="button"
+                onClick={function() { handleOpen(s); }}
+                onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(s); } }}
+                className="mtx-tap"
+                aria-label={'Abrir: ' + s.title}
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '11px 14px',
+                  background: 'transparent', border: 0,
+                  borderTop: i > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                  color: 'inherit', textAlign: 'left',
+                  transition: 'background .15s',
+                }}
+                onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
+                onMouseLeave={function(e) { e.currentTarget.style.background = 'transparent'; }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 6,
+                  flexShrink: 0,
+                  background: accent + '15',
+                  border: '0.5px solid ' + accent + '30',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13,
+                  marginTop: 1,
+                }} aria-hidden="true">{s.favicon || '🌐'}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600,
+                    color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    lineHeight: 1.35,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{s.title}</div>
+                  {s.snippet && (
+                    <div style={{
+                      marginTop: 3,
+                      fontSize: 11.5, lineHeight: 1.45,
+                      color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 2,
+                      overflow: 'hidden',
+                    }}>{s.snippet}</div>
+                  )}
+                  {s.domain && (
+                    <div style={{
+                      marginTop: 4,
+                      fontSize: 10.5,
+                      color: accent,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '0.005em',
+                      fontWeight: 600,
+                    }}>{s.domain}</div>
+                  )}
+                </div>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                  stroke="rgba(255,255,255,0.35)" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round"
+                  style={{ flexShrink: 0, marginTop: 4 }} aria-hidden="true">
+                  <line x1="7" y1="17" x2="17" y2="7"/>
+                  <polyline points="7 7 17 7 17 17"/>
+                </svg>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.2 IAArtifactArticleSummary — resumen de artículo web_fetch (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'article_summary',
+  //     title: '...',
+  //     author?: 'Andrew Huberman',
+  //     readingTime?: '12 min',
+  //     publishedAt?: 'Mar 2026',
+  //     highlights: ['...', '...'],
+  //     originalUrl: 'https://...',
+  //     domain?: 'hubermanlab.com',
+  //     accent?: '#3dffd1'
+  //   }
+  function IAArtifactArticleSummary(props) {
+    var art = props.artifact || {};
+    var title = art.title || 'Artículo';
+    var author = art.author;
+    var readingTime = art.readingTime;
+    var publishedAt = art.publishedAt;
+    var highlights = Array.isArray(art.highlights) ? art.highlights : [];
+    var url = art.originalUrl;
+    var domain = art.domain;
+    var accent = art.accent || '#9b8aff';
+
+    function handleOpen() {
+      _emitArtifactAction('article_summary', 'open_original', art, { url: url });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Meta row */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          marginBottom: 10,
+          fontSize: 10.5,
+          color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '0.02em',
+          flexWrap: 'wrap',
+        }}>
+          <span style={{
+            padding: '2px 8px', borderRadius: 999,
+            background: accent + '12',
+            border: '0.5px solid ' + accent + '28',
+            color: accent,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontSize: 9.5,
+          }}>Artículo</span>
+          {readingTime && <span>📖 {readingTime}</span>}
+          {publishedAt && <span style={{ opacity: 0.6 }}>· {publishedAt}</span>}
+          {domain && (
+            <span style={{
+              marginLeft: 'auto',
+              fontWeight: 600,
+              color: 'var(--ink-2)',
+            }}>{domain}</span>
+          )}
+        </div>
+        {/* Title */}
+        <div style={{
+          fontSize: 15, fontWeight: 700,
+          color: 'var(--ink-1)',
+          fontFamily: 'Georgia, "New York", serif',
+          letterSpacing: '-0.01em',
+          lineHeight: 1.3,
+          marginBottom: 4,
+        }}>{title}</div>
+        {/* Author */}
+        {author && (
+          <div style={{
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 14,
+            fontStyle: 'italic',
+          }}>por {author}</div>
+        )}
+        {/* Highlights */}
+        {highlights.length > 0 && (
+          <div style={{
+            paddingTop: author ? 0 : 10,
+            borderTop: '0.5px solid rgba(255,255,255,0.05)',
+          }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700,
+              color: accent,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 10,
+              paddingTop: 10,
+            }}>Lo más relevante</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {highlights.map(function(h, i) {
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 9,
+                    fontSize: 12.5, lineHeight: 1.55,
+                    color: 'var(--ink-2)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                  }}>
+                    <span style={{
+                      color: accent,
+                      flexShrink: 0, paddingTop: 1,
+                      fontSize: 11,
+                    }} aria-hidden="true">▸</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{h}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* Open original */}
+        {url && (
+          <button type="button"
+            onClick={handleOpen}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              marginTop: 14, width: '100%',
+              padding: '8px 14px', borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.10)',
+              color: 'var(--ink-2)',
+              fontSize: 11.5, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}>
+            Leer el artículo completo
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="7" y1="17" x2="17" y2="7"/>
+              <polyline points="7 7 17 7 17 17"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.3 IAArtifactThinkingPanel — razonamiento expandido (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Diferente al step "Pensando profundamente" en timeline — éste muestra el
+  // RAZONAMIENTO DETALLADO en un panel colapsable después del bubble del coach.
+  //
+  // Shape:
+  //   {
+  //     kind: 'thinking_panel',
+  //     summary?: 'Tomé en cuenta tu sueño, tu agenda y tu historial',
+  //     reasoning: 'Punto 1: ...\n\nPunto 2: ...',
+  //     durationMs?: 8500,
+  //     depth?: 'shallow' | 'medium' | 'deep'
+  //   }
+  function IAArtifactThinkingPanel(props) {
+    var art = props.artifact || {};
+    var summary = art.summary;
+    var reasoning = art.reasoning || '';
+    var durationMs = art.durationMs;
+    var depth = art.depth || 'medium';
+
+    var expandedState = React.useState(false);
+    var expanded = expandedState[0];
+    var setExpanded = expandedState[1];
+
+    var depthColor = depth === 'deep' ? '#ffc850' : depth === 'shallow' ? '#9b8aff' : '#3dffd1';
+    var depthLabel = depth === 'deep' ? 'Profundo' : depth === 'shallow' ? 'Rápido' : 'Reflexivo';
+
+    return (
+      <div style={{
+        borderRadius: 12,
+        background: 'rgba(255,255,255,0.02)',
+        border: '0.5px dashed rgba(255,255,255,0.12)',
+        animation: 'mtx-fade-up .35s ease both',
+        overflow: 'hidden',
+      }}>
+        <button type="button"
+          onClick={function() { setExpanded(function(v) { return !v; }); }}
+          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(function(v) { return !v; }); } }}
+          className="mtx-tap"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Ocultar mi razonamiento' : 'Ver mi razonamiento'}
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            width: '100%',
+            padding: '11px 14px',
+            background: 'transparent', border: 0,
+            color: 'inherit', textAlign: 'left',
+            display: 'flex', alignItems: 'center', gap: 9,
+          }}>
+          {/* Brain icon */}
+          <div style={{
+            width: 20, height: 20, borderRadius: '50%',
+            background: depthColor + '15',
+            border: '0.5px solid ' + depthColor + '30',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }} aria-hidden="true">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+              stroke={depthColor} strokeWidth="1.7"
+              strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h5a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 14.5 2z"/>
+              <line x1="7" y1="9" x2="17" y2="9"/>
+              <line x1="7" y1="14" x2="17" y2="14"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 600,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>{summary || 'Cómo lo pensé'}</div>
+            <div style={{
+              marginTop: 2,
+              display: 'flex', gap: 8, alignItems: 'center',
+              fontSize: 10,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+            }}>
+              <span style={{
+                color: depthColor, fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                fontSize: 9.5,
+              }}>{depthLabel}</span>
+              {durationMs && (
+                <>
+                  <span style={{ opacity: 0.5 }}>·</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(durationMs / 1000).toFixed(1)}s</span>
+                </>
+              )}
+            </div>
+          </div>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(255,255,255,0.40)" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+              transition: 'transform .2s',
+              flexShrink: 0,
+            }} aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        {expanded && (
+          <div style={{
+            padding: '12px 14px 14px',
+            borderTop: '0.5px solid rgba(255,255,255,0.05)',
+            fontSize: 12.5, lineHeight: 1.6,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            whiteSpace: 'pre-wrap',
+            animation: 'mtx-fade-up .2s ease both',
+          }}>{reasoning}</div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.4 IAArtifactIntegrationActionCard — acción sobre integración (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'integration_action_card',
+  //     provider: 'notion' | 'spotify' | 'google_cal' | 'apple_cal' | 'slack' | 'linear',
+  //     action: 'Creé nota en tu workspace' | 'Agregué a tu playlist Focus',
+  //     status: 'pending' | 'success' | 'failed',
+  //     preview?: {
+  //       title?: 'Hábitos atómicos — apuntes',
+  //       subtext?: 'En Mentex / Mis libros'
+  //     },
+  //     primaryAction?: { label: 'Abrir en Notion', value: 'open_external' }
+  //   }
+  var _PROVIDER_META = {
+    notion: { name: 'Notion', emoji: '📝', accent: '#ffffff' },
+    spotify: { name: 'Spotify', emoji: '🎵', accent: '#1db954' },
+    google_cal: { name: 'Google Calendar', emoji: '📅', accent: '#4285f4' },
+    apple_cal: { name: 'Apple Calendar', emoji: '📅', accent: '#ff3b30' },
+    slack: { name: 'Slack', emoji: '💬', accent: '#4a154b' },
+    linear: { name: 'Linear', emoji: '📋', accent: '#5e6ad2' },
+    todoist: { name: 'Todoist', emoji: '✓', accent: '#e44332' },
+    apple_health: { name: 'Apple Health', emoji: '❤️', accent: '#fc3158' },
+  };
+
+  function IAArtifactIntegrationActionCard(props) {
+    var art = props.artifact || {};
+    var provider = art.provider || 'notion';
+    var meta = _PROVIDER_META[provider] || { name: provider, emoji: '🔌', accent: 'var(--neon)' };
+    var action = art.action || 'Conectando con ' + meta.name;
+    var status = art.status || 'success';
+    var preview = art.preview;
+    var primaryAction = art.primaryAction;
+
+    function handleOpen() {
+      if (primaryAction) {
+        _emitArtifactAction('integration_action_card', primaryAction.value, art);
+      }
+    }
+
+    var statusColor = status === 'success' ? '#3dffd1'
+                    : status === 'failed' ? '#ff8b8b'
+                    : '#ffc850';
+    var statusLabel = status === 'success' ? '✓ Hecho'
+                    : status === 'failed' ? '✗ No pude'
+                    : '⋯ En curso';
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '12px 14px',
+          display: 'flex', alignItems: 'center', gap: 11,
+          borderBottom: preview || primaryAction ? '0.5px solid rgba(255,255,255,0.05)' : 'none',
+        }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            flexShrink: 0,
+            background: meta.accent + '15',
+            border: '0.5px solid ' + meta.accent + '35',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14,
+          }} aria-hidden="true">{meta.emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700,
+              color: 'var(--ink-3)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 2,
+            }}>{meta.name}</div>
+            <div style={{
+              fontSize: 13, fontWeight: 600,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.35,
+            }}>{action}</div>
+          </div>
+          <div style={{
+            padding: '3px 8px', borderRadius: 999,
+            background: statusColor + '15',
+            border: '0.5px solid ' + statusColor + '30',
+            fontSize: 10, fontWeight: 700,
+            color: statusColor,
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '0.02em',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}>{statusLabel}</div>
+        </div>
+        {/* Preview */}
+        {preview && (
+          <div style={{
+            padding: '10px 14px',
+            background: 'rgba(255,255,255,0.015)',
+          }}>
+            {preview.title && (
+              <div style={{
+                fontSize: 12.5, fontWeight: 600,
+                color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{preview.title}</div>
+            )}
+            {preview.subtext && (
+              <div style={{
+                marginTop: 2,
+                fontSize: 11,
+                color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{preview.subtext}</div>
+            )}
+          </div>
+        )}
+        {/* Action */}
+        {primaryAction && status === 'success' && (
+          <button type="button"
+            onClick={handleOpen}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: '100%', padding: '9px 14px',
+              borderTop: '0.5px solid rgba(255,255,255,0.05)',
+              background: 'rgba(255,255,255,0.02)',
+              border: 0,
+              color: meta.accent === '#ffffff' ? 'var(--ink-1)' : meta.accent,
+              fontSize: 11.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.005em',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            }}>
+            {primaryAction.label}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="7" y1="17" x2="17" y2="7"/>
+              <polyline points="7 7 17 7 17 17"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.5 IAArtifactBrowseProgressCard — el coach navegando por ti (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EL ARTIFACT MÁS RICO. Muestra al coach navegando un sitio web en tu nombre.
+  // Cada step puede tener un mini screenshot mock (gradient placeholder).
+  //
+  // Shape:
+  //   {
+  //     kind: 'browse_progress_card',
+  //     site?: 'casadelyoga.co',
+  //     intent: 'Reservar Yoga Flow del sábado',
+  //     steps: [
+  //       { label: 'Abrí el sitio', status: 'done' | 'active' | 'pending' | 'failed' },
+  //       { label: 'Encontré la clase', status: 'done', detail?: 'Yoga Flow 9am' },
+  //     ],
+  //     result?: {
+  //       title: '✓ Reservada',
+  //       confirmation: '#YF-20260530',
+  //       extras?: ['Te recordaré a las 8:35', 'Pago $15 procesado']
+  //     }
+  //   }
+  function IAArtifactBrowseProgressCard(props) {
+    var art = props.artifact || {};
+    var site = art.site;
+    var intent = art.intent;
+    var steps = Array.isArray(art.steps) ? art.steps : [];
+    var result = art.result;
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+        overflow: 'hidden',
+      }}>
+        {/* Browser-style header */}
+        <div style={{
+          padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+          background: 'rgba(0,0,0,0.20)',
+        }}>
+          {/* Traffic lights mock */}
+          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,95,86,0.55)' }}/>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(255,189,46,0.55)' }}/>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'rgba(39,201,63,0.55)' }}/>
+          </div>
+          <div style={{
+            flex: 1, minWidth: 0,
+            padding: '4px 10px', borderRadius: 6,
+            background: 'rgba(255,255,255,0.06)',
+            fontSize: 10.5,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+            letterSpacing: '0.01em',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            <span style={{ color: 'var(--neon)' }}>🔒</span> {site || 'navegando…'}
+          </div>
+          <span style={{
+            fontSize: 9, fontWeight: 700,
+            color: 'var(--neon)',
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+            flexShrink: 0,
+          }}>EN VIVO</span>
+        </div>
+
+        {/* Intent + steps */}
+        <div style={{ padding: '12px 14px' }}>
+          {intent && (
+            <div style={{
+              fontSize: 12, fontWeight: 600,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              marginBottom: 12,
+              fontStyle: 'italic',
+            }}>"{intent}"</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {steps.map(function(step, i) {
+              var status = step.status || 'pending';
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '3px 0',
+                }}>
+                  {/* Status dot */}
+                  <div style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    flexShrink: 0, marginTop: 3,
+                    background: status === 'done' ? 'rgba(255,255,255,0.10)'
+                             : status === 'active' ? 'var(--neon)'
+                             : status === 'failed' ? 'rgba(255,139,139,0.15)'
+                             : 'transparent',
+                    border: '0.5px solid ' + (
+                      status === 'done' ? 'rgba(255,255,255,0.20)'
+                    : status === 'active' ? 'rgba(61,255,209,0.7)'
+                    : status === 'failed' ? 'rgba(255,139,139,0.55)'
+                    : 'rgba(255,255,255,0.20)'),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: status === 'active' ? 'mtx-coach-step-pulse 1.2s ease-in-out infinite' : 'none',
+                    boxShadow: status === 'active' ? '0 0 6px rgba(61,255,209,0.5)' : 'none',
+                  }}>
+                    {status === 'done' && (
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none"
+                        stroke="rgba(255,255,255,0.85)" strokeWidth="3.5"
+                        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                    {status === 'failed' && (
+                      <svg width="6" height="6" viewBox="0 0 24 24" fill="none"
+                        stroke="rgba(255,139,139,0.85)" strokeWidth="3"
+                        strokeLinecap="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 12.5, lineHeight: 1.4,
+                      color: status === 'done' ? 'var(--ink-2)'
+                          : status === 'active' ? 'var(--ink-1)'
+                          : status === 'failed' ? '#ff8b8b'
+                          : 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      fontWeight: status === 'active' ? 600 : 500,
+                    }}>{step.label}</div>
+                    {step.detail && (
+                      <div style={{
+                        marginTop: 2,
+                        fontSize: 11, lineHeight: 1.4,
+                        color: 'var(--ink-3)',
+                        fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+                        letterSpacing: '0.01em',
+                        opacity: 0.85,
+                      }}>{step.detail}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Result */}
+        {result && (
+          <div style={{
+            padding: '12px 14px',
+            background: 'rgba(61,255,209,0.05)',
+            borderTop: '0.5px solid rgba(61,255,209,0.18)',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontSize: 12.5, fontWeight: 700,
+              color: 'var(--neon)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              marginBottom: result.extras && result.extras.length > 0 ? 7 : 0,
+            }}>
+              <span>{result.title}</span>
+              {result.confirmation && (
+                <span style={{
+                  fontSize: 10,
+                  color: 'var(--ink-3)',
+                  fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+                  fontWeight: 600,
+                }}>{result.confirmation}</span>
+              )}
+            </div>
+            {Array.isArray(result.extras) && result.extras.map(function(ex, i) {
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 7,
+                  fontSize: 11.5, lineHeight: 1.45,
+                  color: 'var(--ink-2)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  paddingTop: i > 0 ? 3 : 0,
+                }}>
+                  <span style={{ color: 'var(--neon)', flexShrink: 0, opacity: 0.7 }}>·</span>
+                  <span>{ex}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.6 IAArtifactVoiceCallOverlay — preview de call (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Versión INLINE (no fullscreen) — preview compacto que indica que hay un
+  // call activo. El overlay fullscreen real se construye en Sprint A.6 / B7.
+  //
+  // Shape:
+  //   {
+  //     kind: 'voice_call_overlay',
+  //     state: 'connecting' | 'active' | 'ended',
+  //     durationSec?: 0,
+  //     transcript?: 'Última frase del coach',
+  //     muted?: false
+  //   }
+  function IAArtifactVoiceCallOverlay(props) {
+    var art = props.artifact || {};
+    var state = art.state || 'active';
+    var durationSec = art.durationSec || 0;
+    var transcript = art.transcript;
+    var muted = !!art.muted;
+
+    // Mock waveform - 24 barras animadas
+    var BARS = 24;
+    var barsArr = [];
+    for (var i = 0; i < BARS; i++) {
+      barsArr.push({ id: i, h: 0.3 + 0.7 * Math.abs(Math.sin(i * 0.7) + Math.cos(i * 0.4) * 0.5) });
+    }
+
+    function fmtSec(s) {
+      var m = Math.floor(s / 60);
+      var ss = s % 60;
+      return m + ':' + (ss < 10 ? '0' + ss : ss);
+    }
+
+    function handleAction(value) {
+      _emitArtifactAction('voice_call_overlay', value, art);
+    }
+
+    var stateLabel = state === 'connecting' ? 'Conectando…'
+                  : state === 'active' ? 'En llamada'
+                  : 'Llamada terminada';
+
+    return (
+      <div style={{
+        borderRadius: 16,
+        background: 'linear-gradient(135deg, rgba(61,255,209,0.12) 0%, rgba(155,138,255,0.08) 100%)',
+        border: '0.5px solid rgba(61,255,209,0.25)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          marginBottom: 10,
+        }}>
+          <div style={{
+            width: 10, height: 10, borderRadius: '50%',
+            background: state === 'active' ? 'var(--neon)' : state === 'connecting' ? '#ffc850' : 'var(--ink-3)',
+            boxShadow: state === 'active' ? '0 0 10px var(--neon)' : 'none',
+            animation: state === 'connecting' ? 'mtx-coach-step-pulse 1.2s infinite' : 'none',
+          }}/>
+          <span style={{
+            fontSize: 11, fontWeight: 700,
+            color: state === 'ended' ? 'var(--ink-3)' : 'var(--neon)',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+          }}>{stateLabel}</span>
+          {state === 'active' && (
+            <span style={{
+              marginLeft: 'auto',
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-mono, ui-monospace, monospace)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{fmtSec(durationSec)}</span>
+          )}
+        </div>
+        {/* Waveform */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 2,
+          height: 38, marginBottom: 12,
+        }} aria-label="Forma de onda de voz">
+          {barsArr.map(function(bar) {
+            return (
+              <div key={bar.id} style={{
+                flex: 1,
+                height: (bar.h * 100) + '%',
+                minHeight: 4,
+                borderRadius: 2,
+                background: state === 'active' ? 'var(--neon)' : 'rgba(255,255,255,0.20)',
+                boxShadow: state === 'active' ? '0 0 4px rgba(61,255,209,0.5)' : 'none',
+                animation: state === 'active' ? 'mtx-coach-step-pulse 0.8s ease-in-out infinite' : 'none',
+                animationDelay: (bar.id * 0.04) + 's',
+              }}/>
+            );
+          })}
+        </div>
+        {transcript && state === 'active' && (
+          <div style={{
+            padding: '8px 10px',
+            background: 'rgba(0,0,0,0.20)',
+            borderRadius: 8,
+            fontSize: 11.5, lineHeight: 1.45,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            fontStyle: 'italic',
+            marginBottom: 12,
+          }}>"…{transcript}"</div>
+        )}
+        {state === 'active' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button"
+              onClick={function() { handleAction(muted ? 'unmute' : 'mute'); }}
+              className="mtx-tap"
+              aria-label={muted ? 'Quitar silencio' : 'Silenciar micrófono'}
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '8px 10px', borderRadius: 999,
+                background: muted ? 'rgba(255,139,139,0.10)' : 'rgba(255,255,255,0.04)',
+                border: '0.5px solid ' + (muted ? 'rgba(255,139,139,0.30)' : 'rgba(255,255,255,0.10)'),
+                color: muted ? '#ff8b8b' : 'var(--ink-2)',
+                fontSize: 11.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+              }}>{muted ? 'Silenciado' : '🎤 Mute'}</button>
+            <button type="button"
+              onClick={function() { handleAction('transfer_to_text'); }}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '8px 10px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.10)',
+                color: 'var(--ink-2)',
+                fontSize: 11.5, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+              }}>Pasar a texto</button>
+            <button type="button"
+              onClick={function() { handleAction('hangup'); }}
+              className="mtx-tap"
+              aria-label="Colgar"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                flex: 1, padding: '8px 10px', borderRadius: 999,
+                background: 'rgba(255,95,86,0.85)',
+                border: 0,
+                color: '#fff',
+                fontSize: 11.5, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+              }}>Colgar</button>
+          </div>
+        )}
+        {state === 'ended' && (
+          <div style={{
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.20)',
+            borderRadius: 8,
+            fontSize: 11.5,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            textAlign: 'center',
+          }}>Duración: {fmtSec(durationSec)} · Hablamos cuando quieras de nuevo.</div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A.5.7 IAArtifactScreenSharePreview — el coach mirando tu pantalla (RFC §A1)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'screen_share_preview',
+  //     state: 'sharing' | 'ended',
+  //     previewGradient?: 'linear-gradient(...)',
+  //     region?: 'Pantalla completa' | 'Solo Chrome',
+  //     coachNote?: 'Estoy viendo el documento de mi parte.'
+  //   }
+  function IAArtifactScreenSharePreview(props) {
+    var art = props.artifact || {};
+    var state = art.state || 'sharing';
+    var previewGradient = art.previewGradient
+      || 'linear-gradient(135deg, rgba(155,138,255,0.20), rgba(61,255,209,0.10), rgba(255,200,80,0.10))';
+    var region = art.region || 'Pantalla completa';
+    var coachNote = art.coachNote;
+
+    function handleEnd() {
+      _emitArtifactAction('screen_share_preview', 'end_share', art);
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Preview area */}
+        <div style={{
+          aspectRatio: '16 / 9',
+          background: previewGradient,
+          position: 'relative',
+          borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+        }} role="img" aria-label="Pantalla compartida">
+          {/* Mock window chrome inside the preview */}
+          <div style={{
+            position: 'absolute', top: 10, left: 10, right: 10,
+            height: 18, borderRadius: 5,
+            background: 'rgba(0,0,0,0.30)',
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '0 8px',
+            backdropFilter: 'blur(4px)',
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,95,86,0.6)' }}/>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,189,46,0.6)' }}/>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(39,201,63,0.6)' }}/>
+          </div>
+          {/* Subtle grid */}
+          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.06 }} aria-hidden="true">
+            <defs>
+              <pattern id="ss-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="white" strokeWidth="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#ss-grid)"/>
+          </svg>
+          {/* Live indicator */}
+          <div style={{
+            position: 'absolute', top: 36, left: 10,
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '3px 8px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(8px)',
+          }}>
+            {state === 'sharing' && (
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#ff5f56',
+                boxShadow: '0 0 6px rgba(255,95,86,0.7)',
+                animation: 'mtx-coach-step-pulse 1.2s infinite',
+              }}/>
+            )}
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              color: 'rgba(255,255,255,0.9)',
+              letterSpacing: '0.08em',
+              fontFamily: 'var(--ff-sans)',
+              textTransform: 'uppercase',
+            }}>{state === 'sharing' ? 'En vivo · ' + region : 'Finalizado'}</span>
+          </div>
+          {/* Coach eye icon */}
+          <div style={{
+            position: 'absolute', bottom: 10, right: 10,
+            padding: '4px 10px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(8px)',
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="var(--neon)" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span style={{
+              fontSize: 9.5, fontWeight: 700,
+              color: 'var(--neon)',
+              letterSpacing: '0.04em',
+              fontFamily: 'var(--ff-sans)',
+            }}>Coach mirando</span>
+          </div>
+        </div>
+        {/* Coach note + end action */}
+        <div style={{ padding: '10px 14px' }}>
+          {coachNote && (
+            <div style={{
+              fontSize: 12.5, lineHeight: 1.45,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              fontStyle: 'italic',
+            }}>"{coachNote}"</div>
+          )}
+          {state === 'sharing' && (
+            <button type="button"
+              onClick={handleEnd}
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                marginTop: coachNote ? 10 : 0,
+                width: '100%', padding: '8px 14px',
+                borderRadius: 999,
+                background: 'rgba(255,139,139,0.06)',
+                border: '0.5px solid rgba(255,139,139,0.25)',
+                color: '#ff8b8b',
+                fontSize: 11.5, fontWeight: 700,
+                fontFamily: 'var(--ff-sans)',
+              }}>Dejar de compartir</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 26. IAArtifactAudioWaveform — variante simple del legacy 'voice'
   // ═══════════════════════════════════════════════════════════════════════════
   // Reusa el mismo render que IAArtifactVoice pero acepta el kind alternativo
@@ -2980,6 +4076,14 @@
       case 'image_inline':         return <IAArtifactImageInline artifact={art}/>;
       case 'video_inline':         return <IAArtifactVideoInline artifact={art}/>;
       case 'mermaid_diagram':      return <IAArtifactMermaidDiagram artifact={art}/>;
+      // RFC-001 Addendum A · Sprint A.5 (7 artifacts especializados)
+      case 'source_list':              return <IAArtifactSourceList artifact={art}/>;
+      case 'article_summary':          return <IAArtifactArticleSummary artifact={art}/>;
+      case 'thinking_panel':           return <IAArtifactThinkingPanel artifact={art}/>;
+      case 'integration_action_card':  return <IAArtifactIntegrationActionCard artifact={art}/>;
+      case 'browse_progress_card':     return <IAArtifactBrowseProgressCard artifact={art}/>;
+      case 'voice_call_overlay':       return <IAArtifactVoiceCallOverlay artifact={art}/>;
+      case 'screen_share_preview':     return <IAArtifactScreenSharePreview artifact={art}/>;
       default:                     return null;
     }
   }
@@ -3037,5 +4141,13 @@
     IAArtifactImageInline: IAArtifactImageInline,
     IAArtifactVideoInline: IAArtifactVideoInline,
     IAArtifactMermaidDiagram: IAArtifactMermaidDiagram,
+    // Sprint A.5
+    IAArtifactSourceList: IAArtifactSourceList,
+    IAArtifactArticleSummary: IAArtifactArticleSummary,
+    IAArtifactThinkingPanel: IAArtifactThinkingPanel,
+    IAArtifactIntegrationActionCard: IAArtifactIntegrationActionCard,
+    IAArtifactBrowseProgressCard: IAArtifactBrowseProgressCard,
+    IAArtifactVoiceCallOverlay: IAArtifactVoiceCallOverlay,
+    IAArtifactScreenSharePreview: IAArtifactScreenSharePreview,
   });
 })();
