@@ -572,6 +572,276 @@
     })();
 
 
+    // ─── 11. SLEEP INSIGHT — insight_card + stats_compact (RFC §11.3 mejorado) ─
+    (function() {
+      var base = _hoursAgo(46);
+      conversations.push({
+        id: 'conv-mock-sleep-insight',
+        title: 'Cómo dormí esta semana (insight)',
+        createdAt: base, updatedAt: base + 8000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-11-1', '¿Cómo dormí esta semana? Quiero ver el detalle.', base),
+          _assistantMsg('msg-mock-11-2',
+            'Aquí tienes la foto completa. Tu jueves fue el peor — recuerdo que tuviste la presentación. El domingo recuperaste con 8h+.',
+            base + 6500,
+            {
+              steps: [
+                _step('step-1', 'wearable_read', {
+                  startedAt: base + 700, durationMs: 1200,
+                  rawInput: { range: 'last-7-days', metrics: ['sleep', 'hrv', 'quality'] },
+                }),
+                _step('step-2', 'extended_think', {
+                  startedAt: base + 1900, durationMs: 4200,
+                  rawInput: { task: 'Análisis de patrón semanal' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'insight_card',
+                  title: 'Esta semana',
+                  metric: '6h 42min',
+                  metricLabel: 'promedio de sueño',
+                  trend: { direction: 'down', value: '-18 min' },
+                  sparkline: [0.65, 0.52, 0.68, 0.85, 0.42, 0.58, 0.95],
+                  extras: [
+                    { label: 'Mejor noche', value: 'Dom · 8h 15' },
+                    { label: 'Peor noche', value: 'Jue · 4h 30' },
+                    { label: 'Calidad promedio', value: '87%' },
+                  ],
+                  accent: '#9b8aff',
+                },
+                {
+                  kind: 'stats_compact',
+                  stats: [
+                    { value: '7', label: 'noches', accent: '#9b8aff' },
+                    { value: '47h', label: 'total', accent: '#3dffd1' },
+                    { value: '87%', label: 'calidad', accent: '#ffc850' },
+                  ],
+                },
+              ],
+              chips: ['¿Qué pasó el jueves?', 'Cómo mejorar', 'Está bien así'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 12. PROTOCOLO HUBERMAN — step_by_step + comparison_table ───────────
+    (function() {
+      var base = _hoursAgo(60);
+      conversations.push({
+        id: 'conv-mock-huberman-protocol',
+        title: 'Protocolo de sueño Huberman aplicado',
+        createdAt: base, updatedAt: base + 14000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-12-1',
+            'Léeme este artículo de Huberman sobre sueño y dime las 3 cosas que más me sirven, comparándolas.',
+            base),
+          _assistantMsg('msg-mock-12-2',
+            'El artículo cubre 9 protocolos. De esos, 3 te calzan exactamente. Te los doy en orden de impacto + dificultad para ti específicamente.',
+            base + 10000,
+            {
+              steps: [
+                _step('step-1', 'web_fetch', { startedAt: base + 600, durationMs: 2400 }),
+                _step('step-2', 'memory_recall', { startedAt: base + 3000, durationMs: 1400 }),
+                _step('step-3', 'wearable_read', { startedAt: base + 4400, durationMs: 1100 }),
+                _step('step-4', 'extended_think', { startedAt: base + 5500, durationMs: 3800 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'step_by_step',
+                  title: '3 protocolos que te calzan',
+                  steps: [
+                    {
+                      title: 'Luz solar 5-10 min al despertar',
+                      body: 'Por qué a ti: te despiertas con cortinas cerradas. Abrirlas apenas suene el despertador acelera tu ritmo circadiano. Tu HRV en mañanas con luz fue 12% mejor según tu Oura.',
+                      tag: '5-10 min',
+                    },
+                    {
+                      title: 'No comer 2h antes de dormir',
+                      body: 'Por qué a ti: cenas a las 21:00 y duermes a las 22:30. Mover la cena a las 20:00 te puede dar el espacio que tu cuerpo necesita para digerir antes de dormir.',
+                      tag: 'Sin coste',
+                    },
+                    {
+                      title: 'Temperatura del cuarto 18-19°C',
+                      body: 'Por qué a ti: tu casa inteligente la tiene en 22°C según el log. Bajar a 19°C las primeras 3 horas de sueño facilita la fase profunda.',
+                      tag: 'Casa inteligente',
+                    },
+                  ],
+                  primaryAction: { label: 'Aplicar los 3', value: 'apply_all' },
+                  secondaryAction: { label: 'Solo el primero', value: 'apply_first' },
+                },
+                {
+                  kind: 'comparison_table',
+                  title: 'Cuál te conviene empezar primero',
+                  columns: [
+                    { id: 'a', label: 'Luz solar', accent: '#ffc850', highlighted: true },
+                    { id: 'b', label: 'Cena temprano', accent: '#3dffd1' },
+                    { id: 'c', label: 'Cuarto frío', accent: '#9b8aff' },
+                  ],
+                  rows: [
+                    { label: 'Impacto', values: ['Alto', 'Medio', 'Medio-Alto'] },
+                    { label: 'Fricción', values: ['Baja', 'Alta (social)', 'Baja'] },
+                    { label: 'Resultado en días', values: ['3-5 días', '7-10 días', '2-3 días'] },
+                    { label: 'Costo', values: ['$0', '$0', '$0'] },
+                  ],
+                },
+              ],
+              chips: ['Empiezo por luz solar mañana', 'Bajamos el cuarto a 19°C ahora', 'Programar todo en mi ritual'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 13. RETO 21 DÍAS — progress_viz + quote_card + timeline_mini ────────
+    (function() {
+      var base = _hoursAgo(96);
+      conversations.push({
+        id: 'conv-mock-challenge-progress',
+        title: 'Voy 14 de 21 — reto Enfoque Profundo',
+        createdAt: base, updatedAt: base + 12000, pinned: true,
+        messages: [
+          _userMsg('msg-mock-13-1', '¿Cómo voy en el reto de 21 días?', base),
+          _assistantMsg('msg-mock-13-2',
+            'Vas brillante. Llevas 14 días seguidos sin saltarte. Lo más fuerte: ya no necesitas voluntad — se volvió ritmo.',
+            base + 8000,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', { startedAt: base + 600, durationMs: 1100 }),
+                _step('step-2', 'rag_search', { startedAt: base + 1700, durationMs: 1300 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'progress_viz',
+                  title: 'Reto · Enfoque Profundo 21 días',
+                  progress: 0.667,
+                  label: '14 de 21 días',
+                  subtext: '7 días para terminar · racha sin romper',
+                  accent: '#3dffd1',
+                },
+                {
+                  kind: 'timeline_mini',
+                  title: 'Lo más significativo en estos 14 días',
+                  events: [
+                    { label: 'Día 1', text: 'Empezaste con 25 min — sentías que era mucho', accent: '#9b8aff' },
+                    { label: 'Día 5', text: 'Primera sesión de 45 min sin parar', accent: '#3dffd1' },
+                    { label: 'Día 9', text: 'Llegaste a 90 min en flow estado', accent: '#ffc850' },
+                    { label: 'Día 14', text: 'Hoy. Ya no es esfuerzo — es ritmo', accent: '#3dffd1' },
+                  ],
+                },
+                {
+                  kind: 'quote_card',
+                  quote: 'La disciplina es el puente entre las metas y los logros. Pero el ritmo es lo que las hace inevitables.',
+                  author: 'Jim Rohn',
+                  source: 'Reflexión sobre hábitos',
+                  accent: '#9b8aff',
+                },
+              ],
+              chips: ['Ver los 7 días siguientes', 'Reto siguiente al terminar', 'Compartir mi progreso'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 14. PATRONES SEMANA — mermaid_diagram + memory_recall_card ──────────
+    (function() {
+      var base = _hoursAgo(120);
+      conversations.push({
+        id: 'conv-mock-weekly-patterns',
+        title: 'Patrones de mi semana — dibújalos',
+        createdAt: base, updatedAt: base + 18000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-14-1',
+            '¿Cómo se conectan mis hábitos esta semana? Quiero verlo visualmente.',
+            base),
+          _assistantMsg('msg-mock-14-2',
+            'Mira lo que encontré. Tu enfoque profundo alimenta el sueño, el sueño alimenta el ritual matutino y eso vuelve a alimentar el enfoque. Es un loop positivo. Pero hay una fuga: el scroll nocturno corta el sueño y baja la calidad del día siguiente.',
+            base + 13000,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', { startedAt: base + 700, durationMs: 1400 }),
+                _step('step-2', 'wearable_read', { startedAt: base + 2100, durationMs: 1300 }),
+                _step('step-3', 'extended_think', { startedAt: base + 3400, durationMs: 6800 }),
+                _step('step-4', 'document_render', { startedAt: base + 10200, durationMs: 1100 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'mermaid_diagram',
+                  title: 'Tu loop semanal',
+                  code: [
+                    'graph TD',
+                    '    A[Ritual matutino] -->|energía| B[Enfoque profundo]',
+                    '    B -->|cierre| C[Sueño profundo]',
+                    '    C -->|reset| A',
+                    '    D[Scroll nocturno] -.fuga.-> C',
+                    '    style A fill:#3dffd1,stroke:#3dffd1,color:#0a1410',
+                    '    style B fill:#9b8aff,stroke:#9b8aff,color:#0a1410',
+                    '    style C fill:#ffc850,stroke:#ffc850,color:#0a1410',
+                    '    style D fill:#3a1a1a,stroke:#ff8b8b,color:#ff8b8b',
+                  ].join('\n'),
+                  caption: 'El loop positivo (verde→morado→ámbar) se rompe cuando entra el scroll (rojo).',
+                },
+                {
+                  kind: 'memory_recall_card',
+                  title: 'Lo que recuerdo de tu scroll nocturno',
+                  facts: [
+                    { text: 'Sueles abrir Instagram entre 22:30 y 23:15', source: 'Patrón confirmado 5 noches' },
+                    { text: 'Promedias 47 min de scroll cuando empiezas', source: 'Datos del bloqueador' },
+                    { text: 'Tu HRV baja 14% las noches que scrolleas', source: 'Cruce con Oura' },
+                  ],
+                  primaryAction: { label: 'Ver toda mi Memoria', value: 'open_memory' },
+                },
+              ],
+              chips: ['¿Cómo corto la fuga del scroll?', 'Activar bloqueo desde 22:00', 'Es solo a veces'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 15. RUTINA YOGA CERCA — map_mini + recommendation_list ─────────────
+    (function() {
+      var base = _hoursAgo(140);
+      conversations.push({
+        id: 'conv-mock-yoga-options',
+        title: 'Yoga cerca de mí — alternativas',
+        createdAt: base, updatedAt: base + 10000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-15-1', 'Dime 3 opciones de yoga cerca de mi casa para esta semana.', base),
+          _assistantMsg('msg-mock-15-2',
+            'Encontré 3 opciones razonables. La primera ya la conoces (instructora María). Las otras dos son nuevas pero buenas reseñas. Tap el mapa para verlas en detalle.',
+            base + 7500,
+            {
+              steps: [
+                _step('step-1', 'web_search', { startedAt: base + 600, durationMs: 2200 }),
+                _step('step-2', 'memory_recall', { startedAt: base + 2800, durationMs: 900 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'map_mini',
+                  title: '3 lugares en 20 min',
+                  places: [
+                    { name: 'Casa del Yoga', distance: '20 min en bici · 4.8 ⭐' },
+                    { name: 'Yoga Flow Studio', distance: '15 min en bici · 4.6 ⭐' },
+                    { name: 'Vinyasa Centro', distance: '25 min en bici · 4.7 ⭐' },
+                  ],
+                  primaryAction: { label: 'Abrir en Maps', value: 'open_maps' },
+                },
+              ],
+              chips: ['Reserva Casa del Yoga sábado', 'Comparar precios', 'Algo más cerca'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
     return conversations;
   }
 

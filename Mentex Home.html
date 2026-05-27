@@ -26,6 +26,12 @@
 <body>
   <div id="root"></div>
 
+  <!-- mermaid.js — usado por <CoachArtifact kind='mermaid_diagram'/> (RFC-001 §5.2 #5).
+       Carga UNA vez al inicio. mermaid.initialize() lo configura on-first-use
+       en screens/ia-artifacts.jsx con dark theme. Si la red está caída, el
+       artifact muestra fallback gentle "No pude dibujar el diagrama". -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
   <script type="text/babel" src="frames/ios-frame.jsx?v=3"></script>
   <script type="text/babel" src="frames/tweaks-panel.jsx?v=3"></script>
   <script type="text/babel" src="components/mentex-icons.jsx?v=16"></script>
@@ -52,7 +58,7 @@
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-settings.jsx?v=16"></script>
   <script type="text/babel" src="screens/ia-agenda.jsx?v=25"></script>
-  <script type="text/babel" src="screens/ia-artifacts.jsx?v=2"></script>
+  <script type="text/babel" src="screens/ia-artifacts.jsx?v=3"></script>
   <script type="text/babel" src="screens/coach-timeline.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-skills.jsx?v=3"></script>
   <script type="text/babel" src="screens/ia-workflows.jsx?v=2"></script>
@@ -62,8 +68,8 @@
   <script type="text/babel" src="screens/ia-integrations.jsx?v=3"></script>
   <script type="text/babel" src="screens/ia-monetization.jsx?v=3"></script>
   <script type="text/babel" src="screens/ia-flow.jsx?v=38"></script>
-  <script type="text/babel" src="screens/coach-actions-bridge.jsx?v=1"></script>
-  <script type="text/babel" src="screens/coach-mock-conversations.jsx?v=2"></script>
+  <script type="text/babel" src="screens/coach-actions-bridge.jsx?v=2"></script>
+  <script type="text/babel" src="screens/coach-mock-conversations.jsx?v=3"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/ranking-flow.jsx?v=4"></script>
   <script type="text/babel" src="screens/thread-flow.jsx?v=2"></script>

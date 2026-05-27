@@ -264,6 +264,108 @@
   }
 
 
+  // ─── step_by_step — protocolo multi-paso ─────────────────────────────────
+  // value 'apply_all' / 'apply_first' → toast por ahora; Sprint B BFF
+  // conectará a un workflow real que ejecuta los pasos
+  function handleStepByStep(detail) {
+    var value = detail.value;
+    var art = detail.artifact || {};
+    var stepsCount = Array.isArray(art.steps) ? art.steps.length : 0;
+    if (value === 'apply_all') {
+      _toast(
+        stepsCount > 0
+          ? 'Aplicando ' + stepsCount + ' pasos en tu rutina'
+          : 'Pasos aplicados',
+        { kind: 'success' }
+      );
+      return;
+    }
+    if (value === 'apply_first') {
+      _toast('Aplicando el primer paso', { kind: 'success' });
+      return;
+    }
+  }
+
+
+  // ─── error_gentle — retry o dismiss ──────────────────────────────────────
+  function handleErrorGentle(detail) {
+    var value = detail.value;
+    if (value === 'retry') {
+      _toast('Reintentando', { kind: 'info' });
+      window.dispatchEvent(new CustomEvent('mtx:coach-retry-last', {
+        detail: { artifact: detail.artifact },
+      }));
+      return;
+    }
+    if (value === 'dismiss') return;
+  }
+
+
+  // ─── memory_recall_card — abrir Memoria o olvidar un hecho ───────────────
+  function handleMemoryRecallCard(detail) {
+    var value = detail.value;
+    if (value === 'open_memory') {
+      // Navegar a la pestaña Memoria del IA — listener global responde
+      window.dispatchEvent(new CustomEvent('mtx:open-memory-tab', { detail: {} }));
+      _toast('Abriendo tu Memoria', { kind: 'info' });
+      return;
+    }
+    if (value === 'forget') {
+      // Hoy es mock — Sprint B BFF llamará a memory.semantic.forget del Gateway
+      _toast('Olvidando este hecho', { kind: 'info' });
+      window.dispatchEvent(new CustomEvent('mtx:memory-forget', {
+        detail: { fact: detail.fact, factIndex: detail.factIndex },
+      }));
+      return;
+    }
+  }
+
+
+  // ─── calendar_mini — tap abre AgendaSheet del Home ───────────────────────
+  function handleCalendarMini(detail) {
+    if (detail.value === 'open_agenda') {
+      // Reusa el evento existente del Home header para abrir AgendaSheet
+      window.dispatchEvent(new CustomEvent('mtx:open-agenda-sheet', { detail: {} }));
+      return;
+    }
+  }
+
+
+  // ─── map_mini — abrir maps externa ───────────────────────────────────────
+  function handleMapMini(detail) {
+    if (detail.value === 'open_maps') {
+      _toast('Abriendo Maps', { kind: 'info' });
+      // En producción esto haría window.location = 'maps://...' o https://maps.google.com/?q=...
+      return;
+    }
+  }
+
+
+  // ─── image_inline — fullscreen viewer ────────────────────────────────────
+  function handleImageInline(detail) {
+    if (detail.value === 'fullscreen') {
+      // En producción esto abriría un lightbox. Por ahora dispatch para que
+      // otros listeners (futuro componente) lo consuman.
+      window.dispatchEvent(new CustomEvent('mtx:open-image-fullscreen', {
+        detail: { src: detail.src, artifact: detail.artifact },
+      }));
+      return;
+    }
+  }
+
+
+  // ─── video_inline — abrir player ─────────────────────────────────────────
+  function handleVideoInline(detail) {
+    if (detail.value === 'play') {
+      _toast('Reproduciendo video', { kind: 'info' });
+      window.dispatchEvent(new CustomEvent('mtx:open-video-fullscreen', {
+        detail: { artifact: detail.artifact },
+      }));
+      return;
+    }
+  }
+
+
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENT LISTENER GLOBAL
   // ═══════════════════════════════════════════════════════════════════════════
@@ -272,6 +374,7 @@
     if (!detail.kind) return;
 
     switch (detail.kind) {
+      // Semana 1
       case 'plan_card':
         handlePlanCard(detail);
         break;
@@ -281,6 +384,30 @@
       case 'recommendation_card':
         handleRecommendationCard(detail);
         break;
+      // Semana 2 — nuevos handlers
+      case 'step_by_step':
+        handleStepByStep(detail);
+        break;
+      case 'error_gentle':
+        handleErrorGentle(detail);
+        break;
+      case 'memory_recall_card':
+        handleMemoryRecallCard(detail);
+        break;
+      case 'calendar_mini':
+        handleCalendarMini(detail);
+        break;
+      case 'map_mini':
+        handleMapMini(detail);
+        break;
+      case 'image_inline':
+        handleImageInline(detail);
+        break;
+      case 'video_inline':
+        handleVideoInline(detail);
+        break;
+      // Artifacts informativos sin acciones (insight, stats, quote, progress,
+      // comparison, timeline, mermaid, loading, audio): no-op por diseño
       default:
         console.info('[coach-actions] Acción sin handler:', detail.kind, detail.value);
     }
@@ -290,9 +417,18 @@
 
   // ─ Export del bridge para inspect / future hot-reload ─
   window.__mtxCoachActionsBridge = {
+    // Semana 1
     handlePlanCard: handlePlanCard,
     handleConfirmationCard: handleConfirmationCard,
     handleRecommendationCard: handleRecommendationCard,
+    // Semana 2
+    handleStepByStep: handleStepByStep,
+    handleErrorGentle: handleErrorGentle,
+    handleMemoryRecallCard: handleMemoryRecallCard,
+    handleCalendarMini: handleCalendarMini,
+    handleMapMini: handleMapMini,
+    handleImageInline: handleImageInline,
+    handleVideoInline: handleVideoInline,
     // Helpers expuestos para tests
     _parseTimeFromText: _parseTimeFromText,
     _dayOffsetFromLabel: _dayOffsetFromLabel,

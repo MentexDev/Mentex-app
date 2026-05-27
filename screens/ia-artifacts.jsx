@@ -1259,37 +1259,1783 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ╔═════════════════════════════════════════════════════════════════════════╗
+  // ║  RFC-001 §5.2 · SEMANA 2 — 18 ARTEFACTOS RESTANTES                       ║
+  // ║  insight_card · stats_compact · step_by_step · crisis_support_card       ║
+  // ║  quote_card · progress_viz · comparison_table · recommendation_list      ║
+  // ║  memory_recall_card · timeline_mini · calendar_mini · error_gentle       ║
+  // ║  loading_skeleton · audio_waveform · map_mini · image_inline             ║
+  // ║  video_inline · mermaid_diagram                                          ║
+  // ╚═════════════════════════════════════════════════════════════════════════╝
+  // Convenciones inviolables (todas las cards):
+  //   • Border-radius 14px (cards grandes) / 10px (chips, buttons)
+  //   • Border 0.5px rgba(255,255,255,0.08)
+  //   • Background sutil (0.02-0.04 alpha)
+  //   • Animación entrada: mtx-fade-up .35s ease both
+  //   • Aria-label en todo botón/tappable
+  //   • Acciones → mtx:coach-artifact-action event (consumido por bridge)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Helper para dispatchear acciones desde cualquier card
+  function _emitArtifactAction(kind, value, artifact, extra) {
+    window.dispatchEvent(new CustomEvent('mtx:coach-artifact-action', {
+      detail: Object.assign({ kind: kind, value: value, artifact: artifact }, extra || {}),
+    }));
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 9. IAArtifactInsightCard — métrica grande + contexto + trend (RFC §5.2 #4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'insight_card',
+  //     title?: 'Esta semana',         // contexto temporal
+  //     metric: '6h 42min',            // valor grande
+  //     metricLabel?: 'promedio sueño',
+  //     trend?: { direction: 'up'|'down'|'flat', value: '+12%', accent?: '#3dffd1' },
+  //     sparkline?: [0.4, 0.5, 0.6, 0.8, 0.7, 0.5, 0.9],  // 0-1 normalized
+  //     extras?: [{ label: 'Mejor noche', value: 'Dom · 8h 15' }],
+  //     accent?: '#9b8aff',
+  //   }
+  function IAArtifactInsightCard(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var metric = art.metric || '—';
+    var metricLabel = art.metricLabel;
+    var trend = art.trend;
+    var spark = Array.isArray(art.sparkline) ? art.sparkline : null;
+    var extras = Array.isArray(art.extras) ? art.extras : [];
+    var accent = art.accent || '#9b8aff';
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '16px 18px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            fontSize: 10.5, fontWeight: 700,
+            color: accent,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+            marginBottom: 8,
+          }}>{title}</div>
+        )}
+        <div style={{
+          display: 'flex', alignItems: 'baseline', gap: 10,
+          marginBottom: metricLabel || trend ? 4 : 0,
+        }}>
+          <div style={{
+            fontSize: 30, fontWeight: 700,
+            color: 'var(--ink-1)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.02em',
+            lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+          }}>{metric}</div>
+          {trend && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              padding: '3px 8px', borderRadius: 999,
+              background: trend.direction === 'up' ? 'rgba(61,255,209,0.10)'
+                       : trend.direction === 'down' ? 'rgba(255,139,139,0.10)'
+                       : 'rgba(255,255,255,0.06)',
+              border: '0.5px solid ' + (trend.direction === 'up' ? 'rgba(61,255,209,0.25)' : trend.direction === 'down' ? 'rgba(255,139,139,0.25)' : 'rgba(255,255,255,0.10)'),
+              fontSize: 11, fontWeight: 700,
+              color: trend.direction === 'up' ? '#3dffd1' : trend.direction === 'down' ? '#ff8b8b' : 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              <span style={{ fontSize: 9 }}>{trend.direction === 'up' ? '▲' : trend.direction === 'down' ? '▼' : '—'}</span>
+              <span>{trend.value}</span>
+            </div>
+          )}
+        </div>
+        {metricLabel && (
+          <div style={{
+            fontSize: 12.5,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: spark || extras.length > 0 ? 14 : 0,
+          }}>{metricLabel}</div>
+        )}
+        {spark && spark.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'flex-end', gap: 4,
+            height: 32, marginBottom: extras.length > 0 ? 14 : 0,
+            paddingTop: 4,
+          }} aria-label="Tendencia">
+            {spark.map(function(h, i) {
+              var hh = Math.max(0.12, Math.min(1, h));
+              return (
+                <div key={i} style={{
+                  flex: 1,
+                  height: (hh * 100) + '%',
+                  minHeight: 4,
+                  borderRadius: 2,
+                  background: 'linear-gradient(180deg, ' + accent + 'ee 0%, ' + accent + '55 100%)',
+                  boxShadow: '0 0 6px ' + accent + '30',
+                }}/>
+              );
+            })}
+          </div>
+        )}
+        {extras.length > 0 && (
+          <div style={{
+            paddingTop: 12,
+            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+            display: 'flex', flexDirection: 'column', gap: 7,
+          }}>
+            {extras.map(function(ex, i) {
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  fontSize: 12,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                }}>
+                  <span style={{ color: 'var(--ink-3)' }}>{ex.label}</span>
+                  <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{ex.value}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 10. IAArtifactStatsCompact — métricas en row horizontal (RFC §5.2 #18)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   { kind: 'stats_compact', stats: [{ value: '7', label: 'días', accent?: '#3dffd1' }] }
+  function IAArtifactStatsCompact(props) {
+    var art = props.artifact || {};
+    var stats = Array.isArray(art.stats) ? art.stats : [];
+    if (stats.length === 0) return null;
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {stats.map(function(s, i) {
+          var accent = s.accent || 'var(--neon)';
+          return (
+            <React.Fragment key={i}>
+              <div style={{
+                flex: 1, minWidth: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+              }}>
+                <div style={{
+                  fontSize: 22, fontWeight: 700,
+                  color: accent,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  textShadow: '0 0 12px ' + accent + '30',
+                }}>{s.value}</div>
+                <div style={{
+                  fontSize: 10, fontWeight: 600,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--ff-sans)',
+                  textAlign: 'center',
+                }}>{s.label}</div>
+              </div>
+              {i < stats.length - 1 && (
+                <div style={{
+                  width: '0.5px', height: 32,
+                  background: 'rgba(255,255,255,0.08)',
+                  flexShrink: 0,
+                }}/>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 11. IAArtifactStepByStep — guía multi-paso expandible (RFC §5.2 #10)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'step_by_step',
+  //     title?: 'Aplicar protocolo de sueño',
+  //     steps: [{ title: 'Luz solar matutina', body?: 'Por qué a ti: ...', tag?: '5-10 min' }],
+  //     primaryAction?: { label: 'Aplicar todos', value: 'apply_all' },
+  //     secondaryAction?: { label: 'Solo el primero', value: 'apply_first' }
+  //   }
+  function IAArtifactStepByStep(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var steps = Array.isArray(art.steps) ? art.steps : [];
+    var primaryAction = art.primaryAction;
+    var secondaryAction = art.secondaryAction;
+
+    var expandedState = React.useState({});  // { 0: true, 1: false, ... }
+    var expanded = expandedState[0];
+    var setExpanded = expandedState[1];
+
+    function toggle(i) {
+      setExpanded(function(prev) {
+        var next = Object.assign({}, prev);
+        next[i] = !next[i];
+        return next;
+      });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            fontSize: 13.5, fontWeight: 600,
+            color: 'var(--ink-1)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 10,
+          }}>{title}</div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {steps.map(function(step, i) {
+            var isOpen = !!expanded[i];
+            var hasBody = !!step.body;
+            return (
+              <div key={i} style={{
+                paddingTop: i > 0 ? 10 : 0,
+                borderTop: i > 0 ? '0.5px solid rgba(255,255,255,0.05)' : 'none',
+              }}>
+                <button
+                  type="button"
+                  onClick={hasBody ? function() { toggle(i); } : undefined}
+                  className={hasBody ? 'mtx-tap' : ''}
+                  aria-expanded={hasBody ? isOpen : undefined}
+                  aria-label={'Paso ' + (i + 1) + ': ' + step.title}
+                  style={{
+                    appearance: 'none', cursor: hasBody ? 'pointer' : 'default',
+                    width: '100%', padding: '4px 0',
+                    background: 'transparent', border: 0,
+                    color: 'inherit', textAlign: 'left',
+                    display: 'flex', alignItems: 'flex-start', gap: 11,
+                  }}>
+                  {/* Step number badge */}
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    flexShrink: 0,
+                    background: 'rgba(61,255,209,0.10)',
+                    border: '0.5px solid rgba(61,255,209,0.30)',
+                    color: 'var(--neon)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                    fontVariantNumeric: 'tabular-nums',
+                    marginTop: 1,
+                  }}>{i + 1}</div>
+                  {/* Title + tag */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: 13, fontWeight: 600,
+                      color: 'var(--ink-1)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      lineHeight: 1.4,
+                    }}>
+                      <span style={{ flex: 1, minWidth: 0 }}>{step.title}</span>
+                      {step.tag && (
+                        <span style={{
+                          padding: '1px 7px', borderRadius: 999,
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '0.5px solid rgba(255,255,255,0.08)',
+                          fontSize: 9.5, fontWeight: 600,
+                          color: 'var(--ink-3)',
+                          letterSpacing: '0.02em',
+                          fontFamily: 'var(--ff-sans)',
+                          flexShrink: 0,
+                        }}>{step.tag}</span>
+                      )}
+                    </div>
+                    {/* Expanded body */}
+                    {isOpen && hasBody && (
+                      <div style={{
+                        marginTop: 6,
+                        fontSize: 12, lineHeight: 1.55,
+                        color: 'var(--ink-2)',
+                        fontFamily: 'var(--ff-sans)',
+                        letterSpacing: '-0.005em',
+                        animation: 'mtx-fade-up .2s ease both',
+                      }}>{step.body}</div>
+                    )}
+                  </div>
+                  {/* Chevron */}
+                  {hasBody && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                      stroke="rgba(255,255,255,0.35)" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
+                        transition: 'transform .2s',
+                        flexShrink: 0, marginTop: 5,
+                      }} aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {(primaryAction || secondaryAction) && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            {secondaryAction && (
+              <button
+                type="button"
+                onClick={function() { _emitArtifactAction('step_by_step', secondaryAction.value, art); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 1, padding: '8px 14px',
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  color: 'var(--ink-2)',
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{secondaryAction.label}</button>
+            )}
+            {primaryAction && (
+              <button
+                type="button"
+                onClick={function() { _emitArtifactAction('step_by_step', primaryAction.value, art); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 2, padding: '8px 16px',
+                  borderRadius: 999, border: 0,
+                  background: 'linear-gradient(135deg, var(--neon), #1ad9ad)',
+                  color: '#0a1410',
+                  fontSize: 12, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                  boxShadow: '0 4px 12px -2px rgba(61,255,209,0.32)',
+                }}>{primaryAction.label}</button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 12. IAArtifactCrisisSupportCard — RFC §11.5 + RFC-002 placeholder
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VARIANTE ESPECIAL del step_by_step para crisis. Sigue RFC-001 §11.5:
+  //   • Tipografía un punto más grande (15-17px)
+  //   • Tap-targets ≥ 56pt (más fácil de tocar en momento difícil)
+  //   • Sin animaciones cute
+  //   • Recursos pro (dial-out) en primera posición
+  //   • Sin neon brillante — tono grounded
+  //
+  // Shape:
+  //   {
+  //     kind: 'crisis_support_card',
+  //     intro?: 'Lo que dijiste me importa...',
+  //     resources: [{ flag: '🇨🇴', label: 'Línea 106 (24/7, gratis)', phone: '106', kind: 'call' }],
+  //     disclaimer?: 'No estoy aquí para reemplazar ayuda profesional...'
+  //   }
+  function IAArtifactCrisisSupportCard(props) {
+    var art = props.artifact || {};
+    var intro = art.intro;
+    var resources = Array.isArray(art.resources) ? art.resources : [];
+    var disclaimer = art.disclaimer;
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.03)',
+        border: '0.5px solid rgba(255,255,255,0.12)',
+        padding: '18px 18px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {intro && (
+          <div style={{
+            fontSize: 15, lineHeight: 1.55,
+            color: 'var(--ink-1)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 18,
+            whiteSpace: 'pre-wrap',
+          }}>{intro}</div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {resources.map(function(r, i) {
+            var href = r.kind === 'call' ? 'tel:' + r.phone
+                    : r.kind === 'sms' ? 'sms:' + r.phone
+                    : r.url || '#';
+            return (
+              <a key={i}
+                href={href}
+                aria-label={r.label}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  minHeight: 56,
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  color: 'var(--ink-1)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  transition: 'background .15s, border-color .15s',
+                }}
+                onMouseEnter={function(e) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
+                }}
+                onMouseLeave={function(e) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                }}>
+                <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }} aria-hidden="true">{r.flag || '☎️'}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 500 }}>{r.label}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="rgba(255,255,255,0.45)" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </a>
+            );
+          })}
+        </div>
+        {disclaimer && (
+          <div style={{
+            marginTop: 16, paddingTop: 14,
+            borderTop: '0.5px solid rgba(255,255,255,0.08)',
+            fontSize: 13, lineHeight: 1.55,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            whiteSpace: 'pre-wrap',
+          }}>{disclaimer}</div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 13. IAArtifactQuoteCard — cita con autor y fondo bonito (RFC §5.2 #8)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   { kind: 'quote_card', quote: '...', author: 'Naval Ravikant', source?: 'Almanack' }
+  function IAArtifactQuoteCard(props) {
+    var art = props.artifact || {};
+    var quote = art.quote || '';
+    var author = art.author;
+    var source = art.source;
+    var accent = art.accent || '#9b8aff';
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        background: 'linear-gradient(135deg, rgba(155,138,255,0.12) 0%, rgba(61,255,209,0.06) 60%, rgba(255,200,80,0.04) 100%)',
+        border: '0.5px solid rgba(155,138,255,0.20)',
+        padding: '22px 22px 18px',
+        position: 'relative',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <div style={{
+          position: 'absolute', top: 8, left: 12,
+          fontSize: 60, lineHeight: 1,
+          color: 'rgba(255,255,255,0.06)',
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          pointerEvents: 'none',
+        }} aria-hidden="true">"</div>
+        <div style={{
+          position: 'relative', zIndex: 1,
+          fontSize: 16, lineHeight: 1.55,
+          color: 'var(--ink-1)',
+          fontFamily: 'Georgia, "New York", serif',
+          letterSpacing: '-0.005em',
+          fontStyle: 'italic',
+          marginBottom: 14,
+          whiteSpace: 'pre-wrap',
+        }}>{quote}</div>
+        {(author || source) && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '0.005em',
+          }}>
+            {author && (
+              <span style={{ color: accent, fontWeight: 600 }}>— {author}</span>
+            )}
+            {source && (
+              <>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span style={{ fontStyle: 'italic' }}>{source}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 14. IAArtifactProgressViz — barra de progreso estética (RFC §5.2 #11)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'progress_viz',
+  //     title?: 'Reto · Enfoque Profundo 21 días',
+  //     progress: 0.67,            // 0-1
+  //     label?: '14 de 21 días',
+  //     subtext?: '7 días para terminar',
+  //     accent?: '#3dffd1',
+  //   }
+  function IAArtifactProgressViz(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var progress = Math.max(0, Math.min(1, art.progress || 0));
+    var label = art.label;
+    var subtext = art.subtext;
+    var accent = art.accent || '#3dffd1';
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            fontSize: 12, fontWeight: 600,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 10,
+          }}>{title}</div>
+        )}
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+          gap: 10, marginBottom: 8,
+        }}>
+          {label && (
+            <div style={{
+              fontSize: 18, fontWeight: 700,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.01em',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{label}</div>
+          )}
+          <div style={{
+            fontSize: 13, fontWeight: 700,
+            color: accent,
+            fontFamily: 'var(--ff-sans)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>{Math.round(progress * 100)}%</div>
+        </div>
+        <div style={{
+          width: '100%', height: 8,
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          overflow: 'hidden',
+          position: 'relative',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            width: (progress * 100) + '%',
+            background: 'linear-gradient(90deg, ' + accent + '88, ' + accent + ')',
+            borderRadius: 999,
+            boxShadow: '0 0 8px ' + accent + '60',
+            animation: 'mtx-progress-fill 1.2s cubic-bezier(0.2, 0.9, 0.3, 1) both',
+          }}/>
+        </div>
+        {subtext && (
+          <div style={{
+            marginTop: 8,
+            fontSize: 11.5,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+          }}>{subtext}</div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 15. IAArtifactComparisonTable — comparar opciones (RFC §5.2 #9)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'comparison_table',
+  //     title?: 'Tres opciones de meditación',
+  //     columns: [
+  //       { id: 'a', label: 'Calma 5min', accent: '#3dffd1', highlighted: true },
+  //       { id: 'b', label: 'Sueño 12min', accent: '#9b8aff' },
+  //       { id: 'c', label: 'Ansiedad 8min' }
+  //     ],
+  //     rows: [
+  //       { label: 'Duración', values: ['5 min', '12 min', '8 min'] },
+  //       { label: 'Para cuándo', values: ['Pausa diurna', 'Antes de dormir', 'En momento difícil'] }
+  //     ]
+  //   }
+  function IAArtifactComparisonTable(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var columns = Array.isArray(art.columns) ? art.columns : [];
+    var rows = Array.isArray(art.rows) ? art.rows : [];
+
+    return (
+      <div style={{
+        borderRadius: 14, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            padding: '12px 14px 10px',
+            fontSize: 12, fontWeight: 600,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+          }}>{title}</div>
+        )}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontFamily: 'var(--ff-sans)',
+            fontSize: 12,
+          }}>
+            <thead>
+              <tr>
+                <th style={{
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  fontSize: 10, fontWeight: 700,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  background: 'rgba(255,255,255,0.015)',
+                  borderRight: '0.5px solid rgba(255,255,255,0.05)',
+                }}></th>
+                {columns.map(function(col, i) {
+                  var accent = col.accent || 'var(--ink-2)';
+                  return (
+                    <th key={col.id || i} style={{
+                      padding: '10px 12px',
+                      textAlign: 'left',
+                      fontSize: 11, fontWeight: 700,
+                      color: col.highlighted ? accent : 'var(--ink-2)',
+                      letterSpacing: '-0.005em',
+                      background: col.highlighted ? accent + '12' : 'rgba(255,255,255,0.015)',
+                      borderRight: i < columns.length - 1 ? '0.5px solid rgba(255,255,255,0.05)' : 'none',
+                      borderBottom: col.highlighted ? '1.5px solid ' + accent : '0.5px solid rgba(255,255,255,0.05)',
+                    }}>{col.label}</th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(function(row, ri) {
+                return (
+                  <tr key={ri}>
+                    <td style={{
+                      padding: '10px 12px',
+                      fontSize: 11, fontWeight: 600,
+                      color: 'var(--ink-3)',
+                      borderRight: '0.5px solid rgba(255,255,255,0.05)',
+                      borderTop: ri > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                      background: 'rgba(255,255,255,0.01)',
+                    }}>{row.label}</td>
+                    {(row.values || []).map(function(v, ci) {
+                      var col = columns[ci] || {};
+                      return (
+                        <td key={ci} style={{
+                          padding: '10px 12px',
+                          fontSize: 12,
+                          color: col.highlighted ? 'var(--ink-1)' : 'var(--ink-2)',
+                          fontWeight: col.highlighted ? 600 : 400,
+                          background: col.highlighted ? (col.accent || 'var(--neon)') + '08' : 'transparent',
+                          borderRight: ci < columns.length - 1 ? '0.5px solid rgba(255,255,255,0.05)' : 'none',
+                          borderTop: ri > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                        }}>{v}</td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 16. IAArtifactRecommendationList — stack de RecommendationCards (RFC #3)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape: { kind: 'recommendation_list', items: [<recommendation_card props>] }
+  function IAArtifactRecommendationList(props) {
+    var art = props.artifact || {};
+    var items = Array.isArray(art.items) ? art.items : [];
+    if (items.length === 0) return null;
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 8,
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {items.map(function(rec, i) {
+          // Inyecta kind para que el sub-componente sepa qué es
+          return <IAArtifactRecommendationCard key={i} artifact={Object.assign({ kind: 'recommendation_card' }, rec)}/>;
+        })}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 17. IAArtifactMemoryRecallCard — lo que el coach recuerda de ti (RFC #20)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'memory_recall_card',
+  //     title?: 'Lo que tengo de ti sobre esto',
+  //     facts: [{ text: 'Duermes mal cuando llueve', source?: 'Hace 3 semanas', editable?: true }],
+  //     primaryAction?: { label: 'Ver toda mi Memoria', value: 'open_memory' }
+  //   }
+  function IAArtifactMemoryRecallCard(props) {
+    var art = props.artifact || {};
+    var title = art.title || 'Lo que sé de ti';
+    var facts = Array.isArray(art.facts) ? art.facts : [];
+    var primaryAction = art.primaryAction;
+
+    function handleForget(fact, idx) {
+      _emitArtifactAction('memory_recall_card', 'forget', art, { factIndex: idx, fact: fact });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'linear-gradient(135deg, rgba(155,138,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+        border: '0.5px solid rgba(155,138,255,0.18)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          marginBottom: 12,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(155,138,255,0.75)" strokeWidth="1.7"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 2a3 3 0 0 0-3 3v2a3 3 0 0 0-3 3v0a3 3 0 0 0 0 6v2a3 3 0 0 0 3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0 3-3v-2a3 3 0 0 0 0-6v0a3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z"/>
+          </svg>
+          <div style={{
+            fontSize: 11, fontWeight: 700,
+            color: 'rgba(155,138,255,0.85)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+          }}>{title}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {facts.map(function(fact, i) {
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 9,
+                padding: '8px 10px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '0.5px solid rgba(255,255,255,0.05)',
+                borderRadius: 10,
+              }}>
+                <span style={{
+                  color: 'rgba(155,138,255,0.5)',
+                  flexShrink: 0, marginTop: 1,
+                  fontSize: 11,
+                }} aria-hidden="true">•</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12.5, lineHeight: 1.5,
+                    color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                  }}>{fact.text}</div>
+                  {fact.source && (
+                    <div style={{
+                      marginTop: 3,
+                      fontSize: 10.5,
+                      color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      fontStyle: 'italic',
+                    }}>{fact.source}</div>
+                  )}
+                </div>
+                {fact.editable !== false && (
+                  <button
+                    type="button"
+                    onClick={function() { handleForget(fact, i); }}
+                    className="mtx-tap"
+                    aria-label="Olvidar este hecho"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: 4, borderRadius: 6,
+                      background: 'transparent', border: 0,
+                      color: 'rgba(255,255,255,0.30)',
+                      display: 'inline-flex', alignItems: 'center',
+                      flexShrink: 0, marginTop: -2,
+                      transition: 'color .15s',
+                    }}
+                    onMouseEnter={function(e) { e.currentTarget.style.color = 'rgba(255,139,139,0.75)'; }}
+                    onMouseLeave={function(e) { e.currentTarget.style.color = 'rgba(255,255,255,0.30)'; }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {primaryAction && (
+          <button
+            type="button"
+            onClick={function() { _emitArtifactAction('memory_recall_card', primaryAction.value, art); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              marginTop: 12, width: '100%',
+              padding: '8px 14px', borderRadius: 999,
+              background: 'rgba(155,138,255,0.08)',
+              border: '0.5px solid rgba(155,138,255,0.25)',
+              color: 'rgba(155,138,255,0.95)',
+              fontSize: 12, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>{primaryAction.label}</button>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 18. IAArtifactTimelineMini — eventos en tiempo lineal (RFC §5.2 #19)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'timeline_mini',
+  //     title?: 'Tu mes en una línea',
+  //     events: [{ label: '1 mar', text: 'Empezaste reto', accent?: '#3dffd1' }]
+  //   }
+  function IAArtifactTimelineMini(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var events = Array.isArray(art.events) ? art.events : [];
+    if (events.length === 0) return null;
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            fontSize: 12, fontWeight: 600,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 16,
+          }}>{title}</div>
+        )}
+        <div style={{ position: 'relative', paddingLeft: 18 }}>
+          <div style={{
+            position: 'absolute', left: 5, top: 6, bottom: 6,
+            width: '0.5px',
+            background: 'rgba(255,255,255,0.10)',
+          }} aria-hidden="true"/>
+          {events.map(function(ev, i) {
+            var accent = ev.accent || 'var(--neon)';
+            return (
+              <div key={i} style={{
+                position: 'relative',
+                paddingBottom: i < events.length - 1 ? 14 : 0,
+              }}>
+                <div style={{
+                  position: 'absolute', left: -18, top: 3,
+                  width: 11, height: 11, borderRadius: '50%',
+                  background: accent,
+                  border: '2px solid rgba(10,13,12,1)',
+                  boxShadow: '0 0 6px ' + accent + '60',
+                }} aria-hidden="true"/>
+                <div style={{
+                  fontSize: 10.5, fontWeight: 700,
+                  color: accent,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--ff-sans)',
+                  marginBottom: 2,
+                }}>{ev.label}</div>
+                <div style={{
+                  fontSize: 12.5, lineHeight: 1.45,
+                  color: 'var(--ink-1)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                }}>{ev.text}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 19. IAArtifactCalendarMini — vista semana con dots (RFC §5.2 #12)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'calendar_mini',
+  //     title?: 'Tu semana en eventos',
+  //     weekStart?: Date or ISO,    // default: lunes de esta semana
+  //     days: [{ label: 'Lun', dotsCount: 3, accent?: '#3dffd1', highlighted?: true }],
+  //     onOpen?: 'open_agenda'      // value para dispatchear si el user tap el calendario
+  //   }
+  function IAArtifactCalendarMini(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var days = Array.isArray(art.days) ? art.days : [];
+    var onOpenValue = art.onOpen || 'open_agenda';
+
+    function handleOpen() {
+      _emitArtifactAction('calendar_mini', onOpenValue, art);
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="mtx-tap"
+        aria-label="Abrir Agenda"
+        style={{
+          appearance: 'none', cursor: 'pointer',
+          width: '100%',
+          borderRadius: 14,
+          background: 'rgba(255,255,255,0.025)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          padding: '14px 16px',
+          textAlign: 'left',
+          color: 'inherit',
+          animation: 'mtx-fade-up .35s ease both',
+          transition: 'background .15s',
+        }}
+        onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.045)'; }}
+        onMouseLeave={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}>
+        {title && (
+          <div style={{
+            fontSize: 12, fontWeight: 600,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 14,
+          }}>{title}</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
+          {days.map(function(day, i) {
+            var accent = day.accent || 'var(--neon)';
+            var dotCount = Math.min(5, Math.max(0, day.dotsCount || 0));
+            var dotArr = [];
+            for (var di = 0; di < dotCount; di++) dotArr.push(di);
+            return (
+              <div key={i} style={{
+                flex: 1, minWidth: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                padding: '8px 4px',
+                borderRadius: 8,
+                background: day.highlighted ? accent + '10' : 'transparent',
+                border: day.highlighted ? '0.5px solid ' + accent + '30' : '0.5px solid transparent',
+              }}>
+                <div style={{
+                  fontSize: 9.5, fontWeight: 700,
+                  color: day.highlighted ? accent : 'var(--ink-3)',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--ff-sans)',
+                }}>{day.label}</div>
+                <div style={{
+                  display: 'flex', gap: 2, justifyContent: 'center',
+                  minHeight: 6,
+                }}>
+                  {dotCount > 0 ? dotArr.map(function(di) {
+                    return (
+                      <div key={di} style={{
+                        width: 3, height: 3, borderRadius: '50%',
+                        background: accent,
+                      }}/>
+                    );
+                  }) : (
+                    <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.10)' }}/>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </button>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 20. IAArtifactErrorGentle — error suave con retry (RFC §5.2 #15)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'error_gentle',
+  //     message: 'No pude conectarme en este momento.',
+  //     hint?: 'A veces la red falla. Intentamos de nuevo.',
+  //     primaryAction?: { label: 'Intentar de nuevo', value: 'retry' },
+  //     secondaryAction?: { label: 'Déjalo así', value: 'dismiss' }
+  //   }
+  function IAArtifactErrorGentle(props) {
+    var art = props.artifact || {};
+    var message = art.message || 'Algo no salió bien.';
+    var hint = art.hint;
+    var primaryAction = art.primaryAction;
+    var secondaryAction = art.secondaryAction;
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,139,139,0.04)',
+        border: '0.5px solid rgba(255,139,139,0.22)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 11,
+          marginBottom: (primaryAction || secondaryAction) ? 12 : 0,
+        }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: 'rgba(255,139,139,0.10)',
+            border: '0.5px solid rgba(255,139,139,0.30)',
+            color: '#ff8b8b',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, marginTop: 1,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 600,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.4,
+            }}>{message}</div>
+            {hint && (
+              <div style={{
+                marginTop: 4,
+                fontSize: 11.5, lineHeight: 1.5,
+                color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+              }}>{hint}</div>
+            )}
+          </div>
+        </div>
+        {(primaryAction || secondaryAction) && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {secondaryAction && (
+              <button type="button"
+                onClick={function() { _emitArtifactAction('error_gentle', secondaryAction.value, art); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 1, padding: '7px 14px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  color: 'var(--ink-2)',
+                  fontSize: 11.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{secondaryAction.label}</button>
+            )}
+            {primaryAction && (
+              <button type="button"
+                onClick={function() { _emitArtifactAction('error_gentle', primaryAction.value, art); }}
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  flex: 2, padding: '7px 14px', borderRadius: 999,
+                  background: 'rgba(255,139,139,0.10)',
+                  border: '0.5px solid rgba(255,139,139,0.35)',
+                  color: '#ff8b8b',
+                  fontSize: 11.5, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                }}>{primaryAction.label}</button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 21. IAArtifactLoadingSkeleton — placeholder mientras carga (RFC §5.2 #16)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape: { kind: 'loading_skeleton', height?: 80, lines?: 3 }
+  function IAArtifactLoadingSkeleton(props) {
+    var art = props.artifact || {};
+    var lines = art.lines || 3;
+    var arr = [];
+    for (var i = 0; i < lines; i++) arr.push(i);
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.02)',
+        border: '0.5px solid rgba(255,255,255,0.04)',
+        padding: 16,
+        display: 'flex', flexDirection: 'column', gap: 8,
+        animation: 'mtx-fade-up .25s ease both',
+      }} aria-busy="true" aria-label="Cargando">
+        {arr.map(function(i) {
+          var w = i === arr.length - 1 ? '60%' : (75 + Math.random() * 25) + '%';
+          return (
+            <div key={i} style={{
+              width: w, height: 12,
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.06)',
+              animation: 'mtx-skeleton-pulse 1.4s ease-in-out infinite',
+              animationDelay: (i * 0.12) + 's',
+            }}/>
+          );
+        })}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 22. IAArtifactMapMini — placeholder de mapa con markers (RFC §5.2 #13)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   {
+  //     kind: 'map_mini',
+  //     title?: '3 lugares cerca',
+  //     places: [{ name: 'Casa del Yoga', distance: '20 min en bici' }],
+  //     primaryAction?: { label: 'Abrir en Maps', value: 'open_maps' }
+  //   }
+  function IAArtifactMapMini(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var places = Array.isArray(art.places) ? art.places : [];
+    var primaryAction = art.primaryAction;
+
+    return (
+      <div style={{
+        borderRadius: 14, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Map placeholder con gradiente + markers */}
+        <div style={{
+          height: 110, position: 'relative',
+          background: 'linear-gradient(180deg, rgba(61,255,209,0.06) 0%, rgba(155,138,255,0.04) 70%, rgba(0,0,0,0.20) 100%), radial-gradient(circle at 30% 40%, rgba(61,255,209,0.10), transparent 50%), radial-gradient(circle at 70% 60%, rgba(155,138,255,0.10), transparent 50%)',
+          borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+        }} role="img" aria-label="Mapa con ubicaciones">
+          {/* Grid lines decorativas */}
+          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.08 }} aria-hidden="true">
+            <defs>
+              <pattern id="map-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+                <path d="M 24 0 L 0 0 0 24" fill="none" stroke="white" strokeWidth="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#map-grid)"/>
+          </svg>
+          {/* Markers */}
+          {places.slice(0, 3).map(function(p, i) {
+            var positions = [{ left: '30%', top: '40%' }, { left: '60%', top: '55%' }, { left: '45%', top: '70%' }];
+            var pos = positions[i];
+            return (
+              <div key={i} style={{
+                position: 'absolute', left: pos.left, top: pos.top,
+                transform: 'translate(-50%, -100%)',
+              }}>
+                <div style={{
+                  width: 14, height: 14, borderRadius: '50% 50% 50% 0',
+                  transform: 'rotate(-45deg)',
+                  background: i === 0 ? 'var(--neon)' : '#9b8aff',
+                  boxShadow: '0 0 8px ' + (i === 0 ? 'rgba(61,255,209,0.6)' : 'rgba(155,138,255,0.5)'),
+                  border: '0.5px solid rgba(0,0,0,0.4)',
+                }}/>
+              </div>
+            );
+          })}
+        </div>
+        {/* Places list */}
+        <div style={{ padding: '10px 14px' }}>
+          {title && (
+            <div style={{
+              fontSize: 11, fontWeight: 700,
+              color: 'var(--ink-3)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 8,
+            }}>{title}</div>
+          )}
+          {places.map(function(p, i) {
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '5px 0',
+                borderTop: i > 0 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+              }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: i === 0 ? 'var(--neon)' : '#9b8aff',
+                  flexShrink: 0,
+                }}/>
+                <div style={{
+                  flex: 1, minWidth: 0,
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
+                }}>
+                  <span style={{
+                    fontSize: 12.5, fontWeight: 500,
+                    color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{p.name}</span>
+                  {p.distance && (
+                    <span style={{
+                      fontSize: 11,
+                      color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      flexShrink: 0,
+                    }}>{p.distance}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {primaryAction && (
+          <button type="button"
+            onClick={function() { _emitArtifactAction('map_mini', primaryAction.value, art); }}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: '100%', padding: '10px 14px',
+              borderTop: '0.5px solid rgba(255,255,255,0.06)',
+              background: 'rgba(255,255,255,0.02)',
+              border: 0,
+              color: 'var(--neon)',
+              fontSize: 11.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.005em',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            }}>
+            {primaryAction.label}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="7" y1="17" x2="17" y2="7"/>
+              <polyline points="7 7 17 7 17 17"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 23. IAArtifactImageInline — imagen generada (RFC §5.2 #6 · refinada)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Versión mejorada del legacy 'image'. Aspect 1:1 o 4:5 con loading state,
+  // tap to fullscreen, caption opcional, prompt visible si available.
+  //
+  // Shape:
+  //   {
+  //     kind: 'image_inline',
+  //     src?: 'https://...',           // URL real
+  //     gradient?: 'linear-gradient(...)',  // placeholder generative-style
+  //     aspect?: 1 | 0.8 | 1.33,       // 1=square, 0.8=4:5, 1.33=4:3
+  //     prompt?: 'Visualización para...',
+  //     caption?: '...'
+  //   }
+  function IAArtifactImageInline(props) {
+    var art = props.artifact || {};
+    var src = art.src;
+    var gradient = art.gradient || 'linear-gradient(135deg, rgba(61,255,209,0.30), rgba(155,138,255,0.20), rgba(255,200,80,0.18))';
+    var aspect = art.aspect || 1;
+    var prompt = art.prompt;
+    var caption = art.caption;
+    var alt = art.alt || prompt || caption || 'Imagen generada';
+
+    var loadedState = React.useState(false);
+    var loaded = loadedState[0];
+    var setLoaded = loadedState[1];
+
+    function fullscreen() {
+      _emitArtifactAction('image_inline', 'fullscreen', art, { src: src });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        background: 'rgba(255,255,255,0.02)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <button
+          type="button"
+          onClick={src ? fullscreen : undefined}
+          className={src ? 'mtx-tap' : ''}
+          aria-label={src ? 'Ampliar imagen' : 'Imagen generada'}
+          style={{
+            appearance: 'none', cursor: src ? 'pointer' : 'default',
+            display: 'block', width: '100%',
+            padding: 0, border: 0,
+            background: src && !loaded ? '#000' : gradient,
+            aspectRatio: String(aspect),
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+          {src && (
+            <img src={src} alt={alt}
+              onLoad={function() { setLoaded(true); }}
+              style={{
+                width: '100%', height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                opacity: loaded ? 1 : 0,
+                transition: 'opacity .4s ease',
+              }}/>
+          )}
+          {/* Sparkle badge */}
+          <div style={{
+            position: 'absolute', top: 10, right: 10,
+            padding: '3px 8px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            fontSize: 9, color: 'rgba(255,255,255,0.9)',
+            letterSpacing: '0.08em', fontWeight: 700,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            <span style={{ color: 'var(--neon)' }}>✦</span>
+            GENERADA
+          </div>
+        </button>
+        {(prompt || caption) && (
+          <div style={{
+            padding: '10px 14px',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+          }}>
+            {caption && (
+              <div style={{
+                fontSize: 12, color: 'var(--ink-2)',
+                lineHeight: 1.4,
+              }}>{caption}</div>
+            )}
+            {prompt && (
+              <div style={{
+                marginTop: caption ? 4 : 0,
+                fontSize: 10.5, color: 'var(--ink-3)',
+                lineHeight: 1.4,
+                fontStyle: 'italic',
+                opacity: 0.7,
+              }}>{prompt}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 24. IAArtifactVideoInline — preview de video (RFC §5.2 #7 · placeholder)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Hoy es preview rico (no player real). Sprint año-1+ con video_generate
+  // construirá el player completo.
+  //
+  // Shape:
+  //   {
+  //     kind: 'video_inline',
+  //     thumbnail?: 'https://...',
+  //     gradient?: '...',
+  //     duration?: '0:45',
+  //     title?: 'Tu Year in Mentex'
+  //   }
+  function IAArtifactVideoInline(props) {
+    var art = props.artifact || {};
+    var thumbnail = art.thumbnail;
+    var gradient = art.gradient || 'linear-gradient(135deg, rgba(155,138,255,0.30), rgba(61,255,209,0.15), rgba(255,200,80,0.10))';
+    var duration = art.duration || '—:—';
+    var title = art.title;
+
+    function play() {
+      _emitArtifactAction('video_inline', 'play', art);
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        background: '#000',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <button type="button"
+          onClick={play}
+          className="mtx-tap"
+          aria-label={'Reproducir video: ' + (title || '')}
+          style={{
+            appearance: 'none', cursor: 'pointer',
+            display: 'block', width: '100%',
+            padding: 0, border: 0,
+            background: thumbnail ? '#000' : gradient,
+            backgroundImage: thumbnail ? 'url(' + thumbnail + ')' : undefined,
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            aspectRatio: '16 / 9',
+            position: 'relative',
+          }}>
+          {/* Play button overlay */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.45) 100%)',
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.95)',
+              boxShadow: '0 6px 20px -4px rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'transform .15s',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M3.5 2 L9.5 6 L3.5 10 Z" fill="#0a1410"/>
+              </svg>
+            </div>
+          </div>
+          {/* Duration badge */}
+          <div style={{
+            position: 'absolute', bottom: 10, right: 10,
+            padding: '3px 7px', borderRadius: 4,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            fontSize: 10, fontWeight: 700,
+            color: 'rgba(255,255,255,0.9)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '0.02em',
+            fontVariantNumeric: 'tabular-nums',
+          }}>{duration}</div>
+          {/* Title overlay */}
+          {title && (
+            <div style={{
+              position: 'absolute', left: 12, bottom: 10, right: 60,
+              fontSize: 13, fontWeight: 600,
+              color: 'white',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{title}</div>
+          )}
+        </button>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 25. IAArtifactMermaidDiagram — mermaid.js diagram (RFC §5.2 #5)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Requiere mermaid.js cargado vía CDN en Mentex Home.html. Render on-mount
+  // con mermaid.run() sobre el code text. Dark theme para encajar con Obsidian.
+  //
+  // Shape:
+  //   {
+  //     kind: 'mermaid_diagram',
+  //     title?: 'Tus patrones de la semana',
+  //     code: 'graph TD\n  A[Lun] --> B[Mar]...',
+  //     caption?: '...'
+  //   }
+  function IAArtifactMermaidDiagram(props) {
+    var art = props.artifact || {};
+    var title = art.title;
+    var code = art.code || '';
+    var caption = art.caption;
+
+    var containerRef = React.useRef(null);
+    var idRef = React.useRef('mermaid-' + Math.random().toString(36).slice(2, 9));
+    var renderedState = React.useState(false);
+    var rendered = renderedState[0];
+    var setRendered = renderedState[1];
+    var errorState = React.useState(null);
+    var error = errorState[0];
+    var setError = errorState[1];
+
+    React.useEffect(function() {
+      if (!containerRef.current || rendered) return;
+      if (typeof window.mermaid === 'undefined') {
+        setError('Mermaid no está cargado.');
+        return;
+      }
+      try {
+        // Init mermaid una vez (idempotente)
+        if (!window.__mtxMermaidInited) {
+          window.mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            themeVariables: {
+              primaryColor: '#3dffd1',
+              primaryTextColor: '#ffffff',
+              primaryBorderColor: '#3dffd1',
+              lineColor: 'rgba(255,255,255,0.4)',
+              secondaryColor: '#9b8aff',
+              tertiaryColor: '#ffc850',
+              background: 'transparent',
+              fontFamily: 'var(--ff-sans, system-ui, sans-serif)',
+              fontSize: '12px',
+            },
+            securityLevel: 'loose',
+            fontFamily: 'var(--ff-sans, system-ui, sans-serif)',
+          });
+          window.__mtxMermaidInited = true;
+        }
+        // Render
+        window.mermaid.render(idRef.current + '-svg', code).then(function(result) {
+          if (containerRef.current) {
+            containerRef.current.innerHTML = result.svg;
+            setRendered(true);
+          }
+        }).catch(function(err) {
+          console.warn('[mermaid] render error', err);
+          setError('No pude dibujar el diagrama.');
+        });
+      } catch (e) {
+        console.warn('[mermaid] init error', e);
+        setError('Error al cargar el diagrama.');
+      }
+    }, [code]);
+
+    return (
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        padding: '14px 16px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {title && (
+          <div style={{
+            fontSize: 12, fontWeight: 600,
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 10,
+          }}>{title}</div>
+        )}
+        <div ref={containerRef}
+          style={{
+            minHeight: rendered ? 'auto' : 100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'auto', maxWidth: '100%',
+          }}
+          aria-label={title || 'Diagrama'}>
+          {!rendered && !error && (
+            <div style={{
+              fontSize: 11, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              opacity: 0.6,
+            }}>Dibujando…</div>
+          )}
+          {error && (
+            <div style={{
+              fontSize: 11.5, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              fontStyle: 'italic',
+            }}>{error}</div>
+          )}
+        </div>
+        {caption && (
+          <div style={{
+            marginTop: 10, paddingTop: 10,
+            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+            fontSize: 11.5, lineHeight: 1.5,
+            color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+          }}>{caption}</div>
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 26. IAArtifactAudioWaveform — variante simple del legacy 'voice'
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Reusa el mismo render que IAArtifactVoice pero acepta el kind alternativo
+  // 'audio_waveform' (RFC §5.2 #17) que es semánticamente más amplio
+  // (puede ser sonido binaural, voice note, audio del coach, etc.).
+  function IAArtifactAudioWaveform(props) {
+    return <IAArtifactVoice artifact={props.artifact}/>;
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // IAArtifact — router por kind
   // ═══════════════════════════════════════════════════════════════════════════
   function IAArtifact(props) {
     var art = props.artifact;
     if (!art || !art.kind) return null;
     switch (art.kind) {
+      // Legacy (5)
       case 'image':                return <IAArtifactImage artifact={art}/>;
       case 'voice':                return <IAArtifactVoice artifact={art}/>;
       case 'content':              return <IAArtifactContent artifact={art}/>;
       case 'calendar':             return <IAArtifactCalendar artifact={art}/>;
       case 'reminder':             return <IAArtifactReminder artifact={art}/>;
-      // RFC-001 Semana 1 — 3 artefactos críticos
+      // RFC-001 Semana 1 (3)
       case 'plan_card':            return <IAArtifactPlanCard artifact={art}/>;
       case 'confirmation_card':    return <IAArtifactConfirmationCard artifact={art}/>;
       case 'recommendation_card':  return <IAArtifactRecommendationCard artifact={art}/>;
+      // RFC-001 Semana 2 (18)
+      case 'insight_card':         return <IAArtifactInsightCard artifact={art}/>;
+      case 'stats_compact':        return <IAArtifactStatsCompact artifact={art}/>;
+      case 'step_by_step':         return <IAArtifactStepByStep artifact={art}/>;
+      case 'crisis_support_card':  return <IAArtifactCrisisSupportCard artifact={art}/>;
+      case 'quote_card':           return <IAArtifactQuoteCard artifact={art}/>;
+      case 'progress_viz':         return <IAArtifactProgressViz artifact={art}/>;
+      case 'comparison_table':     return <IAArtifactComparisonTable artifact={art}/>;
+      case 'recommendation_list':  return <IAArtifactRecommendationList artifact={art}/>;
+      case 'memory_recall_card':   return <IAArtifactMemoryRecallCard artifact={art}/>;
+      case 'timeline_mini':        return <IAArtifactTimelineMini artifact={art}/>;
+      case 'calendar_mini':        return <IAArtifactCalendarMini artifact={art}/>;
+      case 'error_gentle':         return <IAArtifactErrorGentle artifact={art}/>;
+      case 'loading_skeleton':     return <IAArtifactLoadingSkeleton artifact={art}/>;
+      case 'audio_waveform':       return <IAArtifactAudioWaveform artifact={art}/>;
+      case 'map_mini':             return <IAArtifactMapMini artifact={art}/>;
+      case 'image_inline':         return <IAArtifactImageInline artifact={art}/>;
+      case 'video_inline':         return <IAArtifactVideoInline artifact={art}/>;
+      case 'mermaid_diagram':      return <IAArtifactMermaidDiagram artifact={art}/>;
       default:                     return null;
     }
   }
 
 
+  // ── Inject CSS keyframes para skeleton + progress (idempotente) ──────────
+  (function() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('mtx-coach-artifacts-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'mtx-coach-artifacts-styles';
+    style.textContent = [
+      '@keyframes mtx-skeleton-pulse {',
+      '  0%, 100% { opacity: 0.5; }',
+      '  50% { opacity: 1; }',
+      '}',
+      '@keyframes mtx-progress-fill {',
+      '  from { width: 0%; }',
+      '  /* to defined inline via style.width */',
+      '}',
+    ].join('\n');
+    document.head.appendChild(style);
+  })();
+
+
   // ── Export ─────────────────────────────────────────────────────────────────
   Object.assign(window, {
     IAArtifact: IAArtifact,
+    // Legacy
     IAArtifactImage: IAArtifactImage,
     IAArtifactVoice: IAArtifactVoice,
     IAArtifactContent: IAArtifactContent,
     IAArtifactCalendar: IAArtifactCalendar,
     IAArtifactReminder: IAArtifactReminder,
-    // RFC-001 Semana 1
+    // Semana 1
     IAArtifactPlanCard: IAArtifactPlanCard,
     IAArtifactConfirmationCard: IAArtifactConfirmationCard,
     IAArtifactRecommendationCard: IAArtifactRecommendationCard,
+    // Semana 2
+    IAArtifactInsightCard: IAArtifactInsightCard,
+    IAArtifactStatsCompact: IAArtifactStatsCompact,
+    IAArtifactStepByStep: IAArtifactStepByStep,
+    IAArtifactCrisisSupportCard: IAArtifactCrisisSupportCard,
+    IAArtifactQuoteCard: IAArtifactQuoteCard,
+    IAArtifactProgressViz: IAArtifactProgressViz,
+    IAArtifactComparisonTable: IAArtifactComparisonTable,
+    IAArtifactRecommendationList: IAArtifactRecommendationList,
+    IAArtifactMemoryRecallCard: IAArtifactMemoryRecallCard,
+    IAArtifactTimelineMini: IAArtifactTimelineMini,
+    IAArtifactCalendarMini: IAArtifactCalendarMini,
+    IAArtifactErrorGentle: IAArtifactErrorGentle,
+    IAArtifactLoadingSkeleton: IAArtifactLoadingSkeleton,
+    IAArtifactAudioWaveform: IAArtifactAudioWaveform,
+    IAArtifactMapMini: IAArtifactMapMini,
+    IAArtifactImageInline: IAArtifactImageInline,
+    IAArtifactVideoInline: IAArtifactVideoInline,
+    IAArtifactMermaidDiagram: IAArtifactMermaidDiagram,
   });
 })();
