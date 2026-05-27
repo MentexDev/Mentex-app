@@ -56,18 +56,21 @@
   <script type="text/babel" src="screens/session-flow.jsx?v=8"></script>
   <script type="text/babel" src="screens/explore-flow.jsx?v=83"></script>
   <script type="text/babel" src="screens/voice-transcription.jsx?v=1"></script>
-  <script type="text/babel" src="screens/ia-settings.jsx?v=17"></script>
+  <script type="text/babel" src="screens/ia-settings.jsx?v=18"></script>
   <script type="text/babel" src="screens/ia-agenda.jsx?v=25"></script>
   <script type="text/babel" src="screens/ia-artifacts.jsx?v=12"></script>
   <script type="text/babel" src="screens/coach-timeline.jsx?v=1"></script>
   <script type="text/babel" src="screens/coach-extras.jsx?v=1"></script>
   <script type="text/babel" src="screens/coach-wearable-store.jsx?v=2"></script>
   <script type="text/babel" src="screens/coach-runtime-simulator.jsx?v=11"></script>
-  <script type="text/babel" src="screens/coach-voice-call.jsx?v=2"></script>
+  <script type="text/babel" src="screens/coach-voice-call.jsx?v=3"></script>
   <script type="text/babel" src="screens/coach-browse-act-store.jsx?v=1"></script>
   <script type="text/babel" src="screens/coach-web-fetch-store.jsx?v=1"></script>
   <script type="text/babel" src="screens/coach-web-search-store.jsx?v=1"></script>
-  <script type="text/babel" src="screens/coach-premium-gate.jsx?v=1"></script>
+  <script type="text/babel" src="screens/coach-premium-gate.jsx?v=2"></script>
+  <script type="text/babel" src="screens/coach-attach-menu.jsx?v=3"></script>
+  <script type="text/babel" src="screens/coach-skills-menu.jsx?v=4"></script>
+  <script type="text/babel" src="screens/coach-slash-commands.jsx?v=2"></script>
   <script type="text/babel" src="screens/coach-llm-engine.jsx?v=1"></script>
   <script type="text/babel" src="screens/ia-skills.jsx?v=3"></script>
   <script type="text/babel" src="screens/ia-workflows.jsx?v=2"></script>
@@ -76,7 +79,7 @@
   <script type="text/babel" src="screens/ia-channels.jsx?v=3"></script>
   <script type="text/babel" src="screens/ia-integrations.jsx?v=4"></script>
   <script type="text/babel" src="screens/ia-monetization.jsx?v=3"></script>
-  <script type="text/babel" src="screens/ia-flow.jsx?v=44"></script>
+  <script type="text/babel" src="screens/ia-flow.jsx?v=47"></script>
   <script type="text/babel" src="screens/coach-actions-bridge.jsx?v=8"></script>
   <script type="text/babel" src="screens/coach-mock-conversations.jsx?v=9"></script>
   <script type="text/babel" src="screens/community-flow.jsx?v=8"></script>
@@ -829,6 +832,14 @@
                 chat como browse_progress_card LIVE. NO hay overlay fullscreen.
                 Diego rechazó la ceremonia anterior — ahora todo es como Claude
                 Code: thumbnails reales pequeños inline al lado de cada step. */}
+
+            {/* Sprint A.7 · C11a — Attach menu (botón + del input bar IA).
+                4 opciones: archivo, cámara, URL, snapshot wearable. */}
+            {typeof CoachAttachMenu !== 'undefined' && <CoachAttachMenu/>}
+
+            {/* Sprint A.7 · C11b — Skills menu (botón ⚡ del input bar IA).
+                Tabs Oficiales/Mías leyendo __mtxIASkills real. */}
+            {typeof CoachSkillsMenu !== 'undefined' && <CoachSkillsMenu/>}
 
             {/* Sprint A.6 · B12 — Premium gate modal.
                 Se abre via window.__mtxPremiumGate.open({ toolName, requiredTier })

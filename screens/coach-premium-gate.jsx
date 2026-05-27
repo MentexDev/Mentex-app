@@ -301,7 +301,8 @@ function CoachPremiumGateModal() {
       aria-label="Mejora a Premium o Pro"
       onClick={function(e) { if (e.target === e.currentTarget) handleClose(); }}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1100,
+        // position:absolute respeta el device frame iPhone (no viewport browser)
+        position: 'absolute', inset: 0, zIndex: 1100,
         background: 'rgba(10,20,16,0.85)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',

@@ -354,7 +354,8 @@ function CoachVoiceCallOverlay() {
       aria-modal="true"
       aria-label="Llamada de voz con el coach"
       style={{
-        position: 'fixed', inset: 0, zIndex: 1100,
+        // position:absolute respeta el device frame iPhone (no viewport browser)
+        position: 'absolute', inset: 0, zIndex: 1100,
         // Background con gradient múltiple que driftea lentamente — da
         // sensación de "vivo" sin ser distractor.
         background: 'radial-gradient(at 30% 20%, rgba(61,255,209,0.10), rgba(0,0,0,0) 50%), radial-gradient(at 70% 80%, rgba(155,138,255,0.08), rgba(0,0,0,0) 50%), #0a1410',

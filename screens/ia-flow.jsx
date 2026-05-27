@@ -1682,6 +1682,59 @@ function IAInputBar(props) {
     }
   };
 
+  // C12 Sprint A.7 — cursor position tracking para slash autocomplete
+  var cursorPosState = React.useState(0);
+  var cursorPos = cursorPosState[0]; var setCursorPos = cursorPosState[1];
+  var slashClosedAtState = React.useState(-1);
+  var slashClosedAt = slashClosedAtState[0]; var setSlashClosedAt = slashClosedAtState[1];
+
+  // Update cursor pos en cualquier interacción del textarea
+  function syncCursor() {
+    var t = textareaRef && textareaRef.current;
+    if (t) setCursorPos(t.selectionStart || 0);
+  }
+
+  // Cuando user borra/cambia mucho el texto, reset el "closed" anchor para
+  // que vuelva a aparecer el popup en un nuevo slash.
+  React.useEffect(function() {
+    if (slashClosedAt >= 0 && (slashClosedAt > value.length || value.charAt(slashClosedAt) !== '/')) {
+      setSlashClosedAt(-1);
+    }
+  }, [value, slashClosedAt]);
+
+  // Helper: el popup pregunta esto para saber si debe renderizarse.
+  // Si user cerró el popup en un slash específico, no lo abrimos de nuevo
+  // hasta que el slash cambie o desaparezca.
+  function getSlashMatchOrNull() {
+    if (typeof window === 'undefined' || !window.__mtxSlashCommands) return null;
+    var m = window.__mtxSlashCommands.match(value, cursorPos);
+    if (!m) return null;
+    if (m.anchor === slashClosedAt) return null;
+    return m;
+  }
+
+  function handleSlashReplace(newText, newCursor) {
+    onChange(newText);
+    setSlashClosedAt(-1);
+    // Re-focus + set cursor + bump cursor state
+    setTimeout(function() {
+      var t = textareaRef && textareaRef.current;
+      if (t) {
+        t.focus();
+        try { t.setSelectionRange(newCursor, newCursor); } catch (_) {}
+        setCursorPos(newCursor);
+      }
+    }, 0);
+  }
+
+  function handleSlashClose() {
+    // Marca el anchor del slash actual como "cerrado" para no re-abrir
+    var m = window.__mtxSlashCommands && window.__mtxSlashCommands.match(value, cursorPos);
+    if (m) setSlashClosedAt(m.anchor);
+  }
+
+  var slashMatch = getSlashMatchOrNull();
+
   return (
     <div style={{
       flexShrink: 0,
@@ -1694,7 +1747,20 @@ function IAInputBar(props) {
       backdropFilter: 'blur(20px) saturate(160%)',
       WebkitBackdropFilter: 'blur(20px) saturate(160%)',
       borderTop: '0.5px solid rgba(255,255,255,0.04)',
+      position: 'relative',  // anchor para slash popup absolute
     }}>
+      {/* C12 — Slash commands autocomplete popup. Vive como sibling del
+          container del input, anclado al wrapper outer (position:relative).
+          Solo renderiza cuando hay `/` activo en el texto. */}
+      {slashMatch && window.CoachSlashAutocomplete && (
+        <window.CoachSlashAutocomplete
+          text={value}
+          cursorPos={cursorPos}
+          textareaRef={textareaRef}
+          onReplace={handleSlashReplace}
+          onClose={handleSlashClose}
+        />
+      )}
       {/* Container del input — flex column. Textarea ocupa el TOP (full
           width, alineado a la izquierda desde el primer pixel para que el
           texto empiece arriba a la izquierda — patrón ChatGPT/Claude). Los
@@ -1715,8 +1781,11 @@ function IAInputBar(props) {
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={function(e) { onChange(e.target.value); }}
+          onChange={function(e) { onChange(e.target.value); syncCursor(); }}
           onKeyDown={handleKeyDown}
+          onKeyUp={syncCursor}
+          onClick={syncCursor}
+          onSelect={syncCursor}
           placeholder="Pregúntame algo o describe cómo te sientes…"
           rows={1}
           style={{
@@ -1734,36 +1803,107 @@ function IAInputBar(props) {
           }}
         />
 
-        {/* Botones row — paperclip a la izquierda, mic+send a la derecha */}
+        {/* Botones row — layout C11/C3/C9 Sprint A.7:
+            izquierda: [+ attach] [⚡ skills] [🧠 memory chip]
+            derecha:   [🎙️ mic transcribe] [🌊 voice mode] [↑ send]
+            Cada uno tiene propósito distinto y NO se solapa con otros. */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 4,
           marginTop: 2,
         }}>
-          {/* Upload (left) */}
+          {/* C11a — Plus button (reemplaza paperclip viejo). Abre attach menu */}
           <button
-            onClick={onUpload}
-            aria-label="Adjuntar archivo"
+            onClick={function() {
+              if (window.__mtxAttachMenu) window.__mtxAttachMenu.open();
+              else if (onUpload) onUpload();
+            }}
+            aria-label="Adjuntar archivo, foto, URL o snapshot wearable"
             className="mtx-tap"
             style={{
-              width: 32, height: 32, borderRadius: 999, border: 0,
-              background: 'transparent',
+              width: 34, height: 34, borderRadius: 999, border: 0,
+              background: 'rgba(255,255,255,0.06)',
+              color: 'var(--ink-2)',
+              cursor: 'pointer', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background .2s, color .2s, transform .12s',
+            }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+
+          {/* C11b — Skills button. Abre skills menu con tabs Oficiales/Mías */}
+          <button
+            onClick={function() {
+              if (window.__mtxSkillsMenu) window.__mtxSkillsMenu.open();
+            }}
+            aria-label="Activar una habilidad del coach"
+            className="mtx-tap"
+            style={{
+              width: 34, height: 34, borderRadius: 999, border: 0,
+              background: 'rgba(255,255,255,0.04)',
               color: 'var(--ink-3)',
               cursor: 'pointer', flexShrink: 0,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background .2s, color .2s',
             }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </button>
 
+          {/* C9 — Memory chip (count de memorias activas).
+              Sutil pero presente — el moat visible vs ChatGPT/Claude.
+              Tap → abre tab Memoria del IA settings. */}
+          {typeof window !== 'undefined' && window.__mtxMemoryStore && (() => {
+            var stats = null;
+            try { stats = window.__mtxMemoryStore.stats(); } catch (_) {}
+            var count = (stats && stats.active) || 0;
+            if (count === 0) return null;
+            return (
+              <button
+                onClick={function() {
+                  window.dispatchEvent(new CustomEvent('mtx:open-ia-settings', {
+                    detail: { tab: 'memory' },
+                  }));
+                }}
+                aria-label={'Memoria del coach: ' + count + ' hechos sobre ti. Tap para ver.'}
+                className="mtx-tap"
+                style={{
+                  height: 28,
+                  padding: '0 9px',
+                  borderRadius: 999,
+                  border: '0.5px solid rgba(155,138,255,0.30)',
+                  background: 'rgba(155,138,255,0.08)',
+                  color: 'rgba(195,180,255,0.95)',
+                  cursor: 'pointer', flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  marginLeft: 2,
+                  transition: 'background .2s, border-color .2s',
+                }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h5a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 14.5 2z"/>
+                  <line x1="7" y1="9" x2="17" y2="9"/>
+                  <line x1="7" y1="14" x2="17" y2="14"/>
+                </svg>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+              </button>
+            );
+          })()}
+
           <div style={{ flex: 1 }}/>
 
-          {/* Voice (right) */}
+          {/* C3 part A — Mic transcribe (queda igual, dicta texto al input) */}
           <button
             onClick={onVoice}
-            aria-label="Hablar con el asistente"
+            aria-label="Dictar mensaje"
             className="mtx-tap"
             style={{
               width: 32, height: 32, borderRadius: 999, border: 0,
@@ -1774,6 +1914,34 @@ function IAInputBar(props) {
               transition: 'background .2s, color .2s',
             }}>
             <IcMic size={16} stroke="currentColor" strokeWidth={1.7}/>
+          </button>
+
+          {/* C3 part B — Voice mode (NUEVO). Abre voice_call overlay B7.
+              Glow neon sutil constante — killer feature visible. */}
+          <button
+            onClick={function() {
+              if (window.__mtxVoiceCall) {
+                var convId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId();
+                window.__mtxVoiceCall.open(convId, '');
+              }
+            }}
+            aria-label="Hablar por voz con el coach (modo llamada)"
+            className="mtx-tap"
+            style={{
+              width: 34, height: 34, borderRadius: 999, border: 0,
+              background: 'rgba(61,255,209,0.08)',
+              color: 'var(--neon)',
+              cursor: 'pointer', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 12px rgba(61,255,209,0.15), inset 0 0 0 0.5px rgba(61,255,209,0.30)',
+              transition: 'background .2s, box-shadow .2s, transform .12s',
+            }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12c0-2 1-4 3-4s3 2 3 4-1 4-3 4-3-2-3-4z" fill="currentColor" fillOpacity="0.15"/>
+              <path d="M9 12c0-3 1.5-6 3-6s3 3 3 6-1.5 6-3 6-3-3-3-6z" fill="currentColor" fillOpacity="0.20"/>
+              <path d="M15 12c0-2 1-4 3-4s3 2 3 4-1 4-3 4-3-2-3-4z" fill="currentColor" fillOpacity="0.15"/>
+            </svg>
           </button>
 
           {/* Send (neon cuando hay texto, opaco cuando no) */}
@@ -2841,6 +3009,95 @@ function IAScreen(props) {
     return function() { window.removeEventListener('mtx:ia-chip-tap', handler); };
   }, []);
 
+  // ── C11a Sprint A.7 — Listener attach menu (file/camera/url/wearable) ──
+  // El usuario elige opción → inyectamos prompt o adjuntamos data al input.
+  React.useEffect(function() {
+    var handler = function(e) {
+      var detail = (e && e.detail) || {};
+      var kind = detail.kind;
+      var value = detail.value;
+      var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : null;
+
+      if (kind === 'url' && value) {
+        // Inyecta el prompt con la URL para que el coach dispare web_fetch
+        setDraft('Léeme esto: ' + value);
+        setTimeout(function() {
+          if (textareaRef.current) textareaRef.current.focus();
+        }, 60);
+        return;
+      }
+
+      if (kind === 'wearable') {
+        // Snapshot del wearable al chat: si conectado, lectura actual;
+        // si no, abre integration sheet vía dispatch existente.
+        var connected = window.__mtxWearableStore && window.__mtxWearableStore.isConnected();
+        if (!connected) {
+          if (toast && toast.show) toast.show({ message: 'Conecta Apple Health primero', duration: 2000 });
+          window.dispatchEvent(new CustomEvent('mtx:open-integration-detail', {
+            detail: { integrationId: 'appleHealth' },
+          }));
+          return;
+        }
+        var lastNight = window.__mtxWearableStore.getLastNight();
+        if (lastNight) {
+          var snap = 'Snapshot anoche: ' + lastNight.sleepHours + 'h de sueño · HRV ' + lastNight.hrv + 'ms · ' + lastNight.steps + ' pasos hoy. ';
+          setDraft(snap);
+          setTimeout(function() {
+            if (textareaRef.current) textareaRef.current.focus();
+          }, 60);
+        }
+        return;
+      }
+
+      if (kind === 'file') {
+        // Dispara el file picker nativo invisible (input type=file con ref).
+        if (typeof triggerFilePicker === 'function') triggerFilePicker();
+        return;
+      }
+      if (kind === 'camera') {
+        // Dispara el camera input (capture="environment" en móvil abre cámara).
+        if (typeof triggerCameraPicker === 'function') triggerCameraPicker();
+        return;
+      }
+    };
+    window.addEventListener('mtx:coach-attach', handler);
+    return function() { window.removeEventListener('mtx:coach-attach', handler); };
+  }, []);
+
+  // ── Sprint A.7 — Listener mtx:open-ia-settings ───────────────────────────
+  // Lo disparan: memory chip del input bar (tab='memory'), skills menu
+  // botón "Gestionar" (tab='skills'). El AssistantConfigSheet ya escucha
+  // este mismo evento para preseleccionar la tab; aquí solo abrimos el sheet.
+  React.useEffect(function() {
+    var handler = function(e) {
+      setSettingsOpen(true);
+    };
+    window.addEventListener('mtx:open-ia-settings', handler);
+    return function() { window.removeEventListener('mtx:open-ia-settings', handler); };
+  }, []);
+
+  // ── C11b Sprint A.7 — Listener skill activation ──────────────────────────
+  // El user tappea una skill del menu → inyecta su primer trigger al input
+  // (no auto-envía para permitir edición).
+  React.useEffect(function() {
+    var handler = function(e) {
+      var detail = (e && e.detail) || {};
+      var prompt = detail.prompt;
+      if (!prompt) return;
+      setDraft(prompt);
+      setTimeout(function() {
+        if (textareaRef.current) textareaRef.current.focus();
+        // Posiciona cursor al final
+        if (textareaRef.current) {
+          var len = textareaRef.current.value.length;
+          textareaRef.current.setSelectionRange(len, len);
+        }
+      }, 60);
+    };
+    window.addEventListener('mtx:skill-activate', handler);
+    return function() { window.removeEventListener('mtx:skill-activate', handler); };
+  }, []);
+
   // ── Listener: respuesta del agente tras organizar horario ──────────────
   // El chip-tap handler despacha 'mtx:ia-schedule-done' con las líneas del
   // horario. Aquí tenemos acceso al conv.id actual para inyectar el mensaje.
@@ -2979,8 +3236,51 @@ function IAScreen(props) {
   var handleSettings = function() {
     setSettingsOpen(true);
   };
+  // Ref para el input file invisible (file picker nativo)
+  var fileInputRef = React.useRef(null);
+  var cameraInputRef = React.useRef(null);
+
+  // Legacy handler (queda por backward compat — el nuevo + button abre el
+  // attach menu directamente, no llama esto. Si algo externo invoca, sigue
+  // funcionando como fallback abriendo el menu.)
   var handleUpload = function() {
-    toast.show({ message: 'Adjuntar · Próximamente en Fase 2', duration: 1800 });
+    if (window.__mtxAttachMenu) {
+      window.__mtxAttachMenu.open();
+    } else {
+      toast.show({ message: 'Adjuntar · Próximamente', duration: 1800 });
+    }
+  };
+
+  // Triggers file pickers — invocados desde el attach menu listener
+  var triggerFilePicker = function() {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+  var triggerCameraPicker = function() {
+    if (cameraInputRef.current) cameraInputRef.current.click();
+  };
+
+  // Handler común al seleccionar archivo (file o camera). Por ahora solo
+  // mostramos preview del nombre/size en el draft. Cuando llegue backend,
+  // el archivo se sube y el chat-message recibe el attachment ID.
+  var handleFileSelected = function(e) {
+    var file = e.target && e.target.files && e.target.files[0];
+    if (!file) return;
+    var sizeKB = Math.round(file.size / 1024);
+    var sizeStr = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
+    var attachLabel = '📎 ' + file.name + ' (' + sizeStr + ')';
+    setDraft(function(prev) {
+      var trimmed = (prev || '').trim();
+      return trimmed ? trimmed + '\n\n' + attachLabel : attachLabel + '\n\n';
+    });
+    setTimeout(function() {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        var len = textareaRef.current.value.length;
+        textareaRef.current.setSelectionRange(len, len);
+      }
+    }, 60);
+    // Limpia el value para que el mismo archivo pueda re-seleccionarse
+    e.target.value = '';
   };
   // Voz: abre el overlay de transcripción. Cuando el user confirma enviar,
   // el final transcribed text se aplica al draft. Si quiere enviarlo de
@@ -3129,6 +3429,31 @@ function IAScreen(props) {
           correctamente — necesita identifier capitalizado. Montado en
           Mentex Home.html junto a GlobalPlayerOverlay y demás globales para
           que pueda abrirse desde Home/Explore/Profile además de IA. */}
+
+      {/* Sprint A.7 · C11a — file pickers invisibles. Los triggers
+          (triggerFilePicker / triggerCameraPicker) viven en el closure del
+          IAScreen y son llamados por el listener mtx:coach-attach. Cuando
+          llegue backend, el archivo se sube a Imperial Gateway storage y
+          el message recibe un attachmentId. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,image/*,.doc,.docx,.txt,.md"
+        onChange={handleFileSelected}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileSelected}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
 
       {/* IAHistorySheet vive al nivel de MentexApp (props.setHistoryOpen) */}
     </div>

@@ -914,6 +914,18 @@ function AssistantConfigSheet(props) {
   var connectState = React.useState(null);
   var connectCtx = connectState[0]; var setConnectCtx = connectState[1];
 
+  // Sprint A.7 — Listener para que callers externos preseleccionen tab.
+  // Eg. memory chip dispatch 'mtx:open-ia-settings' con detail.tab='memory';
+  // skills menu "Gestionar" → tab='skills'.
+  React.useEffect(function() {
+    function onOpenWithTab(e) {
+      var tab = e && e.detail && e.detail.tab;
+      if (tab) setActiveTab(tab);
+    }
+    window.addEventListener('mtx:open-ia-settings', onOpenWithTab);
+    return function() { window.removeEventListener('mtx:open-ia-settings', onOpenWithTab); };
+  }, []);
+
   // ESC para cerrar
   React.useEffect(function() {
     if (!open) return;
