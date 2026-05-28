@@ -593,12 +593,22 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
     // el impulso pasó, el picker nunca se ve.
     openPicker: () => {
       if (state.gateSettings && state.gateSettings.enabled) {
+        // Sprint A.11 · pick modalidad antes de mount el gate.
+        // Default si el store de modos no está cargado: 'breath' (legacy).
+        let pickedMode = 'breath';
+        try {
+          if (window.__mtxBreathGateModes &&
+              typeof window.__mtxBreathGateModes.pickModeForSession === 'function') {
+            pickedMode = window.__mtxBreathGateModes.pickModeForSession();
+          }
+        } catch (e) { pickedMode = 'breath'; }
         state = {
           ...state,
           breathGate: {
             active: true,
             // No hay 'minutes' aún — el user elegirá DESPUÉS del breath
             phase: 'breath',  // breath → reconsider → (picker | dismiss)
+            mode: pickedMode,  // 'breath' | 'image' | 'gratitude' | 'affirmations'
             startedAt: Date.now(),
           },
         };

@@ -124,6 +124,10 @@
     );
     var snap = snapState[0]; var setSnap = snapState[1];
 
+    // Sprint A.11 · estado del sheet de settings (se renderiza dentro del gate)
+    var settingsOpenState = React.useState(false);
+    var settingsOpen = settingsOpenState[0]; var setSettingsOpen = settingsOpenState[1];
+
     React.useEffect(function() {
       if (!window.__mtxAppsBreak) return;
       var handler = function() { setSnap(window.__mtxAppsBreak.get()); };
@@ -132,6 +136,8 @@
     }, []);
 
     // ESC para volver (no es jail). Solo activo cuando gate visible.
+    // Sprint A.11: si el sheet está abierto, el sheet ya consume el ESC
+    // (con capture phase + stopPropagation), por eso no necesitamos guard.
     var gateActive = !!(snap.breathGate && snap.breathGate.active);
     React.useEffect(function() {
       if (!gateActive) return;
@@ -151,11 +157,17 @@
       };
     }, [gateActive]);
 
+    // Reset settings sheet al cerrar el gate
+    React.useEffect(function() {
+      if (!gateActive && settingsOpen) setSettingsOpen(false);
+    }, [gateActive, settingsOpen]);
+
     // Después de todos los hooks: early return seguro
     if (!gateActive) return null;
     if (!window.__mtxAppsBreak) return null;
 
-    var phase = snap.breathGate.phase;  // 'breath' | 'reconsider'
+    var phase = snap.breathGate.phase;        // 'breath' | 'reconsider'
+    var mode = snap.breathGate.mode || 'breath';  // 'breath' | 'image' | 'gratitude' | 'affirmations'
     var settings = snap.gateSettings || { durationSec: 8, allowSkip: false };
     var durationSec = settings.durationSec;
     var allowSkip = !!settings.allowSkip;
@@ -175,23 +187,70 @@
     function handleBreathDone() {
       window.__mtxAppsBreak.breathGateAdvance();
     }
-
-    if (phase === 'breath') {
-      return <_BreathPhase
-        durationSec={durationSec}
-        allowSkip={allowSkip}
-        onDone={handleBreathDone}
-        onDismiss={handleDismiss}
-        onSkip={handleSkip}
-      />;
+    function handleAdvance() {
+      // Versión genérica para fases self-paced (image/gratitude/affirmations)
+      window.__mtxAppsBreak.breathGateAdvance();
     }
-    if (phase === 'reconsider') {
-      return <_ReconsiderPhase
+    function handleOpenSettings() {
+      _vibrate(30);
+      setSettingsOpen(true);
+    }
+    function handleCloseSettings() {
+      setSettingsOpen(false);
+    }
+
+    // Fase de gate activa
+    var GatePhases = window.__mtxBreathGatePhases || null;
+    var gatePhase = null;
+    if (phase === 'breath') {
+      // La modalidad determina QUÉ render usar durante la fase 'breath'.
+      // 'reconsider' siempre es la misma question independiente de la modalidad.
+      if (mode === 'image' && GatePhases) {
+        gatePhase = <GatePhases.ImagePhase
+          onAdvance={handleAdvance}
+          onDismiss={handleDismiss}
+          onOpenSettings={handleOpenSettings}
+        />;
+      } else if (mode === 'gratitude' && GatePhases) {
+        gatePhase = <GatePhases.GratitudePhase
+          onAdvance={handleAdvance}
+          onDismiss={handleDismiss}
+          onOpenSettings={handleOpenSettings}
+        />;
+      } else if (mode === 'affirmations' && GatePhases) {
+        gatePhase = <GatePhases.AffirmationsPhase
+          onAdvance={handleAdvance}
+          onDismiss={handleDismiss}
+          onOpenSettings={handleOpenSettings}
+        />;
+      } else {
+        gatePhase = <_BreathPhase
+          durationSec={durationSec}
+          allowSkip={allowSkip}
+          onDone={handleBreathDone}
+          onDismiss={handleDismiss}
+          onSkip={handleSkip}
+          onOpenSettings={handleOpenSettings}
+        />;
+      }
+    } else if (phase === 'reconsider') {
+      gatePhase = <_ReconsiderPhase
         onConfirm={handleConfirm}
         onDismiss={handleDismiss}
+        onOpenSettings={handleOpenSettings}
       />;
     }
-    return null;
+
+    var SettingsSheet = window.BreathGateSettingsSheet || null;
+
+    return (
+      <React.Fragment>
+        {gatePhase}
+        {SettingsSheet ? (
+          <SettingsSheet open={settingsOpen} onClose={handleCloseSettings}/>
+        ) : null}
+      </React.Fragment>
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -236,7 +295,9 @@
         display: 'flex', flexDirection: 'column',
         animation: 'mtx-fade-up .35s ease both',
       }}>
-        {/* Header: Volver (izq) + Skip (der opcional) */}
+        {/* Header: Volver (izq) + Menú ⚙ (der) + Skip opcional inline */}
+        {/* Sprint A.11: el botón ⚙ siempre presente. Si allowSkip está on,
+            el botón Saltar aparece junto al menú con menor jerarquía visual. */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '54px 22px 0',
@@ -259,21 +320,39 @@
             <span aria-hidden="true">←</span>
             <span>Volver</span>
           </button>
-          {allowSkip ? (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {allowSkip ? (
+              <button type="button"
+                onClick={props.onSkip}
+                className="mtx-tap"
+                aria-label="Saltar respiración"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '8px 14px', borderRadius: 999,
+                  background: 'transparent',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                  color: 'rgba(255,255,255,0.55)',
+                  fontSize: 11.5, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Saltar</button>
+            ) : null}
             <button type="button"
-              onClick={props.onSkip}
+              onClick={props.onOpenSettings}
               className="mtx-tap"
-              aria-label="Saltar respiración"
+              aria-label="Configurar modalidades del descanso"
               style={{
                 appearance: 'none', cursor: 'pointer',
-                padding: '8px 14px', borderRadius: 999,
-                background: 'transparent',
-                border: '0.5px solid rgba(255,255,255,0.10)',
-                color: 'rgba(255,255,255,0.55)',
-                fontSize: 11.5, fontWeight: 600,
+                width: 38, height: 38, borderRadius: 999,
+                background: 'rgba(255,255,255,0.05)',
+                border: '0.5px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.85)',
+                fontSize: 18, fontWeight: 600,
                 fontFamily: 'var(--ff-sans)',
-              }}>Saltar</button>
-          ) : <div/>}
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <span aria-hidden="true">⚙</span>
+            </button>
+          </div>
         </div>
 
         {/* Centro: círculo respirando con halos */}
@@ -389,10 +468,39 @@
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '40px 30px',
         animation: 'mtx-fade-up .35s ease both',
       }}>
+        {/* Header top con menú ⚙ — Sprint A.11 */}
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+          padding: '54px 22px 0',
+          flexShrink: 0,
+        }}>
+          <button type="button"
+            onClick={props.onOpenSettings}
+            className="mtx-tap"
+            aria-label="Configurar modalidades del descanso"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: 38, height: 38, borderRadius: 999,
+              background: 'rgba(255,255,255,0.05)',
+              border: '0.5px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.85)',
+              fontSize: 18, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <span aria-hidden="true">⚙</span>
+          </button>
+        </div>
+
+        {/* Centro con contenido */}
+        <div style={{
+          flex: 1,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '0 30px 40px',
+        }}>
         {/* Icon center */}
         <div style={{
           width: 88, height: 88, borderRadius: '50%',
@@ -462,6 +570,7 @@
               letterSpacing: '-0.005em',
             }}>No, sigo enfocado</button>
         </div>
+        </div>{/* /centro wrap */}
       </div>
     );
   }
