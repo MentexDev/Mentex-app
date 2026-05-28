@@ -75,7 +75,7 @@
         <button type="button"
           onClick={props.onOpenSettings}
           className="mtx-tap"
-          aria-label="Configurar modalidades del descanso"
+          aria-label="Configurar pausa consciente"
           style={{
             appearance: 'none', cursor: 'pointer',
             width: 38, height: 38, borderRadius: 999,
@@ -147,12 +147,16 @@
       }}>
         <_GateHeader onDismiss={props.onDismiss} onOpenSettings={props.onOpenSettings}/>
 
-        {/* Centro: portrait + frase */}
-        <div style={{
+        {/* Centro: portrait + frase
+            Audit GAP-5: key={quote.id} fuerza remount con la animación
+            mtx-fade-up cada vez que el user pulsa "Otra frase". Sin esto
+            el cambio puede pasar desapercibido si el texto es similar. */}
+        <div key={quote.id} style={{
           flex: 1,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '20px 28px',
+          animation: 'mtx-fade-up .35s ease both',
         }}>
           {/* Portrait mockup SVG */}
           <div style={{

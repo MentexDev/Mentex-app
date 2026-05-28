@@ -64,6 +64,13 @@
     var startedAtRef = React.useRef(0);
     var lastBreathPhaseRef = React.useRef('in');
     var lastLabelRef = React.useRef('Take a deep breath');
+    // Audit CRIT-1 fix: capturar onComplete en ref para evitar stale closure.
+    // El padre recrea handleBreathDone en cada render; el tick usaría la
+    // versión vieja sin esto. Ref se actualiza en cada render sincrónico.
+    var onCompleteRef = React.useRef(onComplete);
+    React.useEffect(function() {
+      onCompleteRef.current = onComplete;
+    });
 
     React.useEffect(function() {
       startedAtRef.current = Date.now();
@@ -93,7 +100,8 @@
         }
 
         if (left <= 0) {
-          if (onComplete) onComplete();
+          // Audit CRIT-1: usar ref para evitar invocar callback stale
+          if (onCompleteRef.current) onCompleteRef.current();
           rafRef.current = null;
           return;
         }
@@ -138,22 +146,40 @@
     // ESC para volver (no es jail). Solo activo cuando gate visible.
     // Sprint A.11: si el sheet está abierto, el sheet ya consume el ESC
     // (con capture phase + stopPropagation), por eso no necesitamos guard.
+    // Audit CRIT-3: si user está tipeando en Gratitude/Affirmations,
+    // ESC NO debe dismiss (perdería el texto sin warning).
     var gateActive = !!(snap.breathGate && snap.breathGate.active);
     React.useEffect(function() {
       if (!gateActive) return;
       function onKey(e) {
         if (e.isComposing || e.keyCode === 229) return;
-        if (e.key === 'Escape') {
-          _vibrate(20);
-          if (window.__mtxAppsBreak) window.__mtxAppsBreak.breathGateDismiss();
+        if (e.key !== 'Escape') return;
+        // Audit CRIT-4 guard: si el settings sheet está abierto, NO procesar
+        // ESC aquí — el sheet ya lo va a consumir. Flag global poblado por
+        // breath-gate-settings-sheet.jsx en su effect de open.
+        if (window.__mtxBreathGateSheetOpen) return;
+        // Audit CRIT-3 guard: si está tipeando en input/textarea, no dismiss.
+        // El user puede usar el botón Volver explícitamente.
+        var tgt = e.target;
+        if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
+          // Solo blur el input — no dismiss el gate
+          if (typeof tgt.blur === 'function') tgt.blur();
+          return;
         }
+        _vibrate(20);
+        if (window.__mtxAppsBreak) window.__mtxAppsBreak.breathGateDismiss();
       }
       window.addEventListener('keydown', onKey);
+      // Audit CRIT-2: usar ref + restore incondicional para evitar pisado
+      // entre mounts consecutivos. document.body.style.overflow puede
+      // capturarse ya 'hidden' si el primer cleanup no corrió aún.
       var prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return function() {
         window.removeEventListener('keydown', onKey);
-        document.body.style.overflow = prev;
+        // Restaurar a vacío si lo que capturamos fue 'hidden' (set por
+        // este mismo effect o uno previo) — más seguro que asumir prev.
+        document.body.style.overflow = prev === 'hidden' ? '' : prev;
       };
     }, [gateActive]);
 
@@ -339,7 +365,7 @@
             <button type="button"
               onClick={props.onOpenSettings}
               className="mtx-tap"
-              aria-label="Configurar modalidades del descanso"
+              aria-label="Configurar pausa consciente"
               style={{
                 appearance: 'none', cursor: 'pointer',
                 width: 38, height: 38, borderRadius: 999,
@@ -479,7 +505,7 @@
           <button type="button"
             onClick={props.onOpenSettings}
             className="mtx-tap"
-            aria-label="Configurar modalidades del descanso"
+            aria-label="Configurar pausa consciente"
             style={{
               appearance: 'none', cursor: 'pointer',
               width: 38, height: 38, borderRadius: 999,

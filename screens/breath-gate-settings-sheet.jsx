@@ -15,10 +15,11 @@
 //   3. Sección "Mezclado incluye" — toggles por modalidad
 //        (solo visible cuando activeMode === 'mix')
 //   4. Sección "Duración respiración" — chips 5s / 8s / 12s
-//        (solo afecta 'breath'; las otras son self-paced)
-//   5. Sección "Acceso al gate"
-//        Toggle "Activar BreathGate" (master ON/OFF)
-//        Toggle "Permitir saltar" (allowSkip)
+//        REACTIVA: solo visible si activeMode ∈ { mix, breath, image }
+//        (en gratitud/decretos el flow es manual y self-paced)
+//   5. Sección "Pausa consciente"
+//        Toggle "Activar pausa consciente" (master ON/OFF)
+//        Toggle "Permitir saltar" (allowSkip, disabled si master off)
 //   6. Footer: "Restablecer valores por defecto"
 //
 // El sheet se monta DENTRO del BreathGate (no en raíz), por encima de las
@@ -313,20 +314,50 @@
       if (window.__mtxAppsBreak) {
         setGateSettings(window.__mtxAppsBreak.getGateSettings());
       }
+      // Audit CRIT-7: listener para que el sheet se actualice si otro
+      // componente cambia los settings mientras está abierto.
+      function onModesChanged() {
+        if (window.__mtxBreathGateModes) {
+          setModesSettings(window.__mtxBreathGateModes.getSettings());
+        }
+      }
+      function onGateChanged() {
+        if (window.__mtxAppsBreak) {
+          setGateSettings(window.__mtxAppsBreak.getGateSettings());
+        }
+      }
+      window.addEventListener('mtx:gate-modes-settings-changed', onModesChanged);
+      window.addEventListener('mtx:apps-break-changed', onGateChanged);
+      return function() {
+        window.removeEventListener('mtx:gate-modes-settings-changed', onModesChanged);
+        window.removeEventListener('mtx:apps-break-changed', onGateChanged);
+      };
     }, [open]);
 
-    // ESC = close
+    // ESC = close. Audit CRIT-4 fix: flag global window.__mtxBreathGateSheetOpen
+    // que el gate consulta antes de procesar ESC. stopPropagation no funciona
+    // cuando ambos listeners están registrados directamente en window (no hay
+    // DOM tree para propagar). El flag es la fuente de verdad.
     React.useEffect(function() {
-      if (!open) return;
+      if (!open) {
+        // Limpiar flag al cerrar
+        try { window.__mtxBreathGateSheetOpen = false; } catch (e) {}
+        return;
+      }
+      window.__mtxBreathGateSheetOpen = true;
       function onKey(e) {
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Escape') {
-          e.stopPropagation();  // evita cerrar también el BreathGate
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
           handleClose();
         }
       }
       window.addEventListener('keydown', onKey, true);  // capture phase para llegar antes
-      return function() { window.removeEventListener('keydown', onKey, true); };
+      return function() {
+        window.removeEventListener('keydown', onKey, true);
+        try { window.__mtxBreathGateSheetOpen = false; } catch (e) {}
+      };
     }, [open]);
 
     function handleClose() {
@@ -343,17 +374,21 @@
     }
 
     function toggleEnabledMode(mode, on) {
-      _vibrate(25);
-      // No permitir deshabilitar todas (lockstep) — al menos 1 activa
+      // No permitir deshabilitar todas (lockstep) — al menos 1 activa.
+      // Audit IMP-4: pre-check antes de vibrar, para usar pattern de error
+      // si la acción será rechazada. Feedback haptic consistente con UX.
       var enabledModes = Object.assign({}, modesSettings.enabledModes);
       enabledModes[mode] = on;
       var activeCount = Object.keys(enabledModes).filter(function(k) { return enabledModes[k]; }).length;
       if (activeCount < 1) {
-        // Reactivar la que está intentando apagar
+        // Reactivar la que está intentando apagar + haptic de error
         enabledModes[mode] = true;
+        _vibrate([50, 100, 50]);
         if (window.__mtxToast && typeof window.__mtxToast.show === 'function') {
           window.__mtxToast.show('Al menos una modalidad debe estar activa', { kind: 'warn' });
         }
+      } else {
+        _vibrate(25);
       }
       var next = (window.__mtxBreathGateModes &&
         window.__mtxBreathGateModes.updateSettings({ enabledModes: enabledModes })) ||
@@ -429,7 +464,7 @@
         }}/>
 
         {/* Sheet */}
-        <div role="dialog" aria-modal="true" aria-label="Configurar modalidades del descanso"
+        <div role="dialog" aria-modal="true" aria-label="Configurar pausa consciente"
           style={{
             position: 'absolute',
             left: 0, right: 0, bottom: 0,
@@ -544,28 +579,40 @@
               </_Section>
             ) : null}
 
-            <_Section title="Duración respiración"
-              footnote="Solo aplica al modo respiración. Gratitud y decretos van a tu ritmo.">
-              <_DurationPicker
-                value={modesSettings.durationSec || 8}
-                onChange={setBreathDuration}
-              />
-            </_Section>
+            {/* Sprint A.11 fix: duración solo relevante cuando la modalidad
+                ACTIVA usa respiración. En gratitud/decretos el flow es manual
+                y el slider no hace nada. Ocultamos para evitar confusión. */}
+            {(modesSettings.activeMode === 'mix' ||
+              modesSettings.activeMode === 'breath' ||
+              modesSettings.activeMode === 'image') ? (
+              <_Section title="Duración respiración"
+                footnote={modesSettings.activeMode === 'mix'
+                  ? 'Solo aplica cuando toca respiración. Gratitud y decretos van a tu ritmo.'
+                  : modesSettings.activeMode === 'image'
+                    ? 'Tiempo de lectura sugerido para absorber la frase.'
+                    : 'Cuánto durará cada respiración.'}>
+                <_DurationPicker
+                  value={modesSettings.durationSec || 8}
+                  onChange={setBreathDuration}
+                />
+              </_Section>
+            ) : null}
 
-            <_Section title="Acceso al gate">
+            <_Section title="Pausa consciente"
+              footnote="La pausa intercepta el impulso antes del descanso. Sin ella, el picker abre directo.">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <_ToggleRow icon="🛡"
-                  label="Activar BreathGate"
+                  label="Activar pausa consciente"
                   description={gateSettings.enabled
                     ? 'Aparece antes de cada descanso'
-                    : 'Apagado · el picker abre directo'}
+                    : 'Apagada · el picker abre directo'}
                   checked={!!gateSettings.enabled}
                   onChange={toggleGateEnabled}/>
                 <_ToggleRow icon="⏭"
                   label="Permitir saltar"
                   description={gateSettings.allowSkip
-                    ? 'Botón "Saltar" visible en el gate'
-                    : 'Sin atajo · el gate completo se respeta'}
+                    ? 'Botón "Saltar" visible en la pausa'
+                    : 'Sin atajo · la pausa completa se respeta'}
                   checked={!!gateSettings.allowSkip}
                   onChange={toggleAllowSkip}
                   disabled={!gateSettings.enabled}/>

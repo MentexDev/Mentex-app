@@ -182,16 +182,24 @@
         totalMs: cleaned.length * 6000,  // estimate 6s por item
         cyclesDone: cleaned.length,
       });
-      // Augmentar la entry con los textos (post-write read+merge)
-      // Hacemos read directo de la key conocida.
+      // Augmentar la entry con los textos (post-write read+merge).
+      // Audit CRIT-6: NO asumir arr[0] — otro tab/listener pudo escribir
+      // entremedias. Buscar por entry.id para garantizar que pegamos los
+      // textos al entry correcto, no al que quedó arriba por luck.
       try {
         var STORAGE_KEY = 'mtx-wellness-history:v1';
         var raw = window.localStorage.getItem(STORAGE_KEY);
         if (raw) {
           var arr = JSON.parse(raw);
-          if (Array.isArray(arr) && arr[0] && arr[0].id === entry.id) {
-            arr[0].texts = cleaned;
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+          if (Array.isArray(arr)) {
+            var idx = -1;
+            for (var i = 0; i < arr.length; i++) {
+              if (arr[i] && arr[i].id === entry.id) { idx = i; break; }
+            }
+            if (idx >= 0) {
+              arr[idx].texts = cleaned;
+              window.localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+            }
           }
         }
       } catch (e) { /* no-op */ }
@@ -249,10 +257,19 @@
     resetSettings: function() {
       var def = _defaultSettings();
       _saveSettings(def);
+      // Audit GAP-1: también reset la rotación module-state para que la
+      // próxima sesión arranque "fresca" sin sesgo por la última pick.
+      _lastPickedMode = null;
+      _lastPickedQuoteId = null;
       try {
         window.dispatchEvent(new CustomEvent('mtx:gate-modes-settings-changed', { detail: def }));
       } catch (e) { /* no-op */ }
       return def;
+    },
+    // Audit GAP-1: API explícita para resetear la rotación sin tocar settings
+    resetRotation: function() {
+      _lastPickedMode = null;
+      _lastPickedQuoteId = null;
     },
 
     // Rotación
