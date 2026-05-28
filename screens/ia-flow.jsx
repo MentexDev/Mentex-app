@@ -1203,6 +1203,11 @@ function IAMessageBubble(props) {
     // B5 REFACTOR: browse_progress_card en estado live también renderiza
     // mientras el msg está en reasoning (el card es el contenedor del flow).
     if (a.kind === 'browse_progress_card' && (a.state === 'live' || a.state === 'cancelled')) return true;
+    // Sprint A.8 — generative media artifacts son LIVE durante la generación
+    if (a.kind === 'image_gen_job') return true;
+    if (a.kind === 'video_gen_job') return true;
+    if (a.kind === 'storyboard_draft') return true;
+    if (a.kind === 'voice_picker') return true;
     return false;
   }
   var hasArtifacts = artifacts.length > 0 && (
@@ -2846,6 +2851,19 @@ function IAScreen(props) {
     return function() { window.removeEventListener('mtx:ia-enter-chat', handler); };
   }, []);
 
+  // Sprint A.8 — listener: inyecta texto al draft (usado por "Hacer video"
+  // desde IAArtifactImageResult, o por sugerencias inline).
+  React.useEffect(function() {
+    var handler = function(e) {
+      var text = e && e.detail && e.detail.text;
+      if (typeof text !== 'string') return;
+      setView('chat');
+      setDraft(text);
+    };
+    window.addEventListener('mtx:ia-inject-draft', handler);
+    return function() { window.removeEventListener('mtx:ia-inject-draft', handler); };
+  }, []);
+
   // ── Listener: acceso rápido desde HomeActive (botón IA del header) ─────
   // Crea conv efímera con scope='session-active' o reusa la existente.
   // Saludo contextualizado del assistant referencia state real de la sesión
@@ -3316,6 +3334,26 @@ function IAScreen(props) {
   var shareOpen = shareSheetState[0];
   var setShareOpen = shareSheetState[1];
 
+  // C10 — Export sheet state. Se abre via evento `mtx:coach-export-open`
+  // dispatcheado por __mtxCoachExport.open(conv) — el share sheet lo dispara
+  // cuando user tapea "Exportar como…". También se puede abrir desde devtools
+  // para testing manual: __mtxCoachExport.open(__mtxIAChat.getCurrent())
+  var exportSheetState = React.useState({ open: false, conv: null });
+  var exportSheet = exportSheetState[0];
+  var setExportSheet = exportSheetState[1];
+
+  React.useEffect(function() {
+    function onExportOpen(e) {
+      var conv = e && e.detail && e.detail.conversation;
+      if (!conv) return;
+      setExportSheet({ open: true, conv: conv });
+    }
+    window.addEventListener('mtx:coach-export-open', onExportOpen);
+    return function() {
+      window.removeEventListener('mtx:coach-export-open', onExportOpen);
+    };
+  }, []);
+
   // ── Render ───────────────────────────────────────────────────────────────
   // FREE GATE (Fase 1.4): si user no es premium, reemplazamos TODA la tab IA
   // por la pantalla locked. Reactivo a mtx:onboarding-changed — cuando user
@@ -3376,10 +3414,13 @@ function IAScreen(props) {
         onShare={current ? function() { setShareOpen(true); } : undefined}
       />
 
-      <div style={{
-        flex: 1, minHeight: 0,
-        overflowY: 'auto', overflowX: 'hidden',
-      }} className="mtx-no-scrollbar">
+      <div
+        data-mtx-chat-scroller
+        style={{
+          flex: 1, minHeight: 0,
+          overflowY: 'auto', overflowX: 'hidden',
+        }}
+        className="mtx-no-scrollbar">
         {(!current || current.messages.length === 0) ? (
           <IAEmptyChatHint/>
         ) : (
@@ -3421,6 +3462,17 @@ function IAScreen(props) {
           open={shareOpen}
           conversation={current}
           onClose={function() { setShareOpen(false); }}
+        />
+      )}
+
+      {/* C10 — Export sheet (PDF / Markdown / PNG). El listener
+          mtx:coach-export-open (declarado arriba) llena el state cuando
+          el share sheet dispara el evento. Por defecto cerrado. */}
+      {window.CoachExportSheet && exportSheet.open && exportSheet.conv && (
+        <window.CoachExportSheet
+          open={true}
+          conversation={exportSheet.conv}
+          onClose={function() { setExportSheet({ open: false, conv: null }); }}
         />
       )}
 

@@ -170,6 +170,38 @@
       qualityScore: 0.83,
       defaultEnabled: false,
     },
+    {
+      id: 'mtx-generate-image',
+      icon: '🎨',
+      title: 'Generar imagen',
+      description: 'Crea imágenes con IA · 6 modelos del Imperial Gateway (Soul, Nano Banana Pro, Cinema Studio…). Auto-recomienda el modelo según tu prompt.',
+      category: 'creatividad',
+      triggers: ['genera imagen', 'crea imagen', 'visualízame', 'dibuja'],
+      steps: [
+        'Detecta intent y elige modelo óptimo',
+        'Submit job al Gateway · ~15s',
+        'Renderiza inline con acciones (regenerar, guardar, usar como ref)',
+        'Persiste en Memoria si marcas favorita',
+      ],
+      qualityScore: 0.93,
+      defaultEnabled: true,
+    },
+    {
+      id: 'mtx-generate-video',
+      icon: '🎬',
+      title: 'Generar video',
+      description: 'Storyboard editable + selección de voz + render · 4-6 escenas, ~2 minutos. Seedance / Kling / Marketing Studio.',
+      category: 'creatividad',
+      triggers: ['genera video', 'crea video', 'haz un reel', 'film'],
+      steps: [
+        'Compone storyboard 4-6 escenas',
+        'Te deja editarlo antes de aprobar',
+        'Eliges voz de 8 narradores curados',
+        'Submit + render multi-stage · 1-3 min',
+      ],
+      qualityScore: 0.90,
+      defaultEnabled: true,
+    },
   ];
 
   // ── State inicial ─────────────────────────────────────────────────────────

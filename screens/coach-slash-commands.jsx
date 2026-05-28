@@ -143,6 +143,41 @@
         return { kind: 'replace-draft', value: '¿Cómo va mi sueño esta semana?' };
       },
     },
+    {
+      id: 'imagen',
+      label: 'Generar imagen',
+      description: 'Crea una imagen con IA · Higgsfield',
+      icon: '🎨',
+      accent: '#ff9050',
+      takesArg: true,
+      argHint: 'describí qué visualizar',
+      action: function(arg) {
+        var prompt = String(arg || '').trim();
+        if (!prompt) return { kind: 'replace-draft', value: '/imagen ' };
+        // Dispara directamente — el bridge crea el msg del coach
+        window.dispatchEvent(new CustomEvent('mtx:coach-trigger-image-gen', {
+          detail: { prompt: prompt },
+        }));
+        return { kind: 'no-op' };
+      },
+    },
+    {
+      id: 'video',
+      label: 'Generar video',
+      description: 'Storyboard + voz + render · ~2 min',
+      icon: '🎬',
+      accent: '#9b8aff',
+      takesArg: true,
+      argHint: 'describí el video',
+      action: function(arg) {
+        var prompt = String(arg || '').trim();
+        if (!prompt) return { kind: 'replace-draft', value: '/video ' };
+        window.dispatchEvent(new CustomEvent('mtx:coach-trigger-video-gen', {
+          detail: { prompt: prompt },
+        }));
+        return { kind: 'no-op' };
+      },
+    },
   ];
 
   // Alias para typos comunes — match() los resuelve a su comando real.
@@ -157,6 +192,15 @@
     'memory': 'memoria',
     'sleep': 'sueño',
     'sueno': 'sueño',
+    // Sprint A.8 — generative media
+    'image': 'imagen',
+    'img': 'imagen',
+    'photo': 'imagen',
+    'foto': 'imagen',
+    'visualiza': 'imagen',
+    'video': 'video',
+    'film': 'video',
+    'reel': 'video',
   };
 
   // ─ Helper: match slash en el texto ──────────────────────────────────────

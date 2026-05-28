@@ -1185,6 +1185,169 @@
     })();
 
 
+    // ─── 18. SPRINT A.8 · IMAGE GEN — image_result done state ──────────────
+    (function() {
+      var base = _hoursAgo(2);
+      // Mock resultUrl (data SVG ya generado por el store en una corrida previa)
+      var mockSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">' +
+        '<defs><radialGradient id="g1" cx="50%" cy="35%" r="70%">' +
+        '<stop offset="0%" stop-color="#9b8aff"/>' +
+        '<stop offset="50%" stop-color="#2d2549"/>' +
+        '<stop offset="100%" stop-color="#0a0815"/>' +
+        '</radialGradient></defs>' +
+        '<rect width="100%" height="100%" fill="url(#g1)"/>' +
+        '<circle cx="716" cy="307" r="184" fill="white" opacity="0.18"/>' +
+        '<text x="512" y="564" font-size="225" text-anchor="middle">🧘</text>' +
+        '<rect x="0" y="666" width="100%" height="358" fill="black" opacity="0.22"/>' +
+        '</svg>'
+      );
+      conversations.push({
+        id: 'conv-mock-image-gen-meditation',
+        title: 'Visualízame mi meditación ideal',
+        createdAt: base, updatedAt: base + 18000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-18-1',
+            'Visualízame una imagen de cómo se vería mi espacio ideal para meditar en la mañana — minimalista, luz natural, paz.',
+            base),
+          _assistantMsg('msg-mock-18-2',
+            'Te dejé esta visión. Usé Soul V2 porque pediste algo íntimo y editorial. ¿Te ancla en algo de cómo te imaginás esa práctica?',
+            base + 16000,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', {
+                  startedAt: base + 500, durationMs: 1100,
+                  rawInput: { query: 'meditación mañana espacio' },
+                }),
+                _step('step-2', 'image_generate', {
+                  startedAt: base + 1600, durationMs: 14000,
+                  rawInput: { prompt: 'minimalista, luz natural, paz', model: 'soul_2' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'image_result',
+                  resultUrl: mockSrc,
+                  prompt: 'minimalista, luz natural, paz · espacio meditación matinal',
+                  model: 'soul_2',
+                  aspectRatio: '1:1',
+                  state: 'done',
+                },
+              ],
+              chips: ['Regenerar variante', 'Guardar en Memoria', 'Hacer un video con esto'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 19. SPRINT A.8 · VIDEO GEN — storyboard_draft approved + video_result ─
+    (function() {
+      var base = _hoursAgo(8);
+      // Mock video data (matching shape of __mtxVideoGen._generateMockVideoUrl)
+      var mockCoverSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640" viewBox="0 0 360 640">' +
+        '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#ffd28c"/>' +
+        '<stop offset="100%" stop-color="#0a1410"/>' +
+        '</linearGradient></defs>' +
+        '<rect width="100%" height="100%" fill="url(#g)"/>' +
+        '<text x="180" y="320" font-size="115" text-anchor="middle">🌅</text>' +
+        '<rect x="0" y="580" width="100%" height="60" fill="black" opacity="0.65"/>' +
+        '<text x="20" y="608" font-size="14" fill="white" font-family="Inter, sans-serif" font-weight="600">Apertura · el momento previo</text>' +
+        '<text x="20" y="626" font-size="11" fill="white" font-family="Inter, sans-serif" opacity="0.7">6 escenas · 24s</text>' +
+        '</svg>'
+      );
+      var mockScenes = [
+        { idx: 0, title: 'Apertura · el momento previo', description: 'Cierre lento sobre la persona despertando con luz suave entrando por la ventana.', durationSec: 4, thumbnailColor: '#ffd28c', thumbnailIcon: '🌅', moodTag: 'íntimo', voiceover: 'Antes de que empiece el ruido del día, hay un instante.' },
+        { idx: 1, title: 'Primer ritual', description: 'Persona toma un vaso de agua, mirada calma, pasos descalzos.', durationSec: 4, thumbnailColor: '#9bccaa', thumbnailIcon: '💧', moodTag: 'sereno', voiceover: 'Empieza con lo más simple. Agua. Aire. Tu cuerpo presente.' },
+        { idx: 2, title: 'Respiración', description: 'Plano cerrado del pecho subiendo y bajando.', durationSec: 3, thumbnailColor: '#a288d4', thumbnailIcon: '🌬️', moodTag: 'meditativo', voiceover: 'Tres respiraciones. Sin pensar. Sólo sentir.' },
+        { idx: 3, title: 'Movimiento', description: 'Cuerpo estirándose hacia la luz, sombras alargadas.', durationSec: 4, thumbnailColor: '#ffc850', thumbnailIcon: '🧘', moodTag: 'energía', voiceover: 'Despierta el cuerpo despacio. No corras.' },
+        { idx: 4, title: 'Intención', description: 'Persona sentada con cuaderno, escribiendo una palabra.', durationSec: 4, thumbnailColor: '#5a8fff', thumbnailIcon: '✍️', moodTag: 'reflexivo', voiceover: 'Una palabra. Esa es tu brújula para hoy.' },
+        { idx: 5, title: 'Salida', description: 'Persona caminando hacia la puerta con confianza tranquila.', durationSec: 5, thumbnailColor: '#3dffd1', thumbnailIcon: '🌿', moodTag: 'esperanzador', voiceover: 'Ya estás listo. Tu mañana ya es tuya.' },
+      ];
+      conversations.push({
+        id: 'conv-mock-video-gen-morning',
+        title: 'Reel de mi rutina matinal',
+        createdAt: base, updatedAt: base + 180000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-19-1',
+            'Quiero crear un video de mi rutina matinal — quiero que motive a otros sin sonar performativo. 6 escenas máximo.',
+            base),
+          _assistantMsg('msg-mock-19-2',
+            'Te armo el storyboard primero · 6 escenas con voz cálida (Lumen). Podés editarlo antes de generar.',
+            base + 4500,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', { startedAt: base + 300, durationMs: 900 }),
+                _step('step-2', 'storyboard_generate', { startedAt: base + 1200, durationMs: 3200 }),
+              ],
+              artifacts: [
+                {
+                  kind: 'storyboard_draft',
+                  storyboardId: 'storyboard-mock-morning',
+                  state: 'approved',
+                  _mockScenes: mockScenes,
+                  _mockVoiceId: 'lumen_calm',
+                  _mockAspectRatio: '9:16',
+                  _mockModel: 'seedance_2_0',
+                },
+              ],
+            }
+          ),
+          _assistantMsg('msg-mock-19-3',
+            'Listo · render finalizado en 2 min 14s. Lumen como narradora, vertical 9:16. Te lo dejo abajo · podés regenerar o guardarlo.',
+            base + 175000,
+            {
+              steps: [
+                _step('step-1', 'video_generate', {
+                  startedAt: base + 8000, durationMs: 134000,
+                  rawInput: { storyboard: 'storyboard-mock-morning', model: 'seedance_2_0', voice: 'lumen_calm' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'video_result',
+                  storyboardId: 'storyboard-mock-morning',
+                  resultUrl: {
+                    coverDataUrl: mockCoverSrc,
+                    durationSec: 24,
+                    sceneCount: 6,
+                    scenes: mockScenes,
+                    voiceId: 'lumen_calm',
+                    aspectRatio: '9:16',
+                    model: 'seedance_2_0',
+                  },
+                  state: 'done',
+                },
+              ],
+              chips: ['Regenerar con otra voz', 'Guardar en biblioteca', 'Compartir en redes'],
+            }
+          ),
+        ],
+      });
+
+      // Hidratar storyboard mock al store — espera a que __mtxVideoGen esté
+      // listo (carga async via Babel-standalone, robust con poll-backoff).
+      var hydrate = function() {
+        if (window.__mtxVideoGen && window.__mtxVideoGen.seedMockStoryboard) {
+          window.__mtxVideoGen.seedMockStoryboard({
+            storyboardId: 'storyboard-mock-morning',
+            scenes: mockScenes,
+            voiceId: 'lumen_calm',
+            aspectRatio: '9:16',
+            model: 'seedance_2_0',
+            prompt: 'rutina matinal motivacional sin performativo',
+          });
+        } else {
+          setTimeout(hydrate, 200);
+        }
+      };
+      hydrate();
+    })();
+
+
     return conversations;
   }
 

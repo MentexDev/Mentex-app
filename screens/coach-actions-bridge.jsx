@@ -623,6 +623,198 @@
 
   window.addEventListener('mtx:coach-artifact-action', onArtifactAction);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — Generative media listeners (image + video flow)
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Trigger surfaces:
+  //   1. `mtx:coach-trigger-image-gen` { prompt, model?, aspectRatio? }
+  //      Dispatcheado desde: slash command /imagen, skills menu, mensaje del
+  //      user con keyword "visualízame / genera imagen". El bridge crea
+  //      automáticamente el msg del coach con artifact image_gen_job + live state.
+  //
+  //   2. `mtx:coach-trigger-video-gen` { prompt, aspectRatio? }
+  //      Dispatcheado desde: slash command /video, skills menu, keyword
+  //      "crea video / genera video". El bridge corre el flow multi-step:
+  //      storyboard → voz → approve → render.
+  //
+  // Cuando llegue backend (Brandon), estas surfaces siguen iguales — sólo
+  // cambia el dispatcher interior de submit a llamadas reales al Gateway.
+
+  function _appendCoachMsg(content, artifacts) {
+    if (!window.__mtxIAChat) return null;
+    var current = window.__mtxIAChat.getCurrent && window.__mtxIAChat.getCurrent();
+    if (!current) return null;
+    var msgId = 'msg-coach-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e4);
+    window.__mtxIAChat.addMessage(current.id, {
+      id: msgId,
+      role: 'assistant',
+      content: content || '',
+      state: 'done',
+      artifacts: artifacts || [],
+      createdAt: Date.now(),
+    });
+    return msgId;
+  }
+
+  function _updateLastArtifact(msgId, patch) {
+    if (!window.__mtxIAChat || !window.__mtxIAChat.updateMessage) return;
+    // Como no tenemos un updateArtifact dedicado, lo hacemos vía updateMessage
+    // que reemplaza props arbitrarias del msg. El componente lee el artifact
+    // del store de cada generador, pero el patch sirve para forzar re-render.
+    var current = window.__mtxIAChat.getCurrent && window.__mtxIAChat.getCurrent();
+    if (!current) return;
+    var msg = (current.messages || []).find(function(m) { return m.id === msgId; });
+    if (!msg) return;
+    if (Array.isArray(msg.artifacts) && msg.artifacts.length > 0) {
+      Object.assign(msg.artifacts[msg.artifacts.length - 1], patch);
+    }
+    window.__mtxIAChat.updateMessage(current.id, msgId, { artifacts: msg.artifacts });
+  }
+
+  function handleImageGenTrigger(detail) {
+    if (!window.__mtxImageGen) {
+      console.warn('[coach-actions] __mtxImageGen no listo');
+      return;
+    }
+    var prompt = (detail && detail.prompt || '').trim();
+    if (!prompt) return;
+    var aspectRatio = (detail && detail.aspectRatio) || '1:1';
+    var modelId = (detail && detail.model) || window.__mtxImageGen.recommendModel(prompt).id;
+
+    window.__mtxImageGen.submit({
+      prompt: prompt, model: modelId, aspectRatio: aspectRatio,
+    }).then(function(res) {
+      _appendCoachMsg(
+        'Generando una imagen para vos · esto toma ~15s',
+        [{
+          kind: 'image_gen_job',
+          jobId: res.jobId,
+          prompt: prompt,
+          model: modelId,
+          aspectRatio: aspectRatio,
+          state: 'live',
+          progress: 0,
+        }]
+      );
+    });
+  }
+
+  function handleVideoGenTrigger(detail) {
+    if (!window.__mtxVideoGen) {
+      console.warn('[coach-actions] __mtxVideoGen no listo');
+      return;
+    }
+    var prompt = (detail && detail.prompt || '').trim();
+    if (!prompt) return;
+    var aspectRatio = (detail && detail.aspectRatio) || '9:16';
+
+    // Step 1: emite primer mensaje del coach armando el storyboard
+    _appendCoachMsg(
+      'Te armo el storyboard primero · 4-6 escenas, podés editarlo antes de generar el video.',
+      [{
+        kind: 'loading_skeleton',
+        label: 'Componiendo escenas',
+      }]
+    );
+
+    // Step 2: cuando storyboard listo, reemplazar con storyboard_draft
+    window.__mtxVideoGen.submitStoryboard({
+      prompt: prompt, aspectRatio: aspectRatio,
+    }).then(function(sb) {
+      _appendCoachMsg(
+        '',
+        [{
+          kind: 'storyboard_draft',
+          storyboardId: sb.storyboardId,
+          state: 'draft',
+        }]
+      );
+    });
+  }
+
+  function handleStoryboardApprove(detail) {
+    if (!window.__mtxVideoGen) return;
+    var storyboardId = detail && detail.storyboardId;
+    if (!storyboardId) return;
+
+    // Marca el storyboard_draft como approved (visualmente cambia)
+    // El último msg con kind storyboard_draft del storyboardId — lo encontramos
+    var current = window.__mtxIAChat && window.__mtxIAChat.getCurrent();
+    if (current) {
+      for (var i = current.messages.length - 1; i >= 0; i--) {
+        var m = current.messages[i];
+        if (!m.artifacts) continue;
+        var found = m.artifacts.find(function(a) { return a.kind === 'storyboard_draft' && a.storyboardId === storyboardId; });
+        if (found) {
+          _updateLastArtifact(m.id, { state: 'approved' });
+          break;
+        }
+      }
+    }
+
+    // Submit video y aparece job artifact
+    window.__mtxVideoGen.submitVideo(storyboardId).then(function(res) {
+      _appendCoachMsg(
+        'Generando tu video · esto toma 1-3 minutos.',
+        [{
+          kind: 'video_gen_job',
+          jobId: res.jobId,
+          storyboardId: storyboardId,
+          state: 'live',
+        }]
+      );
+    });
+  }
+
+  function handleOpenVoicePicker(detail) {
+    var storyboardId = detail && detail.storyboardId;
+    if (!storyboardId) return;
+    _appendCoachMsg(
+      '',
+      [{
+        kind: 'voice_picker',
+        storyboardId: storyboardId,
+      }]
+    );
+  }
+
+  function handleImageGenRestart(detail) {
+    if (!detail || !detail.jobId) return;
+    _appendCoachMsg(
+      'Regenerando con el mismo prompt · vamos otra vez',
+      [{
+        kind: 'image_gen_job',
+        jobId: detail.jobId,
+        prompt: detail.prompt,
+        model: detail.model,
+        aspectRatio: detail.aspectRatio,
+        state: 'live',
+        progress: 0,
+      }]
+    );
+  }
+
+  function handleVideoGenRestart(detail) {
+    if (!detail || !detail.jobId) return;
+    _appendCoachMsg(
+      'Regenerando video · paciencia',
+      [{
+        kind: 'video_gen_job',
+        jobId: detail.jobId,
+        storyboardId: detail.storyboardId,
+        state: 'live',
+      }]
+    );
+  }
+
+  window.addEventListener('mtx:coach-trigger-image-gen', function(e) { handleImageGenTrigger(e.detail); });
+  window.addEventListener('mtx:coach-trigger-video-gen', function(e) { handleVideoGenTrigger(e.detail); });
+  window.addEventListener('mtx:storyboard-approve', function(e) { handleStoryboardApprove(e.detail); });
+  window.addEventListener('mtx:open-voice-picker', function(e) { handleOpenVoicePicker(e.detail); });
+  window.addEventListener('mtx:image-gen-restart', function(e) { handleImageGenRestart(e.detail); });
+  window.addEventListener('mtx:video-gen-restart', function(e) { handleVideoGenRestart(e.detail); });
+
   // ─ Export del bridge para inspect / future hot-reload ─
   window.__mtxCoachActionsBridge = {
     // Semana 1
@@ -643,6 +835,13 @@
     handleArticleSummary: handleArticleSummary,
     // Sprint A.6 · B1
     handleSourceList: handleSourceList,
+    // Sprint A.8 · Generative media
+    handleImageGenTrigger: handleImageGenTrigger,
+    handleVideoGenTrigger: handleVideoGenTrigger,
+    handleStoryboardApprove: handleStoryboardApprove,
+    handleOpenVoicePicker: handleOpenVoicePicker,
+    handleImageGenRestart: handleImageGenRestart,
+    handleVideoGenRestart: handleVideoGenRestart,
     // Helpers expuestos para tests
     _parseTimeFromText: _parseTimeFromText,
     _dayOffsetFromLabel: _dayOffsetFromLabel,

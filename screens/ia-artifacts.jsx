@@ -4750,6 +4750,1664 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactImageGenJob · imagen mientras genera
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Renderiza el progress live de un image generation job del Imperial Gateway.
+  // Listener de eventos `mtx:image-gen-progress` / `mtx:image-gen-done` /
+  // `mtx:image-gen-error`. Cuando done, se transmuta automáticamente en
+  // IAArtifactImageResult inline (no full-screen overlay).
+  //
+  // Shape:
+  //   { kind: 'image_gen_job', jobId, state: 'live'|'done', prompt, aspectRatio,
+  //     model, progress, eta, resultUrl }
+  function IAArtifactImageGenJob(props) {
+    var art = props.artifact || {};
+    var jobId = art.jobId;
+    var stateInit = art.state || 'live';
+
+    var progressState = React.useState(art.progress || 0);
+    var progress = progressState[0]; var setProgress = progressState[1];
+    var statusState = React.useState(stateInit);
+    var status = statusState[0]; var setStatus = statusState[1];
+    var resultUrlState = React.useState(art.resultUrl || null);
+    var resultUrl = resultUrlState[0]; var setResultUrl = resultUrlState[1];
+    var errState = React.useState(null);
+    var err = errState[0]; var setErr = errState[1];
+
+    var startedAtRef = React.useRef(Date.now());
+
+    // Listener de eventos del store
+    React.useEffect(function() {
+      if (!jobId) return;
+      function onProgress(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        setProgress(e.detail.progress);
+      }
+      function onDone(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        setStatus('done');
+        setProgress(100);
+        setResultUrl(e.detail.resultUrl);
+        // Mutar el artifact en el store de chat (para que persista al re-render)
+        try {
+          if (window.__mtxIAChat && window.__mtxIAChat.updateMessage && art._msgId) {
+            // soft: encontramos msg y actualizamos artifact in-place
+          }
+        } catch (_e) { /* no-op */ }
+      }
+      function onError(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        setStatus('error');
+        setErr(e.detail.error || 'Falló la generación');
+      }
+      // Si el job ya está en estado done en el store al montar, traerlo
+      if (window.__mtxImageGen) {
+        var snap = window.__mtxImageGen.pollJob(jobId);
+        if (snap) {
+          setProgress(snap.progress);
+          if (snap.status === 'done') {
+            setStatus('done');
+            setResultUrl(snap.resultUrl);
+          } else if (snap.status === 'error' || snap.status === 'cancelled') {
+            setStatus('error');
+            setErr(snap.error || 'cancelled');
+          }
+        }
+      }
+      window.addEventListener('mtx:image-gen-progress', onProgress);
+      window.addEventListener('mtx:image-gen-done', onDone);
+      window.addEventListener('mtx:image-gen-error', onError);
+      return function() {
+        window.removeEventListener('mtx:image-gen-progress', onProgress);
+        window.removeEventListener('mtx:image-gen-done', onDone);
+        window.removeEventListener('mtx:image-gen-error', onError);
+      };
+    }, [jobId]);
+
+    var model = (window.__mtxImageGen && window.__mtxImageGen.getModel) ? window.__mtxImageGen.getModel(art.model) : { label: art.model || '', icon: '✦', etaSec: 15 };
+    var aspectRatio = art.aspectRatio || '1:1';
+    var ratioObj = (window.__mtxImageGen && window.__mtxImageGen.listAspectRatios) ? window.__mtxImageGen.listAspectRatios().find(function(r) { return r.id === aspectRatio; }) : { w: 1024, h: 1024 };
+    var aspectStyle = ratioObj ? (ratioObj.w + ' / ' + ratioObj.h) : '1 / 1';
+
+    function handleCancel() {
+      if (window.__mtxImageGen) window.__mtxImageGen.cancel(jobId);
+      setStatus('error'); setErr('cancelled');
+    }
+
+    function handleRegenerate() {
+      if (!window.__mtxImageGen || !art.prompt) return;
+      window.__mtxImageGen.submit({ prompt: art.prompt, model: art.model, aspectRatio: aspectRatio })
+        .then(function(res) {
+          // Reset state
+          setStatus('live'); setProgress(0); setResultUrl(null); setErr(null);
+          // Actualizar jobId del artifact (sobrescribir via event)
+          art.jobId = res.jobId;
+        });
+    }
+
+    if (status === 'done' && resultUrl) {
+      return <IAArtifactImageResult artifact={Object.assign({}, art, {
+        resultUrl: resultUrl, state: 'done',
+      })}/>;
+    }
+
+    var etaSec = Math.max(0, model.etaSec - Math.floor((Date.now() - startedAtRef.current) / 1000));
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(61,255,209,0.18)',
+        background: 'linear-gradient(180deg, rgba(20,40,32,0.55), rgba(8,16,12,0.85))',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Skeleton hero con shimmer */}
+        <div style={{
+          width: '100%',
+          aspectRatio: aspectStyle,
+          background: 'linear-gradient(135deg, rgba(61,255,209,0.10), rgba(155,138,255,0.08), rgba(255,200,80,0.06))',
+          position: 'relative',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden',
+        }}>
+          {/* Shimmer bar */}
+          <div style={{
+            position: 'absolute', top: 0, left: '-30%', height: '100%', width: '30%',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)',
+            animation: 'mtx-shimmer 1.8s ease-in-out infinite',
+          }}/>
+          {/* Icon center */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            opacity: 0.95,
+          }}>
+            <div style={{ fontSize: 38, animation: 'mtx-pulse-soft 1.4s ease-in-out infinite' }} aria-hidden="true">{model.icon}</div>
+            <div style={{
+              fontSize: 11, letterSpacing: '0.08em', fontWeight: 700,
+              color: 'rgba(255,255,255,0.85)',
+              padding: '3px 9px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)',
+            }}>
+              {status === 'error' ? 'ERROR' : 'GENERANDO'}
+            </div>
+          </div>
+          {/* Top-right model chip */}
+          <div style={{
+            position: 'absolute', top: 12, right: 12,
+            padding: '4px 9px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            color: 'rgba(255,255,255,0.9)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            <span style={{ color: 'var(--neon)' }}>✦</span>
+            {(model.label || '').toUpperCase()}
+          </div>
+        </div>
+
+        {/* Footer: prompt + progress + cancel */}
+        <div style={{ padding: '12px 14px 14px' }}>
+          {art.prompt && (
+            <div style={{
+              fontSize: 12, fontWeight: 500,
+              color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.4,
+              marginBottom: 10,
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            }}>"{art.prompt}"</div>
+          )}
+          {status === 'error' ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 10px', borderRadius: 10,
+              background: 'rgba(255,139,139,0.08)',
+              border: '0.5px solid rgba(255,139,139,0.20)',
+              fontSize: 11.5, color: '#ff8b8b',
+              fontFamily: 'var(--ff-sans)',
+            }}>
+              <span>{err === 'cancelled' ? 'Cancelado por ti' : (err || 'Falló la generación')}</span>
+              <button type="button" onClick={handleRegenerate}
+                aria-label="Reintentar generación"
+                style={{
+                  marginLeft: 'auto',
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '4px 10px', borderRadius: 8,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '0.5px solid rgba(255,255,255,0.12)',
+                  color: 'var(--ink-1)', fontSize: 11, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>Reintentar</button>
+            </div>
+          ) : (
+            <div>
+              {/* Progress bar */}
+              <div style={{
+                position: 'relative',
+                width: '100%', height: 4, borderRadius: 999,
+                background: 'rgba(255,255,255,0.06)',
+                overflow: 'hidden',
+                marginBottom: 8,
+              }}>
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, height: '100%',
+                  width: progress + '%',
+                  background: 'linear-gradient(90deg, var(--neon), #9b8aff)',
+                  transition: 'width .4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: '0 0 8px rgba(61,255,209,0.45)',
+                }}/>
+              </div>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontSize: 10.5, color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+              }}>
+                <span>{progress}% · ~{etaSec}s restantes</span>
+                <button type="button" onClick={handleCancel}
+                  aria-label="Cancelar generación"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    padding: '2px 8px', borderRadius: 6,
+                    background: 'transparent',
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    color: 'var(--ink-3)', fontSize: 10, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                  }}>Cancelar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactImageResult · imagen lista con acciones
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   { kind: 'image_result', resultUrl, prompt, model, aspectRatio }
+  function IAArtifactImageResult(props) {
+    var art = props.artifact || {};
+    var src = art.resultUrl || art.src;
+    var aspectRatio = art.aspectRatio || '1:1';
+    var ratioObj = (window.__mtxImageGen && window.__mtxImageGen.listAspectRatios) ? window.__mtxImageGen.listAspectRatios().find(function(r) { return r.id === aspectRatio; }) : null;
+    var aspectStyle = ratioObj ? (ratioObj.w + ' / ' + ratioObj.h) : '1 / 1';
+    var model = (window.__mtxImageGen && window.__mtxImageGen.getModel) ? window.__mtxImageGen.getModel(art.model) : { label: '', icon: '✦' };
+
+    var savedState = React.useState(false);
+    var saved = savedState[0]; var setSaved = savedState[1];
+
+    function handleSave() {
+      setSaved(true);
+      if (window.__mtxToast && window.__mtxToast.show) {
+        window.__mtxToast.show('Guardado en tu biblioteca', { kind: 'success', durationMs: 1800 });
+      }
+    }
+
+    function handleDownload() {
+      try {
+        var a = document.createElement('a');
+        a.href = src;
+        a.download = 'mentex-image-' + Date.now() + '.svg';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        if (window.__mtxToast && window.__mtxToast.show) {
+          window.__mtxToast.show('Imagen descargada', { kind: 'success', durationMs: 1500 });
+        }
+      } catch (e) { /* no-op */ }
+    }
+
+    function handleRegenerate() {
+      if (!window.__mtxImageGen || !art.prompt) return;
+      window.__mtxImageGen.submit({
+        prompt: art.prompt, model: art.model, aspectRatio: aspectRatio,
+      }).then(function(res) {
+        // Emite evento para que el bridge agregue un nuevo artifact image_gen_job
+        window.dispatchEvent(new CustomEvent('mtx:image-gen-restart', { detail: {
+          jobId: res.jobId, prompt: art.prompt, model: art.model, aspectRatio: aspectRatio,
+        }}));
+      });
+    }
+
+    function handleUseAsVideoRef() {
+      // Inyecta el prompt al draft de la conv para iniciar video flow con esta imagen
+      window.dispatchEvent(new CustomEvent('mtx:ia-inject-draft', { detail: {
+        text: 'Crea un video basado en esta imagen: ' + (art.prompt || ''),
+      }}));
+      if (window.__mtxToast && window.__mtxToast.show) {
+        window.__mtxToast.show('Inyectado al chat — pulsá enviar', { kind: 'info', durationMs: 2000 });
+      }
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.10)',
+        background: 'rgba(255,255,255,0.02)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Image */}
+        <div style={{
+          width: '100%', aspectRatio: aspectStyle,
+          backgroundImage: 'url(' + src + ')',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          background: src ? undefined : 'linear-gradient(135deg, rgba(61,255,209,0.15), rgba(155,138,255,0.10))',
+          position: 'relative',
+        }} role="img" aria-label={art.prompt || 'Imagen generada por Mentex'}>
+          {src && <img src={src} alt={art.prompt || 'Imagen generada'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>}
+          {/* Badge top-right */}
+          <div style={{
+            position: 'absolute', top: 12, right: 12,
+            padding: '4px 9px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            color: 'rgba(255,255,255,0.9)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            <span style={{ color: 'var(--neon)' }}>✦</span>
+            GENERADA · {(model.label || '').toUpperCase()}
+          </div>
+        </div>
+
+        {/* Footer: prompt + 4 actions */}
+        <div style={{ padding: '12px 14px 14px' }}>
+          {art.prompt && (
+            <div style={{
+              fontSize: 12, fontWeight: 500,
+              color: 'var(--ink-2)', fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em', lineHeight: 1.4,
+              marginBottom: 10,
+              fontStyle: 'italic',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            }}>"{art.prompt}"</div>
+          )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <_GenActionPill icon="🔄" label="Regenerar" onClick={handleRegenerate}/>
+            <_GenActionPill icon={saved ? '★' : '☆'} label={saved ? 'Guardada' : 'Guardar'} onClick={handleSave} active={saved}/>
+            <_GenActionPill icon="⬇" label="Descargar" onClick={handleDownload}/>
+            <_GenActionPill icon="🎬" label="Hacer video" onClick={handleUseAsVideoRef}/>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  // Helper compartido — pill button para acciones de artifacts generativos
+  function _GenActionPill(props) {
+    var active = !!props.active;
+    return (
+      <button type="button"
+        onClick={props.onClick}
+        className="mtx-tap"
+        aria-label={props.label}
+        style={{
+          appearance: 'none', cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '6px 10px', borderRadius: 999,
+          background: active ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
+          border: '0.5px solid ' + (active ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.08)'),
+          color: active ? 'var(--neon)' : 'var(--ink-2)',
+          fontSize: 11, fontWeight: 600,
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          transition: 'background .15s, color .15s, border-color .15s',
+        }}>
+        <span aria-hidden="true">{props.icon}</span>
+        <span>{props.label}</span>
+      </button>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactStoryboardDraft · storyboard editable pre-video
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape:
+  //   { kind: 'storyboard_draft', storyboardId, state: 'draft'|'approved' }
+  //
+  // Acciones inline:
+  //   • Edit scene description
+  //   • Change scene duration ±
+  //   • Remove scene
+  //   • Add scene after
+  //   • Approve → dispatches mtx:storyboard-approve { storyboardId }
+  function IAArtifactStoryboardDraft(props) {
+    var art = props.artifact || {};
+    var storyboardId = art.storyboardId;
+
+    // Re-render trigger cuando el store cambia
+    var versionState = React.useState(0);
+    var bumpVersion = function() { versionState[1](function(v) { return v + 1; }); };
+
+    // Sheet de detalle de escena — abre al tap en card
+    var openSceneState = React.useState(null);  // null | idx
+    var openSceneIdx = openSceneState[0]; var setOpenSceneIdx = openSceneState[1];
+
+    var sb = (window.__mtxVideoGen && window.__mtxVideoGen.getStoryboard) ? window.__mtxVideoGen.getStoryboard(storyboardId) : null;
+    if (!sb) {
+      return (
+        <div style={{
+          padding: 14, borderRadius: 14,
+          background: 'rgba(255,255,255,0.03)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          fontSize: 12, color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+        }}>Storyboard no disponible.</div>
+      );
+    }
+
+    var voice = window.__mtxVideoGen.getVoice(sb.voiceId);
+
+    function handleEditScene(idx, field, value) {
+      window.__mtxVideoGen.updateScene(storyboardId, idx, { [field]: value });
+      bumpVersion();
+    }
+    function handleRemove(idx) {
+      window.__mtxVideoGen.removeScene(storyboardId, idx);
+      bumpVersion();
+    }
+    function handleAddAfter(idx) {
+      window.__mtxVideoGen.addScene(storyboardId, idx);
+      bumpVersion();
+    }
+    function handleAdjustDuration(idx, delta) {
+      var sc = sb.scenes[idx];
+      var next = Math.max(1, Math.min(10, sc.durationSec + delta));
+      window.__mtxVideoGen.updateScene(storyboardId, idx, { durationSec: next });
+      bumpVersion();
+    }
+    function handleApprove() {
+      window.dispatchEvent(new CustomEvent('mtx:storyboard-approve', { detail: { storyboardId: storyboardId }}));
+    }
+    function handleChangeVoice() {
+      window.dispatchEvent(new CustomEvent('mtx:open-voice-picker', { detail: { storyboardId: storyboardId }}));
+    }
+
+    var cost = window.__mtxVideoGen.estimateCost(storyboardId);
+    var model = window.__mtxVideoGen.getModel(sb.model);
+    var approved = art.state === 'approved';
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(155,138,255,0.20)',
+        background: 'linear-gradient(180deg, rgba(28,22,42,0.55), rgba(12,10,18,0.85))',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '14px 16px 12px',
+          borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: 'rgba(155,138,255,0.14)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 17,
+          }} aria-hidden="true">🎬</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>Storyboard del video</div>
+            <div style={{
+              fontSize: 11, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', marginTop: 1,
+            }}>{sb.scenes.length} escenas · {Math.round(sb.totalDuration)}s total · {model.label}</div>
+          </div>
+          {approved && (
+            <span style={{
+              padding: '3px 8px', borderRadius: 999,
+              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em',
+              background: 'rgba(61,255,209,0.10)',
+              border: '0.5px solid rgba(61,255,209,0.30)',
+              color: 'var(--neon)',
+            }}>✓ APROBADO</span>
+          )}
+        </div>
+
+        {/* Voice row */}
+        <button type="button"
+          onClick={handleChangeVoice}
+          disabled={approved}
+          className="mtx-tap"
+          aria-label={'Cambiar voz · actual ' + voice.name}
+          style={{
+            appearance: 'none', cursor: approved ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: '100%',
+            padding: '10px 16px',
+            borderTop: '0.5px solid rgba(255,255,255,0.04)',
+            borderBottom: '0.5px solid rgba(255,255,255,0.04)',
+            borderLeft: 0, borderRight: 0,
+            background: 'rgba(255,255,255,0.02)',
+            color: 'inherit', textAlign: 'left',
+            opacity: approved ? 0.6 : 1,
+          }}>
+          <span style={{ fontSize: 18 }} aria-hidden="true">{voice.previewIcon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 700,
+              color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>Voz · {voice.name}</div>
+            <div style={{
+              fontSize: 10.5, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', marginTop: 1,
+            }}>{voice.tagline}</div>
+          </div>
+          {!approved && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,0.40)" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Scenes list */}
+        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sb.scenes.map(function(sc, idx) {
+            // Card es clickable — tap abre SceneDetailSheet. Mantiene los micro-controls
+            // internos como botones independientes (stopPropagation para no abrir el sheet).
+            function openDetail() { setOpenSceneIdx(idx); }
+            function handleCardKey(e) {
+              if (e.key === 'Enter' || e.key === ' ') {
+                // Sólo si el target es la card (no un sub-button)
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                  openDetail();
+                }
+              }
+            }
+            return (
+              <div key={'sc-' + idx}
+                role="button"
+                tabIndex={0}
+                onClick={openDetail}
+                onKeyDown={handleCardKey}
+                aria-label={'Ver detalle escena ' + (idx + 1) + ' · ' + sc.title}
+                className="mtx-tap"
+                style={{
+                  display: 'flex', gap: 10,
+                  padding: '10px 10px',
+                  borderRadius: 11,
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '0.5px solid rgba(255,255,255,0.05)',
+                  cursor: 'pointer',
+                  transition: 'background .15s, border-color .15s',
+                }}>
+                {/* Thumb */}
+                <div style={{
+                  width: 56, height: 56, borderRadius: 9,
+                  background: 'linear-gradient(135deg, ' + sc.thumbnailColor + ', rgba(0,0,0,0.40))',
+                  flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22, position: 'relative',
+                  border: '0.5px solid rgba(255,255,255,0.10)',
+                }} aria-hidden="true">
+                  <span>{sc.thumbnailIcon}</span>
+                  {/* Scene number badge */}
+                  <div style={{
+                    position: 'absolute', top: -6, left: -6,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: 'var(--neon)', color: '#0a1410',
+                    fontSize: 10, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1.5px solid #0a1410',
+                  }}>{idx + 1}</div>
+                </div>
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <div style={{
+                      fontSize: 12.5, fontWeight: 700,
+                      color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      flex: 1, minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{sc.title}</div>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      padding: '1.5px 6px', borderRadius: 999,
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--ink-3)',
+                    }}>{(sc.moodTag || '').toUpperCase()}</span>
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: 'var(--ink-2)',
+                    fontFamily: 'var(--ff-sans)',
+                    lineHeight: 1.4,
+                    marginBottom: 5,
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  }}>{sc.description}</div>
+                  {sc.voiceover && (
+                    <div style={{
+                      fontSize: 10.5, color: 'var(--neon)',
+                      fontFamily: 'var(--ff-sans)',
+                      lineHeight: 1.35,
+                      marginBottom: 6,
+                      fontStyle: 'italic',
+                      paddingLeft: 8,
+                      borderLeft: '2px solid rgba(61,255,209,0.30)',
+                    }}>"{sc.voiceover}"</div>
+                  )}
+                  {/* Controls */}
+                  {!approved && (
+                    <div onClick={function(e) { e.stopPropagation(); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 10.5,
+                      }}>
+                      {/* Duration adjust — stopPropagation evita abrir el sheet */}
+                      <button type="button" onClick={function(e) { e.stopPropagation(); handleAdjustDuration(idx, -1); }}
+                        aria-label="Reducir duración"
+                        style={_microBtnStyle()}>−</button>
+                      <span style={{
+                        padding: '2px 7px', borderRadius: 6,
+                        background: 'rgba(255,255,255,0.04)',
+                        color: 'var(--ink-2)', fontWeight: 600,
+                        fontFamily: 'var(--ff-mono, monospace)', minWidth: 26, textAlign: 'center',
+                      }}>{sc.durationSec}s</span>
+                      <button type="button" onClick={function(e) { e.stopPropagation(); handleAdjustDuration(idx, 1); }}
+                        aria-label="Aumentar duración"
+                        style={_microBtnStyle()}>+</button>
+                      <div style={{ flex: 1 }}/>
+                      <button type="button" onClick={function(e) { e.stopPropagation(); handleRemove(idx); }}
+                        aria-label="Quitar escena"
+                        style={Object.assign(_microBtnStyle(), { color: '#ff8b8b' })}>🗑</button>
+                      <button type="button" onClick={function(e) { e.stopPropagation(); handleAddAfter(idx); }}
+                        aria-label="Agregar escena después"
+                        style={Object.assign(_microBtnStyle(), { color: 'var(--neon)' })}>+ esc</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CTA approve */}
+        {!approved && (
+          <div style={{ padding: '4px 14px 14px' }}>
+            <button type="button" onClick={handleApprove}
+              className="mtx-tap"
+              aria-label={'Aprobar y generar video · ~' + cost + ' créditos'}
+              style={{
+                appearance: 'none', cursor: 'pointer',
+                width: '100%', padding: '12px 14px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, var(--neon), #9b8aff)',
+                color: '#0a1410',
+                border: 0,
+                fontSize: 13, fontWeight: 800,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 4px 14px -4px rgba(61,255,209,0.45)',
+              }}>
+              <span>Aprobar y generar video</span>
+              <span style={{
+                padding: '2px 7px', borderRadius: 999,
+                background: 'rgba(10,20,16,0.20)',
+                fontSize: 10, fontWeight: 700,
+              }}>~{cost} créditos · ~{Math.round(sb.scenes.length * model.etaSecPerScene / 60)}min</span>
+            </button>
+          </div>
+        )}
+
+        {/* Scene detail sheet — abre al tap en una scene card */}
+        {openSceneIdx != null && sb.scenes[openSceneIdx] && (
+          <IAArtifactSceneDetailSheet
+            scene={sb.scenes[openSceneIdx]}
+            sceneIdx={openSceneIdx}
+            totalScenes={sb.scenes.length}
+            storyboardId={storyboardId}
+            voiceName={voice.name}
+            voiceIcon={voice.previewIcon}
+            voiceAccent={voice.accent}
+            aspectRatio={sb.aspectRatio}
+            approved={approved}
+            onClose={function() { setOpenSceneIdx(null); }}
+            onChange={bumpVersion}
+            onNext={function() { setOpenSceneIdx(Math.min(sb.scenes.length - 1, openSceneIdx + 1)); }}
+            onPrev={function() { setOpenSceneIdx(Math.max(0, openSceneIdx - 1)); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactSceneDetailSheet · popup detalle escena
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Bottom-sheet inmersivo con:
+  //   - Hero visual grande (gradient + icon de la escena)
+  //   - Título, número de escena (X de N), mood tag
+  //   - Descripción completa (sin truncate)
+  //   - Voiceover en blockquote neon
+  //   - Metadata: cámara, duración, voz asignada, ratio
+  //   - Acciones (si !approved): editar texto, editar voiceover, ajustar duración,
+  //     cambiar mood, quitar, agregar después
+  //   - Navegación: ← Anterior · Siguiente → (entre escenas del mismo storyboard)
+  //
+  // Patrón consistente con CoachExportSheet / CoachAttachMenu: portal absolute,
+  // backdrop blur, slide-up. Drag handle, ESC para cerrar.
+  function IAArtifactSceneDetailSheet(props) {
+    var scene = props.scene;
+    var sceneIdx = props.sceneIdx;
+    var totalScenes = props.totalScenes;
+    var storyboardId = props.storyboardId;
+    var approved = !!props.approved;
+
+    var editingTitleState = React.useState(false);
+    var editingTitle = editingTitleState[0]; var setEditingTitle = editingTitleState[1];
+    var titleValueState = React.useState(scene.title);
+    var titleValue = titleValueState[0]; var setTitleValue = titleValueState[1];
+
+    var editingVoiceoverState = React.useState(false);
+    var editingVoiceover = editingVoiceoverState[0]; var setEditingVoiceover = editingVoiceoverState[1];
+    var voiceoverValueState = React.useState(scene.voiceover || '');
+    var voiceoverValue = voiceoverValueState[0]; var setVoiceoverValue = voiceoverValueState[1];
+
+    var editingDescState = React.useState(false);
+    var editingDesc = editingDescState[0]; var setEditingDesc = editingDescState[1];
+    var descValueState = React.useState(scene.description);
+    var descValue = descValueState[0]; var setDescValue = descValueState[1];
+
+    var backdropDownRef = React.useRef(false);
+
+    // Sincroniza valores cuando cambia de escena via navegación ← →
+    React.useEffect(function() {
+      setTitleValue(scene.title);
+      setVoiceoverValue(scene.voiceover || '');
+      setDescValue(scene.description);
+      setEditingTitle(false);
+      setEditingVoiceover(false);
+      setEditingDesc(false);
+    }, [scene.title, scene.description, scene.voiceover]);
+
+    // ESC para cerrar + lock body scroll
+    React.useEffect(function() {
+      function onKey(e) {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Escape') {
+          if (editingTitle || editingDesc || editingVoiceover) {
+            setEditingTitle(false); setEditingDesc(false); setEditingVoiceover(false);
+          } else if (props.onClose) {
+            props.onClose();
+          }
+        } else if (e.key === 'ArrowLeft' && !editingTitle && !editingDesc && !editingVoiceover && props.onPrev) {
+          props.onPrev();
+        } else if (e.key === 'ArrowRight' && !editingTitle && !editingDesc && !editingVoiceover && props.onNext) {
+          props.onNext();
+        }
+      }
+      window.addEventListener('keydown', onKey);
+      var prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return function() {
+        window.removeEventListener('keydown', onKey);
+        document.body.style.overflow = prevOverflow;
+      };
+    }, [editingTitle, editingDesc, editingVoiceover]);
+
+    function commitTitle() {
+      if (!window.__mtxVideoGen) return;
+      var v = (titleValue || '').trim() || scene.title;
+      window.__mtxVideoGen.updateScene(storyboardId, sceneIdx, { title: v });
+      setEditingTitle(false);
+      if (props.onChange) props.onChange();
+    }
+    function commitDesc() {
+      if (!window.__mtxVideoGen) return;
+      var v = (descValue || '').trim() || scene.description;
+      window.__mtxVideoGen.updateScene(storyboardId, sceneIdx, { description: v });
+      setEditingDesc(false);
+      if (props.onChange) props.onChange();
+    }
+    function commitVoiceover() {
+      if (!window.__mtxVideoGen) return;
+      window.__mtxVideoGen.updateScene(storyboardId, sceneIdx, { voiceover: voiceoverValue });
+      setEditingVoiceover(false);
+      if (props.onChange) props.onChange();
+    }
+    function handleAdjustDuration(delta) {
+      if (!window.__mtxVideoGen) return;
+      var next = Math.max(1, Math.min(10, scene.durationSec + delta));
+      window.__mtxVideoGen.updateScene(storyboardId, sceneIdx, { durationSec: next });
+      if (props.onChange) props.onChange();
+    }
+    function handleRemove() {
+      if (!window.__mtxVideoGen) return;
+      window.__mtxVideoGen.removeScene(storyboardId, sceneIdx);
+      if (props.onChange) props.onChange();
+      if (props.onClose) props.onClose();
+    }
+
+    var portalRoot = (typeof document !== 'undefined') ? (document.getElementById('mtx-overlay-root') || document.body) : null;
+    if (!portalRoot) return null;
+
+    return ReactDOM.createPortal(
+      <div
+        onMouseDown={function(e) { backdropDownRef.current = e.target === e.currentTarget; }}
+        onClick={function(e) {
+          if (e.target === e.currentTarget && backdropDownRef.current && props.onClose) props.onClose();
+          backdropDownRef.current = false;
+        }}
+        style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(10,20,16,0.55)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          zIndex: 1095,
+          animation: 'mtx-fade-up .28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        }}
+        role="presentation"
+      >
+        <div role="dialog" aria-modal="true" aria-label={'Escena ' + (sceneIdx + 1) + ': ' + scene.title}
+          style={{
+            width: '100%', maxWidth: 440,
+            maxHeight: '90%',
+            display: 'flex', flexDirection: 'column',
+            background: 'linear-gradient(180deg, rgba(18,22,20,0.99), rgba(12,15,14,0.99))',
+            borderTop: '0.5px solid rgba(255,255,255,0.10)',
+            borderTopLeftRadius: 22, borderTopRightRadius: 22,
+            paddingBottom: 34,
+            animation: 'mtx-slide-up .3s ease both',
+            boxShadow: '0 -16px 40px -8px rgba(0,0,0,0.65)',
+            overflow: 'hidden',
+          }}>
+          {/* Drag handle */}
+          <div style={{
+            width: 36, height: 4, borderRadius: 999,
+            background: 'rgba(255,255,255,0.18)',
+            margin: '8px auto 8px', flexShrink: 0,
+          }} aria-hidden="true"/>
+
+          {/* Hero visual */}
+          <div style={{
+            margin: '4px 16px 0',
+            borderRadius: 14, overflow: 'hidden',
+            aspectRatio: props.aspectRatio === '9:16' ? '16/9' : (props.aspectRatio === '16:9' ? '16/8' : '4/3'),
+            position: 'relative',
+            background: 'linear-gradient(135deg, ' + scene.thumbnailColor + ', rgba(0,0,0,0.55))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '0.5px solid rgba(255,255,255,0.10)',
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 64, filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.45))' }} aria-hidden="true">{scene.thumbnailIcon}</span>
+            {/* Scene number badge top-left */}
+            <div style={{
+              position: 'absolute', top: 10, left: 10,
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+              fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em',
+              color: 'white',
+            }}>
+              ESCENA {sceneIdx + 1} <span style={{ opacity: 0.55 }}>DE {totalScenes}</span>
+            </div>
+            {/* Mood tag top-right */}
+            <div style={{
+              position: 'absolute', top: 10, right: 10,
+              padding: '4px 10px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em',
+              color: 'white',
+            }}>{(scene.moodTag || '').toUpperCase()}</div>
+            {/* Duration bottom-right */}
+            <div style={{
+              position: 'absolute', bottom: 10, right: 10,
+              padding: '4px 10px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+              fontSize: 11, fontWeight: 700,
+              color: 'white', fontFamily: 'var(--ff-mono, monospace)',
+            }}>{scene.durationSec}s</div>
+          </div>
+
+          {/* Scroll area */}
+          <div style={{
+            flex: 1, minHeight: 0, overflowY: 'auto',
+            padding: '14px 18px 8px',
+          }} className="mtx-no-scrollbar">
+            {/* Title */}
+            {editingTitle ? (
+              <div>
+                <input
+                  type="text"
+                  value={titleValue}
+                  onChange={function(e) { setTitleValue(e.target.value); }}
+                  onBlur={commitTitle}
+                  onKeyDown={function(e) { if (e.key === 'Enter') commitTitle(); }}
+                  autoFocus
+                  aria-label="Editar título de escena"
+                  style={{
+                    width: '100%', padding: '8px 10px',
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '0.5px solid rgba(61,255,209,0.30)',
+                    color: 'var(--ink-1)',
+                    fontSize: 17, fontWeight: 800,
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.01em',
+                    outline: 'none',
+                  }}/>
+              </div>
+            ) : (
+              <div
+                role={approved ? undefined : 'button'}
+                tabIndex={approved ? undefined : 0}
+                onClick={function() { if (!approved) setEditingTitle(true); }}
+                onKeyDown={function(e) { if (!approved && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditingTitle(true); } }}
+                style={{
+                  fontSize: 17, fontWeight: 800,
+                  color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.01em',
+                  cursor: approved ? 'default' : 'text',
+                  padding: '4px 6px', borderRadius: 8,
+                  marginLeft: -6, marginRight: -6,
+                  transition: 'background .15s',
+                }}>{scene.title}{!approved && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-3)', fontWeight: 500 }}>✎</span>}</div>
+            )}
+
+            {/* Description */}
+            <div style={{
+              marginTop: 14,
+              fontSize: 10, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.08em', fontWeight: 700,
+              marginBottom: 6,
+            }}>DESCRIPCIÓN</div>
+            {editingDesc ? (
+              <textarea
+                value={descValue}
+                onChange={function(e) { setDescValue(e.target.value); }}
+                onBlur={commitDesc}
+                rows={3}
+                autoFocus
+                aria-label="Editar descripción"
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(61,255,209,0.30)',
+                  color: 'var(--ink-1)',
+                  fontSize: 13,
+                  fontFamily: 'var(--ff-sans)',
+                  lineHeight: 1.5,
+                  outline: 'none', resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}/>
+            ) : (
+              <div
+                role={approved ? undefined : 'button'}
+                tabIndex={approved ? undefined : 0}
+                onClick={function() { if (!approved) setEditingDesc(true); }}
+                onKeyDown={function(e) { if (!approved && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditingDesc(true); } }}
+                style={{
+                  fontSize: 13, color: 'var(--ink-2)',
+                  fontFamily: 'var(--ff-sans)',
+                  lineHeight: 1.5,
+                  cursor: approved ? 'default' : 'text',
+                  padding: '6px 6px', borderRadius: 8,
+                  marginLeft: -6, marginRight: -6,
+                }}>{scene.description}{!approved && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-3)' }}>✎</span>}</div>
+            )}
+
+            {/* Voiceover */}
+            <div style={{
+              marginTop: 16,
+              fontSize: 10, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '0.08em', fontWeight: 700,
+              marginBottom: 6,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span>VOICEOVER</span>
+              <span style={{ color: props.voiceAccent || 'var(--neon)' }}>·</span>
+              <span style={{ letterSpacing: '0.02em', textTransform: 'none', fontWeight: 600 }}>voz {props.voiceName} {props.voiceIcon}</span>
+            </div>
+            {editingVoiceover ? (
+              <textarea
+                value={voiceoverValue}
+                onChange={function(e) { setVoiceoverValue(e.target.value); }}
+                onBlur={commitVoiceover}
+                rows={2}
+                autoFocus
+                aria-label="Editar voiceover"
+                placeholder="Lo que dirá la voz en esta escena…"
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(61,255,209,0.04)',
+                  border: '0.5px solid rgba(61,255,209,0.30)',
+                  color: 'var(--ink-1)',
+                  fontSize: 13, fontStyle: 'italic',
+                  fontFamily: 'var(--ff-sans)',
+                  lineHeight: 1.5,
+                  outline: 'none', resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}/>
+            ) : (
+              <div
+                role={approved ? undefined : 'button'}
+                tabIndex={approved ? undefined : 0}
+                onClick={function() { if (!approved) setEditingVoiceover(true); }}
+                onKeyDown={function(e) { if (!approved && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditingVoiceover(true); } }}
+                style={{
+                  fontSize: 13, color: scene.voiceover ? 'var(--neon)' : 'var(--ink-3)',
+                  fontFamily: 'var(--ff-sans)',
+                  lineHeight: 1.45, fontStyle: 'italic',
+                  paddingLeft: 10,
+                  borderLeft: '2.5px solid rgba(61,255,209,0.30)',
+                  cursor: approved ? 'default' : 'text',
+                  borderRadius: '0 6px 6px 0',
+                }}>{scene.voiceover ? '"' + scene.voiceover + '"' : '(Sin voiceover · tap para agregar)'}{!approved && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-3)', fontStyle: 'normal' }}>✎</span>}</div>
+            )}
+
+            {/* Metadata grid */}
+            <div style={{
+              marginTop: 18,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+            }}>
+              <_SceneMetaTile label="Cámara" value={scene.cameraAngle || 'medio'} icon="🎥"/>
+              <_SceneMetaTile label="Duración" value={scene.durationSec + 's'} icon="⏱"/>
+              <_SceneMetaTile label="Mood" value={scene.moodTag || 'neutral'} icon="🎭"/>
+              <_SceneMetaTile label="Aspect" value={props.aspectRatio || '9:16'} icon="📐"/>
+            </div>
+
+            {/* Duration adjust (sólo si !approved) */}
+            {!approved && (
+              <div style={{
+                marginTop: 14,
+                padding: '10px 12px',
+                borderRadius: 11,
+                background: 'rgba(255,255,255,0.025)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+                  color: 'var(--ink-3)', fontFamily: 'var(--ff-sans)',
+                }}>AJUSTAR DURACIÓN</span>
+                <div style={{ flex: 1 }}/>
+                <button type="button" onClick={function() { handleAdjustDuration(-1); }}
+                  aria-label="Reducir duración"
+                  className="mtx-tap"
+                  style={Object.assign(_microBtnStyle(), { padding: '6px 10px', fontSize: 14 })}>−</button>
+                <span style={{
+                  padding: '4px 12px', borderRadius: 7,
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--ink-1)', fontWeight: 700,
+                  fontFamily: 'var(--ff-mono, monospace)',
+                  minWidth: 40, textAlign: 'center', fontSize: 13,
+                }}>{scene.durationSec}s</span>
+                <button type="button" onClick={function() { handleAdjustDuration(1); }}
+                  aria-label="Aumentar duración"
+                  className="mtx-tap"
+                  style={Object.assign(_microBtnStyle(), { padding: '6px 10px', fontSize: 14 })}>+</button>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom action row — nav + remove */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 16px 4px',
+            borderTop: '0.5px solid rgba(255,255,255,0.05)',
+            flexShrink: 0,
+          }}>
+            <button type="button"
+              onClick={props.onPrev}
+              disabled={sceneIdx === 0}
+              aria-label="Escena anterior"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: sceneIdx === 0 ? 'default' : 'pointer',
+                padding: '8px 10px', borderRadius: 9,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                color: sceneIdx === 0 ? 'var(--ink-3)' : 'var(--ink-1)',
+                opacity: sceneIdx === 0 ? 0.4 : 1,
+                fontSize: 12, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}>← Anterior</button>
+            <button type="button"
+              onClick={props.onNext}
+              disabled={sceneIdx === totalScenes - 1}
+              aria-label="Escena siguiente"
+              className="mtx-tap"
+              style={{
+                appearance: 'none', cursor: sceneIdx === totalScenes - 1 ? 'default' : 'pointer',
+                padding: '8px 10px', borderRadius: 9,
+                background: 'rgba(255,255,255,0.04)',
+                border: '0.5px solid rgba(255,255,255,0.08)',
+                color: sceneIdx === totalScenes - 1 ? 'var(--ink-3)' : 'var(--ink-1)',
+                opacity: sceneIdx === totalScenes - 1 ? 0.4 : 1,
+                fontSize: 12, fontWeight: 600,
+                fontFamily: 'var(--ff-sans)',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}>Siguiente →</button>
+            <div style={{ flex: 1 }}/>
+            {!approved && (
+              <button type="button"
+                onClick={handleRemove}
+                aria-label="Quitar esta escena"
+                className="mtx-tap"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '8px 12px', borderRadius: 9,
+                  background: 'rgba(255,139,139,0.08)',
+                  border: '0.5px solid rgba(255,139,139,0.22)',
+                  color: '#ff8b8b',
+                  fontSize: 12, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                }}>🗑 Quitar</button>
+            )}
+          </div>
+        </div>
+      </div>,
+      portalRoot
+    );
+  }
+
+  function _SceneMetaTile(props) {
+    return (
+      <div style={{
+        padding: '10px 11px', borderRadius: 10,
+        background: 'rgba(255,255,255,0.025)',
+        border: '0.5px solid rgba(255,255,255,0.05)',
+        display: 'flex', flexDirection: 'column', gap: 2,
+      }}>
+        <div style={{
+          fontSize: 10, color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '0.06em', fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <span aria-hidden="true">{props.icon}</span>
+          {props.label.toUpperCase()}
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 700,
+          color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+        }}>{props.value}</div>
+      </div>
+    );
+  }
+
+  function _microBtnStyle() {
+    return {
+      appearance: 'none', cursor: 'pointer',
+      padding: '3px 7px', borderRadius: 6,
+      background: 'rgba(255,255,255,0.04)',
+      border: '0.5px solid rgba(255,255,255,0.06)',
+      color: 'var(--ink-2)', fontSize: 11, fontWeight: 600,
+      fontFamily: 'var(--ff-sans)',
+      lineHeight: 1,
+    };
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactVoicePicker · voice picker para storyboard
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape: { kind: 'voice_picker', storyboardId }
+  //
+  // Muestra grid 2-col de 8 voces con preview (mock: pulse animation). Tap
+  // selecciona, dispatch mtx:storyboard-voice-picked.
+  function IAArtifactVoicePicker(props) {
+    var art = props.artifact || {};
+    var storyboardId = art.storyboardId;
+    var sb = window.__mtxVideoGen && window.__mtxVideoGen.getStoryboard(storyboardId);
+
+    var selectedState = React.useState(sb ? sb.voiceId : 'sage_warm');
+    var selected = selectedState[0]; var setSelected = selectedState[1];
+    var playingState = React.useState(null);  // voiceId currently "playing" preview
+    var playing = playingState[0]; var setPlaying = playingState[1];
+
+    React.useEffect(function() {
+      if (!playing) return;
+      var t = setTimeout(function() { setPlaying(null); }, 1800);
+      return function() { clearTimeout(t); };
+    }, [playing]);
+
+    if (!sb || !window.__mtxVideoGen) return null;
+
+    var voices = window.__mtxVideoGen.listVoices();
+
+    function handlePick(voiceId) {
+      setSelected(voiceId);
+      window.__mtxVideoGen.setVoice(storyboardId, voiceId);
+      window.dispatchEvent(new CustomEvent('mtx:storyboard-voice-picked', { detail: {
+        storyboardId: storyboardId, voiceId: voiceId,
+      }}));
+    }
+    function handlePreview(voiceId, e) {
+      e.stopPropagation();
+      setPlaying(voiceId);
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16,
+        border: '0.5px solid rgba(155,138,255,0.20)',
+        background: 'linear-gradient(180deg, rgba(28,22,42,0.55), rgba(12,10,18,0.85))',
+        padding: '14px 14px 12px',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+        }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'rgba(155,138,255,0.14)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 15,
+          }} aria-hidden="true">🎙️</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+            }}>Elegí la voz del narrador</div>
+            <div style={{
+              fontSize: 10.5, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', marginTop: 1,
+            }}>Tap para preview · doble tap para elegir</div>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7,
+        }}>
+          {voices.map(function(v) {
+            var active = v.id === selected;
+            var isPlaying = playing === v.id;
+            return (
+              <button key={v.id} type="button"
+                onClick={function() { handlePick(v.id); }}
+                onDoubleClick={function() { handlePick(v.id); }}
+                className="mtx-tap"
+                aria-label={'Voz ' + v.name + ' · ' + v.tagline}
+                aria-pressed={active}
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '10px 10px',
+                  borderRadius: 11,
+                  background: active ? 'rgba(61,255,209,0.08)' : 'rgba(255,255,255,0.03)',
+                  border: '0.5px solid ' + (active ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.06)'),
+                  color: 'inherit', textAlign: 'left',
+                  transition: 'background .15s, border-color .15s',
+                  position: 'relative',
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: '50%',
+                    background: isPlaying ? v.accent : 'rgba(255,255,255,0.04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, flexShrink: 0,
+                    animation: isPlaying ? 'mtx-pulse-soft 0.6s ease-in-out infinite' : 'none',
+                  }} aria-hidden="true">{v.previewIcon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 12, fontWeight: 700,
+                      color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                    }}>{v.name}</div>
+                    <div style={{
+                      fontSize: 9.5, color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{v.tagline}</div>
+                  </div>
+                  {active && (
+                    <span style={{
+                      fontSize: 11, color: 'var(--neon)', fontWeight: 800,
+                    }} aria-hidden="true">✓</span>
+                  )}
+                </div>
+                {/* Mini wave preview button */}
+                <div onClick={function(e) { handlePreview(v.id, e); }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={'Preview voz ' + v.name}
+                  onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePreview(v.id, e); } }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 3,
+                    height: 16, paddingLeft: 34, cursor: 'pointer',
+                  }}>
+                  {Array.from({ length: 14 }).map(function(_, i) {
+                    var h = 4 + Math.sin((i + v.id.length) * 1.4) * 5 + 5;
+                    return (
+                      <span key={i} style={{
+                        display: 'inline-block',
+                        width: 2, height: isPlaying ? h + Math.abs(Math.sin(Date.now() / 100 + i) * 3) : h,
+                        background: isPlaying ? v.accent : 'rgba(255,255,255,0.18)',
+                        borderRadius: 2,
+                        transition: 'height .15s, background .15s',
+                      }}/>
+                    );
+                  })}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactVideoGenJob · progreso video gen multi-stage
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape: { kind: 'video_gen_job', jobId, storyboardId, state: 'live'|'done' }
+  function IAArtifactVideoGenJob(props) {
+    var art = props.artifact || {};
+    var jobId = art.jobId;
+    var storyboardId = art.storyboardId;
+
+    var snapshotState = React.useState(function() {
+      return (window.__mtxVideoGen && jobId) ? window.__mtxVideoGen.pollJob(jobId) : null;
+    });
+    var snap = snapshotState[0]; var setSnap = snapshotState[1];
+
+    React.useEffect(function() {
+      if (!jobId) return;
+      function onProgress(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        if (window.__mtxVideoGen) setSnap(window.__mtxVideoGen.pollJob(jobId));
+      }
+      function onDone(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        if (window.__mtxVideoGen) setSnap(window.__mtxVideoGen.pollJob(jobId));
+      }
+      function onError(e) {
+        if (!e.detail || e.detail.jobId !== jobId) return;
+        if (window.__mtxVideoGen) setSnap(window.__mtxVideoGen.pollJob(jobId));
+      }
+      window.addEventListener('mtx:video-gen-progress', onProgress);
+      window.addEventListener('mtx:video-gen-done', onDone);
+      window.addEventListener('mtx:video-gen-error', onError);
+      return function() {
+        window.removeEventListener('mtx:video-gen-progress', onProgress);
+        window.removeEventListener('mtx:video-gen-done', onDone);
+        window.removeEventListener('mtx:video-gen-error', onError);
+      };
+    }, [jobId]);
+
+    if (!snap) {
+      return (
+        <div style={{
+          padding: 14, borderRadius: 14,
+          background: 'rgba(255,255,255,0.03)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          fontSize: 12, color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+        }}>Cargando job…</div>
+      );
+    }
+
+    if (snap.status === 'done' && snap.resultUrl) {
+      return <IAArtifactVideoResult artifact={Object.assign({}, art, {
+        resultUrl: snap.resultUrl, state: 'done',
+      })}/>;
+    }
+
+    var pct = snap.progress;
+    var stageLabel = snap.stageLabel || 'Procesando';
+    var totalScenes = snap.totalScenes;
+    var currentSceneIdx = snap.currentSceneIdx;
+
+    function handleCancel() {
+      if (window.__mtxVideoGen) window.__mtxVideoGen.cancelJob(jobId);
+    }
+
+    var isError = snap.status === 'error' || snap.status === 'cancelled';
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(155,138,255,0.20)',
+        background: 'linear-gradient(180deg, rgba(28,22,42,0.55), rgba(12,10,18,0.85))',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Skeleton hero — 16:9 mockup */}
+        <div style={{
+          width: '100%', aspectRatio: '9/16',
+          maxHeight: 280,
+          background: 'linear-gradient(135deg, rgba(155,138,255,0.12), rgba(61,255,209,0.06), rgba(10,20,16,0.85))',
+          position: 'relative',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden',
+        }}>
+          {/* Shimmer */}
+          <div style={{
+            position: 'absolute', top: 0, left: '-30%', height: '100%', width: '30%',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)',
+            animation: 'mtx-shimmer 1.8s ease-in-out infinite',
+          }}/>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{ fontSize: 38, animation: 'mtx-pulse-soft 1.6s ease-in-out infinite' }} aria-hidden="true">🎬</div>
+            {!isError && totalScenes > 0 && currentSceneIdx != null && (
+              <div style={{
+                display: 'flex', gap: 4,
+              }}>
+                {Array.from({ length: totalScenes }).map(function(_, i) {
+                  var done = i < currentSceneIdx;
+                  var current = i === currentSceneIdx;
+                  return (
+                    <span key={i} style={{
+                      width: 16, height: 4, borderRadius: 2,
+                      background: done ? 'var(--neon)' : (current ? '#9b8aff' : 'rgba(255,255,255,0.12)'),
+                      boxShadow: current ? '0 0 6px #9b8aff' : 'none',
+                      transition: 'background .25s',
+                    }}/>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Stage label + progress */}
+        <div style={{ padding: '14px 16px 14px' }}>
+          <div style={{
+            fontSize: 12, fontWeight: 700,
+            color: isError ? '#ff8b8b' : 'var(--ink-1)',
+            fontFamily: 'var(--ff-sans)',
+            letterSpacing: '-0.005em',
+            marginBottom: 4,
+          }}>{isError ? 'Generación cancelada' : stageLabel}</div>
+          <div style={{
+            fontSize: 10.5, color: 'var(--ink-3)',
+            fontFamily: 'var(--ff-sans)',
+            marginBottom: 10,
+          }}>{isError ? 'Podés volver a intentarlo desde el storyboard' : 'Esto toma 1-3 minutos · estimado por el modelo'}</div>
+          {!isError && (
+            <div>
+              <div style={{
+                position: 'relative',
+                width: '100%', height: 4, borderRadius: 999,
+                background: 'rgba(255,255,255,0.06)',
+                overflow: 'hidden',
+                marginBottom: 8,
+              }}>
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, height: '100%',
+                  width: pct + '%',
+                  background: 'linear-gradient(90deg, var(--neon), #9b8aff)',
+                  transition: 'width .4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: '0 0 8px rgba(155,138,255,0.45)',
+                }}/>
+              </div>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontSize: 10.5, color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+              }}>
+                <span>{pct}%</span>
+                <button type="button" onClick={handleCancel}
+                  aria-label="Cancelar generación de video"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    padding: '2px 8px', borderRadius: 6,
+                    background: 'transparent',
+                    border: '0.5px solid rgba(255,255,255,0.10)',
+                    color: 'var(--ink-3)', fontSize: 10, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                  }}>Cancelar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.8 — IAArtifactVideoResult · video listo con player
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Shape: { kind: 'video_result', resultUrl, storyboardId? }
+  //
+  // resultUrl es un objeto compuesto (mock) con coverDataUrl + scenes + voiceId.
+  // Cuando llegue backend, será un .mp4 URL real — el componente sólo cambia
+  // el modo de render del media (de SVG cover a <video> tag).
+  function IAArtifactVideoResult(props) {
+    var art = props.artifact || {};
+    var data = art.resultUrl || {};
+    var coverUrl = data.coverDataUrl;
+    var duration = data.durationSec || 0;
+    var scenes = data.scenes || [];
+
+    var playingState = React.useState(false);
+    var playing = playingState[0]; var setPlaying = playingState[1];
+    var progressState = React.useState(0);
+    var progress = progressState[0]; var setProgress = progressState[1];
+    var savedState = React.useState(false);
+    var saved = savedState[0]; var setSaved = savedState[1];
+
+    // Mock playback: cuando playing=true, avanza progress de 0 a 100 en duration
+    React.useEffect(function() {
+      if (!playing) return;
+      var startedAt = Date.now() - (progress / 100) * duration * 1000;
+      var raf;
+      var tick = function() {
+        var elapsed = (Date.now() - startedAt) / 1000;
+        var pct = Math.min(100, (elapsed / duration) * 100);
+        setProgress(pct);
+        if (pct < 100) raf = requestAnimationFrame(tick);
+        else { setPlaying(false); setTimeout(function() { setProgress(0); }, 500); }
+      };
+      raf = requestAnimationFrame(tick);
+      return function() { if (raf) cancelAnimationFrame(raf); };
+    }, [playing]);
+
+    function handlePlay() { setPlaying(function(p) { return !p; }); }
+    function handleSave() {
+      setSaved(true);
+      if (window.__mtxToast && window.__mtxToast.show) {
+        window.__mtxToast.show('Guardado en tu biblioteca', { kind: 'success', durationMs: 1800 });
+      }
+    }
+    function handleDownload() {
+      if (window.__mtxToast && window.__mtxToast.show) {
+        window.__mtxToast.show('Descarga iniciada · ' + Math.round(duration) + 's de video', { kind: 'info', durationMs: 2000 });
+      }
+    }
+    function handleShare() {
+      if (window.__mtxToast && window.__mtxToast.show) {
+        window.__mtxToast.show('Link copiado al portapapeles', { kind: 'success', durationMs: 1800 });
+      }
+    }
+    function handleRegenerate() {
+      if (!data.scenes || !art.storyboardId || !window.__mtxVideoGen) return;
+      window.__mtxVideoGen.submitVideo(art.storyboardId).then(function(res) {
+        window.dispatchEvent(new CustomEvent('mtx:video-gen-restart', { detail: {
+          jobId: res.jobId, storyboardId: art.storyboardId,
+        }}));
+      });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.10)',
+        background: 'rgba(255,255,255,0.02)',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Video frame */}
+        <div style={{
+          position: 'relative', width: '100%',
+          aspectRatio: '9/16', maxHeight: 360,
+          background: '#000',
+          backgroundImage: coverUrl ? 'url(' + coverUrl + ')' : undefined,
+          backgroundSize: 'cover', backgroundPosition: 'center',
+        }}>
+          {/* Center play button overlay */}
+          <button type="button" onClick={handlePlay}
+            className="mtx-tap"
+            aria-label={playing ? 'Pausar video' : 'Reproducir video'}
+            style={{
+              position: 'absolute', inset: 0,
+              appearance: 'none', cursor: 'pointer',
+              background: 'rgba(0,0,0,0.18)',
+              border: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.18)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.30)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            }}>
+              {playing ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span style={{ width: 5, height: 22, background: 'white', borderRadius: 2 }}/>
+                  <span style={{ width: 5, height: 22, background: 'white', borderRadius: 2 }}/>
+                </div>
+              ) : (
+                <div style={{
+                  width: 0, height: 0,
+                  borderTop: '14px solid transparent',
+                  borderBottom: '14px solid transparent',
+                  borderLeft: '22px solid white',
+                  marginLeft: 5,
+                }}/>
+              )}
+            </div>
+          </button>
+          {/* Bottom: progress + duration */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            padding: '12px 14px 12px',
+            background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.65))',
+          }}>
+            <div style={{
+              width: '100%', height: 3, borderRadius: 999,
+              background: 'rgba(255,255,255,0.18)',
+              overflow: 'hidden', marginBottom: 6,
+            }}>
+              <div style={{
+                width: progress + '%', height: '100%',
+                background: 'var(--neon)',
+                boxShadow: '0 0 6px var(--neon)',
+                transition: 'width .1s linear',
+              }}/>
+            </div>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: 10.5, color: 'white', fontWeight: 600,
+              fontFamily: 'var(--ff-mono, monospace)',
+            }}>
+              <span>{_fmtDuration(Math.round((progress / 100) * duration))}</span>
+              <span style={{ opacity: 0.65 }}>{_fmtDuration(Math.round(duration))}</span>
+            </div>
+          </div>
+          {/* Top-right badge */}
+          <div style={{
+            position: 'absolute', top: 12, right: 12,
+            padding: '4px 9px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            color: 'rgba(255,255,255,0.9)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            <span style={{ color: 'var(--neon)' }}>✦</span>
+            GENERADO · {scenes.length} ESCENAS
+          </div>
+        </div>
+        {/* Actions */}
+        <div style={{ padding: '12px 14px 14px' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <_GenActionPill icon="🔄" label="Regenerar" onClick={handleRegenerate}/>
+            <_GenActionPill icon={saved ? '★' : '☆'} label={saved ? 'Guardado' : 'Guardar'} onClick={handleSave} active={saved}/>
+            <_GenActionPill icon="⬇" label="Descargar" onClick={handleDownload}/>
+            <_GenActionPill icon="📤" label="Compartir" onClick={handleShare}/>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // IAArtifact — router por kind
   // ═══════════════════════════════════════════════════════════════════════════
   function IAArtifact(props) {
@@ -4793,6 +6451,13 @@
       case 'browse_progress_card':     return <IAArtifactBrowseProgressCard artifact={art} msgId={props.msgId}/>;
       case 'voice_call_overlay':       return <IAArtifactVoiceCallOverlay artifact={art}/>;
       case 'screen_share_preview':     return <IAArtifactScreenSharePreview artifact={art}/>;
+      // RFC-001 Addendum A · Sprint A.8 — generative media (6 artifacts)
+      case 'image_gen_job':            return <IAArtifactImageGenJob artifact={art}/>;
+      case 'image_result':             return <IAArtifactImageResult artifact={art}/>;
+      case 'storyboard_draft':         return <IAArtifactStoryboardDraft artifact={art}/>;
+      case 'voice_picker':             return <IAArtifactVoicePicker artifact={art}/>;
+      case 'video_gen_job':            return <IAArtifactVideoGenJob artifact={art}/>;
+      case 'video_result':             return <IAArtifactVideoResult artifact={art}/>;
       default:                     return null;
     }
   }
@@ -4812,6 +6477,17 @@
       '@keyframes mtx-progress-fill {',
       '  from { width: 0%; }',
       '  /* to defined inline via style.width */',
+      '}',
+      // Sprint A.8 — keyframes para image_gen_job / video_gen_job
+      // Shimmer bar que cruza el hero del skeleton durante generación
+      '@keyframes mtx-shimmer {',
+      '  0% { transform: translateX(0); }',
+      '  100% { transform: translateX(450%); }',
+      '}',
+      // Soft pulse para iconos centrales del skeleton
+      '@keyframes mtx-pulse-soft {',
+      '  0%, 100% { opacity: 0.7; transform: scale(0.96); }',
+      '  50% { opacity: 1; transform: scale(1.04); }',
       '}',
       // B4 — keyframes para thinking_panel live
       // Decantando: panel breathing sutil

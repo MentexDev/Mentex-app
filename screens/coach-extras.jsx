@@ -485,6 +485,19 @@
       setTimeout(function() { URL.revokeObjectURL(url); }, 1500);
     }
 
+    // C10 — Abre el CoachExportSheet (PDF / Markdown / PNG). Primero cierra
+    // este share sheet para evitar overlays apilados, luego dispatcha el
+    // evento que ia-flow escucha para abrir el export sheet.
+    function openExportSheet() {
+      if (onClose) onClose();
+      // Pequeño beat para que el share-sheet cierre suave antes del export
+      setTimeout(function() {
+        if (window.__mtxCoachExport && window.__mtxCoachExport.open) {
+          window.__mtxCoachExport.open(conversation);
+        }
+      }, 60);
+    }
+
     var portalRoot = document.getElementById('mtx-overlay-root') || document.body;
     return ReactDOM.createPortal(
       <div
@@ -530,7 +543,7 @@
           }}>
             <ShareOption icon="🔗" label="Copiar link" sub="mentex.app/c/{id}" onClick={copyLink} active={status === 'copied'}/>
             <ShareOption icon="📋" label="Copiar como Markdown" sub="Pegá en Notion, GitHub, etc." onClick={copyMarkdown} active={status === 'copied'}/>
-            <ShareOption icon="⬇️" label="Descargar archivo .md" sub="Guardar en tu dispositivo" onClick={downloadMarkdown}/>
+            <ShareOption icon="📤" label="Exportar como…" sub="PDF · Markdown · Imagen larga" onClick={openExportSheet}/>
           </div>
           {status === 'copied' && (
             <div style={{
