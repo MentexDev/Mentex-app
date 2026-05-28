@@ -226,6 +226,19 @@
   // ──────────────────────────────────────────────────────────────────────────
   // Genera una imagen mock visualmente atractiva basada en el prompt + modelo.
   // Cuando llegue backend, esto se reemplaza por result_url del Gateway.
+  //
+  // Audit CRIT-4: defensa contra SVG injection. Aunque icon viene de un
+  // catálogo hardcoded de emojis, aplicamos escape consistente — alinea
+  // con coach-video-gen-store.jsx (línea ~552) y previene XSS si alguien
+  // extiende _iconFromPrompt con user-controlled input.
+  function _escapeXml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
   function _generateMockImageUrl(prompt, aspectRatio, modelId) {
     var ratio = ASPECT_RATIOS.find(function(r) { return r.id === aspectRatio; }) || ASPECT_RATIOS[0];
     var w = ratio.w, h = ratio.h;
@@ -257,7 +270,7 @@
       // Bottom dark gradient
       '<rect x="0" y="' + (h * 0.65) + '" width="100%" height="' + (h * 0.35) + '" fill="black" opacity="0.22"/>',
       // Center accent icon (subtle, only as composition hint)
-      '<text x="' + (w / 2) + '" y="' + (h * 0.55) + '" font-size="' + Math.min(w, h) * 0.22 + '" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji" opacity="0.85">' + icon + '</text>',
+      '<text x="' + (w / 2) + '" y="' + (h * 0.55) + '" font-size="' + Math.min(w, h) * 0.22 + '" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji" opacity="0.85">' + _escapeXml(icon) + '</text>',
       // Subtle grain overlay
       '<rect width="100%" height="100%" filter="url(#grain)"/>',
       '</svg>',
@@ -379,6 +392,20 @@
     return true;
   }
 
+  // Audit CRIT-6: bulk cancel para invocar desde el bridge cuando user
+  // cambia de conv. Libera timers acumulados sin importar quién los inició.
+  function _cancelAllActive() {
+    var count = 0;
+    Object.keys(_jobs).forEach(function(id) {
+      var j = _jobs[id];
+      if (j && (j.status === 'queued' || j.status === 'rendering')) {
+        cancel(id);
+        count += 1;
+      }
+    });
+    return count;
+  }
+
   // Regenerate con mismo prompt — devuelve un nuevo jobId (mismo model salvo override)
   function regenerate(originalJobId, opts) {
     var orig = _jobs[originalJobId];
@@ -401,5 +428,6 @@
     listAspectRatios: listAspectRatios,
     recommendModel: recommendModel,
     estimateCost: estimateCost,
+    _cancelAllActive: _cancelAllActive,  // Audit CRIT-6
   };
 })();

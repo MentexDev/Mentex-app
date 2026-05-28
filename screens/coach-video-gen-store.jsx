@@ -508,6 +508,21 @@
     return true;
   }
 
+  // Audit CRIT-6: bulk cancel para invocar desde el bridge cuando user
+  // cambia de conv. _runVideoStages es recursivo via setTimeout — sin
+  // este cleanup los timers seguirían ejecutándose hasta los ~3 min full.
+  function _cancelAllActive() {
+    var count = 0;
+    Object.keys(_jobs).forEach(function(id) {
+      var j = _jobs[id];
+      if (j && (j.status === 'queued' || j.status === 'rendering')) {
+        cancelJob(id);
+        count += 1;
+      }
+    });
+    return count;
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // Mock video URL — SVG con cover frame estilizado (sin reproducir video real)
   // ──────────────────────────────────────────────────────────────────────────
@@ -549,8 +564,14 @@
     };
   }
 
+  // Audit IMP-4: escape completo XML (incluye apostrophes para attribute safety).
   function escapeXml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -598,5 +619,7 @@
     cancelJob: cancelJob,
     // Mock seed (solo usado por coach-mock-conversations)
     seedMockStoryboard: seedMockStoryboard,
+    // Audit CRIT-6
+    _cancelAllActive: _cancelAllActive,
   };
 })();

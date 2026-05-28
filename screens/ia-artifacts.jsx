@@ -4800,7 +4800,8 @@
         setStatus('error');
         setErr(e.detail.error || 'Falló la generación');
       }
-      // Si el job ya está en estado done en el store al montar, traerlo
+      // Audit CRIT-1: Si el job ya terminó al mount, NO registrar listeners
+      // (no llegarán eventos y solo sumarían leaks). Snapshot inmediato y exit.
       if (window.__mtxImageGen) {
         var snap = window.__mtxImageGen.pollJob(jobId);
         if (snap) {
@@ -4808,9 +4809,11 @@
           if (snap.status === 'done') {
             setStatus('done');
             setResultUrl(snap.resultUrl);
+            return undefined;  // job ya terminó — no registrar listeners
           } else if (snap.status === 'error' || snap.status === 'cancelled') {
             setStatus('error');
             setErr(snap.error || 'cancelled');
+            return undefined;  // job ya falló — no registrar listeners
           }
         }
       }
@@ -5496,18 +5499,32 @@
     }, [scene.title, scene.description, scene.voiceover]);
 
     // ESC para cerrar + lock body scroll
+    // Audit CRIT-2: ArrowKeys NO deben hijackear focus de inputs/textareas
+    // dentro del sheet. Universal guard `isTypingInEditable` aplicado antes
+    // de cualquier handling (excepto ESC, que SÍ debe funcionar para cerrar
+    // editor activo o sheet completo desde dentro de un input).
     React.useEffect(function() {
       function onKey(e) {
         if (e.isComposing || e.keyCode === 229) return;
+        // ESC siempre funciona — incluso desde inputs (cierra editor activo)
         if (e.key === 'Escape') {
           if (editingTitle || editingDesc || editingVoiceover) {
             setEditingTitle(false); setEditingDesc(false); setEditingVoiceover(false);
           } else if (props.onClose) {
             props.onClose();
           }
-        } else if (e.key === 'ArrowLeft' && !editingTitle && !editingDesc && !editingVoiceover && props.onPrev) {
+          return;
+        }
+        // ArrowLeft/Right: bloquear si el focus está en un input editable
+        // O si los flags de edit están activos (doble safety).
+        var t = e.target;
+        var inEditable = t && (
+          t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable
+        );
+        if (inEditable || editingTitle || editingDesc || editingVoiceover) return;
+        if (e.key === 'ArrowLeft' && props.onPrev) {
           props.onPrev();
-        } else if (e.key === 'ArrowRight' && !editingTitle && !editingDesc && !editingVoiceover && props.onNext) {
+        } else if (e.key === 'ArrowRight' && props.onNext) {
           props.onNext();
         }
       }
@@ -5559,7 +5576,12 @@
     return ReactDOM.createPortal(
       <div
         onMouseDown={function(e) { backdropDownRef.current = e.target === e.currentTarget; }}
+        onTouchStart={function(e) { backdropDownRef.current = e.target === e.currentTarget; }}
+        onTouchMove={function() { backdropDownRef.current = false; }}
         onClick={function(e) {
+          // Audit CRIT-8: cerrar SOLO si (1) target === backdrop directo
+          // (no bubbled desde inner) AND (2) mouseDown/touchStart fue en
+          // backdrop AND (3) NO hubo touchMove (que indica scroll, no tap).
           if (e.target === e.currentTarget && backdropDownRef.current && props.onClose) props.onClose();
           backdropDownRef.current = false;
         }}

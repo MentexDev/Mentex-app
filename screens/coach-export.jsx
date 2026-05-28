@@ -47,14 +47,32 @@
   var _jspdfPromise = null;
   var _h2cPromise = null;
 
+  // Audit IMP-1: timeout defensivo del CDN. Si el host no responde en 15s,
+  // rechazamos con error claro en lugar de dejar al user esperando indef.
+  var CDN_TIMEOUT_MS = 15000;
   function _loadScript(url) {
     return new Promise(function(resolve, reject) {
       var s = document.createElement('script');
       s.src = url;
       s.async = true;
-      s.onload = function() { resolve(); };
+      var settled = false;
+      var timeoutId = setTimeout(function() {
+        if (settled) return;
+        settled = true;
+        try { s.remove(); } catch (e) { /* no-op */ }
+        reject(new Error('CDN timeout (' + (CDN_TIMEOUT_MS / 1000) + 's): ' + url));
+      }, CDN_TIMEOUT_MS);
+      s.onload = function() {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve();
+      };
       s.onerror = function() {
-        s.remove();
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        try { s.remove(); } catch (e) { /* no-op */ }
         reject(new Error('Failed to load ' + url));
       };
       document.head.appendChild(s);
@@ -121,7 +139,9 @@
   }
 
   function toast(msg, kind) {
-    if (window.__mtxToast && window.__mtxToast.show) {
+    // Audit IMP-2: type-check estricto antes de invocar — defensa contra
+    // race con startup donde __mtxToast aún no se ha inicializado.
+    if (window.__mtxToast && typeof window.__mtxToast.show === 'function') {
       window.__mtxToast.show(msg, { kind: kind || 'info', durationMs: 2400 });
     } else {
       console.log('[export]', msg);
@@ -137,7 +157,14 @@
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 1500);
+    // Audit CRIT-5: timing fijo de 1.5s era frágil en conexión lenta — el
+    // browser podía estar todavía procesando el download cuando llegaba el
+    // revoke. Extendido a 60s, suficiente para descargar archivos grandes
+    // (PDF/PNG de varios MB en redes mobile). El blob queda en memoria
+    // brevemente, el GC eventually lo libera tras revoke.
+    setTimeout(function() {
+      try { URL.revokeObjectURL(url); } catch (e) { /* no-op */ }
+    }, 60000);
   }
 
   function downloadDataUrl(dataUrl, name) {
@@ -823,7 +850,11 @@
     return ReactDOM.createPortal(
       <div
         onMouseDown={function(e) { backdropDownRef.current = e.target === e.currentTarget; }}
+        onTouchStart={function(e) { backdropDownRef.current = e.target === e.currentTarget; }}
+        onTouchMove={function() { backdropDownRef.current = false; }}
         onClick={function(e) {
+          // Audit CRIT-8: no cerrar mientras hay un export en curso.
+          // backdropDownRef previene cierres accidentales por scroll/swipe.
           if (busy) { backdropDownRef.current = false; return; }
           if (e.target === e.currentTarget && backdropDownRef.current && onClose) onClose();
           backdropDownRef.current = false;
@@ -953,19 +984,15 @@
     var busy = !!props.busy, done = !!props.done, disabled = !!props.disabled;
     var accent = props.accent || '#3dffcf';
 
-    function handleKey(e) {
-      if (disabled || busy) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (props.onClick) props.onClick();
-      }
-    }
-
+    // Audit CRIT-7 + IMP-7: el button nativo HTML maneja Enter/Space
+    // automáticamente — el onKeyDown manual generaba double-dispatch.
+    // El attribute `disabled` bloquea onClick a nivel browser sin necesidad
+    // de onClick condicional null. Código simplificado y semánticamente
+    // correcto.
     return (
       <button
         type="button"
-        onClick={busy || disabled ? null : props.onClick}
-        onKeyDown={handleKey}
+        onClick={props.onClick}
         className="mtx-tap"
         aria-label={label + ' · ' + (sub || '')}
         aria-busy={busy || undefined}

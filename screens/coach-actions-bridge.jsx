@@ -657,6 +657,16 @@
     return msgId;
   }
 
+  // Audit CRIT-3 helper: feedback de error consistente cuando submit rechaza.
+  // Defensivo contra __mtxToast no inicializado todavía (race en startup).
+  function _safeToast(msg, kind) {
+    if (window.__mtxToast && typeof window.__mtxToast.show === 'function') {
+      window.__mtxToast.show(msg, { kind: kind || 'warn', durationMs: 2800 });
+    } else {
+      console.warn('[coach-actions]', msg);
+    }
+  }
+
   function _updateLastArtifact(msgId, patch) {
     if (!window.__mtxIAChat || !window.__mtxIAChat.updateMessage) return;
     // Como no tenemos un updateArtifact dedicado, lo hacemos vía updateMessage
@@ -697,6 +707,10 @@
           progress: 0,
         }]
       );
+    }).catch(function(err) {
+      // Audit CRIT-3: capturar rejection del submit (quota, network, validation)
+      console.warn('[coach-actions] image-gen submit failed:', err);
+      _safeToast('No se pudo generar la imagen · ' + (err && err.message || 'reintentá'), 'warn');
     });
   }
 
@@ -730,6 +744,10 @@
           state: 'draft',
         }]
       );
+    }).catch(function(err) {
+      // Audit CRIT-3: capturar rejection (LLM falló, quota, network)
+      console.warn('[coach-actions] storyboard submit failed:', err);
+      _safeToast('No se pudo armar el storyboard · ' + (err && err.message || 'reintentá'), 'warn');
     });
   }
 
@@ -764,12 +782,24 @@
           state: 'live',
         }]
       );
+    }).catch(function(err) {
+      // Audit CRIT-3: capturar rejection del submit video
+      console.warn('[coach-actions] video-gen submit failed:', err);
+      _safeToast('No se pudo generar el video · ' + (err && err.message || 'reintentá'), 'warn');
     });
   }
 
   function handleOpenVoicePicker(detail) {
     var storyboardId = detail && detail.storyboardId;
     if (!storyboardId) return;
+    // Audit IMP-6: guard si __mtxVideoGen no está listo. El VoicePicker
+    // depende del store para listVoices() — sin él, el artifact se renderiza
+    // vacío. Mejor avisar al user que reintente.
+    if (!window.__mtxVideoGen) {
+      console.warn('[coach-actions] __mtxVideoGen no listo para voice picker');
+      _safeToast('Cargando voces · reintentá en unos segundos', 'info');
+      return;
+    }
     _appendCoachMsg(
       '',
       [{
@@ -814,6 +844,43 @@
   window.addEventListener('mtx:open-voice-picker', function(e) { handleOpenVoicePicker(e.detail); });
   window.addEventListener('mtx:image-gen-restart', function(e) { handleImageGenRestart(e.detail); });
   window.addEventListener('mtx:video-gen-restart', function(e) { handleVideoGenRestart(e.detail); });
+
+  // Audit GAP-1: feedback inmediato cuando user elige voz en VoicePicker.
+  // Antes el evento se dispatchaba al store pero nadie le daba follow-up
+  // observable al user — sentía que el cambio no surtía efecto.
+  window.addEventListener('mtx:storyboard-voice-picked', function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.voiceId || !window.__mtxVideoGen) return;
+    var v = window.__mtxVideoGen.getVoice(detail.voiceId);
+    if (v) _safeToast('Voz elegida · ' + v.name, 'success');
+  });
+
+  // Audit CRIT-6: cancelar jobs activos cuando user cambia de conversación.
+  // Sin esto, los timer chains de video-gen siguen ejecutándose hasta los
+  // ~180s aunque la conv ya no esté visible. Multiplica si user genera
+  // varios videos sin cancelar.
+  //
+  // Track del currentId para detectar SOLO cambios reales (mtx:ia-chat-changed
+  // dispara también al añadir mensajes — no queremos cancelar en cada msg).
+  var _lastTrackedConvId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId
+    ? window.__mtxIAChat.getCurrentId() : null;
+  window.addEventListener('mtx:ia-chat-changed', function() {
+    var nowId = window.__mtxIAChat && window.__mtxIAChat.getCurrentId
+      ? window.__mtxIAChat.getCurrentId() : null;
+    if (nowId === _lastTrackedConvId) return;
+    var prevId = _lastTrackedConvId;
+    _lastTrackedConvId = nowId;
+    // User cambió de conv real — cancelar jobs activos para liberar timers
+    if (window.__mtxImageGen && window.__mtxImageGen._cancelAllActive) {
+      window.__mtxImageGen._cancelAllActive();
+    }
+    if (window.__mtxVideoGen && window.__mtxVideoGen._cancelAllActive) {
+      window.__mtxVideoGen._cancelAllActive();
+    }
+    if (prevId) {
+      console.info('[coach-actions] Conv changed from', prevId, '→', nowId, '· active jobs cancelled');
+    }
+  });
 
   // ─ Export del bridge para inspect / future hot-reload ─
   window.__mtxCoachActionsBridge = {
