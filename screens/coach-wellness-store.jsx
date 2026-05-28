@@ -460,12 +460,16 @@
   function detectStressLevel(text) {
     if (!text || typeof text !== 'string') return null;
     var t = text.toLowerCase();
+    // Audit CRIT-6: removidas duplicaciones entre niveles.
+    // "me siento mal" SOLO en HIGH (crisis). "no puedo" SOLO en LOW (tensión).
+    // Cada frase en un solo nivel — predictable + testable.
+    //
     // HIGH — palabras directas de pánico/crisis
     if (/(pánico|panico|no puedo respirar|me ahogo|crisis|colapso|no aguanto|estoy mal|me siento mal|ansiedad fuerte)/i.test(t)) {
       return 'high';
     }
-    // MEDIUM — estrés evidente
-    if (/(estresad|agobiad|abrumad|saturad|ansios|nervios|inquiet|me siento mal|no doy más|me supera|no me sale|frustrad|hart)/i.test(t)) {
+    // MEDIUM — estrés evidente (sin overlap con HIGH)
+    if (/(estresad|agobiad|abrumad|saturad|ansios|nervios|inquiet|no doy más|me supera|no me sale|frustrad|hart)/i.test(t)) {
       return 'medium';
     }
     // LOW — fatiga o tensión moderada
@@ -478,6 +482,17 @@
   // ──────────────────────────────────────────────────────────────────────────
   // Recomendación: stress level + prompt → mejor ejercicio
   // ──────────────────────────────────────────────────────────────────────────
+  // Audit GAP-4: recomendación por contexto temporal cuando no hay stress
+  // signal ni prompt útil. Mañana → coherent (energía), tarde → box_breathing
+  // (foco), noche → 4-7-8 (sleep), después de 22h → 4-7-8.
+  function _recommendByTimeOfDay() {
+    var hour = new Date().getHours();
+    if (hour >= 22 || hour < 6) return 'four_seven_eight';  // noche
+    if (hour >= 6 && hour < 11) return 'coherent_breathing';  // mañana
+    if (hour >= 14 && hour < 17) return 'box_breathing';  // tarde post-lunch
+    return 'box_breathing';  // default
+  }
+
   function recommendExercise(stressLevel, prompt) {
     var p = (prompt || '').toLowerCase();
     // Pánico/crisis aguda → 5-4-3-2-1 grounding (técnica clínica)
@@ -505,7 +520,9 @@
     if (/estir|stretch|cuello|hombros/i.test(p)) return 'stretching';
     if (/grounding|sentido|pánico/i.test(p)) return 'grounding_54321';
     if (/ojo|pantalla|visual|20-20/i.test(p)) return 'eye_rest_202020';
-    return 'box_breathing';  // default seguro
+    // Audit GAP-4: sin signal, recomendar por hora del día (más inteligente
+    // que default fijo box_breathing).
+    return _recommendByTimeOfDay();
   }
 
   // ──────────────────────────────────────────────────────────────────────────

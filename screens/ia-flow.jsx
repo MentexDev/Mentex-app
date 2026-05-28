@@ -3018,6 +3018,107 @@ function IAScreen(props) {
         return;
       }
 
+      // Audit GAP-1: handlers específicos para chips wellness (eran cosméticos)
+      // Cada chip de las 7 mocks wellness dispara acción observable real.
+      if (/^Programar recordatorio mañana/i.test(label)) {
+        // Dispatch un evento que el bridge puede capturar para crear reminder
+        if (window.__mtxIAAgenda && window.__mtxIAAgenda.addReminder) {
+          var now = new Date();
+          var hh = String(now.getHours()).padStart(2, '0');
+          var mm = String(now.getMinutes()).padStart(2, '0');
+          try {
+            window.__mtxIAAgenda.addReminder({
+              label: 'Pausa de bienestar',
+              time: hh + ':' + mm,
+              recurrence: 'once',
+              dayOffset: 1,
+              source: 'wellness-chip',
+            });
+            if (window.__mtxUI && window.__mtxUI.safeToast) {
+              window.__mtxUI.safeToast('Recordatorio creado · mañana ' + hh + ':' + mm, 'success');
+            } else if (window.__mtxToast && window.__mtxToast.show) {
+              window.__mtxToast.show('Recordatorio creado · mañana ' + hh + ':' + mm, { kind: 'success', durationMs: 2400 });
+            }
+          } catch (e) { /* graceful */ }
+        }
+        return;
+      }
+      if (/(Programar.*\d+\s*min|Programar timer)/i.test(label)) {
+        // Match "Programar timer 90 min" o "Programar timer 20 min"
+        var m = label.match(/(\d+)\s*min/);
+        var mins = m ? parseInt(m[1], 10) : 20;
+        var nowMin = new Date().getMinutes();
+        var nowHour = new Date().getHours();
+        var totalMin = nowHour * 60 + nowMin + mins;
+        var h = Math.floor(totalMin / 60) % 24;
+        var mn = totalMin % 60;
+        var time = String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0');
+        if (window.__mtxIAAgenda && window.__mtxIAAgenda.addReminder) {
+          try {
+            window.__mtxIAAgenda.addReminder({
+              label: 'Pausa de bienestar · ' + mins + ' min',
+              time: time,
+              recurrence: 'once',
+              source: 'wellness-chip',
+            });
+            if (window.__mtxUI && window.__mtxUI.safeToast) {
+              window.__mtxUI.safeToast('Timer programado para las ' + time, 'success');
+            } else if (window.__mtxToast && window.__mtxToast.show) {
+              window.__mtxToast.show('Timer programado para las ' + time, { kind: 'success', durationMs: 2400 });
+            }
+          } catch (e) { /* graceful */ }
+        }
+        return;
+      }
+      if (/(Ver mi historial|Ver historial|historial de pausas)/i.test(label)) {
+        // Mostrar historial inline en chat
+        if (window.__mtxWellnessHistory && window.__mtxWellnessHistory.getStats) {
+          var stats = window.__mtxWellnessHistory.getStats();
+          var summary = stats.hasHistory
+            ? stats.total + ' pausas · 🔥 ' + stats.streakDays + ' días seguidos · ' + stats.totalMinutes + ' min total'
+            : 'Aún no has hecho pausas. La primera empieza ahora.';
+          if (window.__mtxUI && window.__mtxUI.safeToast) {
+            window.__mtxUI.safeToast(summary, 'info');
+          } else if (window.__mtxToast && window.__mtxToast.show) {
+            window.__mtxToast.show(summary, { kind: 'info', durationMs: 3500 });
+          }
+        }
+        return;
+      }
+      if (/(Ver patrón HRV|patrón HRV)/i.test(label)) {
+        if (window.__mtxWearableStore && window.__mtxWearableStore.isConnected && window.__mtxWearableStore.isConnected()) {
+          var summary = window.__mtxWearableStore.getSummary && window.__mtxWearableStore.getSummary(7);
+          if (summary && summary.hrv) {
+            if (window.__mtxUI && window.__mtxUI.safeToast) {
+              window.__mtxUI.safeToast('HRV semana · promedio ' + Math.round(summary.hrv.avg) + 'ms', 'info');
+            } else if (window.__mtxToast && window.__mtxToast.show) {
+              window.__mtxToast.show('HRV semana · promedio ' + Math.round(summary.hrv.avg) + 'ms', { kind: 'info', durationMs: 3500 });
+            }
+          }
+        } else {
+          if (window.__mtxUI && window.__mtxUI.safeToast) {
+            window.__mtxUI.safeToast('Conectá tu wearable para ver el patrón HRV', 'info');
+          }
+        }
+        return;
+      }
+      if (/(Recomendá profesionales|Recomienda profesional)/i.test(label)) {
+        // Inyectar prompt al draft para que el coach responda con recomendaciones
+        setDraft('Recomendá profesionales de salud mental cerca de mí');
+        setTimeout(function() {
+          if (textareaRef.current) textareaRef.current.focus();
+        }, 60);
+        return;
+      }
+      if (/(Ver meditaciones cortas|meditaciones cortas)/i.test(label)) {
+        // Inyectar prompt al draft
+        setDraft('Mostrame meditaciones cortas de Mentex (5-7 min)');
+        setTimeout(function() {
+          if (textareaRef.current) textareaRef.current.focus();
+        }, 60);
+        return;
+      }
+
       var prompt = CHIP_PROMPTS[label] || label;
       setDraft(prompt);
       // Focus textarea para que el user pueda editar

@@ -220,6 +220,18 @@
     _onSessionComplete();
   });
 
+  // Audit CRIT-5: detener audio al cancel/pause de la sesión.
+  // Sin esto, oscillator + gain nodes quedan dangling hasta el cleanup
+  // setTimeout natural. En sesiones largas o múltiples cancelaciones,
+  // causa degradación del AudioContext.
+  window.addEventListener('mtx:wellness-state', function(e) {
+    if (!e || !e.detail) return;
+    var status = e.detail.status;
+    if (status === 'cancelled' || status === 'paused') {
+      stop();
+    }
+  });
+
   // Public API export
   window.__mtxWellnessAudio = {
     isEnabled: isEnabled,

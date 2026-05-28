@@ -858,6 +858,12 @@
       _safeToast('Cargando ejercicios · reintentá', 'info');
       return;
     }
+    // Audit IMP-7: cancelar sesiones activas antes de crear nueva para
+    // evitar dos artifacts ejecutándose simultáneamente.
+    if (window.__mtxWellness._cancelAllActive) {
+      window.__mtxWellness._cancelAllActive();
+    }
+
     var type = detail && detail.type;
     var prompt = (detail && detail.prompt) || '';
 
@@ -894,14 +900,17 @@
   function handleMessageSent(detail) {
     if (!detail || !detail.content) return;
     if (!window.__mtxWellness) return;
-    // Anti-spam: si la última msg ya tiene un wellness_exercise o sugerencia,
-    // no proponer otro inmediatamente.
+    // Audit GAP-5: anti-spam basado en TIEMPO (no índice de msgs).
+    // El check previo (slice(-3)) bloqueaba si user mandaba 2 stress msgs
+    // seguidos antes de que el coach respondiera al primero. Ahora bloqueamos
+    // solo si hay wellness en los últimos 5 minutos — tiempo real, no posición.
     var current = window.__mtxIAChat && window.__mtxIAChat.getCurrent && window.__mtxIAChat.getCurrent();
     if (!current) return;
     var msgs = current.messages || [];
-    var lastFew = msgs.slice(-3);
-    var hasRecent = lastFew.some(function(m) {
+    var cutoff = Date.now() - (5 * 60 * 1000);  // 5 min
+    var hasRecent = msgs.some(function(m) {
       if (!m.artifacts) return false;
+      if (!m.createdAt || m.createdAt < cutoff) return false;
       return m.artifacts.some(function(a) {
         return a.kind === 'wellness_exercise' || a.kind === 'wellness_suggestion';
       });
@@ -942,6 +951,26 @@
   // Sprint A.9 — wellness triggers
   window.addEventListener('mtx:coach-trigger-wellness', function(e) { handleWellnessTrigger(e.detail); });
   window.addEventListener('mtx:ia-message-sent', function(e) { handleMessageSent(e.detail); });
+
+  // Audit CRIT-3: defense contra race startup — si user envía un mensaje
+  // ANTES de que este bridge se haya inicializado, procesar el último mensaje
+  // del user al cargar. Drop-in seguro porque handleMessageSent tiene
+  // anti-spam guard temporal.
+  (function() {
+    try {
+      var current = window.__mtxIAChat && window.__mtxIAChat.getCurrent && window.__mtxIAChat.getCurrent();
+      if (!current || !current.messages || current.messages.length === 0) return;
+      var lastUserMsg = null;
+      for (var i = current.messages.length - 1; i >= 0; i--) {
+        if (current.messages[i].role === 'user') { lastUserMsg = current.messages[i]; break; }
+      }
+      if (!lastUserMsg) return;
+      // Solo si el msg es reciente (<10s) para evitar spurious triggers
+      var age = Date.now() - (lastUserMsg.createdAt || 0);
+      if (age > 10000) return;
+      handleMessageSent({ content: lastUserMsg.content, msgId: lastUserMsg.id, convId: current.id });
+    } catch (e) { /* no-op */ }
+  })();
 
   // Audit GAP-1: feedback inmediato cuando user elige voz en VoicePicker.
   // Antes el evento se dispatchaba al store pero nadie le daba follow-up

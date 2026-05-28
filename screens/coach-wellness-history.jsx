@@ -120,11 +120,15 @@
   // ──────────────────────────────────────────────────────────────────────────
   // Stats agregados
   // ──────────────────────────────────────────────────────────────────────────
+  // Audit IMP-2: usar toLocaleDateString para safety contra DST.
+  // Compara la fecha local del user, no UTC ni getMonth() que pueden diferir
+  // por 1h en cambios de horario.
   function _isSameDay(ts1, ts2) {
     var d1 = new Date(ts1), d2 = new Date(ts2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+    return d1.toDateString() === d2.toDateString();
+  }
+  function _dayKey(ts) {
+    return new Date(ts).toDateString();  // formato consistente cross-DST
   }
 
   function _msToHuman(ms) {
@@ -142,28 +146,25 @@
   function getStreakDays() {
     var entries = _read();
     if (entries.length === 0) return 0;
-    // Set de días con sesiones (yyyy-mm-dd)
+    // Set de días con sesiones (key: toDateString para DST safety)
     var daysWithSession = {};
     entries.forEach(function(e) {
-      var d = new Date(e.completedAt);
-      var key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
-      daysWithSession[key] = true;
+      daysWithSession[_dayKey(e.completedAt)] = true;
     });
-    // Contar streak desde HOY hacia atrás
+    // Audit IMP-3: streak desde HOY hacia atrás con boundary correcto.
+    // Regla: si hoy SÍ hay sesión, contar; si NO hay, empezar desde ayer.
+    // Si ayer tampoco hay y anteayer sí → streak = 0 (no continúa).
     var streak = 0;
     var cursor = new Date();
-    // Si hoy no hay sesión, empezar desde ayer (streak no se rompe inmediato)
-    var todayKey = cursor.getFullYear() + '-' + (cursor.getMonth() + 1) + '-' + cursor.getDate();
-    if (!daysWithSession[todayKey]) {
+    if (!daysWithSession[_dayKey(cursor.getTime())]) {
       cursor.setDate(cursor.getDate() - 1);
     }
     for (var i = 0; i < MAX_RETENTION_DAYS; i++) {
-      var key = cursor.getFullYear() + '-' + (cursor.getMonth() + 1) + '-' + cursor.getDate();
-      if (daysWithSession[key]) {
+      if (daysWithSession[_dayKey(cursor.getTime())]) {
         streak += 1;
         cursor.setDate(cursor.getDate() - 1);
       } else {
-        break;
+        break;  // primer día sin sesión rompe streak
       }
     }
     return streak;
@@ -322,13 +323,23 @@
   // ──────────────────────────────────────────────────────────────────────────
   window.addEventListener('mtx:wellness-completed', function(e) {
     if (!e || !e.detail) return;
-    record({
+    // Audit GAP-6: capturar fallo de record (localStorage quota, etc.)
+    // y emitir evento observable para que la UI lo maneje si lo necesita.
+    var result = record({
       type: e.detail.type,
       label: e.detail.label,
       cyclesDone: e.detail.cyclesDone,
       totalMs: e.detail.totalMs,
       completedAt: Date.now(),
     });
+    if (!result) {
+      console.warn('[wellness-history] record failed for type=' + e.detail.type);
+      try {
+        window.dispatchEvent(new CustomEvent('mtx:wellness-history-failed', {
+          detail: { type: e.detail.type, reason: 'record-returned-null' },
+        }));
+      } catch (err) { /* no-op */ }
+    }
   });
 
   // ──────────────────────────────────────────────────────────────────────────

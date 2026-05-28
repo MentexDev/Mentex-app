@@ -6501,23 +6501,49 @@
     }, [sessionId]);
 
     // Tick countdown — actualiza segundos restantes de la fase actual
+    // Audit CRIT-1 + IMP-1: el tick lee SIEMPRE el estado fresco del store
+    // (no snap stale del closure). Si el sessionId desaparece o la status
+    // deja de ser 'running', el RAF se detiene en el próximo frame.
     React.useEffect(function() {
       if (!snap || snap.status !== 'running') {
         if (rafIdRef.current) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
         return;
       }
+      var cancelled = false;
       var tick = function() {
-        if (!snap || !snap.phaseStartedAt) { rafIdRef.current = null; return; }
-        var elapsed = (Date.now() - snap.phaseStartedAt) / 1000;
-        var remaining = Math.max(0, snap.currentPhaseDuration - elapsed);
+        if (cancelled) return;
+        // Releer estado actual del store (no del snap del closure)
+        var current = sessionId && window.__mtxWellness ? window.__mtxWellness.getState(sessionId) : null;
+        if (!current || current.status !== 'running' || !current.phaseStartedAt) {
+          rafIdRef.current = null;
+          return;
+        }
+        var elapsed = (Date.now() - current.phaseStartedAt) / 1000;
+        var remaining = Math.max(0, current.currentPhaseDuration - elapsed);
         setPhaseSecondsLeft(remaining);
         rafIdRef.current = requestAnimationFrame(tick);
       };
       rafIdRef.current = requestAnimationFrame(tick);
       return function() {
-        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+        cancelled = true;
+        if (rafIdRef.current) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
       };
-    }, [snap && snap.status, snap && snap.phaseIdx, snap && snap.cycleIdx]);
+    }, [snap && snap.status, snap && snap.phaseIdx, snap && snap.cycleIdx, sessionId]);
+
+    // Audit CRIT-1 hardening: cleanup AL UNMOUNT independiente de status.
+    // Garantiza que el RAF se libera aunque el componente se destruya
+    // abruptamente (cambio de conv, navegación, etc.).
+    React.useEffect(function() {
+      return function() {
+        if (rafIdRef.current) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+      };
+    }, []);
 
     // Toast cuando completa
     var lastCompletedRef = React.useRef(null);
@@ -6605,44 +6631,69 @@
     }, []);
 
     // Completed: calcular HRV "after" con bump según tipo
+    // Audit CRIT-4: validar baseline existe + es número antes de operar
     React.useEffect(function() {
-      if (!isCompleted || hrvBaseline == null || hrvAfter != null) return;
+      if (!isCompleted) return;
+      if (hrvAfter != null) return;
+      if (hrvBaseline == null || typeof hrvBaseline !== 'number' || !isFinite(hrvBaseline)) return;
       var range = _hrvBumpRange(exerciseType);
       var bumpPct = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
       var newHrv = Math.round(hrvBaseline * (1 + bumpPct / 100));
+      if (!isFinite(newHrv)) return;  // safety final
       setHrvAfter({ value: newHrv, bumpPct: bumpPct });
-    }, [isCompleted]);
+    }, [isCompleted, hrvBaseline]);
 
     // Sprint A.9.5 — recordatorio para mañana via __mtxIAAgenda
     // Crea entry "Pausa de bienestar · {label}" para mañana a la misma hora.
     var reminderSetState = React.useState(false);
     var reminderSet = reminderSetState[0]; var setReminderSet = reminderSetState[1];
+    // Audit CRIT-2: useRef sincronía (state es async — race en double-tap)
+    var reminderCreatingRef = React.useRef(false);
     function handleRemindTomorrow() {
-      if (reminderSet) return;  // anti-double-tap
+      // Anti-double-tap robusto (ref es síncrono, state no)
+      if (reminderCreatingRef.current || reminderSet) return;
+      reminderCreatingRef.current = true;
+
+      // Audit GAP-2: si __mtxIAAgenda no existe, fallar visible al user
+      if (!window.__mtxIAAgenda || typeof window.__mtxIAAgenda.addReminder !== 'function') {
+        reminderCreatingRef.current = false;
+        if (window.__mtxUI && window.__mtxUI.safeToast) {
+          window.__mtxUI.safeToast('Agenda no disponible · reintentá', 'warn');
+        } else if (window.__mtxToast && window.__mtxToast.show) {
+          try { window.__mtxToast.show('Agenda no disponible · reintentá', { kind: 'warn', durationMs: 2400 }); }
+          catch (e) { /* no-op */ }
+        }
+        return;
+      }
+
       var now = new Date();
       var hh = String(now.getHours()).padStart(2, '0');
       var mm = String(now.getMinutes()).padStart(2, '0');
       var timeStr = hh + ':' + mm;
       var label = 'Pausa de bienestar · ' + (exercise.label || 'wellness');
-      // Crear reminder si la agenda store existe
-      if (window.__mtxIAAgenda && window.__mtxIAAgenda.addReminder) {
-        try {
-          window.__mtxIAAgenda.addReminder({
-            label: label,
-            time: timeStr,
-            recurrence: 'once',
-            dayOffset: 1,  // mañana
-            source: 'wellness',
-          });
-        } catch (e) { /* graceful */ }
-      }
-      setReminderSet(true);
-      if (window.__mtxUI && window.__mtxUI.safeToast) {
-        window.__mtxUI.safeToast('Te recordaré mañana a las ' + timeStr, 'success');
-      } else if (window.__mtxToast && window.__mtxToast.show) {
-        try {
-          window.__mtxToast.show('Te recordaré mañana a las ' + timeStr, { kind: 'success', durationMs: 2400 });
-        } catch (e) { /* no-op */ }
+
+      try {
+        window.__mtxIAAgenda.addReminder({
+          label: label,
+          time: timeStr,
+          recurrence: 'once',
+          dayOffset: 1,  // mañana
+          source: 'wellness',
+        });
+        setReminderSet(true);
+        if (window.__mtxUI && window.__mtxUI.safeToast) {
+          window.__mtxUI.safeToast('Te recordaré mañana a las ' + timeStr, 'success');
+        } else if (window.__mtxToast && window.__mtxToast.show) {
+          try {
+            window.__mtxToast.show('Te recordaré mañana a las ' + timeStr, { kind: 'success', durationMs: 2400 });
+          } catch (e) { /* no-op */ }
+        }
+      } catch (err) {
+        reminderCreatingRef.current = false;  // permitir retry
+        console.warn('[wellness] reminder failed:', err);
+        if (window.__mtxUI && window.__mtxUI.safeToast) {
+          window.__mtxUI.safeToast('No se pudo crear el recordatorio · reintentá', 'warn');
+        }
       }
     }
 
