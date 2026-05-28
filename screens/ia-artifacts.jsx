@@ -6430,6 +6430,733 @@
 
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.9 — IAArtifactWellnessExercise · ejercicios somáticos guiados
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Inline player guiado para 7 tipos de ejercicios (box breathing, 4-7-8,
+  // coherent, body scan, stretching, grounding 5-4-3-2-1, eye rest 20-20-20).
+  //
+  // Shape:
+  //   { kind: 'wellness_exercise', sessionId, type, state?: 'ready'|'running'|...
+  //     totalCycles?, intensity? }
+  //
+  // Si sessionId no existe en __mtxWellness (porque el store no se hidrató
+  // todavía con el mock), el artifact lo crea on-demand via __mtxWellness.start
+  // y luego conecta. Esto permite que mocks pre-cargados funcionen sin race.
+  //
+  // Visual:
+  //   Header   icon + label + tagline + accent badge
+  //   Center   visual específico del tipo (SVG box, halo, wave, silueta...)
+  //   Footer   estado fase actual + countdown + ciclo X/Y + 3 acciones
+  function IAArtifactWellnessExercise(props) {
+    var art = props.artifact || {};
+    var exerciseType = art.type;
+    var exercise = (window.__mtxWellness && window.__mtxWellness.getExercise) ? window.__mtxWellness.getExercise(exerciseType) : null;
+
+    var sessionIdState = React.useState(art.sessionId || null);
+    var sessionId = sessionIdState[0]; var setSessionId = sessionIdState[1];
+
+    var snapState = React.useState(function() {
+      if (!sessionId || !window.__mtxWellness) return null;
+      return window.__mtxWellness.getState(sessionId);
+    });
+    var snap = snapState[0]; var setSnap = snapState[1];
+
+    var phaseSecondsLeftState = React.useState(0);
+    var phaseSecondsLeft = phaseSecondsLeftState[0]; var setPhaseSecondsLeft = phaseSecondsLeftState[1];
+
+    var rafIdRef = React.useRef(null);
+
+    // Bootstrap: si no hay sessionId aún, crear sesión cuando el store esté listo
+    React.useEffect(function() {
+      if (sessionId || !exerciseType) return;
+      if (!window.__mtxWellness) return;
+      window.__mtxWellness.start({
+        type: exerciseType,
+        totalCycles: art.totalCycles,
+        intensity: art.intensity,
+      }).then(function(res) {
+        setSessionId(res.sessionId);
+        setSnap(window.__mtxWellness.getState(res.sessionId));
+      }).catch(function() { /* no-op */ });
+    }, [exerciseType, sessionId]);
+
+    // Suscripción a eventos del store
+    React.useEffect(function() {
+      if (!sessionId) return;
+      function refresh() {
+        if (!window.__mtxWellness) return;
+        setSnap(window.__mtxWellness.getState(sessionId));
+      }
+      function onState(e) { if (e.detail && e.detail.sessionId === sessionId) setSnap(e.detail); }
+      function onPhase(e) { if (e.detail && e.detail.sessionId === sessionId) refresh(); }
+      function onCompleted(e) { if (e.detail && e.detail.sessionId === sessionId) refresh(); }
+      window.addEventListener('mtx:wellness-state', onState);
+      window.addEventListener('mtx:wellness-phase-change', onPhase);
+      window.addEventListener('mtx:wellness-completed', onCompleted);
+      return function() {
+        window.removeEventListener('mtx:wellness-state', onState);
+        window.removeEventListener('mtx:wellness-phase-change', onPhase);
+        window.removeEventListener('mtx:wellness-completed', onCompleted);
+      };
+    }, [sessionId]);
+
+    // Tick countdown — actualiza segundos restantes de la fase actual
+    React.useEffect(function() {
+      if (!snap || snap.status !== 'running') {
+        if (rafIdRef.current) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
+        return;
+      }
+      var tick = function() {
+        if (!snap || !snap.phaseStartedAt) { rafIdRef.current = null; return; }
+        var elapsed = (Date.now() - snap.phaseStartedAt) / 1000;
+        var remaining = Math.max(0, snap.currentPhaseDuration - elapsed);
+        setPhaseSecondsLeft(remaining);
+        rafIdRef.current = requestAnimationFrame(tick);
+      };
+      rafIdRef.current = requestAnimationFrame(tick);
+      return function() {
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      };
+    }, [snap && snap.status, snap && snap.phaseIdx, snap && snap.cycleIdx]);
+
+    // Toast cuando completa
+    var lastCompletedRef = React.useRef(null);
+    React.useEffect(function() {
+      if (!snap || snap.status !== 'completed') return;
+      if (lastCompletedRef.current === snap.sessionId) return;
+      lastCompletedRef.current = snap.sessionId;
+      if (window.__mtxUI && window.__mtxUI.safeToast) {
+        window.__mtxUI.safeToast('Ejercicio completado · ' + (exercise ? exercise.label : ''), 'success');
+      }
+    }, [snap && snap.status]);
+
+    if (!exercise) {
+      return <div style={{
+        padding: 14, borderRadius: 14,
+        background: 'rgba(255,139,139,0.06)',
+        border: '0.5px solid rgba(255,139,139,0.20)',
+        fontSize: 12, color: '#ff8b8b',
+        fontFamily: 'var(--ff-sans)',
+      }}>Ejercicio no disponible: {exerciseType}</div>;
+    }
+
+    var accent = exercise.accent;
+    var status = (snap && snap.status) || 'ready';
+    var isRunning = status === 'running';
+    var isPaused = status === 'paused';
+    var isCompleted = status === 'completed';
+    var isCancelled = status === 'cancelled';
+    var totalCycles = (snap && snap.totalCycles) || exercise.defaultCycles;
+    var cycleIdx = (snap && snap.cycleIdx) || 0;
+    var phaseIdx = (snap && snap.phaseIdx) || 0;
+    var phaseLabel = (snap && snap.currentPhaseLabel) || exercise.phases[0].label;
+    var phaseId = (snap && snap.currentPhaseId) || exercise.phases[0].id;
+    var phaseDuration = (snap && snap.currentPhaseDuration) || exercise.phases[0].durationSec;
+    var phaseProgress = phaseDuration > 0 ? Math.min(1, (phaseDuration - phaseSecondsLeft) / phaseDuration) : 0;
+
+    function handleStart() {
+      if (!window.__mtxWellness || !sessionId) return;
+      window.__mtxWellness.play(sessionId);
+    }
+    function handlePause() {
+      if (!window.__mtxWellness || !sessionId) return;
+      window.__mtxWellness.pause(sessionId);
+    }
+    function handleSkip() {
+      if (!window.__mtxWellness || !sessionId) return;
+      window.__mtxWellness.skip(sessionId);
+    }
+    function handleCancel() {
+      if (!window.__mtxWellness || !sessionId) return;
+      window.__mtxWellness.cancel(sessionId);
+    }
+    function handleRestart() {
+      if (!window.__mtxWellness) return;
+      window.__mtxWellness.start({
+        type: exerciseType,
+        totalCycles: art.totalCycles,
+        intensity: art.intensity,
+      }).then(function(res) {
+        setSessionId(res.sessionId);
+        setSnap(window.__mtxWellness.getState(res.sessionId));
+      });
+    }
+
+    return (
+      <div style={{
+        borderRadius: 16, overflow: 'hidden',
+        border: '0.5px solid ' + accent + '33',
+        background: 'linear-gradient(180deg, rgba(20,30,28,0.65), rgba(8,14,12,0.95))',
+        animation: 'mtx-fade-up .35s ease both',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '12px 14px 10px',
+          borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 11,
+            background: accent + '1F',
+            border: '0.5px solid ' + accent + '40',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, flexShrink: 0,
+          }} aria-hidden="true">{exercise.icon}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 700,
+              color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+            }}>{exercise.label}</div>
+            <div style={{
+              fontSize: 11, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', marginTop: 1,
+            }}>{exercise.tagline}</div>
+          </div>
+          {/* Status badge */}
+          <div style={{
+            padding: '3px 8px', borderRadius: 999,
+            fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em',
+            background: isCompleted ? accent + '1A' : isCancelled ? 'rgba(255,139,139,0.10)' : 'rgba(255,255,255,0.04)',
+            border: '0.5px solid ' + (isCompleted ? accent + '40' : isCancelled ? 'rgba(255,139,139,0.25)' : 'rgba(255,255,255,0.08)'),
+            color: isCompleted ? accent : isCancelled ? '#ff8b8b' : 'var(--ink-3)',
+          }}>
+            {isCompleted ? '✓ HECHO' :
+             isCancelled ? 'CANCELADO' :
+             isPaused ? '⏸ PAUSA' :
+             isRunning ? '● ACTIVO' : 'LISTO'}
+          </div>
+        </div>
+
+        {/* Visual center — específico por tipo */}
+        <_WellnessVisual
+          exercise={exercise}
+          accent={accent}
+          phaseId={phaseId}
+          phaseProgress={phaseProgress}
+          isRunning={isRunning}
+          isCompleted={isCompleted}
+        />
+
+        {/* Phase info + countdown */}
+        {!isCompleted && !isCancelled && (
+          <div style={{ padding: '4px 14px 0', textAlign: 'center' }}>
+            <div style={{
+              fontSize: 22, fontWeight: 800,
+              color: accent, fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.1,
+              textShadow: isRunning ? '0 0 14px ' + accent + '55' : 'none',
+              transition: 'color .3s, text-shadow .3s',
+            }}>{phaseLabel}</div>
+            <div style={{
+              fontSize: 12, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              marginTop: 3, marginBottom: 8,
+              minHeight: 14,
+            }}>{isRunning && exercise.phases[phaseIdx] && exercise.phases[phaseIdx].hint}</div>
+            {/* Countdown numérico */}
+            {isRunning && (
+              <div style={{
+                fontSize: 32, fontWeight: 800,
+                color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-mono, monospace)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+                marginBottom: 8,
+              }}>{Math.ceil(phaseSecondsLeft)}</div>
+            )}
+            {/* Cycle progress dots */}
+            <div style={{
+              display: 'flex', justifyContent: 'center', gap: 5,
+              marginBottom: 10,
+            }}>
+              {Array.from({ length: totalCycles }).map(function(_, i) {
+                var done = i < cycleIdx;
+                var current = i === cycleIdx;
+                return (
+                  <span key={i} style={{
+                    width: current ? 18 : 6, height: 6, borderRadius: 999,
+                    background: done ? accent : current ? accent : 'rgba(255,255,255,0.12)',
+                    boxShadow: current ? '0 0 6px ' + accent : 'none',
+                    transition: 'width .3s, background .3s',
+                  }}/>
+                );
+              })}
+            </div>
+            <div style={{
+              fontSize: 10.5, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 12,
+            }}>Ciclo {cycleIdx + 1} de {totalCycles}</div>
+          </div>
+        )}
+
+        {/* Completed state — celebración */}
+        {isCompleted && (
+          <div style={{
+            padding: '8px 14px 16px', textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: 30, marginBottom: 4,
+              animation: 'mtx-pulse-soft 1.6s ease-in-out infinite',
+            }} aria-hidden="true">{exercise.icon}</div>
+            <div style={{
+              fontSize: 15, fontWeight: 800,
+              color: accent, fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              marginBottom: 4,
+            }}>Bien hecho</div>
+            <div style={{
+              fontSize: 12, color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 10,
+            }}>Completaste {totalCycles} ciclo{totalCycles === 1 ? '' : 's'} de {exercise.label}</div>
+          </div>
+        )}
+
+        {/* Cancelled state */}
+        {isCancelled && (
+          <div style={{ padding: '8px 14px 14px', textAlign: 'center' }}>
+            <div style={{
+              fontSize: 12, color: 'var(--ink-2)',
+              fontFamily: 'var(--ff-sans)',
+              marginBottom: 10,
+            }}>Pausa interrumpida · está bien, volvé cuando quieras</div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{
+          padding: '0 14px 14px',
+          display: 'flex', gap: 8,
+        }}>
+          {!isCompleted && !isCancelled && (
+            <React.Fragment>
+              {(status === 'ready' || isPaused) && (
+                <button type="button" onClick={handleStart}
+                  className="mtx-tap"
+                  aria-label={isPaused ? 'Reanudar ejercicio' : 'Iniciar ejercicio'}
+                  style={{
+                    flex: 1, appearance: 'none', cursor: 'pointer',
+                    padding: '11px 14px', borderRadius: 12,
+                    background: 'linear-gradient(135deg, ' + accent + ', ' + accent + 'CC)',
+                    color: '#0a1410', border: 0,
+                    fontSize: 13, fontWeight: 800,
+                    fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                    boxShadow: '0 4px 14px -4px ' + accent + '80',
+                  }}>{isPaused ? '▶ Reanudar' : '▶ Iniciar'}</button>
+              )}
+              {isRunning && (
+                <button type="button" onClick={handlePause}
+                  className="mtx-tap"
+                  aria-label="Pausar ejercicio"
+                  style={{
+                    flex: 1, appearance: 'none', cursor: 'pointer',
+                    padding: '11px 14px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '0.5px solid rgba(255,255,255,0.12)',
+                    color: 'var(--ink-1)',
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                  }}>⏸ Pausar</button>
+              )}
+              {(isRunning || isPaused) && totalCycles > 1 && cycleIdx + 1 < totalCycles && (
+                <button type="button" onClick={handleSkip}
+                  className="mtx-tap"
+                  aria-label="Saltar al siguiente ciclo"
+                  style={{
+                    appearance: 'none', cursor: 'pointer',
+                    padding: '11px 12px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '0.5px solid rgba(255,255,255,0.08)',
+                    color: 'var(--ink-2)',
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--ff-sans)',
+                  }}>⏭</button>
+              )}
+              <button type="button" onClick={handleCancel}
+                className="mtx-tap"
+                aria-label="Cancelar ejercicio"
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  padding: '11px 12px', borderRadius: 12,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.08)',
+                  color: 'var(--ink-3)',
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--ff-sans)',
+                }}>✕</button>
+            </React.Fragment>
+          )}
+          {(isCompleted || isCancelled) && (
+            <React.Fragment>
+              <button type="button" onClick={handleRestart}
+                className="mtx-tap"
+                aria-label="Hacerlo de nuevo"
+                style={{
+                  flex: 1, appearance: 'none', cursor: 'pointer',
+                  padding: '11px 14px', borderRadius: 12,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '0.5px solid ' + accent + '40',
+                  color: accent,
+                  fontSize: 13, fontWeight: 700,
+                  fontFamily: 'var(--ff-sans)',
+                }}>🔄 Hacerlo de nuevo</button>
+            </React.Fragment>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.9 — _WellnessVisual · visual específico por tipo de ejercicio
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Renderiza el componente visual central según exercise.type:
+  //   box_breathing       → cuadrado con punto recorriendo
+  //   four_seven_eight    → círculo con halos expandiendo
+  //   coherent_breathing  → onda sinusoidal subiendo/bajando
+  //   body_scan           → silueta humana iluminándose
+  //   stretching          → pictograma cambiando
+  //   grounding_54321     → contador grande del sentido
+  //   eye_rest_202020     → ojo + mirada
+  function _WellnessVisual(props) {
+    var ex = props.exercise;
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var phaseProgress = props.phaseProgress;
+    var isRunning = props.isRunning;
+    var isCompleted = props.isCompleted;
+
+    if (ex.type === 'box_breathing') {
+      return <_BoxBreathingVisual accent={accent} phaseId={phaseId} phaseProgress={phaseProgress} isRunning={isRunning} isCompleted={isCompleted}/>;
+    }
+    if (ex.type === 'four_seven_eight') {
+      return <_HaloBreathingVisual accent={accent} phaseId={phaseId} phaseProgress={phaseProgress} isRunning={isRunning}/>;
+    }
+    if (ex.type === 'coherent_breathing') {
+      return <_WaveBreathingVisual accent={accent} phaseId={phaseId} phaseProgress={phaseProgress} isRunning={isRunning}/>;
+    }
+    if (ex.type === 'body_scan') {
+      return <_BodyScanVisual accent={accent} phaseId={phaseId} isRunning={isRunning}/>;
+    }
+    if (ex.type === 'grounding_54321') {
+      return <_GroundingVisual accent={accent} phaseId={phaseId} isRunning={isRunning}/>;
+    }
+    if (ex.type === 'eye_rest_202020') {
+      return <_EyeRestVisual accent={accent} isRunning={isRunning}/>;
+    }
+    if (ex.type === 'stretching') {
+      return <_StretchingVisual accent={accent} phaseId={phaseId} isRunning={isRunning}/>;
+    }
+    return null;
+  }
+
+  // Box Breathing — cuadrado SVG 4 lados, punto recorre, halo neon
+  function _BoxBreathingVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var phaseProgress = props.phaseProgress;
+    var isRunning = props.isRunning;
+    var size = 180;
+    var pad = 24;
+    var sq = size - pad * 2;
+    // Calcular posición del punto en el perímetro del cuadrado según fase
+    // fase 0: inhale → top edge (left to right)
+    // fase 1: hold_in → right edge (top to bottom)
+    // fase 2: exhale → bottom edge (right to left)
+    // fase 3: hold_out → left edge (bottom to top)
+    var dot = { x: pad, y: pad };
+    if (phaseId === 'inhale')   dot = { x: pad + sq * phaseProgress, y: pad };
+    else if (phaseId === 'hold_in')  dot = { x: pad + sq, y: pad + sq * phaseProgress };
+    else if (phaseId === 'exhale')   dot = { x: pad + sq - sq * phaseProgress, y: pad + sq };
+    else if (phaseId === 'hold_out') dot = { x: pad, y: pad + sq - sq * phaseProgress };
+    // Scale del cuadrado interior: agranda durante inhale/hold_in, encoge en exhale/hold_out
+    var innerScale = 1;
+    if (phaseId === 'inhale') innerScale = 0.7 + 0.3 * phaseProgress;
+    else if (phaseId === 'hold_in') innerScale = 1;
+    else if (phaseId === 'exhale') innerScale = 1 - 0.3 * phaseProgress;
+    else if (phaseId === 'hold_out') innerScale = 0.7;
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px 14px 14px',
+      }}>
+        <svg width={size} height={size} viewBox={'0 0 ' + size + ' ' + size} style={{
+          filter: isRunning ? 'drop-shadow(0 0 18px ' + accent + '55)' : 'none',
+          transition: 'filter .4s',
+        }}>
+          {/* Square trace */}
+          <rect x={pad} y={pad} width={sq} height={sq}
+            fill="none"
+            stroke={accent + (isRunning ? '88' : '44')}
+            strokeWidth={2}
+            strokeLinecap="round"
+            rx={6}/>
+          {/* Inner pulsing square */}
+          <rect
+            x={pad + (sq - sq * innerScale) / 2}
+            y={pad + (sq - sq * innerScale) / 2}
+            width={sq * innerScale}
+            height={sq * innerScale}
+            fill={accent + '0A'}
+            stroke={accent + '20'}
+            strokeWidth={1}
+            rx={4}
+            style={{ transition: 'all .25s ease-out' }}/>
+          {/* Center icon */}
+          <text x={size / 2} y={size / 2 + 6} textAnchor="middle"
+            fontSize="22" fill={accent} opacity={isRunning ? '0.85' : '0.4'}>
+            🌬
+          </text>
+          {/* Moving dot */}
+          {isRunning && (
+            <circle cx={dot.x} cy={dot.y} r="8"
+              fill={accent}
+              style={{ filter: 'drop-shadow(0 0 8px ' + accent + ')' }}/>
+          )}
+        </svg>
+      </div>
+    );
+  }
+
+  // 4-7-8 — círculo con halos expandiendo en sync con la fase
+  function _HaloBreathingVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var phaseProgress = props.phaseProgress;
+    var isRunning = props.isRunning;
+    // Scale: inhale crece, hold sostiene, exhale encoge
+    var scale = 1;
+    if (phaseId === 'inhale') scale = 0.7 + 0.5 * phaseProgress;
+    else if (phaseId === 'hold') scale = 1.2;
+    else if (phaseId === 'exhale') scale = 1.2 - 0.5 * phaseProgress;
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '32px 14px 18px',
+        height: 180,
+        position: 'relative',
+      }}>
+        {/* Halos expandiendo */}
+        {isRunning && [0, 1, 2].map(function(i) {
+          return (
+            <span key={i} style={{
+              position: 'absolute',
+              width: 90, height: 90, borderRadius: '50%',
+              border: '1px solid ' + accent + '50',
+              animation: 'mtx-breathe-halo 4s ease-out infinite',
+              animationDelay: (i * 1.3) + 's',
+              pointerEvents: 'none',
+            }}/>
+          );
+        })}
+        {/* Core circle */}
+        <div style={{
+          width: 90 * scale, height: 90 * scale,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, ' + accent + '40, ' + accent + '08)',
+          border: '1.5px solid ' + accent + 'AA',
+          boxShadow: isRunning ? '0 0 24px ' + accent + '55' : 'none',
+          transition: 'width .25s, height .25s, box-shadow .4s',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 28,
+        }} aria-hidden="true">💜</div>
+      </div>
+    );
+  }
+
+  // Coherent — onda sinusoidal que sube en inhale, baja en exhale
+  function _WaveBreathingVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var phaseProgress = props.phaseProgress;
+    var isRunning = props.isRunning;
+    // amplitude vertical del marcador: inhale 0→1, exhale 1→0
+    var y = 0.5;  // centered when not running
+    if (phaseId === 'inhale') y = 0.9 - 0.8 * phaseProgress;
+    else if (phaseId === 'exhale') y = 0.1 + 0.8 * phaseProgress;
+    var w = 240, h = 90;
+    // Generate sinusoidal path
+    var points = [];
+    for (var i = 0; i <= 60; i++) {
+      var t = i / 60;
+      var phaseOffset = phaseId === 'exhale' ? Math.PI : 0;
+      var px = t * w;
+      var py = h / 2 - Math.sin(t * Math.PI * 2 + phaseOffset) * (h / 3);
+      points.push(px + ',' + py);
+    }
+    var path = 'M ' + points.join(' L ');
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '32px 14px 18px',
+      }}>
+        <svg width={w} height={h} viewBox={'0 0 ' + w + ' ' + h}
+          style={{ filter: isRunning ? 'drop-shadow(0 0 12px ' + accent + '55)' : 'none' }}>
+          {/* Center line */}
+          <line x1="0" y1={h/2} x2={w} y2={h/2}
+            stroke={accent + '20'} strokeDasharray="3 4" strokeWidth="1"/>
+          {/* Wave */}
+          <path d={path} fill="none" stroke={accent + 'AA'} strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"/>
+          {/* Moving dot */}
+          {isRunning && (
+            <circle cx={w/2} cy={h * y} r="7"
+              fill={accent}
+              style={{ filter: 'drop-shadow(0 0 6px ' + accent + ')' }}/>
+          )}
+        </svg>
+      </div>
+    );
+  }
+
+  // Body Scan — silueta humana con zona activa iluminada
+  function _BodyScanVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var isRunning = props.isRunning;
+    // Map phaseId → posición Y % en la silueta (0 arriba = cabeza, 1 abajo = pies)
+    var zones = {
+      feet: 0.95, legs: 0.82, pelvis: 0.65, belly: 0.55, chest: 0.45,
+      arms: 0.50, neck: 0.30, face: 0.20, crown: 0.10, whole: 0.5,
+    };
+    var activeY = zones[phaseId] != null ? zones[phaseId] : 0.5;
+    var w = 100, h = 180;
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px 14px 14px',
+      }}>
+        <svg width={w} height={h} viewBox={'0 0 ' + w + ' ' + h}>
+          {/* Silueta humana simple */}
+          <g fill={accent + '15'} stroke={accent + '50'} strokeWidth="1">
+            {/* Cabeza */}
+            <circle cx={w/2} cy={20} r={14}/>
+            {/* Cuerpo */}
+            <rect x={w/2 - 18} y={34} width={36} height={70} rx={8}/>
+            {/* Brazos */}
+            <rect x={w/2 - 32} y={38} width={10} height={50} rx={5}/>
+            <rect x={w/2 + 22} y={38} width={10} height={50} rx={5}/>
+            {/* Piernas */}
+            <rect x={w/2 - 16} y={104} width={12} height={64} rx={5}/>
+            <rect x={w/2 + 4} y={104} width={12} height={64} rx={5}/>
+          </g>
+          {/* Glow en zona activa */}
+          {isRunning && (
+            <circle cx={w/2} cy={activeY * h} r={26}
+              fill="none"
+              stroke={accent} strokeWidth="2"
+              opacity="0.65"
+              style={{
+                filter: 'drop-shadow(0 0 10px ' + accent + ')',
+                animation: 'mtx-pulse-soft 2s ease-in-out infinite',
+              }}/>
+          )}
+        </svg>
+      </div>
+    );
+  }
+
+  // Grounding 5-4-3-2-1 — número grande del sentido actual + icon
+  function _GroundingVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var isRunning = props.isRunning;
+    // Map phase → { number, icon, sense }
+    var senses = {
+      see_5:   { n: 5, icon: '👁', sense: 'VES' },
+      touch_4: { n: 4, icon: '✋', sense: 'TOCAS' },
+      hear_3:  { n: 3, icon: '👂', sense: 'OYES' },
+      smell_2: { n: 2, icon: '👃', sense: 'HUELES' },
+      taste_1: { n: 1, icon: '👅', sense: 'SABOREAS' },
+    };
+    var s = senses[phaseId] || senses.see_5;
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '24px 14px 12px',
+        height: 180,
+      }}>
+        <div style={{
+          fontSize: 90, fontWeight: 800,
+          color: accent,
+          lineHeight: 1,
+          fontFamily: 'var(--ff-sans)',
+          textShadow: isRunning ? '0 0 24px ' + accent + 'AA' : 'none',
+          transition: 'text-shadow .4s',
+        }}>{s.n}</div>
+        <div style={{ fontSize: 30, marginTop: 4 }} aria-hidden="true">{s.icon}</div>
+      </div>
+    );
+  }
+
+  // Eye rest 20-20-20 — ojo simple con halo lejano
+  function _EyeRestVisual(props) {
+    var accent = props.accent;
+    var isRunning = props.isRunning;
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '28px 14px 18px',
+        position: 'relative',
+        height: 180,
+      }}>
+        {/* Halo lejano expandiendo */}
+        {isRunning && (
+          <span style={{
+            position: 'absolute',
+            width: 140, height: 140, borderRadius: '50%',
+            border: '1px solid ' + accent + '40',
+            animation: 'mtx-breathe-halo 4s ease-out infinite',
+            pointerEvents: 'none',
+          }}/>
+        )}
+        <div style={{
+          fontSize: 72,
+          color: accent,
+          opacity: isRunning ? 0.95 : 0.5,
+          transition: 'opacity .3s',
+          filter: isRunning ? 'drop-shadow(0 0 18px ' + accent + '88)' : 'none',
+        }} aria-hidden="true">👁</div>
+      </div>
+    );
+  }
+
+  // Stretching — icon por postura
+  function _StretchingVisual(props) {
+    var accent = props.accent;
+    var phaseId = props.phaseId;
+    var isRunning = props.isRunning;
+    var poses = {
+      neck_roll: '🙆', shoulder_roll: '💪', side_bend: '🤸',
+      spine_twist: '🧘', forward_fold: '🙇',
+    };
+    var icon = poses[phaseId] || '🤸';
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px 14px 14px',
+        height: 180,
+      }}>
+        <div style={{
+          width: 130, height: 130, borderRadius: '50%',
+          background: 'radial-gradient(circle, ' + accent + '20, ' + accent + '05)',
+          border: '1px solid ' + accent + '50',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 64,
+          boxShadow: isRunning ? '0 0 24px ' + accent + '55' : 'none',
+          transition: 'box-shadow .4s',
+        }} aria-hidden="true">{icon}</div>
+      </div>
+    );
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // IAArtifact — router por kind
   // ═══════════════════════════════════════════════════════════════════════════
   function IAArtifact(props) {
@@ -6480,6 +7207,8 @@
       case 'voice_picker':             return <IAArtifactVoicePicker artifact={art}/>;
       case 'video_gen_job':            return <IAArtifactVideoGenJob artifact={art}/>;
       case 'video_result':             return <IAArtifactVideoResult artifact={art}/>;
+      // RFC-001 Addendum A · Sprint A.9 — wellness exercises somáticos
+      case 'wellness_exercise':        return <IAArtifactWellnessExercise artifact={art}/>;
       default:                     return null;
     }
   }

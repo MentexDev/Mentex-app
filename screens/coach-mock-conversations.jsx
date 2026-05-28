@@ -1348,6 +1348,57 @@
     })();
 
 
+    // ─── 20. SPRINT A.9 · WELLNESS — stress detected + box breathing inline ─
+    (function() {
+      var base = _hoursAgo(1);
+      conversations.push({
+        id: 'conv-mock-wellness-stress',
+        title: 'Estoy estresado por la presentación',
+        createdAt: base, updatedAt: base + 180000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-20-1',
+            'Estoy muy estresado por la presentación de mañana. No puedo concentrarme y siento que se me viene todo encima.',
+            base),
+          _assistantMsg('msg-mock-20-2',
+            'Te escucho. Antes de cualquier otra cosa, hagamos esto juntos · 2 minutos.\n\nVas a respirar siguiendo un cuadrado. Cuatro segundos por cada lado: inhalas, sostienes, exhalas, sostienes. Es una técnica de los Navy SEALs antes de operaciones — activa tu sistema parasimpático y baja el cortisol rápido.\n\nNo tenés que hacer nada perfecto. Solo seguir el punto con tu respiración.',
+            base + 4000,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', {
+                  startedAt: base + 200, durationMs: 800,
+                  rawInput: { query: 'patrones de estrés del user' },
+                }),
+                _step('step-2', 'stress_detection', {
+                  startedAt: base + 1000, durationMs: 600,
+                  rawInput: { msg: 'estresado, no puedo concentrarme, se me viene todo encima' },
+                  rawOutput: { level: 'medium', recommended: 'box_breathing' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  // sessionId queda null — el artifact lo crea on-mount
+                  type: 'box_breathing',
+                  totalCycles: 5,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-20-3',
+            'Gracias. Eso ayudó. Me siento más centrado.',
+            base + 165000),
+          _assistantMsg('msg-mock-20-4',
+            'Esa sensación que tenés ahora — más centrado, más en el cuerpo — es exactamente el estado desde donde se prepara bien una presentación.\n\nQuiero que recuerdes esto para mañana: si sentís el agobio subiendo justo antes de empezar, hacé 2 ciclos box en el baño. 30 segundos. Es invisible para los demás y vuelves al cuerpo.\n\n¿Querés que te programe un recordatorio 15 min antes de la presentación con un ejercicio rápido?',
+            base + 178000,
+            {
+              chips: ['Sí, programá el recordatorio', 'No, ya tengo el ritual', '¿Cuál ejercicio rápido?'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
     return conversations;
   }
 

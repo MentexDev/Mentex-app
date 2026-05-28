@@ -178,6 +178,23 @@
         return { kind: 'no-op' };
       },
     },
+    {
+      id: 'respirar',
+      label: 'Pausa de bienestar',
+      description: 'Box, 4-7-8, body scan, grounding o estiramiento',
+      icon: '🌬',
+      accent: '#3dffd1',
+      takesArg: true,
+      argHint: 'box · 4-7-8 · coherente · scan · estirar · grounding · ojos',
+      action: function(arg) {
+        var prompt = String(arg || '').trim();
+        // Sin arg: dispara box breathing como default (más universal)
+        window.dispatchEvent(new CustomEvent('mtx:coach-trigger-wellness', {
+          detail: { prompt: prompt },
+        }));
+        return { kind: 'no-op' };
+      },
+    },
   ];
 
   // Alias para typos comunes — match() los resuelve a su comando real.
@@ -201,6 +218,13 @@
     'video': 'video',
     'film': 'video',
     'reel': 'video',
+    // Sprint A.9 — wellness exercises
+    'breathe': 'respirar',
+    'breath': 'respirar',
+    'pausa': 'respirar',
+    'calma': 'respirar',
+    'meditar': 'respirar',
+    'estresado': 'respirar',
   };
 
   // ─ Helper: match slash en el texto ──────────────────────────────────────

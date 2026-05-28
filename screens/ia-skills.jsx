@@ -202,6 +202,22 @@
       qualityScore: 0.90,
       defaultEnabled: true,
     },
+    {
+      id: 'mtx-wellness-pause',
+      icon: '🌬',
+      title: 'Pausa de bienestar',
+      description: 'Mini-player guiado: respiración Box 4-4-4-4, 4-7-8 (Weil), coherente, body scan, estiramiento, 5-4-3-2-1 grounding o descanso visual. Auto-detecta el ejercicio según tu estado.',
+      category: 'bienestar',
+      triggers: ['necesito respirar', 'estoy estresado', 'pausa', 'me agobio', 'no puedo más', 'calma'],
+      steps: [
+        'Detecta tu nivel de estrés en el chat',
+        'Recomienda el ejercicio apropiado (7 tipos)',
+        'Renderiza animación somática inline',
+        'Cuenta ciclos por vos · pausable',
+      ],
+      qualityScore: 0.95,
+      defaultEnabled: true,
+    },
   ];
 
   // ── State inicial ─────────────────────────────────────────────────────────

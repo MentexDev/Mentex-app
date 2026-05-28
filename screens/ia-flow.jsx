@@ -1208,6 +1208,8 @@ function IAMessageBubble(props) {
     if (a.kind === 'video_gen_job') return true;
     if (a.kind === 'storyboard_draft') return true;
     if (a.kind === 'voice_picker') return true;
+    // Sprint A.9 — wellness exercises siempre live (state machine activa)
+    if (a.kind === 'wellness_exercise') return true;
     return false;
   }
   var hasArtifacts = artifacts.length > 0 && (
@@ -3206,6 +3208,10 @@ function IAScreen(props) {
       cid = conv.id;
     }
     var userMsg = window.__mtxIAChat.addMessage(cid, { role: 'user', content: content });
+    // Sprint A.9 — emitir evento para que bridges escuchen (wellness auto-detect)
+    window.dispatchEvent(new CustomEvent('mtx:ia-message-sent', { detail: {
+      content: content, msgId: userMsg && userMsg.id, convId: cid,
+    }}));
     // Memory detection (Fase 1.1) — extrae hechos memorables del mensaje
     // user-asked tiene prioridad; auto-detection respeta el toggle del store.
     _processMemoryDetection(content, userMsg && userMsg.id, cid, toast.show);

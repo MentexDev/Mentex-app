@@ -838,12 +838,110 @@
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sprint A.9 — Wellness exercise handlers (somatic experience)
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Trigger explícito: user dispara via slash `/respirar` o skill oficial
+  //   → mtx:coach-trigger-wellness { type?, prompt? }
+  //
+  // Trigger automático: cuando user manda un msg con keywords de estrés,
+  //   el bridge sugiere el ejercicio apropiado al stress level + prompt.
+  //   → escucha mtx:ia-message-sent (dispatched por el chat) y analiza.
+  //
+  // Drop-in ready: cuando llegue backend, el LLM real reemplaza la heurística
+  // detectStressLevel + recommendExercise por análisis semántico real.
+
+  function handleWellnessTrigger(detail) {
+    if (!window.__mtxWellness) {
+      console.warn('[coach-actions] __mtxWellness no listo');
+      _safeToast('Cargando ejercicios · reintentá', 'info');
+      return;
+    }
+    var type = detail && detail.type;
+    var prompt = (detail && detail.prompt) || '';
+
+    // Si no se especificó tipo, recomendar uno basado en el prompt
+    if (!type) {
+      var stress = window.__mtxWellness.detectStressLevel(prompt);
+      type = window.__mtxWellness.recommendExercise(stress, prompt);
+    }
+
+    var exercise = window.__mtxWellness.getExercise(type);
+    if (!exercise) {
+      _safeToast('Ejercicio no encontrado · ' + type, 'warn');
+      return;
+    }
+
+    // Crear sesión y artifact inline
+    window.__mtxWellness.start({ type: type }).then(function(res) {
+      var msg = (detail && detail.coachMsg) ||
+        'Hagamos una pausa juntos. Te dejo este ejercicio · ' + exercise.label + '.';
+      _appendCoachMsg(msg, [{
+        kind: 'wellness_exercise',
+        sessionId: res.sessionId,
+        type: type,
+      }]);
+    }).catch(function(err) {
+      console.warn('[coach-actions] wellness start failed:', err);
+      _safeToast('No se pudo iniciar el ejercicio · ' + (err && err.message || 'reintentá'), 'warn');
+    });
+  }
+
+  // Auto-detection listener: cuando user manda un mensaje en el chat, el
+  // ia-flow dispatchea mtx:ia-message-sent. Si detectamos stress level,
+  // ofrecemos un ejercicio (sin imponer). Mensaje del coach con CTA explícito.
+  function handleMessageSent(detail) {
+    if (!detail || !detail.content) return;
+    if (!window.__mtxWellness) return;
+    // Anti-spam: si la última msg ya tiene un wellness_exercise o sugerencia,
+    // no proponer otro inmediatamente.
+    var current = window.__mtxIAChat && window.__mtxIAChat.getCurrent && window.__mtxIAChat.getCurrent();
+    if (!current) return;
+    var msgs = current.messages || [];
+    var lastFew = msgs.slice(-3);
+    var hasRecent = lastFew.some(function(m) {
+      if (!m.artifacts) return false;
+      return m.artifacts.some(function(a) {
+        return a.kind === 'wellness_exercise' || a.kind === 'wellness_suggestion';
+      });
+    });
+    if (hasRecent) return;
+
+    var stress = window.__mtxWellness.detectStressLevel(detail.content);
+    if (!stress) return;
+
+    var type = window.__mtxWellness.recommendExercise(stress, detail.content);
+    var exercise = window.__mtxWellness.getExercise(type);
+    if (!exercise) return;
+
+    // Mensaje cálido + artifact directamente con CTA
+    // El delay simula latencia natural del coach pensando
+    setTimeout(function() {
+      var coachMsg = stress === 'high'
+        ? 'Te escucho. Antes de cualquier otra cosa, hagamos esto juntos · 30 segundos.'
+        : stress === 'medium'
+          ? 'Notamos algo de tensión. ¿Tomamos una pausa breve antes de seguir?'
+          : 'Buena señal que lo notás. Probemos algo corto.';
+      window.__mtxWellness.start({ type: type }).then(function(res) {
+        _appendCoachMsg(coachMsg, [{
+          kind: 'wellness_exercise',
+          sessionId: res.sessionId,
+          type: type,
+        }]);
+      }).catch(function() { /* no-op */ });
+    }, 800);
+  }
+
   window.addEventListener('mtx:coach-trigger-image-gen', function(e) { handleImageGenTrigger(e.detail); });
   window.addEventListener('mtx:coach-trigger-video-gen', function(e) { handleVideoGenTrigger(e.detail); });
   window.addEventListener('mtx:storyboard-approve', function(e) { handleStoryboardApprove(e.detail); });
   window.addEventListener('mtx:open-voice-picker', function(e) { handleOpenVoicePicker(e.detail); });
   window.addEventListener('mtx:image-gen-restart', function(e) { handleImageGenRestart(e.detail); });
   window.addEventListener('mtx:video-gen-restart', function(e) { handleVideoGenRestart(e.detail); });
+  // Sprint A.9 — wellness triggers
+  window.addEventListener('mtx:coach-trigger-wellness', function(e) { handleWellnessTrigger(e.detail); });
+  window.addEventListener('mtx:ia-message-sent', function(e) { handleMessageSent(e.detail); });
 
   // Audit GAP-1: feedback inmediato cuando user elige voz en VoicePicker.
   // Antes el evento se dispatchaba al store pero nadie le daba follow-up
