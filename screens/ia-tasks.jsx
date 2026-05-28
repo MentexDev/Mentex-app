@@ -2379,12 +2379,26 @@ function IATasksIcon(props) {
 
 
 // ── Export ──────────────────────────────────────────────────────────────────
+// Sprint A.12: TasksSheet legacy queda exportada como TasksSheetLegacy.
+// Sirve de fallback si V2 no carga (defensivo) y como referencia histórica.
+// El export oficial TasksSheet se redirige a V2 si existe (getter dinámico).
+//
+// __mtxTasksDetailHelpers expone los generadores de timeline + deliverables
+// para que ia-tasks-v2.jsx los reuse sin duplicar las 200 LOC de mocks.
 Object.assign(window, {
-  TasksSheet:      TasksSheet,
-  IATasksIcon:     IATasksIcon,
-  ActiveTaskCard:  ActiveTaskCard,
-  PendingTaskCard: PendingTaskCard,
+  TasksSheetLegacy:  TasksSheet,
+  IATasksIcon:       IATasksIcon,
+  ActiveTaskCard:    ActiveTaskCard,
+  PendingTaskCard:   PendingTaskCard,
   ScheduledTaskCard: ScheduledTaskCard,
-  HistoryTaskItem: HistoryTaskItem,
-  useIATasks:      useIATasks,
+  HistoryTaskItem:   HistoryTaskItem,
+  useIATasks:        useIATasks,
+  __mtxTasksDetailHelpers: {
+    generateTimeline:     _generateTaskTimeline,
+    generateDeliverables: _generateTaskDeliverables,
+  },
 });
+
+// TasksSheet: por default el legacy. Si V2 se carga después,
+// se va a sobreescribir desde ia-tasks-v2.jsx con un assignment directo.
+window.TasksSheet = TasksSheet;
