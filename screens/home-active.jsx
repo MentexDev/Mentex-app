@@ -509,11 +509,42 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
 (function() {
   if (typeof window === 'undefined' || window.__mtxAppsBreak) return;
 
+  // Sprint A.10 — BreathGate (Opal/one sec pattern híbrido)
+  // Antes de iniciar el descanso, intercepta y muestra full-screen breathing
+  // overlay. Research: one sec (Frederik Riedel · Max Planck study) muestra
+  // reducción de 57% del impulso al añadir 10s de respiración + reconsider.
+  //
+  // Flujo: pick(min) → si gate enabled → state.breathGate.active = true
+  // BreathGateScreen monta → al complete dispara _actuallyStartBreak(min).
+  // User puede dismiss para cancelar el break completamente.
+  //
+  // Persistencia config en localStorage 'mtx-breath-gate:settings'.
+  const BREATH_GATE_STORAGE = 'mtx-breath-gate:settings';
+  function _loadGateSettings() {
+    try {
+      var raw = window.localStorage.getItem(BREATH_GATE_STORAGE);
+      if (!raw) return { enabled: true, durationSec: 8, allowSkip: false };
+      var parsed = JSON.parse(raw);
+      return {
+        enabled: parsed.enabled !== false,
+        durationSec: parsed.durationSec || 8,
+        allowSkip: !!parsed.allowSkip,
+      };
+    } catch (e) { return { enabled: true, durationSec: 8, allowSkip: false }; }
+  }
+  function _saveGateSettings(s) {
+    try { window.localStorage.setItem(BREATH_GATE_STORAGE, JSON.stringify(s)); }
+    catch (e) { /* no-op */ }
+  }
+
   let state = {
     breakState: null,           // null = protegidas; { totalSec, secondsLeft } = pausa temporal
     pickerOpen: false,          // sheet abierto
     protectionDisabled: false,  // true cuando el usuario "finalizó la protección" — apps quedan libres hasta que retome
     confirmDisableOpen: false,  // modal de confirmación "¿soltar la mente al ruido?"
+    // Sprint A.10 BreathGate
+    breathGate: null,           // null | { active, minutes, phase: 'breath'|'reconsider', startedAt }
+    gateSettings: _loadGateSettings(),
   };
   let intervalId = null;
 
@@ -538,16 +569,84 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
     }, 1000);
   };
 
+  // Sprint A.10 — inicia el break "de verdad" (sin gate)
+  // Función privada llamada por (a) pick() si gate disabled, (b) BreathGate
+  // al completar 8s + reconsider Sí, (c) skip si allowSkip habilitado.
+  const _actuallyStartBreak = (minutes) => {
+    const totalSec = Math.max(1, Math.floor(minutes * 60));
+    state = {
+      ...state,
+      breakState: { totalSec, secondsLeft: totalSec },
+      pickerOpen: false,
+      protectionDisabled: false,
+      breathGate: null,
+    };
+    emit();
+    startInterval();
+  };
+
   window.__mtxAppsBreak = {
     get: () => ({ ...state }),
     openPicker:  () => { state = { ...state, pickerOpen: true  }; emit(); },
     closePicker: () => { state = { ...state, pickerOpen: false }; emit(); },
     pick: (minutes) => {
-      const totalSec = Math.max(1, Math.floor(minutes * 60));
-      state = { ...state, breakState: { totalSec, secondsLeft: totalSec }, pickerOpen: false, protectionDisabled: false };
-      emit();
-      startInterval();
+      // Sprint A.10 — intercepta con BreathGate si está enabled.
+      // Filosofía: crear fricción consciente antes de ceder al impulso.
+      if (state.gateSettings && state.gateSettings.enabled) {
+        state = {
+          ...state,
+          breathGate: {
+            active: true,
+            minutes: minutes,
+            phase: 'breath',  // breath → reconsider → (start | dismiss)
+            startedAt: Date.now(),
+          },
+          pickerOpen: false,
+        };
+        emit();
+        return;
+      }
+      // Gate disabled — comportamiento legacy
+      _actuallyStartBreak(minutes);
     },
+    // Sprint A.10 — control del BreathGate
+    breathGateAdvance: () => {
+      // Llamado por BreathGateScreen al terminar los 8s de respiración.
+      // Transición a la fase 'reconsider' con prompt "¿aún querés?"
+      if (!state.breathGate || !state.breathGate.active) return;
+      state = {
+        ...state,
+        breathGate: { ...state.breathGate, phase: 'reconsider' },
+      };
+      emit();
+    },
+    breathGateConfirm: () => {
+      // User dijo "Sí, descansar" en el reconsider
+      if (!state.breathGate || !state.breathGate.active) return;
+      const minutes = state.breathGate.minutes;
+      _actuallyStartBreak(minutes);
+    },
+    breathGateSkip: () => {
+      // Solo posible si gateSettings.allowSkip (default OFF)
+      if (!state.breathGate || !state.breathGate.active) return;
+      if (!state.gateSettings || !state.gateSettings.allowSkip) return;
+      const minutes = state.breathGate.minutes;
+      _actuallyStartBreak(minutes);
+    },
+    breathGateDismiss: () => {
+      // User decidió no tomar el break (botón Volver o reconsider No)
+      if (!state.breathGate) return;
+      state = { ...state, breathGate: null };
+      emit();
+    },
+    // Settings del BreathGate
+    updateGateSettings: (patch) => {
+      const next = Object.assign({}, state.gateSettings, patch || {});
+      state = { ...state, gateSettings: next };
+      _saveGateSettings(next);
+      emit();
+    },
+    getGateSettings: () => Object.assign({}, state.gateSettings),
     stop: () => {
       stopInterval();
       state = { ...state, breakState: null };
