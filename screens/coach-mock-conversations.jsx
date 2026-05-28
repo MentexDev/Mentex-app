@@ -1399,6 +1399,306 @@
     })();
 
 
+    // ─── 21. WELLNESS · 4-7-8 — insomnio nocturno ───────────────────────────
+    (function() {
+      var base = _hoursAgo(20);
+      conversations.push({
+        id: 'conv-mock-wellness-insomnio',
+        title: 'No puedo dormir',
+        createdAt: base, updatedAt: base + 240000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-21-1',
+            'Son las 2am y no puedo dormir. Mi cabeza no se calla, sigo pensando en mañana.',
+            base),
+          _assistantMsg('msg-mock-21-2',
+            'Esto te va a ayudar. Es el 4-7-8 del Dr. Andrew Weil — desarrollado específicamente para dormir cuando la mente no para.\n\nInhalas en 4, sostienes en 7, exhalas largo en 8. La exhalación larga le dice al sistema nervioso que es seguro descansar. La primera vez sentirás que es mucho aire; está bien, ajustá.\n\n4 ciclos suelen ser suficientes para reducir el cortisol y bajar el pulso.',
+            base + 4500,
+            {
+              steps: [
+                _step('step-1', 'stress_detection', {
+                  startedAt: base + 200, durationMs: 700,
+                  rawInput: { msg: 'no puedo dormir, mi cabeza no se calla' },
+                  rawOutput: { level: 'medium', context: 'insomnio nocturno', recommended: 'four_seven_eight' },
+                }),
+                _step('step-2', 'memory_recall', {
+                  startedAt: base + 900, durationMs: 800,
+                  rawInput: { query: 'patrones de sueño · mañanas con presentación' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'four_seven_eight',
+                  totalCycles: 4,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-21-3',
+            'Funcionó. Me bajó la activación. Voy a intentar dormir.',
+            base + 220000),
+          _assistantMsg('msg-mock-21-4',
+            'Eso es exactamente lo que tenía que pasar. El 4-7-8 trabaja por debajo de la mente — no la calmás pensando, la calmás respirando.\n\nSi te despertás de nuevo, no luches con el reloj. Hacelo otra vez. Es mejor que mirar el techo.\n\nMañana, antes de la presentación, hacé 2 ciclos en el baño 5 min antes. Mismo principio: bajar la activación.',
+            base + 234000,
+            {
+              chips: ['Programar recordatorio mañana', '¿Por qué exhalación larga?', 'Buenas noches'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 22. WELLNESS · COHERENT BREATHING — pre-meditación ─────────────────
+    (function() {
+      var base = _hoursAgo(40);
+      conversations.push({
+        id: 'conv-mock-wellness-meditar',
+        title: 'Quiero empezar a meditar',
+        createdAt: base, updatedAt: base + 360000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-22-1',
+            'Llevo tiempo queriendo meditar pero no logro empezar. Apps me aburren. ¿Cómo arranco?',
+            base),
+          _assistantMsg('msg-mock-22-2',
+            'No empieces con meditación. Empezá con respiración coherente — es el puente.\n\nMeditar tiene mala fama porque la gente intenta "no pensar". Eso es imposible. La respiración coherente te da algo concreto: una onda 6-6 que tu cuerpo sigue. No hay nada que lograr, solo respirar parejo.\n\nProbá 10 ciclos. Son 2 minutos. Después me decís qué notaste.',
+            base + 4800,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', {
+                  startedAt: base + 200, durationMs: 900,
+                  rawInput: { query: 'intentos previos de meditar · journal' },
+                  rawOutput: { facts: ['No siguió con Calm app', 'Quiere ritual matinal'] },
+                }),
+                _step('step-2', 'extended_think', {
+                  startedAt: base + 1100, durationMs: 2900,
+                  rawInput: { task: 'recomendar puente de entrada a meditación' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'coherent_breathing',
+                  totalCycles: 10,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-22-3',
+            'Curiosamente, sí me sentí más centrado. Y no me aburrí.',
+            base + 340000),
+          _assistantMsg('msg-mock-22-4',
+            'Eso pasa porque el cuerpo tiene algo que hacer. La mente sigue parloteando, pero ya no domina la atención.\n\nSi querés convertirlo en práctica: 10 ciclos cada mañana antes del café. Tres semanas y vas a sentirlo distinto.\n\nDespués si te dan ganas, puedo recomendarte meditaciones guiadas cortas (5-7 min) de Mentex. Pero sin presión.',
+            base + 354000,
+            {
+              chips: ['Programar 10 ciclos · cada mañana', 'Ver meditaciones cortas', 'Lo intento solo primero'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 23. WELLNESS · BODY SCAN — después de mente intensa ────────────────
+    (function() {
+      var base = _hoursAgo(56);
+      conversations.push({
+        id: 'conv-mock-wellness-bodyscan',
+        title: 'Mi cabeza no para de pensar',
+        createdAt: base, updatedAt: base + 420000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-23-1',
+            'Llevo 5 horas escribiendo y mi cabeza explota. Pero no puedo parar — todavía hay trabajo.',
+            base),
+          _assistantMsg('msg-mock-23-2',
+            'Si seguís así, vas a producir basura. Tu cabeza no te está pidiendo descanso por capricho.\n\nBody Scan. 5 minutos. No es opcional si querés seguir con calidad.\n\nVas a recorrer tu cuerpo de pies a cabeza. No tenés que relajar nada — solo notar. La paradoja es que al notar, el cuerpo se relaja solo. Tu mente saldrá automáticamente de loops cuando le des otra cosa que hacer.',
+            base + 5200,
+            {
+              steps: [
+                _step('step-1', 'wearable_read', {
+                  startedAt: base + 300, durationMs: 1100,
+                  rawInput: { metric: 'HRV current vs baseline' },
+                  rawOutput: { hrv_drop: 28, context: 'sustained cognitive load' },
+                }),
+                _step('step-2', 'stress_detection', {
+                  startedAt: base + 1400, durationMs: 600,
+                  rawOutput: { level: 'medium', recommended: 'body_scan' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'body_scan',
+                  totalCycles: 1,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-23-3',
+            'Bien. Sentí tensión que ni sabía que tenía en los hombros. Y me dieron ganas de seguir.',
+            base + 400000),
+          _assistantMsg('msg-mock-23-4',
+            'Esa es la clave. La tensión silenciosa drena energía sin que la notes. Es como tener una pestaña abierta de Chrome consumiendo RAM en segundo plano.\n\nAhora tu siguiente hora de trabajo va a ser mejor que las anteriores 5. Lo notarás en la calidad de lo que escribas.\n\nCuando termines, otro scan. El cuerpo es tu ancla.',
+            base + 415000,
+            {
+              chips: ['Programar scan cada 90 min', 'Ver patrón HRV de esta semana', 'Volver al trabajo'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 24. WELLNESS · STRETCHING — oficina dolor cuello ───────────────────
+    (function() {
+      var base = _hoursAgo(8);
+      conversations.push({
+        id: 'conv-mock-wellness-stretch',
+        title: 'Me duele todo el cuello',
+        createdAt: base, updatedAt: base + 220000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-24-1',
+            'Llevo 4 horas en calls y me duele el cuello y los hombros. Es horrible.',
+            base),
+          _assistantMsg('msg-mock-24-2',
+            'No es "horrible", es predecible. Tu cuerpo lleva 4 horas en una postura no diseñada para mamíferos.\n\nEsto es una pausa activa: 5 posturas, 3 minutos. No necesitas yoga mat ni ropa especial. Es desde tu silla.\n\nLo importante: respirá durante cada una. Los músculos se sueltan con la exhalación, no con el estiramiento.',
+            base + 4500,
+            {
+              steps: [
+                _step('step-1', 'memory_recall', {
+                  startedAt: base + 200, durationMs: 700,
+                  rawInput: { query: 'patrones de calls · postura' },
+                  rawOutput: { context: '4-6 horas diarias en calls según wearable' },
+                }),
+                _step('step-2', 'extended_think', {
+                  startedAt: base + 900, durationMs: 2800,
+                  rawInput: { task: 'recomendar secuencia de pausa activa' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'stretching',
+                  totalCycles: 1,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-24-3',
+            'Mejor. Sigo trabajando ahora.',
+            base + 200000),
+          _assistantMsg('msg-mock-24-4',
+            'Si tenés calls largas mañana también, hace esto cada 90 min. No es perder tiempo — es prevenir que mañana sea peor que hoy.\n\nUn truco: poné un timer cada 90 min. Es lo único que funciona con calls back-to-back, porque la voluntad se acaba pero el timer no.',
+            base + 215000,
+            {
+              chips: ['Programar timer 90 min', 'Ver mi historial de pausas', 'Gracias'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 25. WELLNESS · GROUNDING 5-4-3-2-1 — ataque de pánico ──────────────
+    (function() {
+      var base = _hoursAgo(3);
+      conversations.push({
+        id: 'conv-mock-wellness-panico',
+        title: 'Acabo de tener un ataque',
+        createdAt: base, updatedAt: base + 380000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-25-1',
+            'Hace 10 min tuve algo, no sé si fue pánico. El corazón se aceleró, sentí que no podía respirar, me bloqueé. Ya pasó pero tengo miedo de que vuelva.',
+            base),
+          _assistantMsg('msg-mock-25-2',
+            'Te escucho. Eso suena a episodio ansioso · pánico naciente. Que ya pasó es bueno, significa que tu sistema sabe regularse.\n\nLo que necesitás ahora no es pensar en lo que pasó. Necesitás anclarte al presente físico. Esto es 5-4-3-2-1, una técnica clínica para PTSD. Vamos a recorrer los 5 sentidos.\n\nNo hay forma de fallar. Solo nombrar. El nombrar saca a la mente del bucle y la trae a tu cuerpo. Lleva 3 minutos.',
+            base + 5500,
+            {
+              steps: [
+                _step('step-1', 'stress_detection', {
+                  startedAt: base + 200, durationMs: 800,
+                  rawInput: { msg: 'ataque, corazón acelerado, no podía respirar, me bloqueé' },
+                  rawOutput: { level: 'high', context: 'pánico post-episodio', recommended: 'grounding_54321' },
+                }),
+                _step('step-2', 'extended_think', {
+                  startedAt: base + 1000, durationMs: 3800,
+                  rawInput: { task: 'respuesta empática + intervención clínica anti-pánico' },
+                }),
+                _step('step-3', 'memory_recall', {
+                  startedAt: base + 4800, durationMs: 600,
+                  rawInput: { query: 'episodios ansiosos previos · trigger' },
+                  rawOutput: { found: false, note: 'primera vez registrada' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'grounding_54321',
+                  totalCycles: 1,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-25-3',
+            'Lo hice. Estoy más calmado. ¿Es normal que me pase esto?',
+            base + 350000),
+          _assistantMsg('msg-mock-25-4',
+            'Es muy común. Le pasa a más gente de la que imaginás, especialmente cuando se acumula estrés sostenido sin pausas.\n\nNo es señal de que algo grave esté mal. Pero sí es señal de que tu sistema te pide cambios en el ritmo.\n\nQuiero que sepas dos cosas:\n\n1. Si vuelve a pasar, ya tenés esta herramienta. Anclate a los sentidos. Funciona aunque no quieras que funcione.\n\n2. Si pasa más de 2 veces en un mes, conviene hablar con un profesional. No es alarmismo, es prevención sensata. Te puedo recomendar algunos.\n\n¿Cómo te sentís ahora?',
+            base + 372000,
+            {
+              chips: ['Mejor, gracias', 'Recomendá profesionales', '¿Qué hago la próxima vez?'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
+    // ─── 26. WELLNESS · EYE REST 20-20-20 — fatiga visual ───────────────────
+    (function() {
+      var base = _hoursAgo(0.5);
+      conversations.push({
+        id: 'conv-mock-wellness-ojos',
+        title: 'Me arden los ojos',
+        createdAt: base, updatedAt: base + 60000, pinned: false,
+        messages: [
+          _userMsg('msg-mock-26-1',
+            'Tengo los ojos que arden. Llevo todo el día frente a la pantalla.',
+            base),
+          _assistantMsg('msg-mock-26-2',
+            'Regla 20-20-20: cada 20 min de pantalla, mirá algo a 6 metros por 20 segundos. Recomendación oftalmológica clásica.\n\nEsto es ahora. 20 segundos:',
+            base + 2800,
+            {
+              steps: [
+                _step('step-1', 'stress_detection', {
+                  startedAt: base + 100, durationMs: 500,
+                  rawOutput: { level: 'low', context: 'fatiga visual digital', recommended: 'eye_rest_202020' },
+                }),
+              ],
+              artifacts: [
+                {
+                  kind: 'wellness_exercise',
+                  type: 'eye_rest_202020',
+                  totalCycles: 1,
+                },
+              ],
+            }
+          ),
+          _userMsg('msg-mock-26-3',
+            'Mejor. Vuelvo al trabajo.',
+            base + 50000),
+          _assistantMsg('msg-mock-26-4',
+            'Programame un timer cada 20 min si querés. Es la única forma que funciona porque la voluntad se olvida.\n\nOtro truco: parpadea conscientemente más seguido. Frente a pantalla parpadeamos la mitad de lo normal y por eso se resecan.',
+            base + 56000,
+            {
+              chips: ['Programar timer 20 min', 'Ver ejercicios oculares más largos', 'Gracias'],
+            }
+          ),
+        ],
+      });
+    })();
+
+
     return conversations;
   }
 

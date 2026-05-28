@@ -57,6 +57,10 @@ function CoachAttachMenu() {
   var urlValueState = React.useState('');
   var urlValue = urlValueState[0]; var setUrlValue = urlValueState[1];
 
+  // Sprint A.9.5 — wellness picker sub-state (5ª opción del menu)
+  var wellnessPickerOpenState = React.useState(false);
+  var wellnessPickerOpen = wellnessPickerOpenState[0]; var setWellnessPickerOpen = wellnessPickerOpenState[1];
+
   React.useEffect(function() {
     function onState(e) {
       var d = (e && e.detail) || {};
@@ -64,6 +68,7 @@ function CoachAttachMenu() {
       if (!d.open) {
         setUrlInputOpen(false);
         setUrlValue('');
+        setWellnessPickerOpen(false);
       }
     }
     window.addEventListener('mtx:attach-menu-state', onState);
@@ -93,6 +98,10 @@ function CoachAttachMenu() {
         setUrlValue('');
         return;
       }
+      if (wellnessPickerOpen) {
+        setWellnessPickerOpen(false);
+        return;
+      }
       handleClose();
     }
     window.addEventListener('keydown', onKey);
@@ -100,7 +109,7 @@ function CoachAttachMenu() {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, urlInputOpen]);
+  }, [open, urlInputOpen, wellnessPickerOpen]);
 
   function handleClose() {
     if (window.__mtxAttachMenu) window.__mtxAttachMenu.close();
@@ -128,6 +137,19 @@ function CoachAttachMenu() {
   }
   function handleWearable() {
     emit('wearable');
+  }
+
+  // Sprint A.9.5 — abre el sub-picker de ejercicios wellness
+  function handleOpenWellnessPicker() {
+    setWellnessPickerOpen(true);
+  }
+
+  // Sprint A.9.5 — al elegir un ejercicio, dispara wellness trigger directo
+  function handlePickWellness(type) {
+    window.dispatchEvent(new CustomEvent('mtx:coach-trigger-wellness', {
+      detail: { type: type },
+    }));
+    handleClose();
   }
 
   if (!open) return null;
@@ -195,6 +217,23 @@ function CoachAttachMenu() {
       accent: '#fb4868',
       onClick: handleWearable,
     },
+    {
+      // Sprint A.9.5 — Pausa / Relajación: 7 ejercicios somáticos
+      // Encaja semánticamente en el + porque es "lo que el user le da al chat":
+      // un momento de pausa para sí mismo. Skill no aplica (es ritual, no habilidad).
+      id: 'wellness',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="1.7"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12h3l3-8 4 16 3-8h7"/>
+        </svg>
+      ),
+      label: 'Pausa de relajación',
+      desc: 'Respiración, body scan, estiramiento…',
+      accent: '#3dffd1',
+      onClick: handleOpenWellnessPicker,
+    },
   ];
 
   var content = (
@@ -247,11 +286,16 @@ function CoachAttachMenu() {
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             fontFamily: 'var(--ff-sans)',
-          }}>{urlInputOpen ? 'Pegar URL' : 'Adjuntar al chat'}</div>
+          }}>{urlInputOpen ? 'Pegar URL' : wellnessPickerOpen ? 'Pausa de relajación' : 'Adjuntar al chat'}</div>
         </div>
 
-        {/* URL input mode */}
-        {urlInputOpen ? (
+        {/* Wellness picker mode — Sprint A.9.5 */}
+        {wellnessPickerOpen ? (
+          <_WellnessPicker
+            onPick={handlePickWellness}
+            onBack={function() { setWellnessPickerOpen(false); }}
+          />
+        ) : urlInputOpen ? (
           <div style={{ padding: '0 20px 16px' }}>
             <input
               type="url"
@@ -383,6 +427,144 @@ function CoachAttachMenu() {
   );
 
   return ReactDOM.createPortal(content, portalRoot);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Sprint A.9.5 — _WellnessPicker · sub-vista del attach menu
+// ═══════════════════════════════════════════════════════════════════════════
+// Mini-picker con 7 ejercicios somáticos. Lee __mtxWellness.listExercises()
+// y muestra cards compactos con icon + label + tagline + cuándo usar.
+// Tap card → dispara el ejercicio inline en el chat.
+function _WellnessPicker(props) {
+  if (!window.__mtxWellness) {
+    return (
+      <div style={{ padding: '14px 20px 20px', textAlign: 'center' }}>
+        <div style={{
+          fontSize: 12, color: 'var(--ink-3)',
+          fontFamily: 'var(--ff-sans)',
+        }}>Cargando ejercicios…</div>
+      </div>
+    );
+  }
+  var exercises = window.__mtxWellness.listExercises();
+  // "Cuándo usarlo" condensado por tipo — un chip rápido al final de cada card
+  var whenMap = {
+    box_breathing:      'antes de evento · Navy SEAL',
+    four_seven_eight:   'insomnio · pánico',
+    coherent_breathing: 'práctica diaria · HRV',
+    body_scan:          'mente cansada · noche',
+    stretching:         'pausa activa · oficina',
+    grounding_54321:    'anti-pánico · clínico',
+    eye_rest_202020:    'fatiga visual · 20s',
+  };
+  return (
+    <div style={{
+      padding: '4px 12px 14px',
+      display: 'flex', flexDirection: 'column', gap: 2,
+    }}>
+      {/* Back chip */}
+      <button
+        type="button"
+        onClick={props.onBack}
+        className="mtx-tap"
+        aria-label="Volver al menú adjuntar"
+        style={{
+          appearance: 'none', cursor: 'pointer',
+          alignSelf: 'flex-start',
+          padding: '4px 10px 4px 6px',
+          marginLeft: 6, marginBottom: 4,
+          borderRadius: 999,
+          background: 'transparent',
+          border: 0,
+          color: 'var(--ink-3)',
+          fontSize: 11, fontWeight: 600,
+          fontFamily: 'var(--ff-sans)',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Volver
+      </button>
+      {exercises.map(function(ex, i) {
+        return (
+          <button
+            key={ex.type}
+            type="button"
+            onClick={function() { if (props.onPick) props.onPick(ex.type); }}
+            className="mtx-tap"
+            aria-label={ex.label + '. ' + ex.tagline}
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              width: '100%',
+              padding: '10px 12px', borderRadius: 12,
+              background: 'transparent',
+              border: 0,
+              color: 'var(--ink-1)',
+              textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: 11,
+              transition: 'background .15s',
+              animation: 'mtx-fade-up .22s cubic-bezier(0.16, 1, 0.3, 1) both',
+              animationDelay: (i * 0.025) + 's',
+            }}
+            onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+            onMouseLeave={function(e) { e.currentTarget.style.background = 'transparent'; }}>
+            {/* Icon tile */}
+            <div style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: ex.accent + '1A',
+              border: '0.5px solid ' + ex.accent + '40',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 17, flexShrink: 0,
+            }} aria-hidden="true">{ex.icon}</div>
+            {/* Label + tagline + when chip */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 13, fontWeight: 700,
+                color: 'var(--ink-1)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                marginBottom: 1,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span>{ex.label}</span>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                  padding: '1.5px 6px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--ink-3)',
+                }}>{ex.durationLabel.toUpperCase()}</span>
+              </div>
+              <div style={{
+                fontSize: 10.5,
+                color: 'var(--ink-3)',
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                marginBottom: 2,
+              }}>{ex.tagline}</div>
+              <div style={{
+                fontSize: 10,
+                color: ex.accent,
+                fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                fontStyle: 'italic',
+                opacity: 0.75,
+              }}>{whenMap[ex.type] || ''}</div>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,0.28)" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ flexShrink: 0 }} aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 
