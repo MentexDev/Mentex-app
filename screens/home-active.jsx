@@ -587,32 +587,37 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
 
   window.__mtxAppsBreak = {
     get: () => ({ ...state }),
-    openPicker:  () => { state = { ...state, pickerOpen: true  }; emit(); },
-    closePicker: () => { state = { ...state, pickerOpen: false }; emit(); },
-    pick: (minutes) => {
-      // Sprint A.10 — intercepta con BreathGate si está enabled.
-      // Filosofía: crear fricción consciente antes de ceder al impulso.
+    // Sprint A.10 — openPicker ahora intercepta con BreathGate ANTES de
+    // mostrar el picker de minutos. Filosofía: crear fricción consciente
+    // ANTES que el user piense "5 o 10 minutos". Si después de respirar
+    // el impulso pasó, el picker nunca se ve.
+    openPicker: () => {
       if (state.gateSettings && state.gateSettings.enabled) {
         state = {
           ...state,
           breathGate: {
             active: true,
-            minutes: minutes,
-            phase: 'breath',  // breath → reconsider → (start | dismiss)
+            // No hay 'minutes' aún — el user elegirá DESPUÉS del breath
+            phase: 'breath',  // breath → reconsider → (picker | dismiss)
             startedAt: Date.now(),
           },
-          pickerOpen: false,
         };
         emit();
         return;
       }
-      // Gate disabled — comportamiento legacy
+      // Gate disabled — comportamiento legacy (picker directo)
+      state = { ...state, pickerOpen: true };
+      emit();
+    },
+    closePicker: () => { state = { ...state, pickerOpen: false }; emit(); },
+    pick: (minutes) => {
+      // Pick es ahora SIEMPRE post-gate (o gate disabled). Inicia el break.
       _actuallyStartBreak(minutes);
     },
-    // Sprint A.10 — control del BreathGate
+    // Sprint A.10 — control del BreathGate (3 fases state machine)
     breathGateAdvance: () => {
       // Llamado por BreathGateScreen al terminar los 8s de respiración.
-      // Transición a la fase 'reconsider' con prompt "¿aún querés?"
+      // Transición: breath → reconsider con prompt "¿aún querés?"
       if (!state.breathGate || !state.breathGate.active) return;
       state = {
         ...state,
@@ -621,20 +626,32 @@ const _APPS_BREAK_EVENT = 'mtx:apps-break-changed';
       emit();
     },
     breathGateConfirm: () => {
-      // User dijo "Sí, descansar" en el reconsider
+      // User dijo "Sí, descansar" en el reconsider.
+      // Cerrar gate y ABRIR EL PICKER (no inicia break directo aún —
+      // user todavía tiene que elegir cuántos minutos).
       if (!state.breathGate || !state.breathGate.active) return;
-      const minutes = state.breathGate.minutes;
-      _actuallyStartBreak(minutes);
+      state = {
+        ...state,
+        breathGate: null,
+        pickerOpen: true,
+      };
+      emit();
     },
     breathGateSkip: () => {
-      // Solo posible si gateSettings.allowSkip (default OFF)
+      // Solo posible si gateSettings.allowSkip (default OFF).
+      // Salta directo al picker sin respirar.
       if (!state.breathGate || !state.breathGate.active) return;
       if (!state.gateSettings || !state.gateSettings.allowSkip) return;
-      const minutes = state.breathGate.minutes;
-      _actuallyStartBreak(minutes);
+      state = {
+        ...state,
+        breathGate: null,
+        pickerOpen: true,
+      };
+      emit();
     },
     breathGateDismiss: () => {
-      // User decidió no tomar el break (botón Volver o reconsider No)
+      // User decidió no continuar (botón Volver o reconsider No).
+      // Cancela todo — vuelve al estado protegido.
       if (!state.breathGate) return;
       state = { ...state, breathGate: null };
       emit();

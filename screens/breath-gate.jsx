@@ -155,7 +155,6 @@
     if (!gateActive) return null;
     if (!window.__mtxAppsBreak) return null;
 
-    var minutes = snap.breathGate.minutes;
     var phase = snap.breathGate.phase;  // 'breath' | 'reconsider'
     var settings = snap.gateSettings || { durationSec: 8, allowSkip: false };
     var durationSec = settings.durationSec;
@@ -180,7 +179,6 @@
     if (phase === 'breath') {
       return <_BreathPhase
         durationSec={durationSec}
-        minutes={minutes}
         allowSkip={allowSkip}
         onDone={handleBreathDone}
         onDismiss={handleDismiss}
@@ -189,7 +187,6 @@
     }
     if (phase === 'reconsider') {
       return <_ReconsiderPhase
-        minutes={minutes}
         onConfirm={handleConfirm}
         onDismiss={handleDismiss}
       />;
@@ -202,10 +199,30 @@
   // ──────────────────────────────────────────────────────────────────────────
   function _BreathPhase(props) {
     var durationSec = props.durationSec;
-    var minutes = props.minutes;
     var allowSkip = props.allowSkip;
     var t = _tokens();
     var timer = _useBreathTimer(durationSec, props.onDone);
+
+    // Progress bar smooth — CSS-driven (no React re-render por frame).
+    // Setea width 100% al mount + transition de durationSec full linear.
+    // El browser interpola en GPU, suave puro. Reemplaza el approach previo
+    // que cambiaba width cada frame (causaba pulsing brusco con .1s linear).
+    var progressBarRef = React.useRef(null);
+    React.useEffect(function() {
+      // RAF doble para garantizar que el browser pintó el width:0% antes
+      // de aplicar la transición a 100%. Sin esto, el width salta directo
+      // a 100% sin animación.
+      var raf1 = requestAnimationFrame(function() {
+        var raf2 = requestAnimationFrame(function() {
+          if (progressBarRef.current) {
+            progressBarRef.current.style.width = '100%';
+          }
+        });
+        // cleanup raf2 si unmount entre frames
+        return function() { cancelAnimationFrame(raf2); };
+      });
+      return function() { cancelAnimationFrame(raf1); };
+    }, []);
 
     // Scale del círculo: in = grow, out = shrink
     var scale = timer.breathPhase === 'in' ? 1.15 : 0.85;
@@ -328,12 +345,16 @@
             overflow: 'hidden',
             marginBottom: 14,
           }}>
-            <div style={{
-              width: (timer.progress * 100) + '%',
+            <div ref={progressBarRef} style={{
+              // Width inicial 0%, useEffect lo cambia a 100% tras mount.
+              // Transición linear de durationSec asegura sweep suave en GPU
+              // sin re-renders por frame de React.
+              width: '0%',
               height: '100%',
               background: 'linear-gradient(90deg, ' + t.neon + ', ' + t.purple + ')',
               boxShadow: '0 0 8px ' + t.neon + '80',
-              transition: 'width .1s linear',
+              transition: 'width ' + durationSec + 's linear',
+              willChange: 'width',
             }}/>
           </div>
           <div style={{
@@ -345,7 +366,7 @@
           }}>
             Tu mente merece este instante de claridad<br/>
             <span style={{ color: 'rgba(255,255,255,0.75)' }}>
-              Quedarás con {minutes} min de descanso · respira con consciencia
+              Respira primero · después decidís si querés un descanso
             </span>
           </div>
         </div>
@@ -360,7 +381,6 @@
   // impulso de elección consciente. one sec study: 57% del impulso se
   // abandona acá.
   function _ReconsiderPhase(props) {
-    var minutes = props.minutes;
     var t = _tokens();
     return (
       <div style={{
@@ -395,7 +415,7 @@
           maxWidth: 320,
           lineHeight: 1.35,
           marginBottom: 12,
-        }}>¿Aún querés tomar el descanso?</div>
+        }}>¿Aún necesitás el descanso?</div>
 
         {/* Subline */}
         <div style={{
@@ -415,7 +435,7 @@
           <button type="button"
             onClick={props.onConfirm}
             className="mtx-tap"
-            aria-label={'Sí, tomar descanso de ' + minutes + ' minutos'}
+            aria-label="Sí, elegir tiempo de descanso"
             style={{
               appearance: 'none', cursor: 'pointer',
               padding: '14px 18px', borderRadius: 14,
@@ -426,7 +446,7 @@
               fontFamily: 'var(--ff-sans)',
               letterSpacing: '-0.005em',
               boxShadow: '0 6px 20px -4px ' + t.neon + '60',
-            }}>Sí, descansar {minutes} min</button>
+            }}>Sí, elegir tiempo de descanso</button>
           <button type="button"
             onClick={props.onDismiss}
             className="mtx-tap"
