@@ -6570,6 +6570,39 @@
       if (!window.__mtxWellness || !sessionId) return;
       window.__mtxWellness.cancel(sessionId);
     }
+    // Sprint A.9.5 — recordatorio para mañana via __mtxIAAgenda
+    // Crea entry "Pausa de bienestar · {label}" para mañana a la misma hora.
+    var reminderSetState = React.useState(false);
+    var reminderSet = reminderSetState[0]; var setReminderSet = reminderSetState[1];
+    function handleRemindTomorrow() {
+      if (reminderSet) return;  // anti-double-tap
+      var now = new Date();
+      var hh = String(now.getHours()).padStart(2, '0');
+      var mm = String(now.getMinutes()).padStart(2, '0');
+      var timeStr = hh + ':' + mm;
+      var label = 'Pausa de bienestar · ' + (exercise.label || 'wellness');
+      // Crear reminder si la agenda store existe
+      if (window.__mtxIAAgenda && window.__mtxIAAgenda.addReminder) {
+        try {
+          window.__mtxIAAgenda.addReminder({
+            label: label,
+            time: timeStr,
+            recurrence: 'once',
+            dayOffset: 1,  // mañana
+            source: 'wellness',
+          });
+        } catch (e) { /* graceful */ }
+      }
+      setReminderSet(true);
+      if (window.__mtxUI && window.__mtxUI.safeToast) {
+        window.__mtxUI.safeToast('Te recordaré mañana a las ' + timeStr, 'success');
+      } else if (window.__mtxToast && window.__mtxToast.show) {
+        try {
+          window.__mtxToast.show('Te recordaré mañana a las ' + timeStr, { kind: 'success', durationMs: 2400 });
+        } catch (e) { /* no-op */ }
+      }
+    }
+
     function handleRestart() {
       if (!window.__mtxWellness) return;
       window.__mtxWellness.start({
@@ -6641,6 +6674,33 @@
         {/* Phase info + countdown */}
         {!isCompleted && !isCancelled && (
           <div style={{ padding: '4px 14px 0', textAlign: 'center' }}>
+            {/* A.9.5 — Pre-baseline history badge (solo en ready state) */}
+            {status === 'ready' && (function() {
+              if (!window.__mtxWellnessHistory || !window.__mtxWellnessHistory.getMessage) return null;
+              var msg = window.__mtxWellnessHistory.getMessage(exerciseType);
+              if (!msg) return null;
+              return (
+                <div style={{
+                  display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                  marginBottom: 6,
+                  padding: '6px 12px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '0.5px solid rgba(255,255,255,0.06)',
+                }}>
+                  <div style={{
+                    fontSize: 10.5, fontWeight: 700,
+                    color: 'var(--ink-2)', fontFamily: 'var(--ff-sans)',
+                    letterSpacing: '-0.005em',
+                  }}>{msg.primary}</div>
+                  <div style={{
+                    fontSize: 10, color: accent,
+                    fontFamily: 'var(--ff-sans)',
+                    marginTop: 1, fontWeight: 600,
+                    letterSpacing: '0.01em',
+                  }}>{msg.secondary}</div>
+                </div>
+              );
+            })()}
             <div style={{
               fontSize: 22, fontWeight: 800,
               color: accent, fontFamily: 'var(--ff-sans)',
@@ -6692,28 +6752,61 @@
           </div>
         )}
 
-        {/* Completed state — celebración */}
-        {isCompleted && (
-          <div style={{
-            padding: '8px 14px 16px', textAlign: 'center',
-          }}>
+        {/* Completed state — celebración + stats history (A.9.5) */}
+        {isCompleted && (() => {
+          // Sprint A.9.5: leer historial post-completion para mensaje contextual
+          var completionMsg = (window.__mtxWellnessHistory && window.__mtxWellnessHistory.getCompletionMessage)
+            ? window.__mtxWellnessHistory.getCompletionMessage(exerciseType)
+            : { title: 'Bien hecho', line: 'Completaste ' + totalCycles + ' ciclo' + (totalCycles === 1 ? '' : 's') + ' de ' + exercise.label };
+          var stats = (window.__mtxWellnessHistory && window.__mtxWellnessHistory.getStats)
+            ? window.__mtxWellnessHistory.getStats() : null;
+          return (
             <div style={{
-              fontSize: 30, marginBottom: 4,
-              animation: 'mtx-pulse-soft 1.6s ease-in-out infinite',
-            }} aria-hidden="true">{exercise.icon}</div>
-            <div style={{
-              fontSize: 15, fontWeight: 800,
-              color: accent, fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              marginBottom: 4,
-            }}>Bien hecho</div>
-            <div style={{
-              fontSize: 12, color: 'var(--ink-2)',
-              fontFamily: 'var(--ff-sans)',
-              marginBottom: 10,
-            }}>Completaste {totalCycles} ciclo{totalCycles === 1 ? '' : 's'} de {exercise.label}</div>
-          </div>
-        )}
+              padding: '8px 14px 16px', textAlign: 'center',
+            }}>
+              <div style={{
+                fontSize: 30, marginBottom: 4,
+                animation: 'mtx-pulse-soft 1.6s ease-in-out infinite',
+              }} aria-hidden="true">{exercise.icon}</div>
+              <div style={{
+                fontSize: 15, fontWeight: 800,
+                color: accent, fontFamily: 'var(--ff-sans)',
+                letterSpacing: '-0.005em',
+                marginBottom: 4,
+              }}>{completionMsg.title}</div>
+              <div style={{
+                fontSize: 12, color: 'var(--ink-2)',
+                fontFamily: 'var(--ff-sans)',
+                marginBottom: 10,
+                lineHeight: 1.4,
+              }}>{completionMsg.line}</div>
+              {/* Mini-stats grid (solo si hay historial real) */}
+              {stats && stats.total > 1 && (
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+                  marginTop: 4, marginBottom: 12,
+                  padding: '10px 6px',
+                  borderRadius: 11,
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '0.5px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)', lineHeight: 1 }}>{stats.streakDays}</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--ink-3)', fontFamily: 'var(--ff-sans)', letterSpacing: '0.04em', marginTop: 2 }}>{stats.streakDays === 1 ? 'DÍA' : 'DÍAS'} SEGUIDOS</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: accent, fontFamily: 'var(--ff-sans)', lineHeight: 1 }}>{stats.week}</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--ink-3)', fontFamily: 'var(--ff-sans)', letterSpacing: '0.04em', marginTop: 2 }}>ESTA SEMANA</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--ink-1)', fontFamily: 'var(--ff-sans)', lineHeight: 1 }}>{stats.totalMinutes}<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink-3)' }}>min</span></div>
+                    <div style={{ fontSize: 9.5, color: 'var(--ink-3)', fontFamily: 'var(--ff-sans)', letterSpacing: '0.04em', marginTop: 2 }}>TOTAL</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Cancelled state */}
         {isCancelled && (
@@ -6804,6 +6897,24 @@
                   fontSize: 13, fontWeight: 700,
                   fontFamily: 'var(--ff-sans)',
                 }}>🔄 Hacerlo de nuevo</button>
+              {/* A.9.5 — Solo cuando completed (no cancelled): recordatorio mañana */}
+              {isCompleted && (
+                <button type="button" onClick={handleRemindTomorrow}
+                  className="mtx-tap"
+                  aria-label={reminderSet ? 'Recordatorio activado' : 'Recordarme mañana'}
+                  disabled={reminderSet}
+                  style={{
+                    flex: 1, appearance: 'none',
+                    cursor: reminderSet ? 'default' : 'pointer',
+                    padding: '11px 14px', borderRadius: 12,
+                    background: reminderSet ? 'rgba(61,255,209,0.10)' : 'rgba(255,255,255,0.04)',
+                    border: '0.5px solid ' + (reminderSet ? 'rgba(61,255,209,0.30)' : 'rgba(255,255,255,0.10)'),
+                    color: reminderSet ? 'var(--neon)' : 'var(--ink-2)',
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: 'var(--ff-sans)',
+                    transition: 'background .15s, border-color .15s, color .15s',
+                  }}>{reminderSet ? '✓ Mañana' : '🔔 Recordarme mañana'}</button>
+              )}
             </React.Fragment>
           )}
         </div>
