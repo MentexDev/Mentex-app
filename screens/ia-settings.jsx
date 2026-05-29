@@ -1410,6 +1410,9 @@ var _MEMORY_SUGGESTIONS = {
 
 function MemoryTab() {
   var config = useIAConfig();
+  // RFC-003 doctrina: NO hay add manual de memorias. setAddCtx queda como
+  // referencia interna por si en el futuro algún slash command (ej. /recordar)
+  // necesita abrir el AddModal. Por ahora addCtx siempre es null.
   var addCtxState = React.useState(null);
   var addCtx = addCtxState[0]; var setAddCtx = addCtxState[1];
   var detailCtxState = React.useState(null);
@@ -1495,68 +1498,66 @@ function MemoryTab() {
 
   var barColor = stats.percent > 80 ? '#ffc850' : 'var(--neon)';
 
+  // RFC-003 Sprint A.13: agrupar las 4 categorías legacy en 2 super-categorías
+  // visuales. El data shape no cambia — cada memoria sigue con type=identity|
+  // goal|context|preference. La taxonomía actual sigue para Brandon backend.
+  //
+  //   "Quién sos"   = identity + context  (hechos sobre vos, neutros)
+  //   "Qué buscás"  = goal     + preference (intencionalidad, gustos)
+  //
+  // Cada super-cat muestra cards estilo Conocimiento (no píldoras) con
+  // icon-tile + título + meta row + delete inline. Tap → MemoryDetailSheet.
+  var _SUPER_GROUPS = [
+    {
+      id: 'who',
+      label: 'Quién sos',
+      icon: '🌱',
+      accent: '#3dffd1',
+      types: ['identity', 'context'],
+      desc: 'Hechos sobre vos que el coach recuerda',
+    },
+    {
+      id: 'want',
+      label: 'Qué buscás',
+      icon: '🎯',
+      accent: '#ffc850',
+      types: ['goal', 'preference'],
+      desc: 'Metas, intereses y preferencias que guían tus sesiones',
+    },
+  ];
+
+  // Helper: relative date corto (idéntico patrón a coach-wellness-history)
+  function _relativeDate(ts) {
+    if (!ts) return '';
+    var diff = Date.now() - ts;
+    if (diff < 60000) return 'recién';
+    if (diff < 3600000) return 'Hace ' + Math.floor(diff / 60000) + ' min';
+    if (diff < 86400000) return 'Hace ' + Math.floor(diff / 3600000) + ' h';
+    if (diff < 604800000) return 'Hace ' + Math.floor(diff / 86400000) + ' d';
+    return 'Hace ' + Math.floor(diff / 604800000) + ' sem';
+  }
+
   return (
     <div style={{ animation: 'mtx-fade-up .25s ease both' }}>
-      {/* ── Capacity header (X/50 + barra de progreso) ──────────────────── */}
-      <div style={{
-        marginBottom: 18, padding: '14px 16px', borderRadius: 16,
-        background: 'linear-gradient(135deg, rgba(61,255,209,0.05), rgba(61,255,209,0.01))',
-        border: '0.5px solid rgba(61,255,209,0.18)',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-          marginBottom: 10,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)', letterSpacing: '-0.01em' }}>
-            Memoria del coach
-          </div>
-          <div style={{
-            fontSize: 11.5, color: 'var(--ink-3)',
-            fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
-          }}>
-            <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{stats.active}</span>
-            <span style={{ opacity: 0.5 }}>{' / ' + stats.capacity}</span>
-          </div>
-        </div>
-        <div style={{
-          height: 4, borderRadius: 999,
-          background: 'rgba(255,255,255,0.05)',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            width: stats.percent + '%', height: '100%',
-            background: barColor,
-            transition: 'width .4s ease',
-            boxShadow: stats.percent > 0
-              ? '0 0 8px ' + (stats.percent > 80 ? 'rgba(255,200,80,0.4)' : 'rgba(61,255,209,0.4)')
-              : 'none',
-          }}/>
-        </div>
-        <div style={{
-          fontSize: 10.5, color: 'var(--ink-4)', marginTop: 8,
-          lineHeight: 1.45, letterSpacing: '-0.005em',
-        }}>
-          {memorySettings.autoLearnEnabled
-            ? 'El coach aprende detalles y patrones automáticamente cuando hablas con él.'
-            : 'Auto-aprendizaje pausado. Las memorias se agregan solo manualmente.'}
-        </div>
-      </div>
-
-      {/* ── Instrucciones del coach (Custom Instructions) ────────────────── */}
+      {/* ──────────────────────────────────────────────────────────────────
+          1. INSTRUCCIONES DEL COACH (sube a la cima)
+          ────────────────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 10px' }}>
-          <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>
-            Instrucciones del coach
-          </span>
+        <div className="mtx-eyebrow" style={{
+          fontSize: 9.5, color: 'var(--ink-3)',
+          padding: '0 4px 10px',
+          letterSpacing: '0.16em',
+        }}>
+          Instrucciones del coach
         </div>
 
         <div style={{
           padding: 14, borderRadius: 16,
-          background: 'rgba(255,255,255,0.02)',
-          border: '0.5px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.025)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
         }}>
           {/* About you */}
-          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-4)' }}>
+          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-3)' }}>
             ¿Qué debe saber el coach de ti?
           </div>
           <textarea
@@ -1568,8 +1569,8 @@ function MemoryTab() {
             style={{
               width: '100%', boxSizing: 'border-box',
               appearance: 'none', outline: 'none',
-              background: 'rgba(0,0,0,0.20)',
-              border: '0.5px solid rgba(255,255,255,0.06)',
+              background: 'rgba(0,0,0,0.30)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
               borderRadius: 12,
               padding: '11px 14px',
               color: 'var(--ink-1)',
@@ -1582,7 +1583,7 @@ function MemoryTab() {
           />
 
           {/* Response style */}
-          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-4)' }}>
+          <div className="mtx-eyebrow" style={{ fontSize: 9, marginBottom: 6, color: 'var(--ink-3)' }}>
             ¿Cómo debe responder?
           </div>
           <textarea
@@ -1594,8 +1595,8 @@ function MemoryTab() {
             style={{
               width: '100%', boxSizing: 'border-box',
               appearance: 'none', outline: 'none',
-              background: 'rgba(0,0,0,0.20)',
-              border: '0.5px solid rgba(255,255,255,0.06)',
+              background: 'rgba(0,0,0,0.30)',
+              border: '0.5px solid rgba(255,255,255,0.08)',
               borderRadius: 12,
               padding: '11px 14px',
               color: 'var(--ink-1)',
@@ -1607,7 +1608,7 @@ function MemoryTab() {
             }}
           />
 
-          {/* Save button (alineado a la derecha, deshabilitado si no dirty) */}
+          {/* Save button alineado a la derecha */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={handleSaveCI}
@@ -1635,150 +1636,273 @@ function MemoryTab() {
         </div>
       </div>
 
-      {/* ── Section title + Auto-learn toggle inline ─────────────────────── */}
+      {/* ──────────────────────────────────────────────────────────────────
+          2. AUTO-APRENDIZAJE (bar de progreso + toggle ON/OFF)
+             Sube AQUÍ — debajo de Instrucciones del coach, como Diego pidió.
+          ────────────────────────────────────────────────────────────────── */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 4px 10px',
+        marginBottom: 22, padding: '14px 16px', borderRadius: 16,
+        background: 'linear-gradient(135deg, rgba(61,255,209,0.05), rgba(61,255,209,0.01))',
+        border: '0.5px solid rgba(61,255,209,0.18)',
       }}>
-        <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>
-          Lo que sabe de ti
-        </span>
-        <button
-          onClick={handleToggleAuto}
-          onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleAuto(); } }}
-          aria-label={memorySettings.autoLearnEnabled ? 'Pausar auto-aprendizaje' : 'Reactivar auto-aprendizaje'}
-          className="mtx-tap"
-          style={{
-            appearance: 'none', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 11px', borderRadius: 999,
-            background: memorySettings.autoLearnEnabled
-              ? 'rgba(61,255,209,0.08)'
-              : 'rgba(255,255,255,0.03)',
-            border: '0.5px solid ' + (memorySettings.autoLearnEnabled
-              ? 'rgba(61,255,209,0.30)'
-              : 'rgba(255,255,255,0.06)'),
-            color: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
-            fontSize: 10.5, fontWeight: 600,
-            fontFamily: 'var(--ff-sans)',
-            letterSpacing: '-0.005em',
-            transition: 'all .2s',
-          }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: 999,
-            background: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
-            boxShadow: memorySettings.autoLearnEnabled ? '0 0 6px rgba(61,255,209,0.7)' : 'none',
-            transition: 'all .2s',
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 10, gap: 12,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.01em' }}>
+              Auto-aprendizaje del coach
+            </div>
+            <div style={{
+              fontSize: 11, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
+              marginTop: 2,
+            }}>
+              <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>{stats.active}</span>
+              <span style={{ opacity: 0.55 }}>{' / ' + stats.capacity + ' memorias'}</span>
+            </div>
+          </div>
+          {/* Toggle ON/OFF pill */}
+          <button
+            onClick={handleToggleAuto}
+            onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleAuto(); } }}
+            aria-label={memorySettings.autoLearnEnabled ? 'Pausar auto-aprendizaje' : 'Reactivar auto-aprendizaje'}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 999,
+              background: memorySettings.autoLearnEnabled
+                ? 'rgba(61,255,209,0.10)'
+                : 'rgba(255,255,255,0.03)',
+              border: '0.5px solid ' + (memorySettings.autoLearnEnabled
+                ? 'rgba(61,255,209,0.32)'
+                : 'rgba(255,255,255,0.06)'),
+              color: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
+              fontSize: 10.5, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              transition: 'all .2s',
+              flexShrink: 0,
+            }}>
+            <span aria-hidden="true" style={{
+              width: 6, height: 6, borderRadius: 999,
+              background: memorySettings.autoLearnEnabled ? 'var(--neon)' : 'var(--ink-4)',
+              boxShadow: memorySettings.autoLearnEnabled ? '0 0 6px rgba(61,255,209,0.7)' : 'none',
+              animation: memorySettings.autoLearnEnabled ? 'mtxTaskDotPulse 1.6s ease-in-out infinite' : 'none',
+              transition: 'all .2s',
+            }}/>
+            {memorySettings.autoLearnEnabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+        {/* Progress bar */}
+        <div style={{
+          height: 4, borderRadius: 999,
+          background: 'rgba(255,255,255,0.05)',
+          overflow: 'hidden',
+          marginBottom: 10,
+        }}>
+          <div style={{
+            width: stats.percent + '%', height: '100%',
+            background: barColor,
+            transition: 'width .4s ease',
+            boxShadow: stats.percent > 0
+              ? '0 0 8px ' + (stats.percent > 80 ? 'rgba(255,200,80,0.4)' : 'rgba(61,255,209,0.4)')
+              : 'none',
           }}/>
-          {'Auto-aprender · ' + (memorySettings.autoLearnEnabled ? 'ON' : 'OFF')}
-        </button>
+        </div>
+        <div style={{
+          fontSize: 11, color: 'var(--ink-4)',
+          lineHeight: 1.5, letterSpacing: '-0.005em',
+        }}>
+          {memorySettings.autoLearnEnabled
+            ? 'El coach detecta detalles relevantes durante el chat y te propone guardarlos.'
+            : 'Auto-aprendizaje pausado. Las memorias se agregan solo cuando vos las creás.'}
+        </div>
       </div>
 
-      {/* ── Categorías con píldoras ───────────────────────────────────────── */}
-      {_MEMORY_TYPES.map(function(type) {
-        var items = byType[type.id];
+      {/* ──────────────────────────────────────────────────────────────────
+          3. LO QUE SABE DE TI — 2 super-categorías con cards estilo Knowledge
+          ────────────────────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 14 }}>
+        <div className="mtx-eyebrow" style={{
+          fontSize: 9.5, color: 'var(--ink-3)',
+          padding: '0 4px 12px',
+          letterSpacing: '0.16em',
+        }}>
+          Lo que sabe de ti
+        </div>
+      </div>
+
+      {_SUPER_GROUPS.map(function(group) {
+        // Reunir memorias de los types que componen este super-group
+        var items = [];
+        group.types.forEach(function(t) {
+          (byType[t] || []).forEach(function(m) { items.push(m); });
+        });
+        // Sort: pinned primero, después por createdAt DESC
+        items.sort(function(a, b) {
+          if ((!!a.pinned) !== (!!b.pinned)) return a.pinned ? -1 : 1;
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+
         return (
-          <div key={type.id} style={{ marginBottom: 18 }}>
+          <div key={group.id} style={{ marginBottom: 22 }}>
+            {/* Header del grupo */}
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '0 4px 8px',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '0 4px 10px',
             }}>
-              <span className="mtx-eyebrow" style={{ fontSize: 9.5, color: type.accent }}>
-                {type.label} {items.length > 0 ? '· ' + items.length : ''}
-              </span>
+              <span aria-hidden="true" style={{
+                fontSize: 14,
+                lineHeight: 1,
+              }}>{group.icon}</span>
+              <span style={{
+                fontSize: 12, fontWeight: 700,
+                color: 'var(--ink-1)',
+                letterSpacing: '-0.005em',
+                fontFamily: 'var(--ff-sans)',
+              }}>{group.label}</span>
+              <span style={{
+                fontSize: 10.5, color: 'var(--ink-4)',
+                fontFamily: 'var(--ff-sans)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>· {items.length}</span>
             </div>
 
-            {/* Píldoras compactas: cada item = pill con label + X inline.
-                Tap pill body → abre detail sheet. Tap X → confirm + delete.
-                Badge sutil ✦ (auto) / ★ (user-asked) precede al label. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {items.map(function(m) {
-                var hasValue = factValue(m).length > 0;
-                var src = m.source || 'manual';
-                return (
-                  <div key={m.id} style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    maxWidth: '100%',
-                    padding: '5px 4px 5px 10px',
-                    borderRadius: 999,
-                    background: type.accent + '14',
-                    border: '0.5px solid ' + type.accent + '32',
-                    transition: 'background .2s, border-color .2s',
-                  }}>
-                    <button
+            {/* Lista de cards o empty state.
+                Doctrina: la memoria NO se agrega manualmente. El coach detecta
+                durante el chat y propone (ProposalCard). User acepta/edita/
+                descarta. Acá solo se VEN y se pueden eliminar/editar. */}
+            {items.length === 0 ? (
+              <div style={{
+                padding: '14px 14px',
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.02)',
+                border: '0.5px dashed rgba(255,255,255,0.10)',
+                fontSize: 11.5, color: 'var(--ink-4)',
+                fontFamily: 'var(--ff-sans)',
+                lineHeight: 1.5,
+                letterSpacing: '-0.005em',
+              }}>
+                {group.desc}. Aparecerá acá cuando el coach lo detecte conversando con vos.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {items.map(function(m) {
+                  var typeInfo = _MEMORY_TYPES.find(function(t) { return t.id === m.type; }) ||
+                                 { accent: group.accent, label: m.type };
+                  var src = m.source || 'manual';
+                  return (
+                    <div key={m.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={function() { setDetailCtx(m); }}
-                      className="mtx-tap"
-                      aria-label={'Ver detalle: ' + factLabel(m)}
-                      style={{
-                        appearance: 'none', cursor: 'pointer',
-                        background: 'transparent', border: 0,
-                        padding: 0,
-                        color: 'var(--ink-1)',
-                        fontSize: 11.5, fontWeight: 500,
-                        fontFamily: 'var(--ff-sans)',
-                        letterSpacing: '-0.005em',
-                        maxWidth: 200,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                      }}>
-                      {renderSourceBadge(src)}
-                      {factLabel(m)}
-                      {hasValue && (
-                        <span style={{
-                          width: 4, height: 4, borderRadius: 999,
-                          background: type.accent,
-                          flexShrink: 0, opacity: 0.8,
-                          marginLeft: 2,
-                        }}/>
-                      )}
-                    </button>
-                    <button
-                      onClick={function(e) {
-                        e.stopPropagation();
-                        if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
-                          window.__mtxIAConfig.removeMemory(m.id);
+                      onKeyDown={function(e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setDetailCtx(m);
                         }
                       }}
-                      aria-label="Eliminar recuerdo"
+                      aria-label={'Ver detalle: ' + factLabel(m)}
                       className="mtx-tap"
                       style={{
-                        appearance: 'none', cursor: 'pointer',
-                        marginLeft: 4,
-                        width: 18, height: 18, borderRadius: 999,
-                        background: 'rgba(255,255,255,0.04)',
-                        border: 0,
-                        color: 'var(--ink-3)',
-                        flexShrink: 0,
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '12px 12px',
+                        borderRadius: 14,
+                        background: 'linear-gradient(135deg, ' + typeInfo.accent + '0E, ' + typeInfo.accent + '02)',
+                        border: '0.5px solid ' + typeInfo.accent + '28',
+                        display: 'flex', alignItems: 'center', gap: 11,
+                        cursor: 'pointer',
+                        animation: 'mtx-fade-up .2s ease both',
                       }}>
-                      <IcClose size={9} stroke="currentColor" strokeWidth={2.2}/>
-                    </button>
-                  </div>
-                );
-              })}
+                      {/* Icon tile con badge de source */}
+                      <div aria-hidden="true" style={{
+                        width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                        background: 'linear-gradient(135deg, ' + typeInfo.accent + '28, ' + typeInfo.accent + '08)',
+                        border: '0.5px solid ' + typeInfo.accent + '40',
+                        color: typeInfo.accent,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, lineHeight: 1,
+                        boxShadow: '0 0 10px ' + typeInfo.accent + '28',
+                        position: 'relative',
+                      }}>
+                        {src === 'user-asked' ? '★' : src === 'auto' ? '✦' : '·'}
+                      </div>
 
-              {/* "+ Agregar" pill al final de cada categoría */}
-              <button
-                onClick={function() { setAddCtx({ type: type.id }); }}
-                aria-label={'Agregar a ' + type.label}
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  padding: '5px 12px',
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.025)',
-                  border: '0.5px dashed ' + type.accent + '50',
-                  color: type.accent,
-                  fontSize: 11.5, fontWeight: 600,
-                  fontFamily: 'var(--ff-sans)',
-                  letterSpacing: '-0.005em',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  transition: 'background .2s, border-color .2s',
-                }}>
-                <IcPlus size={10} stroke="currentColor" strokeWidth={2.4}/>
-                {items.length === 0 ? type.label : 'Agregar'}
-              </button>
-            </div>
+                      {/* Body */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 13, fontWeight: 700,
+                          color: 'var(--ink-1)',
+                          fontFamily: 'var(--ff-display, var(--ff-sans))',
+                          letterSpacing: '-0.005em',
+                          lineHeight: 1.3,
+                          marginBottom: 3,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>{factLabel(m)}</div>
+                        <div style={{
+                          fontSize: 10.5, color: 'var(--ink-4)',
+                          fontFamily: 'var(--ff-sans)',
+                          letterSpacing: '-0.005em',
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                        }}>
+                          <span style={{ color: typeInfo.accent, fontWeight: 700, letterSpacing: '0.04em' }}>
+                            {typeInfo.label.toUpperCase()}
+                          </span>
+                          <span style={{ opacity: 0.5 }}>·</span>
+                          <span>{_relativeDate(m.createdAt)}</span>
+                          {m.usageCount > 0 && (
+                            <React.Fragment>
+                              <span style={{ opacity: 0.5 }}>·</span>
+                              <span>usado {m.usageCount}×</span>
+                            </React.Fragment>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delete inline */}
+                      <button
+                        onClick={function(e) {
+                          e.stopPropagation();
+                          if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
+                            window.__mtxIAConfig.removeMemory(m.id);
+                          }
+                        }}
+                        onKeyDown={function(e) {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
+                              window.__mtxIAConfig.removeMemory(m.id);
+                            }
+                          }
+                        }}
+                        aria-label="Eliminar recuerdo"
+                        className="mtx-tap"
+                        style={{
+                          appearance: 'none', cursor: 'pointer',
+                          width: 26, height: 26, borderRadius: '50%',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '0.5px solid rgba(255,255,255,0.06)',
+                          color: 'var(--ink-3)',
+                          flexShrink: 0,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'var(--ff-sans)',
+                          fontSize: 11,
+                        }}>
+                        <IcClose size={10} stroke="currentColor" strokeWidth={2.2}/>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* RFC-003 doctrina: NO hay botón "+ Agregar manual" en memoria.
+                El coach propone durante el chat (ProposalCard) → user acepta
+                /edita/descarta. En Settings el user solo VE, edita o elimina
+                lo que ya está. Para conocimiento ingerido (PDFs, URLs, etc)
+                existe la tab Conocimiento aparte. */}
           </div>
         );
       })}

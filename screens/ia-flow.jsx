@@ -2388,52 +2388,73 @@ function _detectUserAskedSave(content) {
 
 // Entry point — llamado desde handleSendFromInput / enterChat después de
 // agregar el mensaje del user al store. Procesa user-asked save primero,
-// luego auto-detection. Si toastFn disponible + showAutoNotification ON,
-// muestra notificación sutil.
+// luego auto-detection.
+//
+// RFC-003 (Sprint A.13) migration: ya NO escribe silenciosamente al store.
+// En su lugar emite `mtx:coach-proposal` que el store __mtxIAProposals
+// captura → inyecta ProposalCard inline en el chat → user acepta/edita/
+// descarta antes de cualquier persistencia.
+//
+// El flag legacy `autoLearnEnabled` ahora controla si las propuestas
+// auto-detectadas se EMITEN. user-asked save siempre emite (es explícito).
 function _processMemoryDetection(content, msgId, conversationId, toastFn) {
   if (typeof window === 'undefined' || !window.__mtxIAConfig) return;
+  if (!window.__mtxIAProposals) {
+    // Fallback defensivo: si el módulo de proposals no cargó por alguna razón,
+    // no hacemos nada — preferimos no escribir que escribir silenciosamente
+    // (regresión al comportamiento pre-A.13 sería peor que no-op).
+    return;
+  }
+
+  var convId = conversationId || (window.__mtxIAChat && window.__mtxIAChat.getCurrentId()) || null;
 
   // 1. User-asked save (mayor prioridad — pedido explícito del user)
   var userAsked = _detectUserAskedSave(content);
   if (userAsked) {
-    window.__mtxIAConfig.userAskedSaveMemory({
-      type: userAsked.type,
-      label: userAsked.label,
-      relatedMessageId: msgId || null,
-      conversationId: conversationId || null,
-    });
-    if (toastFn) {
-      toastFn({ message: '✦ Guardado en memoria del coach', duration: 2000 });
-    }
+    // Aún para user-asked: PROPONE, no guarda directo. Diego selló:
+    // "el coach propone, el user decide" — sin excepciones.
+    window.dispatchEvent(new CustomEvent('mtx:coach-proposal', {
+      detail: {
+        type: 'memory',
+        draft: {
+          name: userAsked.label,
+          whenToUse: '',  // user-asked no infiere when-to-use, queda opcional
+          content: userAsked.label,
+          category: userAsked.type,
+        },
+        confidence: 1.0,  // user-asked = full confidence
+        sourceMessageId: msgId || null,
+        sourceConvId: convId,
+      },
+    }));
     return;  // El user-asked es explícito → no doble-procesamos auto-detection
   }
 
-  // 2. Auto-detection (respeta autoLearnEnabled — si OFF, no-op interno)
+  // 2. Auto-detection (respeta autoLearnEnabled del config)
+  var memSettings = window.__mtxIAConfig.getMemorySettings();
+  if (memSettings && memSettings.autoLearnEnabled === false) return;
+
   var facts = _extractMemorableFacts(content);
   if (facts.length === 0) return;
 
-  var saved = 0;
+  // Emite UNA propuesta por hecho detectado. Cada una se renderiza como
+  // ProposalCard separada en el chat.
   facts.forEach(function(fact) {
-    var mem = window.__mtxIAConfig.autoSaveMemory({
-      type: fact.type,
-      label: fact.label,
-      confidence: fact.confidence,
-      relatedMessageId: msgId || null,
-      conversationId: conversationId || null,
-    });
-    if (mem) saved++;
+    window.dispatchEvent(new CustomEvent('mtx:coach-proposal', {
+      detail: {
+        type: 'memory',
+        draft: {
+          name: fact.label,
+          whenToUse: '',
+          content: fact.label,
+          category: fact.type,
+        },
+        confidence: fact.confidence,
+        sourceMessageId: msgId || null,
+        sourceConvId: convId,
+      },
+    }));
   });
-
-  // Toast sutil opt-in (default OFF — patrón ChatGPT memory)
-  if (saved > 0 && toastFn) {
-    var settings = window.__mtxIAConfig.getMemorySettings();
-    if (settings.showAutoNotification) {
-      toastFn({
-        message: '✦ Coach aprendió ' + saved + ' detalle' + (saved === 1 ? '' : 's'),
-        duration: 1800,
-      });
-    }
-  }
 }
 
 

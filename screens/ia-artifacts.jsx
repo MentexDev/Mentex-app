@@ -7551,6 +7551,11 @@
       case 'video_result':             return <IAArtifactVideoResult artifact={art}/>;
       // RFC-001 Addendum A · Sprint A.9 — wellness exercises somáticos
       case 'wellness_exercise':        return <IAArtifactWellnessExercise artifact={art}/>;
+      // RFC-003 · Sprint A.13 — Proposal Protocol (memoria/knowledge/skill propuestos)
+      case 'proposal_card':
+        return window.ProposalCard
+          ? <window.ProposalCard proposalId={art.proposalId}/>
+          : null;
       default:                     return null;
     }
   }

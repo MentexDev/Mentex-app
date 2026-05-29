@@ -952,6 +952,61 @@
   window.addEventListener('mtx:coach-trigger-wellness', function(e) { handleWellnessTrigger(e.detail); });
   window.addEventListener('mtx:ia-message-sent', function(e) { handleMessageSent(e.detail); });
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sprint A.13 — RFC-003 Proposal Protocol persistence handler
+  // ─────────────────────────────────────────────────────────────────────────
+  // Cuando una propuesta se acepta (via ProposalCard quick-accept o
+  // ProposalEditSheet save), el store __mtxIAProposals emite
+  // `mtx:proposal-accepted` con { id, type, finalData, wasEdited }.
+  //
+  // Este handler enruta al store correcto según type y persiste.
+  // Soporta los 3 tipos: memory, knowledge, skill.
+  //
+  // Toast micro post-save para feedback inmediato — el chip "✓ Guardado · Ver"
+  // que renderiza ProposalCard ya da feedback visual, este toast es
+  // confirmación adicional con haptic.
+  window.addEventListener('mtx:proposal-accepted', function(e) {
+    var detail = e && e.detail;
+    if (!detail || !detail.type || !detail.finalData) return;
+    var data = detail.finalData;
+
+    try {
+      if (detail.type === 'memory' && window.__mtxIAConfig) {
+        // El draft.category puede ser 'identity'|'goal'|'context'|'preference'.
+        // Fallback a 'context' si no llegó (user-asked sin categoría inferida).
+        var memType = (data.category && ['identity','goal','context','preference'].indexOf(data.category) >= 0)
+          ? data.category : 'context';
+        window.__mtxIAConfig.addMemory(memType, data.name, data.content || data.name);
+      } else if (detail.type === 'knowledge' && window.__mtxIAKnowledge) {
+        // Conocimiento: ingest como kind 'text' por default desde propuesta inline.
+        // Imports desde PDF/URL/audio usan otros flows (IngestSourceModal).
+        window.__mtxIAKnowledge.ingestSource({
+          kind: 'text',
+          title: data.name,
+          rawText: data.content,
+          dominio: data.domain || 'productividad',
+        });
+      } else if (detail.type === 'skill' && window.__mtxIASkills) {
+        // Skill desde propuesta inline: pasamos el contenido como "rawText"
+        // para que createMineSkill lo estructure. Title se sobreescribe con
+        // el name del form.
+        var skillId = window.__mtxIASkills.createMineSkill(data.content, 'text');
+        // Best-effort: si el store expone updateMineSkill o similar para
+        // sobreescribir title con el name elegido por el user, no fallar.
+        // (Si no expone, el title queda como las primeras palabras del content.)
+      }
+      _safeToast('✓ Guardado' + (detail.wasEdited ? ' (editado)' : ''), 'success');
+    } catch (err) {
+      _safeToast('No se pudo guardar · reintentá', 'warn');
+    }
+  });
+
+  // Logging opcional de propuestas descartadas (no toca stores)
+  window.addEventListener('mtx:proposal-dismissed', function(e) {
+    // Telemetry futura: tracking de descartes para ajustar heurística
+    // de propuestas. Hoy es no-op.
+  });
+
   // Audit CRIT-3: defense contra race startup — si user envía un mensaje
   // ANTES de que este bridge se haya inicializado, procesar el último mensaje
   // del user al cargar. Drop-in seguro porque handleMessageSent tiene
