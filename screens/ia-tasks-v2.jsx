@@ -1521,45 +1521,59 @@
             animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
           }}>
 
-          {/* Header — A.12.2: layout tipo settings/notifications.
-              Botón ← absoluto izquierda · título centrado · descripción debajo.
-              Sin eyebrow "COACH MENTEX" (redundante con el botón de Tasks). */}
+          {/* A.12.3: header notifs-style (consistencia con resto de la app).
+              Nav bar: ← circular izq · título centrado absoluto · spacer/acción der.
+              Subtítulo abajo: "N pendientes · descripción" centrado. */}
           <div style={{
-            position: 'relative',
-            padding: '54px 60px 16px',
-            flexShrink: 0,
-            textAlign: 'center',
+            paddingTop: 48, paddingLeft: 16, paddingRight: 16, paddingBottom: 10,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0, position: 'relative',
           }}>
             <button onClick={onClose} aria-label="Volver" className="mtx-tap" style={{
-              appearance: 'none', cursor: 'pointer',
-              position: 'absolute',
-              left: 20, top: 54,
-              width: 36, height: 36, borderRadius: '50%',
+              width: 40, height: 40, borderRadius: 999, border: 0,
               background: 'rgba(255,255,255,0.06)',
-              border: '0.5px solid rgba(255,255,255,0.10)',
-              color: 'var(--ink-1)',
-              fontSize: 14, fontWeight: 700,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--ink-1)', cursor: 'pointer',
+              position: 'relative', zIndex: 2,
+              appearance: 'none',
+              fontSize: 16, fontWeight: 700,
               fontFamily: 'var(--ff-sans)',
             }}>
-              <span aria-hidden="true">←</span>
+              <span aria-hidden="true">‹</span>
             </button>
+
             <div style={{
-              fontSize: 19, fontWeight: 800,
-              color: 'var(--ink-1)',
-              fontFamily: 'var(--ff-display, var(--ff-sans))',
-              letterSpacing: '-0.018em',
-              lineHeight: 1.2,
-              marginBottom: 4,
-            }}>Tareas del agente</div>
-            <div style={{
-              fontSize: 12, color: 'var(--ink-3)',
+              position: 'absolute', left: '50%', top: '50%',
+              transform: 'translate(-50%, calc(-50% + 19px))',
+              fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.015em',
               fontFamily: 'var(--ff-sans)',
-              letterSpacing: '-0.005em',
-              lineHeight: 1.45,
-              maxWidth: 320,
-              margin: '0 auto',
-            }}>Lo que tu coach está haciendo, programó, o espera tu OK</div>
+              pointerEvents: 'none',
+            }}>
+              Tareas del agente
+            </div>
+
+            {/* Spacer derecho para equilibrar el ← (sin acción por ahora) */}
+            <div style={{ width: 40, height: 40 }}/>
+          </div>
+
+          {/* Subtítulo: contador en color + descripción */}
+          <div style={{
+            padding: '4px 22px 16px',
+            flexShrink: 0,
+            fontSize: 12.5,
+            color: 'var(--ink-3)',
+            textAlign: 'center',
+          }}>
+            {stats.pending > 0 && (
+              <React.Fragment>
+                <span style={{ color: '#ffc850', fontWeight: 700 }}>
+                  {stats.pending} {stats.pending === 1 ? 'pendiente' : 'pendientes'}
+                </span>
+                <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
+              </React.Fragment>
+            )}
+            Programadas, en curso e historial
           </div>
 
           {/* Tabs scroll-x */}

@@ -1173,76 +1173,72 @@
           @keyframes mtxAgendaOutFull { from { transform:translateX(0); opacity:1; } to { transform:translateX(100%); opacity:0.2; } }
         `}</style>
 
-        {/* ── Header con back + título + botón "+" circular arriba ───────── */}
+        {/* A.12.3: Header notifs-style (consistencia con NotificationsSheet
+            y TasksSheet). Nav bar: ← circ izq · título centrado abs · ➕ circ der.
+            Subtítulo abajo: "N eventos · descripción" centrado. */}
         <div style={{
-          paddingTop: 48, paddingLeft: 16, paddingRight: 16, paddingBottom: 6,
-          flexShrink: 0,
+          paddingTop: 48, paddingLeft: 16, paddingRight: 16, paddingBottom: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0, position: 'relative',
         }}>
-          {/* Header buttons: mismas dimensiones (40×40), mismo background
-              neutro, mismo color ink-1. Tono unificado — el botón "+" ya no
-              compite con el contenido. */}
           <button
             onClick={onClose}
             onKeyDown={function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (onClose) onClose(); } }}
             aria-label="Volver"
             className="mtx-tap"
             style={{
-              width: 40, height: 40, borderRadius: 999, border: 0, padding: 0,
+              width: 40, height: 40, borderRadius: 999, border: 0,
               background: 'rgba(255,255,255,0.06)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--ink-1)', cursor: 'pointer',
+              position: 'relative', zIndex: 2,
             }}>
-            <IcChevL size={18} stroke="currentColor" strokeWidth={2}/>
+            <IcChevL size={20} stroke="currentColor" strokeWidth={2}/>
           </button>
+
+          <h2 id={titleId} style={{
+            position: 'absolute', left: '50%', top: '50%',
+            transform: 'translate(-50%, calc(-50% + 19px))',
+            margin: 0,
+            fontSize: 16, fontWeight: 700, color: 'var(--ink-1)',
+            letterSpacing: '-0.015em',
+            fontFamily: 'var(--ff-sans)',
+            pointerEvents: 'none',
+          }}>Agenda</h2>
+
           <button
             onClick={function () { setAddOpen(true); }}
             onKeyDown={function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAddOpen(true); } }}
             aria-label="Agregar a la agenda"
             className="mtx-tap"
             style={{
-              width: 40, height: 40, borderRadius: 999, border: 0, padding: 0,
+              width: 40, height: 40, borderRadius: 999, border: 0,
               background: 'rgba(255,255,255,0.06)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--ink-1)', cursor: 'pointer',
+              position: 'relative', zIndex: 2,
             }}>
-            <IcPlus size={18} stroke="currentColor" strokeWidth={2}/>
+            <IcPlus size={20} stroke="currentColor" strokeWidth={2}/>
           </button>
         </div>
 
-        {/* ── Título + stat pill ─────────────────────────────────────────── */}
+        {/* Subtítulo: contador en color + descripción */}
         <div style={{
-          padding: '4px 20px 14px',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+          padding: '4px 22px 14px',
           flexShrink: 0,
+          fontSize: 12.5,
+          color: 'var(--ink-3)',
+          textAlign: 'center',
         }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 9.5, color: 'var(--ink-4)',
-              letterSpacing: '0.16em', textTransform: 'uppercase',
-              fontWeight: 600, marginBottom: 4, fontFamily: 'var(--ff-sans)',
-            }}>{dayLabel}</div>
-            <h2 id={titleId} style={{
-              margin: 0, fontSize: 28, fontWeight: 700,
-              color: 'var(--ink-1)', letterSpacing: '-0.025em',
-              fontFamily: 'var(--ff-display, var(--ff-sans))', lineHeight: 1.1,
-              marginBottom: 6,
-            }}>Agenda</h2>
-            <div style={{
-              fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.4,
-              letterSpacing: '-0.005em', fontFamily: 'var(--ff-sans)',
-              maxWidth: 260,
-            }}>El plan que tu coach orquesta · {isToday ? 'hoy' : (dayOffset > 0 ? 'próximamente' : 'historial')}.</div>
-          </div>
-          <div style={{
-            padding: '6px 12px', borderRadius: 999,
-            background: events.length > 0 ? 'rgba(61,255,209,0.06)' : 'rgba(255,255,255,0.04)',
-            border: '0.5px solid ' + (events.length > 0 ? 'rgba(61,255,209,0.20)' : 'rgba(255,255,255,0.08)'),
-            fontSize: 10.5, fontWeight: 600,
-            color: events.length > 0 ? 'var(--neon)' : 'var(--ink-3)',
-            fontFamily: 'var(--ff-sans)', fontVariantNumeric: 'tabular-nums',
-            flexShrink: 0,
-          }}>{statLabel}</div>
+          {events.length > 0 ? (
+            <React.Fragment>
+              <span style={{ color: 'var(--neon)', fontWeight: 700 }}>
+                {events.length} {events.length === 1 ? 'evento' : 'eventos'}
+              </span>
+              <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
+            </React.Fragment>
+          ) : null}
+          {dayLabel} · {isToday ? 'el plan que tu coach orquesta' : (dayOffset > 0 ? 'próximamente' : 'historial')}
         </div>
 
         {/* ── Scroll horizontal de días ──────────────────────────────────── */}
