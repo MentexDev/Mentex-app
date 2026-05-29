@@ -525,7 +525,10 @@
           role="dialog" aria-modal="true" aria-label={'Detalle de tarea: ' + task.title}
           className="mtx-no-scrollbar"
           style={{
-            background: 'rgba(15,19,19,0.96)',
+            // A.15.2: bg gradient alineado al patrón VideoOptionsSheet/
+            // ChatOptionsSheet (consistencia visual cross-app). Era color
+            // plano rgba(15,19,19,0.96) que se sentía "ajeno" al app.
+            background: 'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
             backdropFilter: 'blur(28px) saturate(160%)',
             WebkitBackdropFilter: 'blur(28px) saturate(160%)',
             borderTop: '0.5px solid rgba(255,255,255,0.10)',
@@ -1514,7 +1517,10 @@
           className="mtx-no-scrollbar"
           style={{
             position: 'absolute', inset: 0, zIndex: 200,
-            background: 'rgba(8,8,21,0.96)',
+            // A.15.2: bg natural de Mentex (verde-oscuro --obs-1 #0a0d0e).
+            // Era rgba(8,8,21,0.96) azul-morado — no coincidía con el resto
+            // de la app que usa la paleta obsidian verde-oscuro.
+            background: 'rgba(10,13,12,0.96)',
             backdropFilter: 'blur(20px) saturate(160%)',
             WebkitBackdropFilter: 'blur(20px) saturate(160%)',
             display: 'flex', flexDirection: 'column',

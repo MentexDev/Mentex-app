@@ -2329,6 +2329,8 @@ function IATasksIcon(props) {
   var hasPending = stats.pending > 0;
   var hasActive = stats.active > 0;
 
+  // A.15.1b: color del rayo unificado a neon verde (era amber #ffc850 cuando
+  // había pendientes). Mantenemos jerarquía visual con badge.
   return (
     <button
       onClick={onClick}
@@ -2339,29 +2341,29 @@ function IATasksIcon(props) {
         width: 36, height: 36, borderRadius: 999,
         background: 'rgba(255,255,255,0.04)',
         border: '0.5px solid rgba(255,255,255,0.08)',
-        color: hasPending ? '#ffc850' : hasActive ? 'var(--neon)' : 'var(--ink-1)',
+        color: (hasPending || hasActive) ? 'var(--neon)' : 'var(--ink-1)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', flexShrink: 0,
         transition: 'all .2s',
       }}>
-      {/* SVG lightning bolt — connota "actividad" del agente */}
       <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor"
            strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill={hasPending || hasActive ? 'currentColor' : 'none'} fillOpacity={hasPending || hasActive ? 0.18 : 0}/>
       </svg>
-      {/* Badge: pending count (amber) o active running indicator (neon) */}
+      {/* A.15.1b: badge neon verde (era amber). Mismo halo brillante,
+          mismo contrast ratio sobre #0a1410. */}
       {hasPending && (
         <span style={{
           position: 'absolute', top: -3, right: -3,
           minWidth: 16, height: 16, padding: '0 4px',
           borderRadius: 999,
-          background: '#ffc850',
+          background: 'var(--neon)',
           color: '#0a1410',
           fontSize: 9, fontWeight: 700,
           fontFamily: 'var(--ff-sans)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           letterSpacing: '-0.005em',
-          boxShadow: '0 0 0 1.5px rgba(10,13,12,0.95), 0 0 8px rgba(255,200,80,0.50)',
+          boxShadow: '0 0 0 1.5px rgba(10,13,12,0.95), 0 0 8px rgba(61,255,209,0.55)',
         }}>{stats.pending > 9 ? '9+' : stats.pending}</span>
       )}
       {!hasPending && hasActive && (

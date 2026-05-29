@@ -159,6 +159,36 @@ function CoachVoiceCallOverlay() {
   var rafRef = React.useRef(null);
   var endedFlagRef = React.useRef(false);
 
+  // A.15.3: Real STT pipeline integration.
+  // useVoiceTranscription es el hook de voice-transcription.jsx (10-stage NLP
+  // pipeline: filler removal, stutter, voice commands, auto-capitalize, etc).
+  // Lo inyectamos aquí para que el turno del user sea voz REAL — no mock.
+  // Mientras el coach habla, pauseListening (evita feedback loop). Cuando
+  // termina el coach, resumeListening y cada onFinalResult se vuelve un turno
+  // del user en el transcript.
+  //
+  // Reglas de hooks: el hook debe llamarse incondicionalmente y siempre en el
+  // mismo orden. Como voice-transcription.jsx carga antes que este archivo en
+  // Mentex Home.html, `useVoiceTranscription` siempre está disponible.
+  // Si el SpeechRecognition no es soportado (iframe sandbox, browser viejo),
+  // el hook retorna status='unsupported' y los handlers son no-op — graceful.
+  var voice = window.useVoiceTranscription({
+    lang: 'es-ES',
+    onFinalResult: function(finalText) {
+      if (!finalText || !finalText.trim()) return;
+      if (endedFlagRef.current) return;
+      // Push como turno del user al transcript en vivo.
+      setTranscript(function(prev) {
+        return prev.concat([{ speaker: 'user', text: finalText.trim(), ts: Date.now() }]);
+      });
+    },
+    onError: function(msg) {
+      // STT puede fallar (permiso denegado, no soportado en iframe). En ese
+      // caso el flow degrada a mock-only sin romper el overlay.
+      console.warn('[voice-call STT]', msg);
+    },
+  });
+
   // ── Listener para open/close events ────────────────────────────────────
   React.useEffect(function() {
     function onState(e) {
@@ -222,31 +252,67 @@ function CoachVoiceCallOverlay() {
   }, [open, phase]);
 
   // ── Run turns secuencialmente cuando phase=active ────────────────────────
+  // A.15.3: con STT real cableado, solo simulamos los turnos del COACH como
+  // mock (hasta que Brandon conecte LLM streaming en Sprint B). Los turnos
+  // del user vienen de voz REAL via useVoiceTranscription.onFinalResult.
+  // Esto evita que el mock "robe" la palabra al user en plena conversación.
   React.useEffect(function() {
     if (!open || phase !== 'active') return;
     if (endedFlagRef.current) return;
-    var turns = window.__mtxVoiceCallSimulateTurns(prompt);
+    var allTurns = window.__mtxVoiceCallSimulateTurns(prompt);
+    var coachTurns = allTurns.filter(function(t) { return t.speaker === 'coach'; });
     var idx = 0;
     function runNext() {
-      if (endedFlagRef.current || idx >= turns.length) {
-        // Idle — el overlay queda abierto esperando interacción del user
+      if (endedFlagRef.current || idx >= coachTurns.length) {
+        // Idle — el overlay queda abierto esperando que el user hable.
         setCurrentTurn(null);
         return;
       }
-      var t = turns[idx];
+      var t = coachTurns[idx];
       setCurrentTurn({ speaker: t.speaker, text: t.text, idx: idx });
-      // Push al transcript inmediatamente (no por chars — la "voz" lo dice)
       setTranscript(function(prev) {
         return prev.concat([{ speaker: t.speaker, text: t.text, ts: Date.now() }]);
       });
       idx += 1;
-      turnTimerRef.current = setTimeout(runNext, t.durationMs);
+      // Entre turnos del coach: gap de ~5s para que el user pueda hablar.
+      // Brandon reemplazará esta lógica con LLM real escuchando STT del user.
+      turnTimerRef.current = setTimeout(runNext, t.durationMs + 5000);
     }
     runNext();
     return function() {
       if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
     };
   }, [open, phase, prompt]);
+
+  // A.15.3: START/STOP del STT real según phase del overlay.
+  // - phase='active' → startListening (capturar voz del user)
+  // - phase!='active' || !open → stopListening (libera mic + recursos)
+  // - muted → pauseListening (resume cuando unmute)
+  React.useEffect(function() {
+    if (!open || phase !== 'active') {
+      try { voice.stopListening && voice.stopListening(); } catch (_) {}
+      return;
+    }
+    // Small delay para que el overlay termine animación de entrada antes
+    // de pedir permiso de mic (UX más calmada).
+    var t = setTimeout(function() {
+      try { voice.startListening && voice.startListening(); } catch (_) {}
+    }, 800);
+    return function() {
+      clearTimeout(t);
+      try { voice.stopListening && voice.stopListening(); } catch (_) {}
+    };
+  }, [open, phase]);
+
+  // Mute toggle → pausar/resumir el STT real
+  React.useEffect(function() {
+    if (!open || phase !== 'active') return;
+    if (muted) {
+      try { voice.pauseListening && voice.pauseListening(); } catch (_) {}
+    } else {
+      try { voice.resumeListening && voice.resumeListening(); } catch (_) {}
+    }
+  }, [muted, open, phase]);
 
   // ── Waveform animation — RAF loop suave ──────────────────────────────────
   React.useEffect(function() {

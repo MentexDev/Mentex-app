@@ -1841,7 +1841,10 @@ function IAInputBar(props) {
             </svg>
           </button>
 
-          {/* C11b — Skills button. Abre skills menu con tabs Oficiales/Mías */}
+          {/* C11b — Skills button (A.15.2 refactor).
+              Icono: IcSparkles ✦ — denota "habilidades del coach" sin chocar
+              con el rayo que usa Tasks. Tonalidad: idéntica al + button vecino
+              (rgba(255,255,255,0.06) + var(--ink-2)) para coherencia visual. */}
           <button
             onClick={function() {
               if (window.__mtxSkillsMenu) window.__mtxSkillsMenu.open();
@@ -1850,16 +1853,13 @@ function IAInputBar(props) {
             className="mtx-tap"
             style={{
               width: 34, height: 34, borderRadius: 999, border: 0,
-              background: 'rgba(255,255,255,0.04)',
-              color: 'var(--ink-3)',
+              background: 'rgba(255,255,255,0.06)',
+              color: 'var(--ink-2)',
               cursor: 'pointer', flexShrink: 0,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background .2s, color .2s',
             }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
+            <IcSparkles size={17} stroke="currentColor" strokeWidth={1.7}/>
           </button>
 
           {/* C9 — Memory chip (count de memorias activas).
@@ -1923,8 +1923,12 @@ function IAInputBar(props) {
             <IcMic size={16} stroke="currentColor" strokeWidth={1.7}/>
           </button>
 
-          {/* C3 part B — Voice mode (NUEVO). Abre voice_call overlay B7.
-              Glow neon sutil constante — killer feature visible. */}
+          {/* C3 part B — Voice mode (A.15.4 refactor).
+              Tonalidad neutral igual a + / skills buttons (consistencia visual).
+              Icono: 4 barras verticales animadas estilo ChatGPT voice — indica
+              "modo conversación de voz" sin chocar con el mic 🎙 (que es STT
+              al input text). El glow verde se removió para no competir con el
+              send button neon. */}
           <button
             onClick={function() {
               if (window.__mtxVoiceCall) {
@@ -1932,22 +1936,22 @@ function IAInputBar(props) {
                 window.__mtxVoiceCall.open(convId, '');
               }
             }}
-            aria-label="Hablar por voz con el coach (modo llamada)"
+            aria-label="Conversar por voz con el coach"
             className="mtx-tap"
             style={{
               width: 34, height: 34, borderRadius: 999, border: 0,
-              background: 'rgba(61,255,209,0.08)',
-              color: 'var(--neon)',
+              background: 'rgba(255,255,255,0.06)',
+              color: 'var(--ink-2)',
               cursor: 'pointer', flexShrink: 0,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 12px rgba(61,255,209,0.15), inset 0 0 0 0.5px rgba(61,255,209,0.30)',
-              transition: 'background .2s, box-shadow .2s, transform .12s',
+              transition: 'background .2s, color .2s',
             }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 12c0-2 1-4 3-4s3 2 3 4-1 4-3 4-3-2-3-4z" fill="currentColor" fillOpacity="0.15"/>
-              <path d="M9 12c0-3 1.5-6 3-6s3 3 3 6-1.5 6-3 6-3-3-3-6z" fill="currentColor" fillOpacity="0.20"/>
-              <path d="M15 12c0-2 1-4 3-4s3 2 3 4-1 4-3 4-3-2-3-4z" fill="currentColor" fillOpacity="0.15"/>
+              strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+              <line x1="6"  y1="9"  x2="6"  y2="15"/>
+              <line x1="10" y1="6"  x2="10" y2="18"/>
+              <line x1="14" y1="6"  x2="14" y2="18"/>
+              <line x1="18" y1="9"  x2="18" y2="15"/>
             </svg>
           </button>
 
@@ -3479,6 +3483,11 @@ function IAScreen(props) {
   var shareOpen = shareSheetState[0];
   var setShareOpen = shareSheetState[1];
 
+  // A.15.1 — Chat options sheet state (menú ···)
+  var optionsSheetState = React.useState(false);
+  var optionsOpen = optionsSheetState[0];
+  var setOptionsOpen = optionsSheetState[1];
+
   // C10 — Export sheet state. Se abre via evento `mtx:coach-export-open`
   // dispatcheado por __mtxCoachExport.open(conv) — el share sheet lo dispara
   // cuando user tapea "Exportar como…". También se puede abrir desde devtools
@@ -3552,11 +3561,8 @@ function IAScreen(props) {
       <IAChatHeader
         current={current}
         onBack={goHub}
-        onNewChat={handleNewConversationFromChat}
-        onAgenda={handleAgenda}
         onOpenHistory={function() { setHistoryOpen(true); }}
-        onTasks={function() { setTasksOpen(true); }}
-        onShare={current ? function() { setShareOpen(true); } : undefined}
+        onOpenOptions={current ? function() { setOptionsOpen(true); } : undefined}
       />
 
       <div
@@ -3607,6 +3613,49 @@ function IAScreen(props) {
           open={shareOpen}
           conversation={current}
           onClose={function() { setShareOpen(false); }}
+        />
+      )}
+
+      {/* A.15.1 — Chat options sheet (menú ··· del header) */}
+      {optionsOpen && current && (
+        <ChatOptionsSheet
+          conversation={current}
+          onClose={function() { setOptionsOpen(false); }}
+          onNewChat={function() { setOptionsOpen(false); handleNewConversationFromChat(); }}
+          onTasks={function() { setOptionsOpen(false); setTasksOpen(true); }}
+          onShare={function() { setOptionsOpen(false); setShareOpen(true); }}
+          onRename={function() {
+            setOptionsOpen(false);
+            var newTitle = window.prompt('Renombrar conversación', current.title || '');
+            if (newTitle && newTitle.trim()) {
+              window.__mtxIAChat.rename(current.id, newTitle.trim());
+            }
+          }}
+          onDelete={function() {
+            var convToDelete = current;
+            setOptionsOpen(false);
+            // Snapshot inmutable para undo: messages array + meta. Si el user
+            // descarta el undo, el conv queda permanentemente eliminado.
+            var snapshot = {
+              id: convToDelete.id,
+              title: convToDelete.title,
+              messages: (convToDelete.messages || []).slice(),
+              createdAt: convToDelete.createdAt,
+              pinned: !!convToDelete.pinned,
+            };
+            window.__mtxIAChat.deleteConversation(convToDelete.id);
+            goHub();
+            toast.show({
+              message: 'Conversación eliminada',
+              action: 'Deshacer',
+              duration: 5000,
+              onAction: function() {
+                // Restaurar con el mismo id (create acepta seed.id custom)
+                window.__mtxIAChat.create(Object.assign({}, snapshot, { silent: true }));
+                window.__mtxIAChat.setCurrent(snapshot.id);
+              },
+            });
+          }}
         />
       )}
 
@@ -3687,19 +3736,14 @@ function IAHubHeader(props) {
 
 
 // ── IAChatHeader — header del chat view ──────────────────────────────────
-// Layout izquierda→derecha: [← back] [Título plano + dropdown ⌄] [+ new] [📅?]
-// • Back + título a la izquierda; "+" siempre, agenda solo en sesión activa.
-// • Settings NO vive en el chat — vive solo en el hub raíz del tab IA. Dentro
-//   de un chat el user no necesita configurar el asistente; quitar reduce
-//   ruido visual y deja el header minimalista.
-// • La agenda solo aparece cuando el chat es scope='session-active' (acceso
-//   rápido desde HomeActive). En chats normales del tab IA tampoco aparece —
-//   ahí solo "+ nuevo chat" tiene sentido como utility.
-// • Título es texto plano (sin pill background) + chev de dropdown. Tap →
-//   abre el history sheet.
+// A.15.1 refactor: header limpio con solo 3 elementos.
+// Layout izquierda→derecha: [← back] [Título + dropdown ⌄] [··· options]
+// • Tareas, compartir, nueva conv, renombrar, eliminar viven todos dentro del
+//   menú ··· (ChatOptionsSheet) para mantener el header minimalista.
+// • Título plano (sin pill) + chev dropdown. Tap → abre history sheet.
+// • Settings NO vive en el chat — vive solo en el hub raíz del tab IA.
 function IAChatHeader(props) {
   var current = props.current;
-  var isSessionScope = current && current.scope === 'session-active';
   return (
     <div style={{
       flexShrink: 0,
@@ -3714,8 +3758,7 @@ function IAChatHeader(props) {
           <IcChevL size={15} stroke="currentColor" strokeWidth={1.9}/>
         </IAIconButton>
 
-        {/* Título plano + chev dropdown. Tap = abre history sheet (no
-            rename). El user puede explorar/cambiar conversaciones desde ahí. */}
+        {/* Título plano + chev dropdown. Tap = abre history sheet. */}
         <button
           onClick={props.onOpenHistory}
           className="mtx-tap"
@@ -3740,30 +3783,172 @@ function IAChatHeader(props) {
           <IcChevD size={11} stroke="var(--ink-3)" strokeWidth={1.8}/>
         </button>
 
-        {/* Fase 2.4: Tasks icon también disponible en chat header */}
-        {window.IATasksIcon && <window.IATasksIcon onClick={props.onTasks}/>}
-
-        {/* RFC-001 Addendum A · A6 — Share conversation */}
-        {props.onShare && (
-          <IAIconButton aria-label="Compartir conversación" onClick={props.onShare}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="1.7"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="18" cy="5" r="3"/>
-              <circle cx="6" cy="12" r="3"/>
-              <circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
+        {/* A.15.1 — Menú ··· vertical. Reusa patrón VideoOptionsSheet/
+            PlaylistOptionsSheet de explore-flow. Solo aparece con conversación
+            activa (sin onOpenOptions el botón no se monta). */}
+        {props.onOpenOptions && (
+          <IAIconButton aria-label="Más opciones de la conversación" onClick={props.onOpenOptions}>
+            <IcMoreV size={16} stroke="currentColor" strokeWidth={1.7}/>
           </IAIconButton>
         )}
+      </div>
+    </div>
+  );
+}
 
-        <IAIconButton aria-label="Nueva conversación" onClick={props.onNewChat}>
-          <IcPlus size={16} stroke="currentColor" strokeWidth={2}/>
-        </IAIconButton>
 
-        {/* Agenda extraída del IA — ahora vive en Home header (global), no
-            dentro del chat. Reduces clutter en sesión activa también. */}
+// ── ChatOptionsSheet — Sprint A.15.1 ─────────────────────────────────────
+// Menú "···" del header de chat. Reusa el lenguaje visual de VideoOptionsSheet
+// (explore-flow.jsx) y PlaylistOptionsSheet para mantener consistencia cross-app.
+// Opciones: Nueva conversación · Tareas del agente · Compartir · Renombrar ·
+// Eliminar (destructive con undo via toast).
+function ChatOptionsSheet(props) {
+  var conversation = props.conversation;
+  var onClose = props.onClose;
+  var backdropDownRef = React.useRef(false);
+
+  React.useEffect(function() {
+    function onKey(e) {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Escape') {
+        var t = e.target;
+        var tag = (t && t.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    var prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return function() {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!conversation) return null;
+
+  // Backdrop down/up para evitar cierre cuando user drag desde el sheet.
+  function handleBackdropDown(e) {
+    backdropDownRef.current = (e.target === e.currentTarget);
+  }
+  function handleBackdropClick(e) {
+    if (backdropDownRef.current && e.target === e.currentTarget) onClose();
+    backdropDownRef.current = false;
+  }
+
+  // Opciones del menú. accent por opción + icono coherente con set Mentex.
+  var options = [
+    { id: 'new',    label: 'Nueva conversación', desc: 'Empieza un chat limpio',                  Ic: IcPlus,     accent: '#3dffd1', handler: props.onNewChat },
+    { id: 'tasks',  label: 'Tareas del agente',  desc: 'Ver lo que el coach está haciendo',       Ic: IcZap,      accent: '#3dffd1', handler: props.onTasks },
+    { id: 'share',  label: 'Compartir',          desc: 'Copia o exporta esta conversación',       Ic: IcShare,    accent: '#5dd3ff', handler: props.onShare },
+    { id: 'rename', label: 'Renombrar',          desc: 'Cambia el título de la conversación',     Ic: IcEdit,     accent: '#9b8aff', handler: props.onRename },
+    { id: 'delete', label: 'Eliminar conversación', desc: 'Se podrá deshacer durante 5 segundos', Ic: IcTrash,    accent: '#ff8b8b', handler: props.onDelete, destructive: true },
+  ];
+
+  return (
+    <div onMouseDown={handleBackdropDown} onClick={handleBackdropClick} style={{
+      position: 'absolute', inset: 0, zIndex: 160,
+      display: 'flex', alignItems: 'flex-end',
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      animation: 'mtx-fade-up .25s ease',
+    }}>
+      <div onClick={function(e) { e.stopPropagation(); }} className="mtx-no-scrollbar"
+        role="dialog" aria-modal="true" aria-label="Opciones de la conversación"
+        style={{
+          background: 'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          borderBottom: 0,
+          borderTopLeftRadius: 28, borderTopRightRadius: 28,
+          width: '100%', maxHeight: '80%', overflowY: 'auto', paddingBottom: 24,
+          animation: 'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+        }}>
+        {/* Grabber */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 6 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.18)' }}/>
+        </div>
+
+        {/* Header — título de la conversación + meta */}
+        <div style={{ padding: '10px 22px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+            background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06))',
+            border: '0.5px solid rgba(61,255,209,0.32)',
+            color: 'var(--neon)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'inset 0 0 14px rgba(61,255,209,0.10)',
+          }} aria-hidden="true">
+            <IcMessage size={18} stroke="currentColor" strokeWidth={1.7}/>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mtx-eyebrow" style={{ fontSize: 9, color: 'var(--neon)', letterSpacing: '0.16em', fontWeight: 700, marginBottom: 3 }}>
+              CONVERSACIÓN
+            </div>
+            <div style={{
+              fontSize: 14.5, fontWeight: 700, color: 'var(--ink-1)',
+              letterSpacing: '-0.018em', lineHeight: 1.2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{conversation.title || 'Nueva conversación'}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+              {(conversation.messages || []).length} {((conversation.messages || []).length === 1) ? 'mensaje' : 'mensajes'}
+            </div>
+          </div>
+        </div>
+
+        {/* Options list */}
+        <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {options.map(function(opt) {
+            if (!opt.handler) return null;
+            return (
+              <button key={opt.id} onClick={opt.handler} className="mtx-tap" style={{
+                appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                padding: '12px 14px', borderRadius: 14,
+                border: opt.destructive ? '0.5px solid rgba(255,140,140,0.18)' : '0.5px solid rgba(255,255,255,0.06)',
+                background: opt.destructive ? 'rgba(255,140,140,0.04)' : 'rgba(255,255,255,0.025)',
+                display: 'flex', alignItems: 'center', gap: 12,
+                fontFamily: 'var(--ff-sans)',
+                transition: 'background .15s, border-color .15s',
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+                  background: 'linear-gradient(135deg, ' + opt.accent + '26, ' + opt.accent + '06)',
+                  border: '0.5px solid ' + opt.accent + '40',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: opt.accent,
+                }}>
+                  <opt.Ic size={15} stroke="currentColor" strokeWidth={1.7}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13.5, fontWeight: 600,
+                    color: opt.destructive ? '#ffb0b0' : 'var(--ink-1)',
+                    letterSpacing: '-0.005em',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{opt.label}</div>
+                  <div style={{
+                    fontSize: 11, color: 'var(--ink-3)', marginTop: 1,
+                    letterSpacing: '-0.005em',
+                  }}>{opt.desc}</div>
+                </div>
+                <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.6}/>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Cancel */}
+        <div style={{ padding: '14px 18px 0' }}>
+          <button onClick={onClose} className="mtx-tap" style={{
+            width: '100%', height: 48, borderRadius: 14, cursor: 'pointer',
+            border: '0.5px solid var(--glass-stroke)',
+            background: 'var(--glass-2)', color: 'var(--ink-2)',
+            fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
+          }}>
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   );
