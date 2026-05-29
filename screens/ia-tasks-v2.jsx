@@ -33,6 +33,41 @@
   if (typeof window === 'undefined' || window.TasksSheetV2) return;
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Body lock refcount global — Audit CRIT-2 fix
+  // ──────────────────────────────────────────────────────────────────────────
+  // Múltiples sheets nested (TasksSheetV2 + TaskDetailSheet) ambos hacen
+  // document.body.style.overflow='hidden'. Si ambos capturan prev='' al mount
+  // y se desmontan en orden no-LIFO (ej. cierre programático del padre que
+  // arrastra al hijo), el cleanup pisa el orden y body queda con 'hidden'
+  // permanente — page-scroll bloqueado hasta refresh.
+  //
+  // Solución: refcount global. El primer lock guarda el prev, el último unlock
+  // restaura. Operaciones en medio son idempotentes (no-op visual).
+  if (!window.__mtxBodyLock) {
+    window.__mtxBodyLock = {
+      _count: 0,
+      _prev: null,
+      lock: function() {
+        if (this._count === 0) {
+          try { this._prev = document.body.style.overflow; }
+          catch (e) { this._prev = ''; }
+          try { document.body.style.overflow = 'hidden'; } catch (e) { /* no-op */ }
+        }
+        this._count++;
+      },
+      unlock: function() {
+        if (this._count <= 0) return;
+        this._count--;
+        if (this._count === 0) {
+          try { document.body.style.overflow = this._prev || ''; }
+          catch (e) { /* no-op */ }
+          this._prev = null;
+        }
+      },
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Status registry — single source of truth para 5 estados + descartadas
   // ──────────────────────────────────────────────────────────────────────────
   // Cada estado tiene: id · label · color · icon · description (empty state)
@@ -415,23 +450,21 @@
     var tabState = React.useState('detalles');
     var tab = tabState[0]; var setTab = tabState[1];
 
-    // ESC + body scroll lock (mismo pattern Fase 2)
+    // Audit CRIT-9 fix: NO registrar listener ESC propio. El padre TasksSheetV2
+    // ya intercepta ESC con guard `if (detail) { setDetail(null); return; }`
+    // que cierra solo el detail cuando está abierto. Dos listeners corriendo
+    // en window sobre la misma tecla = side effects duplicados si onClose hace
+    // algo más que setState (futura analytics, etc.). El parent handler es el
+    // SUFICIENTE y ÚNICO source of truth para ESC en este sheet.
+    //
+    // onCloseRef se conserva porque otros handlers (backdrop click) lo usan.
     var onCloseRef = React.useRef(onClose);
     React.useEffect(function() { onCloseRef.current = onClose; });
+    // Audit CRIT-2: usar refcount global en vez de capturar+restaurar prev.
+    // Garantiza que body queda unlocked solo cuando todos los sheets cierran.
     React.useEffect(function() {
-      var onKey = function(e) {
-        if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
-        var t = e.target; var tag = (t && t.tagName) || '';
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
-        onCloseRef.current();
-      };
-      window.addEventListener('keydown', onKey);
-      return function() { window.removeEventListener('keydown', onKey); };
-    }, []);
-    React.useEffect(function() {
-      var prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return function() { document.body.style.overflow = prev; };
+      window.__mtxBodyLock.lock();
+      return function() { window.__mtxBodyLock.unlock(); };
     }, []);
 
     var backdropDownRef = React.useRef(false);
@@ -635,10 +668,13 @@
   // Cuando llegue backend, esto vendrá del agente real (task.plan / task.brief).
   function _briefForTask(task, status) {
     var wf = task.workflowId || '';
+    // Audit IMP-7 fix: "Hizo" para failed es engañoso (intentó, no hizo).
+    // Diferencia explícita entre completed (cumplido) y failed (intentó).
     var verb = (status === 'scheduled')          ? 'Va a'
              : (status === 'pending_approval')   ? 'Propone'
              : (status === 'in_progress')        ? 'Está'
-             : 'Hizo';
+             : (status === 'failed')             ? 'Intentó'
+             : 'Hizo';  // completed/dismissed
 
     // Heurística por workflow — cubre los workflows mock del legacy.
     // Si no matchea, fallback genérico desde task.description si existe.
@@ -698,7 +734,13 @@
         body: task.description,
       };
     }
-    return null;
+    // Audit GAP-4 fix: fallback final cuando no hay workflow conocido ni
+    // description. Antes retornaba null y el tab Detalles terminaba abrupto
+    // sin separador visual. Ahora muestra placeholder mínimo coherente.
+    return {
+      title: 'Plan',
+      body: 'Esta tarea no tiene un brief narrativo disponible. El coach puede no haber documentado el plan, o el workflow es interno del sistema.',
+    };
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -927,11 +969,13 @@
       };
     }
     if (label.indexOf('post-imagen') >= 0 || label.indexOf('imagen') >= 0) {
-      // Mock SVG inline para imágenes
+      // Mock SVG inline para imágenes.
+      // Audit CRIT-6: SVG en formato NATURAL (con # crudo, no %23 pre-encoded).
+      // El render hace encodeURIComponent que se encarga de # → %23, quotes,
+      // y cualquier carácter problemático en Safari/WebKit.
       return {
         type: 'image-svg',
-        // Generamos un SVG con gradiente + texto centrado
-        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%239b8aff"/><stop offset="1" stop-color="%233dffd1"/></linearGradient></defs><rect width="400" height="400" fill="url(%23g)"/><circle cx="200" cy="200" r="120" fill="rgba(255,255,255,0.15)"/><text x="200" y="210" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="white">enfoque</text></svg>',
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b8aff"/><stop offset="1" stop-color="#3dffd1"/></linearGradient></defs><rect width="400" height="400" fill="url(#g)"/><circle cx="200" cy="200" r="120" fill="rgba(255,255,255,0.15)"/><text x="200" y="210" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="white">enfoque</text></svg>',
       };
     }
     if (label.indexOf('3 bloques') >= 0 || label.indexOf('bloques agendados') >= 0) {
@@ -978,9 +1022,15 @@
     }
 
     function toggle(i) {
-      var next = Object.assign({}, expanded);
-      next[i] = !next[i];
-      setExpanded(next);
+      // Audit CRIT-5 fix: functional updater para evitar perder updates si
+      // dos toggles disparan antes del re-render (closure stale). El form
+      // anterior `Object.assign({}, expanded)` capturaba el valor del render
+      // en el que se creó el closure del card.
+      setExpanded(function(prev) {
+        var next = Object.assign({}, prev);
+        next[i] = !next[i];
+        return next;
+      });
     }
 
     // Mapeo de kind → acción primaria + label
@@ -1199,7 +1249,8 @@
     }
 
     if (preview.type === 'image-svg') {
-      var dataUri = 'data:image/svg+xml;utf8,' + preview.svg;
+      // Audit CRIT-6 fix: encodeURIComponent maneja #, quotes, espacios, etc.
+      var dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(preview.svg);
       return (
         <div style={{
           display: 'flex', justifyContent: 'center',
@@ -1249,7 +1300,17 @@
       );
     }
 
-    return null;
+    // Audit IMP-10 fix: tipo desconocido → placeholder explícito (no null silente
+    // que dejaría el contenedor vacío con altura desconcertante).
+    return (
+      <div style={{
+        fontSize: 11.5, color: 'var(--ink-4)',
+        fontFamily: 'var(--ff-sans)',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        padding: '12px 0',
+      }}>Tipo de preview desconocido</div>
+    );
   }
 
   // Sprint A.12.1: _DetailTabAcciones removida. Las CTAs de cada estado ya
@@ -1263,8 +1324,11 @@
   function TasksSheetV2(props) {
     var onClose = props.onClose;
 
-    // Suscribirse a __mtxIATasks
-    window.useIATasks ? window.useIATasks() : null;  // sync hook si existe
+    // Suscribirse a __mtxIATasks vía listener directo del evento.
+    // Audit CRIT-1: REMOVIDA la línea `window.useIATasks ? window.useIATasks() : null`
+    // — llamar un hook condicionalmente sobre un global runtime viola Rules of Hooks
+    // (#9 blind-spot). El listener de abajo cubre la misma suscripción de manera
+    // segura. Bonus: elimina suscripción duplicada (CRIT IMP-8) → 1 re-render por evento.
     var forceTick = React.useReducer(function(x) { return x + 1; }, 0)[1];
     React.useEffect(function() {
       var handler = function() { forceTick(); };
@@ -1297,19 +1361,47 @@
       scheduled:        allScheduled.length,
       pending_approval: allPending.length,
       in_progress:      allActive.length,
-      completed:        allCompleted.length + (completedFilter === 'all' ? allDismissed.length : 0),
+      // Audit GAP-3: tab count siempre representa el TOTAL (success + dismissed),
+      // independiente del sub-filter visible. Cambiar el badge del tab al filtrar
+      // confundía al user (parecía que el total bajaba).
+      completed:        allCompleted.length + allDismissed.length,
       failed:           allFailed.length,
     };
 
-    // Auto-select tab al mount: si default está vacío, ir al primero con datos
+    // Auto-select tab al primer mount con datos.
+    // Audit CRIT-3 fix: el effect leía `counts` capturado del primer render
+    // (closure stale). Si los datos llegaban async post-mount, el effect ya
+    // no corría y dejaba un tab vacío seleccionado.
+    // Fix: ref guard "ya se hizo el switch" + leer store DIRECTO dentro del
+    // effect cuando se ejecuta. Deps incluyen un trigger del listener
+    // (forceTick) — el effect re-corre cuando los datos llegan, pero el ref
+    // garantiza que solo SE EJECUTA UNA VEZ (no cambia tab si el user ya
+    // seleccionó manualmente).
+    var autoSelectedRef = React.useRef(false);
     React.useEffect(function() {
-      if (counts[activeTab] === 0) {
-        var nonEmpty = STATUSES.find(function(s) {
-          return counts[s.id] > 0 && s.id !== 'dismissed';
-        });
-        if (nonEmpty) setActiveTab(nonEmpty.id);
+      if (autoSelectedRef.current) return;
+      if (!window.__mtxIATasks) return;
+      var liveStats = window.__mtxIATasks.getStats();
+      var liveCounts = {
+        scheduled:        liveStats.scheduled,
+        pending_approval: liveStats.pending,
+        in_progress:      liveStats.active,
+        completed:        liveStats.history,  // approx — todo el history cuenta
+        failed:           liveStats.history,
+      };
+      if (liveCounts[activeTab] > 0) {
+        // El tab actual ya tiene data — marcar como auto-selected y no tocar.
+        autoSelectedRef.current = true;
+        return;
       }
-    }, []);  // solo mount
+      var nonEmpty = STATUSES.find(function(s) {
+        return liveCounts[s.id] > 0 && s.id !== 'dismissed';
+      });
+      if (nonEmpty) {
+        autoSelectedRef.current = true;
+        setActiveTab(nonEmpty.id);
+      }
+    });  // sin deps — corre en cada render, pero ref bloquea después del primero útil
 
     var _useToast = window.useToast || function() { return { show: function() {} }; };
     var toast = _useToast();
@@ -1328,14 +1420,18 @@
       window.addEventListener('keydown', onKey);
       return function() { window.removeEventListener('keydown', onKey); };
     }, [detail]);
+    // Audit CRIT-2: refcount global para coordinar body lock con detail sheet nested
     React.useEffect(function() {
-      var prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return function() { document.body.style.overflow = prev; };
+      window.__mtxBodyLock.lock();
+      return function() { window.__mtxBodyLock.unlock(); };
     }, []);
 
-    // Tick para active tasks
-    var activeKey = allActive.map(function(a) { return a.id; }).join('|');
+    // Tick para active tasks.
+    // Audit CRIT-4 fix: usar JSON.stringify para evitar colisión si task.id
+    // contiene '|' (ej. ids derivados de workflow paths con pipes). Antes
+    // dos sets de tasks con ids tipo ['a','b|c'] y ['a|b','c'] generaban el
+    // mismo key — el interval no se re-creaba cuando debería.
+    var activeKey = JSON.stringify(allActive.map(function(a) { return a.id; }));
     React.useEffect(function() {
       if (allActive.length === 0) return;
       var iv = setInterval(function() { window.__mtxIATasks.tickActive(); }, 900);
@@ -1556,7 +1652,20 @@
             WebkitOverflowScrolling: 'touch',
           }}>
             {visibleTasks.length === 0
-              ? (<_EmptyState icon={activeInfo.icon} title={'Sin ' + activeInfo.label.toLowerCase()} desc={activeInfo.emptyDesc}/>)
+              // Audit GAP-5 fix: empty desc reactiva al sub-filter en Completadas
+              // (ej. "Sin descartadas" debe explicar Descartadas, no Exitosas).
+              ? (<_EmptyState
+                  icon={activeInfo.icon}
+                  title={
+                    activeTab === 'completed' && completedFilter === 'success'   ? 'Sin completadas exitosas' :
+                    activeTab === 'completed' && completedFilter === 'dismissed' ? 'Sin descartadas' :
+                    'Sin ' + activeInfo.label.toLowerCase()
+                  }
+                  desc={
+                    activeTab === 'completed' && completedFilter === 'success'   ? 'Las ejecuciones exitosas aparecerán acá.' :
+                    activeTab === 'completed' && completedFilter === 'dismissed' ? 'Las tareas que rechazaste o el coach descartó aparecerán acá.' :
+                    activeInfo.emptyDesc
+                  }/>)
               : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {visibleTasks.map(function(item) {
@@ -1581,9 +1690,14 @@
           </div>
         </div>
 
-        {/* Detail sheet sobre el principal */}
+        {/* Detail sheet sobre el principal.
+            Audit GAP-6 fix: key={task.id} fuerza remount cuando se abre OTRO
+            detail. Garantiza que el state interno (tab activo, expanded
+            entregables) se resetea limpio para la nueva task. Defensa contra
+            React reuso de instance si los detalles se abren rápido. */}
         {detail && (
           <TaskDetailSheet
+            key={detail.task.id}
             task={detail.task}
             status={detail.status}
             onClose={function() { setDetail(null); }}
