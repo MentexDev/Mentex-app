@@ -159,37 +159,66 @@ function CoachVoiceCallOverlay() {
   var rafRef = React.useRef(null);
   var endedFlagRef = React.useRef(false);
 
-  // A.15.3: Real STT pipeline integration.
-  // useVoiceTranscription es el hook de voice-transcription.jsx (10-stage NLP
-  // pipeline: filler removal, stutter, voice commands, auto-capitalize, etc).
-  // Lo inyectamos aquí para que el turno del user sea voz REAL — no mock.
-  // Mientras el coach habla, pauseListening (evita feedback loop). Cuando
-  // termina el coach, resumeListening y cada onFinalResult se vuelve un turno
-  // del user en el transcript.
+  // A.15.3 + A.15.7 audit fixes: Real STT pipeline integration.
   //
-  // Reglas de hooks: el hook debe llamarse incondicionalmente y siempre en el
-  // mismo orden. Como voice-transcription.jsx carga antes que este archivo en
-  // Mentex Home.html, `useVoiceTranscription` siempre está disponible.
-  // Si el SpeechRecognition no es soportado (iframe sandbox, browser viejo),
-  // el hook retorna status='unsupported' y los handlers son no-op — graceful.
-  // A.15 audit CRIT-G fix: useVoiceTranscription.onFinalResult devuelve el
-  // texto ACUMULADO completo cada vez (no el delta). Si concateno cada
-  // resultado al transcript array, el user ve duplicados crecientes:
-  //   Turn 1: "hola"
-  //   Turn 2: "hola cómo estás"
-  //   Turn 3: "hola cómo estás bien"
-  // Fix: si la última entrada del transcript es del user dentro de GAP_MS,
-  // la REEMPLAZO con el texto cumulative. Sino, agrego nueva entrada (nuevo
-  // turno cuando el user retomó la palabra tras gap natural >8s).
-  //
-  // CRIT-B fix: si useVoiceTranscription no está disponible al primer paint
-  // (cache miss, script tardío), uso un noop-hook que respeta la firma y NO
-  // viola Rules of Hooks (siempre se llama un hook en el mismo orden, sin
-  // condicionales). Si el global aparece después, el segundo render lo usará.
+  // ┌─ CRIT-B (A.15 audit): useVoiceTranscription puede no estar disponible
+  // │  en primer paint. Stub _noopHook respeta la firma y Rules of Hooks
+  // │  (siempre se llama un hook en el mismo orden, sin condicionales).
+  // │
+  // ┌─ CRIT-G (A.15 audit): onFinalResult devuelve texto ACUMULADO completo
+  // │  cada vez (no delta). Sin dedup, el transcript tendría:
+  // │    Turn 1: "hola"
+  // │    Turn 2: "hola cómo estás"
+  // │    Turn 3: "hola cómo estás bien"
+  // │  Fix: reemplazo última entrada user si está dentro de GAP_MS de la
+  // │  anterior; sino agrego nueva (= retomó palabra tras gap >8s).
+  // │
+  // ┌─ CRIT-H (A.15.7 audit): el hook internamente tiene useCallback con
+  // │  deps [onFinalResult, onError]. Si pasamos closures NUEVOS en cada
+  // │  render del overlay, esos deps cambian → buildRecognition rebuilds
+  // │  → useEffect dependent re-runs → SpeechRecognition se reinstancia
+  // │  60+ veces por segundo (cada setAmp del waveform RAF dispara
+  // │  re-render). Fix: callbacks vivos en useRef que se actualizan en
+  // │  cada render PERO mantienen la misma referencia. Los handlers que
+  // │  se pasan al hook son funciones estables que delegan al ref actual.
+  // └────────────────────────────────────────────────────────────────────
   var lastUserTurnAtRef = React.useRef(0);
+
+  // Refs vivos para onFinalResult/onError — NO se re-renderean
+  var onFinalResultRef = React.useRef(null);
+  var onErrorRef = React.useRef(null);
+  onFinalResultRef.current = function(finalText) {
+    if (!finalText || !finalText.trim()) return;
+    if (endedFlagRef.current) return;
+    var now = Date.now();
+    var GAP_MS = 8000;
+    setTranscript(function(prev) {
+      var last = prev[prev.length - 1];
+      var withinGap = (now - lastUserTurnAtRef.current) < GAP_MS;
+      if (last && last.speaker === 'user' && withinGap) {
+        var copy = prev.slice(0, prev.length - 1);
+        copy.push({ speaker: 'user', text: finalText.trim(), ts: now });
+        lastUserTurnAtRef.current = now;
+        return copy;
+      }
+      lastUserTurnAtRef.current = now;
+      return prev.concat([{ speaker: 'user', text: finalText.trim(), ts: now }]);
+    });
+  };
+  onErrorRef.current = function(msg) {
+    console.warn('[voice-call STT]', msg);
+  };
+
+  // Handlers STABLES (memoizados) que delegan al ref vivo. El hook NO ve
+  // referencias nuevas en cada render → buildRecognition no rebuilds en loop.
+  var stableOnFinalResult = React.useCallback(function(t) {
+    if (onFinalResultRef.current) onFinalResultRef.current(t);
+  }, []);
+  var stableOnError = React.useCallback(function(m) {
+    if (onErrorRef.current) onErrorRef.current(m);
+  }, []);
+
   function _noopHook() {
-    // Hook stub válido: usa los mismos hooks internos React (ninguno) y
-    // retorna API compatible. Cumple Rules of Hooks por mantener el orden.
     return { startListening:function(){}, stopListening:function(){}, pauseListening:function(){}, resumeListening:function(){}, reset:function(){}, status:'unsupported', isSupported:false };
   }
   var _useVoiceHook = (typeof window !== 'undefined' && typeof window.useVoiceTranscription === 'function')
@@ -197,29 +226,8 @@ function CoachVoiceCallOverlay() {
     : _noopHook;
   var voice = _useVoiceHook({
     lang: 'es-ES',
-    onFinalResult: function(finalText) {
-      if (!finalText || !finalText.trim()) return;
-      if (endedFlagRef.current) return;
-      var now = Date.now();
-      var GAP_MS = 8000;
-      setTranscript(function(prev) {
-        var last = prev[prev.length - 1];
-        var withinGap = (now - lastUserTurnAtRef.current) < GAP_MS;
-        if (last && last.speaker === 'user' && withinGap) {
-          // Reemplaza el último turno del user con texto acumulado actualizado
-          var copy = prev.slice(0, prev.length - 1);
-          copy.push({ speaker: 'user', text: finalText.trim(), ts: now });
-          lastUserTurnAtRef.current = now;
-          return copy;
-        }
-        // Nuevo turno del user (gap >8s o último era del coach)
-        lastUserTurnAtRef.current = now;
-        return prev.concat([{ speaker: 'user', text: finalText.trim(), ts: now }]);
-      });
-    },
-    onError: function(msg) {
-      console.warn('[voice-call STT]', msg);
-    },
+    onFinalResult: stableOnFinalResult,
+    onError: stableOnError,
   });
 
   // ── Listener para open/close events ────────────────────────────────────
@@ -317,22 +325,24 @@ function CoachVoiceCallOverlay() {
     };
   }, [open, phase, prompt]);
 
-  // A.15.3: START/STOP del STT real según phase del overlay.
-  // - phase='active' → startListening (capturar voz del user)
-  // - phase!='active' || !open → stopListening (libera mic + recursos)
-  // - muted → pauseListening (resume cuando unmute)
+  // A.15.3 + audit CRIT-F/G: START/STOP del STT según phase del overlay.
+  //
+  // CRIT-F fix: el path "no-active" llamaba stopListening, y el cleanup
+  // function del path "active" también lo llamaba. Doble stop en algunos
+  // ciclos. Ahora solo el cleanup llama stop (idempotente garantizado).
+  //
+  // CRIT-G fix: el setTimeout(800ms) podía ejecutar startListening DESPUÉS
+  // de que el component se desmonte (user hace hangup en <800ms). Guard:
+  // verifico endedFlagRef.current dentro del callback.
   React.useEffect(function() {
-    if (!open || phase !== 'active') {
-      try { voice.stopListening && voice.stopListening(); } catch (_) {}
-      return;
-    }
-    // Small delay para que el overlay termine animación de entrada antes
-    // de pedir permiso de mic (UX más calmada).
-    var t = setTimeout(function() {
+    if (!open || phase !== 'active') return;
+    var startTimerId = setTimeout(function() {
+      // Guard: si user colgó/cerró durante el delay, no arrancar
+      if (endedFlagRef.current) return;
       try { voice.startListening && voice.startListening(); } catch (_) {}
     }, 800);
     return function() {
-      clearTimeout(t);
+      clearTimeout(startTimerId);
       try { voice.stopListening && voice.stopListening(); } catch (_) {}
     };
   }, [open, phase]);

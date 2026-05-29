@@ -1669,6 +1669,8 @@ function IAInputBar(props) {
   var disabled = props.disabled;
   var textareaRef = props.textareaRef;
   var canSend = !disabled && value.trim().length > 0;
+  // A.15.7 IMP-2: toast local para feedback si __mtxSkillsMenu falta
+  var toast = (typeof window !== 'undefined' && window.useToast) ? window.useToast() : { show: function() {} };
 
   // Auto-resize: efecto en cada cambio de value
   React.useEffect(function() {
@@ -1847,7 +1849,12 @@ function IAInputBar(props) {
               (rgba(255,255,255,0.06) + var(--ink-2)) para coherencia visual. */}
           <button
             onClick={function() {
-              if (window.__mtxSkillsMenu) window.__mtxSkillsMenu.open();
+              // A.15.7 IMP-2 fix: feedback explícito si el store no cargó
+              if (window.__mtxSkillsMenu) {
+                window.__mtxSkillsMenu.open();
+              } else {
+                toast.show({ message: 'Habilidades no disponibles · recarga la app', duration: 2400 });
+              }
             }}
             aria-label="Activar una habilidad del coach"
             className="mtx-tap"
@@ -3488,6 +3495,11 @@ function IAScreen(props) {
   var optionsOpen = optionsSheetState[0];
   var setOptionsOpen = optionsSheetState[1];
 
+  // A.15.7 audit CRIT-C — Rename sheet (reemplaza window.prompt nativo)
+  var renameSheetState = React.useState(false);
+  var renameOpen = renameSheetState[0];
+  var setRenameOpen = renameSheetState[1];
+
   // C10 — Export sheet state. Se abre via evento `mtx:coach-export-open`
   // dispatcheado por __mtxCoachExport.open(conv) — el share sheet lo dispara
   // cuando user tapea "Exportar como…". También se puede abrir desde devtools
@@ -3616,6 +3628,19 @@ function IAScreen(props) {
         />
       )}
 
+      {/* A.15.7 audit CRIT-C — Rename sheet (reemplaza window.prompt) */}
+      {renameOpen && current && (
+        <RenameSheet
+          currentTitle={current.title || ''}
+          onClose={function() { setRenameOpen(false); }}
+          onSave={function(newTitle) {
+            if (window.__mtxIAChat && window.__mtxIAChat.rename) {
+              window.__mtxIAChat.rename(current.id, newTitle);
+            }
+          }}
+        />
+      )}
+
       {/* A.15.1 — Chat options sheet (menú ··· del header) */}
       {optionsOpen && current && (
         <ChatOptionsSheet
@@ -3625,11 +3650,10 @@ function IAScreen(props) {
           onTasks={function() { setOptionsOpen(false); setTasksOpen(true); }}
           onShare={function() { setOptionsOpen(false); setShareOpen(true); }}
           onRename={function() {
+            // A.15.7 CRIT-C fix: setOptionsOpen(false) primero, luego abrir
+            // RenameSheet en next tick para evitar overlap visual de 2 sheets.
             setOptionsOpen(false);
-            var newTitle = window.prompt('Renombrar conversación', current.title || '');
-            if (newTitle && newTitle.trim()) {
-              window.__mtxIAChat.rename(current.id, newTitle.trim());
-            }
+            setTimeout(function() { setRenameOpen(true); }, 60);
           }}
           onDelete={function() {
             var convToDelete = current;
@@ -3797,19 +3821,26 @@ function IAChatHeader(props) {
 }
 
 
-// ── ChatOptionsSheet — Sprint A.15.5 visual refactor ─────────────────────
+// ── ChatOptionsSheet — Sprint A.15.5+ visual refactor + A.15.7 audit hardening ──
 // Menú "···" del header de chat. Clona el lenguaje visual exacto del
 // CoachAttachMenu (coach-attach-menu.jsx) para mantener consistencia entre
 // los dos sheets secundarios del chat (attach + options).
 //
-// Diferencias vs versión A.15.1:
-//   • Bg sheet: #0a1410 plano (era gradient verde-oscuro)
-//   • Border-radius: 18px (era 28px)
-//   • Backdrop: rgba(10,20,16,0.40) + blur 4px (era 0.6 + blur 10)
-//   • Header: eyebrow centrado + título de conv como subtítulo (sin icon-tile)
+// Estilo final (A.15.6+):
+//   • Bg sheet: #0a1410 plano
+//   • Border-radius: 18px top
+//   • Backdrop: rgba(10,20,16,0.40) + blur 4px
+//   • Header: eyebrow centrado "MÁS OPCIONES" (sin subtítulo, sin icon-tile)
 //   • Items: 34×34 icon-tile, 13/600 label, 10.5 desc, gap 11, hover bg
 //   • Stagger animation per item (i * 25ms)
-//   • Sin botón Cancelar explícito (tap backdrop para cerrar — patrón attach)
+//   • Sin botón Cancelar explícito (tap backdrop o ESC para cerrar)
+//
+// Audit A.15.7 hardenings:
+//   • CRIT-A: backdrop click defiende contra swipe-down touch (pointerdown
+//     tracking — solo cierra si el press inició en el backdrop)
+//   • IMP-2: safeClose() guard contra onClose undefined
+//   • IMP-4: ESC handler hace stopPropagation para evitar handlers en cascade
+//   • IMP-3: chev usa IcChevR del set Mentex (no hardcoded svg)
 function ChatOptionsSheet(props) {
   var conversation = props.conversation;
   var onClose = props.onClose;
@@ -3824,6 +3855,9 @@ function ChatOptionsSheet(props) {
         var t = e.target;
         var tag = (t && t.tagName) || '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+        // IMP-4: stopPropagation para evitar que otro ESC handler (chat,
+        // overlays sibling) procese el mismo evento después.
+        e.stopPropagation();
         safeClose();
       }
     }
@@ -3837,6 +3871,20 @@ function ChatOptionsSheet(props) {
   }, []);
 
   if (!conversation) return null;
+
+  // CRIT-A fix: swipe-down desde el sheet con touch puede disparar onClick
+  // del backdrop cuando touchend cae fuera del sheet body. Tracking explícito
+  // de "el press inició en backdrop" evita cerrar incorrectamente.
+  var pressStartedOnBackdropRef = React.useRef(false);
+  function handleBackdropPointerDown(e) {
+    pressStartedOnBackdropRef.current = (e.target === e.currentTarget);
+  }
+  function handleBackdropClick(e) {
+    if (e.target === e.currentTarget && pressStartedOnBackdropRef.current) {
+      safeClose();
+    }
+    pressStartedOnBackdropRef.current = false;
+  }
 
   // Opciones del menú. Shape compatible con el patrón attach (icon = JSX
   // element, no Ic component).
@@ -3857,8 +3905,10 @@ function ChatOptionsSheet(props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Opciones de la conversación"
-      onClick={function(e) { if (e.target === e.currentTarget) safeClose(); }}
+      aria-label="Más opciones"
+      onMouseDown={handleBackdropPointerDown}
+      onTouchStart={handleBackdropPointerDown}
+      onClick={handleBackdropClick}
       style={{
         position: 'absolute', inset: 0, zIndex: 160,
         background: 'rgba(10,20,16,0.40)',
@@ -3954,15 +4004,179 @@ function ChatOptionsSheet(props) {
                     letterSpacing: '-0.005em',
                   }}>{opt.desc}</div>
                 </div>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="rgba(255,255,255,0.28)" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round"
-                  style={{ flexShrink: 0 }} aria-hidden="true">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <IcChevR size={12} stroke="rgba(255,255,255,0.28)" strokeWidth={2} style={{ flexShrink: 0 }}/>
               </button>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── RenameSheet — A.15.7 audit CRIT-C fix ────────────────────────────────
+// Reemplazo de window.prompt() (que en iOS PWA queda fuera del device frame
+// y rompe UX). Bottom sheet con misma estética que CoachAttachMenu, input
+// neon focus, botones Cancelar/Guardar.
+//
+// Props:
+//   currentTitle: string (valor inicial del input, auto-seleccionado)
+//   onSave(newTitle: string): called con trim si el user confirma
+//   onClose(): cerrar sin guardar
+function RenameSheet(props) {
+  var onClose = props.onClose;
+  var onSave = props.onSave;
+  var initialTitle = props.currentTitle || '';
+  var inputRef = React.useRef(null);
+  var [value, setValue] = React.useState(initialTitle);
+  var pressStartedOnBackdropRef = React.useRef(false);
+
+  // A.15.7 smoke-test CRIT fix (BLIND SPOT #9): el useEffect con deps []
+  // captura el closure inicial de `value`. Si el user escribe y luego pulsa
+  // Enter, safeSave() veía el value vacío del primer render. Fix: ref vivo
+  // que se actualiza en cada render, y safeSave lee del ref.
+  var valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  function safeClose() { if (typeof onClose === 'function') onClose(); }
+  function safeSave() {
+    var trimmed = (valueRef.current || '').trim();
+    if (!trimmed) return;
+    if (typeof onSave === 'function') onSave(trimmed);
+    safeClose();
+  }
+
+  React.useEffect(function() {
+    function onKey(e) {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Escape') { e.stopPropagation(); safeClose(); }
+      if (e.key === 'Enter' && document.activeElement === inputRef.current) {
+        e.preventDefault(); safeSave();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    var prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    // Autofocus + select all (para edit rápido del título)
+    var t = setTimeout(function() {
+      if (inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
+    }, 240);
+    return function() {
+      clearTimeout(t);
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  function handleBackdropPointerDown(e) {
+    pressStartedOnBackdropRef.current = (e.target === e.currentTarget);
+  }
+  function handleBackdropClick(e) {
+    if (e.target === e.currentTarget && pressStartedOnBackdropRef.current) safeClose();
+    pressStartedOnBackdropRef.current = false;
+  }
+
+  var canSave = !!(value || '').trim() && value.trim() !== initialTitle.trim();
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Renombrar conversación"
+      onMouseDown={handleBackdropPointerDown}
+      onTouchStart={handleBackdropPointerDown}
+      onClick={handleBackdropClick}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 170,
+        background: 'rgba(10,20,16,0.40)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        animation: 'mtx-fade-up .2s ease both',
+      }}>
+      <div style={{
+        width: '100%',
+        background: '#0a1410',
+        borderRadius: '18px 18px 0 0',
+        borderTop: '0.5px solid rgba(255,255,255,0.10)',
+        boxShadow: '0 -16px 48px -16px rgba(0,0,0,0.55)',
+        animation: 'mtx-fade-up .28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        paddingBottom: 34,
+      }}>
+        <div style={{ padding: '10px 0 4px', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }}/>
+        </div>
+
+        <div style={{ padding: '6px 20px 14px', textAlign: 'center' }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700,
+            color: 'rgba(255,255,255,0.42)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+          }}>Renombrar conversación</div>
+        </div>
+
+        <div style={{ padding: '0 16px 14px' }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={function(e) { setValue(e.target.value); }}
+            maxLength={120}
+            placeholder="Título de la conversación"
+            aria-label="Nuevo título"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '13px 14px', borderRadius: 12,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(61,255,209,0.30)',
+              color: 'var(--ink-1)',
+              fontSize: 14, fontWeight: 500,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              outline: 'none',
+              transition: 'border-color .15s',
+            }}/>
+        </div>
+
+        <div style={{ padding: '0 16px', display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={safeClose}
+            className="mtx-tap"
+            style={{
+              appearance: 'none', cursor: 'pointer',
+              flex: 1,
+              padding: '11px 16px', borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.10)',
+              color: 'var(--ink-2)',
+              fontSize: 13, fontWeight: 600,
+              fontFamily: 'var(--ff-sans)',
+            }}>Cancelar</button>
+          <button
+            type="button"
+            onClick={safeSave}
+            disabled={!canSave}
+            className="mtx-tap"
+            style={{
+              appearance: 'none',
+              cursor: canSave ? 'pointer' : 'not-allowed',
+              flex: 1.4,
+              padding: '11px 16px', borderRadius: 999,
+              background: canSave
+                ? 'linear-gradient(135deg, #3dffd1, #1ad9ad)'
+                : 'rgba(255,255,255,0.06)',
+              border: 0,
+              color: canSave ? '#0a1410' : 'var(--ink-4)',
+              fontSize: 13, fontWeight: 700,
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              opacity: canSave ? 1 : 0.5,
+              transition: 'opacity .15s',
+            }}>Guardar cambios</button>
         </div>
       </div>
     </div>
