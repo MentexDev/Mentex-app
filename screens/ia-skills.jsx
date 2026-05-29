@@ -378,6 +378,24 @@
       return skill;
     },
 
+    // A.13.2: Update mine skill — sobreescribe campos del skill creado.
+    // Usado por bridge de proposals para pegar title + triggers reales
+    // del user después de createMineSkill (que solo recibe rawText).
+    // Inmutable: reemplaza el objeto skill en el array.
+    updateMineSkill: function(idOrSkill, patch) {
+      if (!patch) return null;
+      var targetId = idOrSkill && idOrSkill.id ? idOrSkill.id : idOrSkill;
+      if (!targetId) return null;
+      var found = null;
+      _state.mineSkills = _state.mineSkills.map(function(s) {
+        if (s.id !== targetId) return s;
+        found = Object.assign({}, s, patch);
+        return found;
+      });
+      if (found) _emit();
+      return found;
+    },
+
     // Borrar skill mía (oficiales NO se borran, solo toggle). Inmutable.
     deleteMineSkill: function(id) {
       _state.mineSkills = _state.mineSkills.filter(function(s) { return s.id !== id; });

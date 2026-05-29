@@ -2408,6 +2408,18 @@ function _processMemoryDetection(content, msgId, conversationId, toastFn) {
 
   var convId = conversationId || (window.__mtxIAChat && window.__mtxIAChat.getCurrentId()) || null;
 
+  // A.13.2 fix: si el contenido tiene URL o es paste-de-conocimiento, skipear
+  // memory user-asked. El detection layer de Knowledge ya capturará la
+  // propuesta correcta. Evita doble-propuesta confusa (memory + knowledge
+  // de la misma frase "guarda este artículo X").
+  var hasUrl = /https?:\/\/\S+/i.test(content);
+  var isLongPaste = content.trim().length >= 400 && content.indexOf('?') === -1;
+  if (hasUrl || isLongPaste) {
+    // Coach-proposals-detection.jsx maneja este caso. Skip memory user-asked.
+    // Auto-detection regex de memoria SIGUE corriendo (puede capturar facts
+    // del mismo mensaje), pero el user-asked verbose no.
+  } else {
+
   // 1. User-asked save (mayor prioridad — pedido explícito del user)
   var userAsked = _detectUserAskedSave(content);
   if (userAsked) {
@@ -2429,6 +2441,7 @@ function _processMemoryDetection(content, msgId, conversationId, toastFn) {
     }));
     return;  // El user-asked es explícito → no doble-procesamos auto-detection
   }
+  }  // cierre del else hasUrl/isLongPaste
 
   // 2. Auto-detection (respeta autoLearnEnabled del config)
   var memSettings = window.__mtxIAConfig.getMemorySettings();

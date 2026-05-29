@@ -987,22 +987,41 @@
           source: sourceLabel,
         });
       } else if (detail.type === 'knowledge' && window.__mtxIAKnowledge) {
-        // Conocimiento: ingest como kind 'text' por default desde propuesta inline.
-        // Imports desde PDF/URL/audio usan otros flows (IngestSourceModal).
-        window.__mtxIAKnowledge.ingestSource({
-          kind: 'text',
+        // A.13.2: Knowledge desde propuesta inline.
+        // Detector decide kind ('url' o 'text') y domain. Si el user editó,
+        // edits.domain pisa el del draft. URL preservada en el field 'url'
+        // para que SourceCard la muestre y sea clickeable.
+        var kKind = data.kind || 'text';
+        var ingestOpts = {
+          kind: kKind,
           title: data.name,
-          rawText: data.content,
           dominio: data.domain || 'productividad',
-        });
+        };
+        if (kKind === 'url') {
+          ingestOpts.url = data.url || data.content;
+          ingestOpts.preview = data.content;
+        } else {
+          ingestOpts.rawText = data.content;
+        }
+        window.__mtxIAKnowledge.ingestSource(ingestOpts);
       } else if (detail.type === 'skill' && window.__mtxIASkills) {
-        // Skill desde propuesta inline: pasamos el contenido como "rawText"
-        // para que createMineSkill lo estructure. Title se sobreescribe con
-        // el name del form.
-        var skillId = window.__mtxIASkills.createMineSkill(data.content, 'text');
-        // Best-effort: si el store expone updateMineSkill o similar para
-        // sobreescribir title con el name elegido por el user, no fallar.
-        // (Si no expone, el title queda como las primeras palabras del content.)
+        // A.13.2: Skill desde propuesta inline.
+        // El name + triggers reales vienen del form. _mockStructureSkill
+        // genera title/steps auto, pero acá ya tenemos data del user.
+        // Usamos createMineSkill (mantiene el flow) + best-effort de sobreescribir.
+        // createMineSkill returns the full skill object (not just id).
+        var createdSkill = window.__mtxIASkills.createMineSkill(data.content, 'text');
+        // Sobreescribir title + triggers reales del user post-creation.
+        try {
+          if (createdSkill && window.__mtxIASkills.updateMineSkill) {
+            window.__mtxIASkills.updateMineSkill(createdSkill.id, {
+              title: data.name,
+              triggers: data.triggers && data.triggers.length > 0
+                ? data.triggers
+                : (data.whenToUse ? data.whenToUse.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : []),
+            });
+          }
+        } catch (e) { /* no-op — best-effort */ }
       }
       _safeToast('✓ Guardado' + (detail.wasEdited ? ' (editado)' : ''), 'success');
     } catch (err) {

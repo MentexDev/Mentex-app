@@ -141,6 +141,8 @@
         // type-specific opcionales (preservar lo que llegue)
         category: opts.draft.category,        // memory
         domain: opts.draft.domain,            // knowledge
+        kind: opts.draft.kind,                // knowledge: 'url' | 'text'
+        url: opts.draft.url,                  // knowledge: si kind='url'
         triggers: opts.draft.triggers,        // skill
         tags: opts.draft.tags,
       },
@@ -569,6 +571,16 @@
     var advancedState = React.useState(false);
     var advancedOpen = advancedState[0]; var setAdvancedOpen = advancedState[1];
 
+    // A.13.2 — fields type-specific:
+    //   knowledge: dominio (dropdown 5 opciones)
+    //   skill: triggers (chips editables, max 5)
+    var domainState = React.useState(prop ? (prop.draft.domain || 'productividad') : 'productividad');
+    var domain = domainState[0]; var setDomain = domainState[1];
+    var triggersState = React.useState(prop ? (prop.draft.triggers || []).slice() : []);
+    var triggers = triggersState[0]; var setTriggers = triggersState[1];
+    var triggerInputState = React.useState('');
+    var triggerInput = triggerInputState[0]; var setTriggerInput = triggerInputState[1];
+
     // ESC para cerrar (con guard isTypingInEditable)
     var onCloseRef = React.useRef(onClose);
     React.useEffect(function() { onCloseRef.current = onClose; });
@@ -612,8 +624,35 @@
         content: content.trim(),
       };
       if (!edits.name || !edits.content) return;  // validación mínima
+      // Type-specific fields (A.13.2)
+      if (prop.type === 'knowledge') {
+        edits.domain = domain;
+      } else if (prop.type === 'skill') {
+        edits.triggers = triggers.slice();
+        // El whenToUse de skill se sincroniza con los triggers join(', ')
+        // para que el _saveMemory legacy reciba algo coherente.
+        if (triggers.length > 0 && !edits.whenToUse) {
+          edits.whenToUse = triggers.join(', ');
+        }
+      }
       accept(proposalId, edits);
       if (onSaved) onSaved();
+    }
+
+    function handleAddTrigger() {
+      var t = triggerInput.trim();
+      if (!t || triggers.length >= 5) return;
+      if (triggers.indexOf(t) >= 0) {
+        setTriggerInput('');
+        return;
+      }
+      setTriggers(triggers.concat([t]));
+      setTriggerInput('');
+    }
+    function handleRemoveTrigger(idx) {
+      var next = triggers.slice();
+      next.splice(idx, 1);
+      setTriggers(next);
     }
 
     function handleRevert() {
@@ -807,6 +846,147 @@
                   minHeight: 100,
                 }}/>
             </div>
+
+            {/* A.13.2 — KNOWLEDGE specific: Dominio dropdown */}
+            {prop.type === 'knowledge' && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: 11, fontWeight: 700,
+                  color: 'var(--ink-3)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  marginBottom: 6,
+                }}>Dominio</label>
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap', gap: 6,
+                }}>
+                  {[
+                    { v: 'productividad', label: 'Productividad', a: '#3dffd1' },
+                    { v: 'bienestar',     label: 'Bienestar',     a: '#9b8aff' },
+                    { v: 'aprendizaje',   label: 'Aprendizaje',   a: '#5dd3ff' },
+                    { v: 'creatividad',   label: 'Creatividad',   a: '#ffc850' },
+                    { v: 'relaciones',    label: 'Relaciones',    a: '#ff8e8e' },
+                  ].map(function(d) {
+                    var isOn = domain === d.v;
+                    return (
+                      <button key={d.v} type="button"
+                        onClick={function() { setDomain(d.v); }}
+                        aria-pressed={isOn}
+                        className="mtx-tap"
+                        style={{
+                          appearance: 'none', cursor: 'pointer',
+                          padding: '6px 12px', borderRadius: 999,
+                          background: isOn ? d.a + '18' : 'rgba(255,255,255,0.03)',
+                          border: '0.5px solid ' + (isOn ? d.a + '60' : 'rgba(255,255,255,0.08)'),
+                          color: isOn ? d.a : 'var(--ink-3)',
+                          fontSize: 11.5, fontWeight: 700,
+                          fontFamily: 'var(--ff-sans)',
+                          letterSpacing: '-0.005em',
+                        }}>{d.label}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* A.13.2 — SKILL specific: Triggers chips editables */}
+            {prop.type === 'skill' && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: 11, fontWeight: 700,
+                  color: 'var(--ink-3)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  marginBottom: 6,
+                }}>Triggers · cuando activar este skill</label>
+                {triggers.length > 0 && (
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 6,
+                    marginBottom: 8,
+                  }}>
+                    {triggers.map(function(t, i) {
+                      return (
+                        <span key={i} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 4px 6px 12px', borderRadius: 999,
+                          background: accent + '15',
+                          border: '0.5px solid ' + accent + '40',
+                          color: 'var(--ink-1)',
+                          fontSize: 12, fontWeight: 600,
+                          fontFamily: 'var(--ff-sans)',
+                        }}>
+                          <span>{t}</span>
+                          <button type="button"
+                            onClick={function() { handleRemoveTrigger(i); }}
+                            aria-label={'Eliminar trigger ' + t}
+                            className="mtx-tap"
+                            style={{
+                              appearance: 'none', cursor: 'pointer',
+                              width: 18, height: 18, borderRadius: 999,
+                              background: 'rgba(255,255,255,0.06)',
+                              border: 0,
+                              color: 'var(--ink-2)',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 10,
+                              fontFamily: 'var(--ff-sans)',
+                            }}>×</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="text"
+                    value={triggerInput}
+                    onChange={function(e) { setTriggerInput(e.target.value); }}
+                    onKeyDown={function(e) {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTrigger();
+                      }
+                    }}
+                    maxLength={40}
+                    placeholder={triggers.length >= 5 ? 'Máx 5 triggers' : 'planear semana, escribir, decidir…'}
+                    disabled={triggers.length >= 5}
+                    aria-label="Nuevo trigger"
+                    style={{
+                      flex: 1,
+                      appearance: 'none', boxSizing: 'border-box',
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '0.5px solid rgba(255,255,255,0.10)',
+                      color: 'var(--ink-1)',
+                      fontSize: 13,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      outline: 'none',
+                      opacity: triggers.length >= 5 ? 0.5 : 1,
+                    }}/>
+                  <button type="button"
+                    onClick={handleAddTrigger}
+                    disabled={!triggerInput.trim() || triggers.length >= 5}
+                    aria-label="Agregar trigger"
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none',
+                      cursor: triggerInput.trim() && triggers.length < 5 ? 'pointer' : 'not-allowed',
+                      padding: '10px 14px', borderRadius: 10,
+                      background: triggerInput.trim() && triggers.length < 5
+                        ? accent + '20' : 'rgba(255,255,255,0.04)',
+                      border: '0.5px solid ' + (triggerInput.trim() && triggers.length < 5
+                        ? accent + '50' : 'rgba(255,255,255,0.08)'),
+                      color: triggerInput.trim() && triggers.length < 5 ? accent : 'var(--ink-4)',
+                      fontSize: 12, fontWeight: 700,
+                      fontFamily: 'var(--ff-sans)',
+                      flexShrink: 0,
+                      opacity: triggerInput.trim() && triggers.length < 5 ? 1 : 0.55,
+                    }}>+ Añadir</button>
+                </div>
+              </div>
+            )}
 
             {/* Avanzado colapsable (preserva los campos type-specific) */}
             <button onClick={function() { setAdvancedOpen(!advancedOpen); }}
