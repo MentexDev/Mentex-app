@@ -1510,7 +1510,7 @@
     var content = (
       <React.Fragment>
         {/* Sheet principal full-screen */}
-        <div role="dialog" aria-modal="true" aria-label="Actividad del coach"
+        <div role="dialog" aria-modal="true" aria-label="Tareas del agente"
           className="mtx-no-scrollbar"
           style={{
             position: 'absolute', inset: 0, zIndex: 200,
@@ -1521,14 +1521,19 @@
             animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
           }}>
 
-          {/* Header */}
+          {/* Header — A.12.2: layout tipo settings/notifications.
+              Botón ← absoluto izquierda · título centrado · descripción debajo.
+              Sin eyebrow "COACH MENTEX" (redundante con el botón de Tasks). */}
           <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 12,
-            padding: '54px 20px 16px',
+            position: 'relative',
+            padding: '54px 60px 16px',
             flexShrink: 0,
+            textAlign: 'center',
           }}>
             <button onClick={onClose} aria-label="Volver" className="mtx-tap" style={{
               appearance: 'none', cursor: 'pointer',
+              position: 'absolute',
+              left: 20, top: 54,
               width: 36, height: 36, borderRadius: '50%',
               background: 'rgba(255,255,255,0.06)',
               border: '0.5px solid rgba(255,255,255,0.10)',
@@ -1536,31 +1541,25 @@
               fontSize: 14, fontWeight: 700,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: 'var(--ff-sans)',
-              flexShrink: 0,
-              marginTop: 2,
             }}>
               <span aria-hidden="true">←</span>
             </button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="mtx-eyebrow" style={{
-                fontSize: 10, color: 'var(--ink-3)',
-                letterSpacing: '0.16em', marginBottom: 4,
-              }}>COACH MENTEX</div>
-              <div style={{
-                fontSize: 26, fontWeight: 800,
-                color: 'var(--ink-1)',
-                fontFamily: 'var(--ff-display, var(--ff-sans))',
-                letterSpacing: '-0.022em',
-                lineHeight: 1.1,
-                marginBottom: 6,
-              }}>Actividad</div>
-              <div style={{
-                fontSize: 12, color: 'var(--ink-3)',
-                fontFamily: 'var(--ff-sans)',
-                letterSpacing: '-0.005em',
-                lineHeight: 1.45,
-              }}>Lo que tu coach está haciendo, programó, o espera tu OK.</div>
-            </div>
+            <div style={{
+              fontSize: 19, fontWeight: 800,
+              color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-display, var(--ff-sans))',
+              letterSpacing: '-0.018em',
+              lineHeight: 1.2,
+              marginBottom: 4,
+            }}>Tareas del agente</div>
+            <div style={{
+              fontSize: 12, color: 'var(--ink-3)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.45,
+              maxWidth: 320,
+              margin: '0 auto',
+            }}>Lo que tu coach está haciendo, programó, o espera tu OK</div>
           </div>
 
           {/* Tabs scroll-x */}
