@@ -3797,19 +3797,24 @@ function IAChatHeader(props) {
 }
 
 
-// ── ChatOptionsSheet — Sprint A.15.1 ─────────────────────────────────────
-// Menú "···" del header de chat. Reusa el lenguaje visual de VideoOptionsSheet
-// (explore-flow.jsx) y PlaylistOptionsSheet para mantener consistencia cross-app.
-// Opciones: Nueva conversación · Tareas del agente · Compartir · Renombrar ·
-// Eliminar (destructive con undo via toast).
+// ── ChatOptionsSheet — Sprint A.15.5 visual refactor ─────────────────────
+// Menú "···" del header de chat. Clona el lenguaje visual exacto del
+// CoachAttachMenu (coach-attach-menu.jsx) para mantener consistencia entre
+// los dos sheets secundarios del chat (attach + options).
+//
+// Diferencias vs versión A.15.1:
+//   • Bg sheet: #0a1410 plano (era gradient verde-oscuro)
+//   • Border-radius: 18px (era 28px)
+//   • Backdrop: rgba(10,20,16,0.40) + blur 4px (era 0.6 + blur 10)
+//   • Header: eyebrow centrado + título de conv como subtítulo (sin icon-tile)
+//   • Items: 34×34 icon-tile, 13/600 label, 10.5 desc, gap 11, hover bg
+//   • Stagger animation per item (i * 25ms)
+//   • Sin botón Cancelar explícito (tap backdrop para cerrar — patrón attach)
 function ChatOptionsSheet(props) {
   var conversation = props.conversation;
   var onClose = props.onClose;
-  var backdropDownRef = React.useRef(false);
 
-  // Audit IMP-2 fix: defender onClose contra undefined antes de invocarlo
-  // (si el parent olvida pasar la prop). Patrón requerido para todos los
-  // handlers expuestos al keyboard/backdrop.
+  // Audit IMP-2 fix: defender onClose contra undefined antes de invocarlo.
   function safeClose() { if (typeof onClose === 'function') onClose(); }
 
   React.useEffect(function() {
@@ -3833,126 +3838,144 @@ function ChatOptionsSheet(props) {
 
   if (!conversation) return null;
 
-  // Backdrop down/up para evitar cierre cuando user drag desde el sheet.
-  function handleBackdropDown(e) {
-    backdropDownRef.current = (e.target === e.currentTarget);
-  }
-  function handleBackdropClick(e) {
-    if (backdropDownRef.current && e.target === e.currentTarget) safeClose();
-    backdropDownRef.current = false;
-  }
-
-  // Opciones del menú. accent por opción + icono coherente con set Mentex.
+  // Opciones del menú. Shape compatible con el patrón attach (icon = JSX
+  // element, no Ic component, para poder usar React.cloneElement).
+  var msgCount = (conversation.messages || []).length;
   var options = [
-    { id: 'new',    label: 'Nueva conversación', desc: 'Empieza un chat limpio',                  Ic: IcPlus,     accent: '#3dffd1', handler: props.onNewChat },
-    { id: 'tasks',  label: 'Tareas del agente',  desc: 'Ver lo que el coach está haciendo',       Ic: IcZap,      accent: '#3dffd1', handler: props.onTasks },
-    { id: 'share',  label: 'Compartir',          desc: 'Copia o exporta esta conversación',       Ic: IcShare,    accent: '#5dd3ff', handler: props.onShare },
-    { id: 'rename', label: 'Renombrar',          desc: 'Cambia el título de la conversación',     Ic: IcEdit,     accent: '#9b8aff', handler: props.onRename },
-    { id: 'delete', label: 'Eliminar conversación', desc: 'Se podrá deshacer durante 5 segundos', Ic: IcTrash,    accent: '#ff8b8b', handler: props.onDelete, destructive: true },
+    { id: 'new',    label: 'Nueva conversación',   desc: 'Empieza un chat limpio',                accent: '#3dffd1', handler: props.onNewChat,
+      icon: <IcPlus  size={18} stroke="currentColor" strokeWidth={2}/> },
+    { id: 'tasks',  label: 'Tareas del agente',    desc: 'Ve lo que el coach está haciendo',      accent: '#3dffd1', handler: props.onTasks,
+      icon: <IcZap   size={18} stroke="currentColor" strokeWidth={1.8}/> },
+    { id: 'share',  label: 'Compartir',            desc: 'Copia o exporta esta conversación',     accent: '#5dd3ff', handler: props.onShare,
+      icon: <IcShare size={17} stroke="currentColor" strokeWidth={1.7}/> },
+    { id: 'rename', label: 'Renombrar',            desc: 'Cambia el título de la conversación',   accent: '#9b8aff', handler: props.onRename,
+      icon: <IcEdit  size={17} stroke="currentColor" strokeWidth={1.7}/> },
+    { id: 'delete', label: 'Eliminar conversación', desc: 'Se podrá deshacer durante 5 segundos', accent: '#ff8b8b', handler: props.onDelete, destructive: true,
+      icon: <IcTrash size={17} stroke="currentColor" strokeWidth={1.7}/> },
   ];
 
   return (
-    <div onMouseDown={handleBackdropDown} onClick={handleBackdropClick} style={{
-      position: 'absolute', inset: 0, zIndex: 160,
-      display: 'flex', alignItems: 'flex-end',
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      animation: 'mtx-fade-up .25s ease',
-    }}>
-      <div onClick={function(e) { e.stopPropagation(); }} className="mtx-no-scrollbar"
-        role="dialog" aria-modal="true" aria-label="Opciones de la conversación"
-        style={{
-          background: 'linear-gradient(180deg, rgba(20,24,22,0.97), rgba(15,19,18,0.99))',
-          backdropFilter: 'blur(28px)',
-          WebkitBackdropFilter: 'blur(28px)',
-          border: '0.5px solid rgba(255,255,255,0.08)',
-          borderBottom: 0,
-          borderTopLeftRadius: 28, borderTopRightRadius: 28,
-          width: '100%', maxHeight: '80%', overflowY: 'auto', paddingBottom: 24,
-          animation: 'mtxSheetUp .35s cubic-bezier(.2,.9,.3,1.2) both',
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Opciones de la conversación"
+      onClick={function(e) { if (e.target === e.currentTarget) safeClose(); }}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 160,
+        background: 'rgba(10,20,16,0.40)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        animation: 'mtx-fade-up .2s ease both',
+      }}>
+      <div style={{
+        width: '100%',
+        background: '#0a1410',
+        borderRadius: '18px 18px 0 0',
+        borderTop: '0.5px solid rgba(255,255,255,0.10)',
+        boxShadow: '0 -16px 48px -16px rgba(0,0,0,0.55)',
+        animation: 'mtx-fade-up .28s cubic-bezier(0.16, 1, 0.3, 1) both',
+        paddingBottom: 34,  // home indicator zone
+      }}>
+        {/* Drag handle — mismas dimensiones que attach menu */}
+        <div style={{
+          padding: '10px 0 4px',
+          display: 'flex', justifyContent: 'center',
         }}>
-        {/* Grabber */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 6 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.18)' }}/>
-        </div>
-
-        {/* Header — título de la conversación + meta */}
-        <div style={{ padding: '10px 22px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 44, height: 44, borderRadius: 13, flexShrink: 0,
-            background: 'linear-gradient(135deg, rgba(61,255,209,0.22), rgba(61,255,209,0.06))',
-            border: '0.5px solid rgba(61,255,209,0.32)',
-            color: 'var(--neon)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'inset 0 0 14px rgba(61,255,209,0.10)',
-          }} aria-hidden="true">
-            <IcMessage size={18} stroke="currentColor" strokeWidth={1.7}/>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mtx-eyebrow" style={{ fontSize: 9, color: 'var(--neon)', letterSpacing: '0.16em', fontWeight: 700, marginBottom: 3 }}>
-              CONVERSACIÓN
-            </div>
-            <div style={{
-              fontSize: 14.5, fontWeight: 700, color: 'var(--ink-1)',
-              letterSpacing: '-0.018em', lineHeight: 1.2,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{conversation.title || 'Nueva conversación'}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
-              {(conversation.messages || []).length} {((conversation.messages || []).length === 1) ? 'mensaje' : 'mensajes'}
-            </div>
-          </div>
+            width: 36, height: 4, borderRadius: 2,
+            background: 'rgba(255,255,255,0.18)',
+          }}/>
         </div>
 
-        {/* Options list */}
-        <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {options.map(function(opt) {
+        {/* Header — eyebrow centrado (mismo pattern attach) + subtítulo con
+            título de la conv para no perder contexto. */}
+        <div style={{
+          padding: '6px 20px 12px',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700,
+            color: 'rgba(255,255,255,0.42)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--ff-sans)',
+          }}>Opciones de la conversación</div>
+          <div style={{
+            marginTop: 6,
+            fontSize: 12, fontWeight: 500,
+            color: 'var(--ink-3)',
+            letterSpacing: '-0.005em',
+            fontFamily: 'var(--ff-sans)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: '88%',
+            margin: '6px auto 0',
+            padding: '0 10px',
+          }}>{conversation.title || 'Nueva conversación'} · {msgCount} {msgCount === 1 ? 'mensaje' : 'mensajes'}</div>
+        </div>
+
+        {/* Options list — mismo layout compacto que attach menu (34/13/10.5) */}
+        <div style={{
+          padding: '0 12px 12px',
+          display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          {options.map(function(opt, i) {
             if (!opt.handler) return null;
             return (
-              <button key={opt.id} onClick={opt.handler} className="mtx-tap" style={{
-                appearance: 'none', cursor: 'pointer', textAlign: 'left',
-                padding: '12px 14px', borderRadius: 14,
-                border: opt.destructive ? '0.5px solid rgba(255,140,140,0.18)' : '0.5px solid rgba(255,255,255,0.06)',
-                background: opt.destructive ? 'rgba(255,140,140,0.04)' : 'rgba(255,255,255,0.025)',
-                display: 'flex', alignItems: 'center', gap: 12,
-                fontFamily: 'var(--ff-sans)',
-                transition: 'background .15s, border-color .15s',
-              }}>
+              <button
+                key={opt.id}
+                type="button"
+                onClick={opt.handler}
+                className="mtx-tap"
+                aria-label={opt.label + '. ' + opt.desc}
+                style={{
+                  appearance: 'none', cursor: 'pointer',
+                  width: '100%',
+                  padding: '10px 12px', borderRadius: 12,
+                  background: 'transparent',
+                  border: 0,
+                  color: opt.destructive ? '#ffb0b0' : 'var(--ink-1)',
+                  textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: 11,
+                  transition: 'background .15s',
+                  animation: 'mtx-fade-up .22s cubic-bezier(0.16, 1, 0.3, 1) both',
+                  animationDelay: (i * 0.025) + 's',
+                }}
+                onMouseEnter={function(e) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                onMouseLeave={function(e) { e.currentTarget.style.background = 'transparent'; }}>
                 <div style={{
-                  width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-                  background: 'linear-gradient(135deg, ' + opt.accent + '26, ' + opt.accent + '06)',
-                  border: '0.5px solid ' + opt.accent + '40',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34, borderRadius: 10,
+                  flexShrink: 0,
+                  background: opt.accent + '18',
+                  border: '0.5px solid ' + opt.accent + '30',
                   color: opt.accent,
-                }}>
-                  <opt.Ic size={15} stroke="currentColor" strokeWidth={1.7}/>
-                </div>
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} aria-hidden="true">{opt.icon}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 13.5, fontWeight: 600,
+                    fontSize: 13, fontWeight: 600,
                     color: opt.destructive ? '#ffb0b0' : 'var(--ink-1)',
+                    fontFamily: 'var(--ff-sans)',
                     letterSpacing: '-0.005em',
+                    marginBottom: 1,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>{opt.label}</div>
                   <div style={{
-                    fontSize: 11, color: 'var(--ink-3)', marginTop: 1,
+                    fontSize: 10.5,
+                    color: 'var(--ink-3)',
+                    fontFamily: 'var(--ff-sans)',
                     letterSpacing: '-0.005em',
                   }}>{opt.desc}</div>
                 </div>
-                <IcChevR size={14} stroke="var(--ink-3)" strokeWidth={1.6}/>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="rgba(255,255,255,0.28)" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round"
+                  style={{ flexShrink: 0 }} aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </button>
             );
           })}
-        </div>
-
-        {/* Cancel */}
-        <div style={{ padding: '14px 18px 0' }}>
-          <button onClick={safeClose} className="mtx-tap" style={{
-            width: '100%', height: 48, borderRadius: 14, cursor: 'pointer',
-            border: '0.5px solid var(--glass-stroke)',
-            background: 'var(--glass-2)', color: 'var(--ink-2)',
-            fontSize: 13, fontWeight: 600, fontFamily: 'var(--ff-sans)',
-          }}>
-            Cancelar
-          </button>
         </div>
       </div>
     </div>
