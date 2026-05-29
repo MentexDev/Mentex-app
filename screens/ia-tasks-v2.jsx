@@ -466,12 +466,13 @@
       toast.show({ message: 'Abriendo ' + (d.meta || d.label) + '…', duration: 1400 });
     };
 
-    // Tabs definition
+    // Tabs definition — Sprint A.12.1: 3 tabs (Acciones removida porque las
+    // CTAs ya viven en la card por fuera + las cápsulas son redundantes).
+    // Distribución a ancho equitativo (1fr cada una).
     var TABS = [
       { id: 'detalles',    icon: '📋', label: 'Detalles' },
       { id: 'proceso',     icon: '🧠', label: 'Proceso' },
       { id: 'entregables', icon: '📎', label: 'Entregables', count: deliverables.length },
-      { id: 'acciones',    icon: '⚙',  label: 'Acciones' },
     ];
 
     var portalRoot = (typeof document !== 'undefined')
@@ -497,7 +498,10 @@
             borderTop: '0.5px solid rgba(255,255,255,0.10)',
             borderTopLeftRadius: 28, borderTopRightRadius: 28,
             boxShadow: '0 -24px 60px rgba(0,0,0,0.6)',
-            maxHeight: '92%',
+            // A.12.1: altura FIJA en 85vh — no cambia entre tabs.
+            // Antes era maxHeight 92% (shrink-to-fit content), causaba que
+            // el modal saltara de alto al cambiar de tab. UX incómoda.
+            height: '85vh',
             display: 'flex', flexDirection: 'column',
             animation: 'mtx-fade-up .35s cubic-bezier(.4,1.4,.5,1)',
           }}>
@@ -555,9 +559,11 @@
               }}>×</button>
           </div>
 
-          {/* Tabs internas grandes con icono */}
-          <div className="mtx-scroll-x" style={{
-            display: 'flex', gap: 4,
+          {/* Tabs internas grandes con icono — A.12.1: grid 1fr equitativo.
+              3 tabs ocupan ancho completo, sin scroll horizontal. */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(' + TABS.length + ', 1fr)',
             padding: '0 14px',
             borderBottom: '0.5px solid rgba(255,255,255,0.06)',
             flexShrink: 0,
@@ -571,7 +577,7 @@
                   className="mtx-tap"
                   style={{
                     appearance: 'none', cursor: 'pointer',
-                    padding: '10px 12px',
+                    padding: '11px 8px',
                     background: 'transparent',
                     border: 0,
                     borderBottom: '2px solid ' + (isActive ? accent : 'transparent'),
@@ -579,8 +585,7 @@
                     fontSize: 12, fontWeight: isActive ? 700 : 600,
                     fontFamily: 'var(--ff-sans)',
                     letterSpacing: '-0.005em',
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    flexShrink: 0,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     transition: 'color .2s, border-color .2s',
                   }}>
                   <span aria-hidden="true">{tb.icon}</span>
@@ -607,14 +612,13 @@
             padding: '14px 18px 24px',
             WebkitOverflowScrolling: 'touch',
           }}>
-            {tab === 'detalles' && _DetailTabDetails(task, status, info)}
-            {tab === 'proceso' && _DetailTabProceso(timeline, accent)}
-            {tab === 'entregables' && _DetailTabEntregables(deliverables, accent, handleDownload, handleViewLink)}
-            {tab === 'acciones' && _DetailTabAcciones(task, status, accent, {
-              onApprove: onApprove, onDismiss: onDismiss,
-              onCancel: onCancel, onRunNow: onRunNow,
-              onRetry: onRetry, onReplay: onReplay,
-            })}
+            {/* A.12.1 fix: rendear como COMPONENTES, no como llamadas inline a
+                funciones. Esto hace que React monte/desmonte el subtree por
+                completo al cambiar tab — sus hooks internos quedan aislados
+                y no rompen Rules of Hooks del padre (blind-spot #9). */}
+            {tab === 'detalles'    && <_DetailTabDetails    task={task} status={status} info={info}/>}
+            {tab === 'proceso'     && <_DetailTabProceso    timeline={timeline} accent={accent}/>}
+            {tab === 'entregables' && <_DetailTabEntregables deliverables={deliverables} accent={accent} onDownload={handleDownload} onView={handleViewLink}/>}
           </div>
         </div>
       </div>
@@ -624,9 +628,85 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // _DetailTabDetails — metadata estructurada
+  // _briefForTask — genera narrativa del plan según workflow + estado
   // ──────────────────────────────────────────────────────────────────────────
-  function _DetailTabDetails(task, status, info) {
+  // Sprint A.12.1: el tab Detalles termina con un "Brief" que explica QUÉ va
+  // a hacer (o hizo) el coach, en lenguaje humano. Tipo PR description corto.
+  // Cuando llegue backend, esto vendrá del agente real (task.plan / task.brief).
+  function _briefForTask(task, status) {
+    var wf = task.workflowId || '';
+    var verb = (status === 'scheduled')          ? 'Va a'
+             : (status === 'pending_approval')   ? 'Propone'
+             : (status === 'in_progress')        ? 'Está'
+             : 'Hizo';
+
+    // Heurística por workflow — cubre los workflows mock del legacy.
+    // Si no matchea, fallback genérico desde task.description si existe.
+    if (wf.indexOf('daily-briefing') >= 0) {
+      return {
+        title: 'Plan del briefing',
+        body: verb + ' un resumen matinal cruzando 3 fuentes: tu calendario del día (eventos confirmados + huecos), tus 3 prioridades de la semana desde memoria, y tu energía base. Genera un texto motivacional corto + 3 acciones concretas + sugerencia de bloques para concentración profunda.',
+      };
+    }
+    if (wf.indexOf('hydration') >= 0) {
+      return {
+        title: 'Plan del recordatorio',
+        body: verb + ' una notificación push contextual cada 90 min entre las 9 y las 18h. El mensaje varía según hora del día y se silencia si detecta que estás en una sesión activa de focus.',
+      };
+    }
+    if (wf.indexOf('evening-ritual') >= 0 || wf.indexOf('wind-down') >= 0) {
+      return {
+        title: 'Plan de cierre',
+        body: verb + ' lectura del nivel de stress del día desde tu wearable, comparación con tu baseline de la semana, y selección de una meditación de sueño adaptada al nivel (4 min si stress bajo, 8 min si alto).',
+      };
+    }
+    if (wf.indexOf('instagram') >= 0) {
+      return {
+        title: 'Plan del post',
+        body: verb + ' la reflexión más resonante de tu semana desde el journal, adapta el tono a Instagram (visual + caption corta + 3 hashtags personales), genera la imagen con tu paleta de marca y agenda el post.',
+      };
+    }
+    if (wf.indexOf('session-journal') >= 0) {
+      return {
+        title: 'Plan del journal',
+        body: verb + ' lectura de tu última sesión completada y genera 3 preguntas reflexivas específicas a lo que trabajaste. La nota queda guardada en tu carpeta Journal con tag de la categoría que estuviste trabajando.',
+      };
+    }
+    if (wf.indexOf('weekly-review') >= 0) {
+      return {
+        title: 'Plan del review',
+        body: verb + ' analítica completa de tu semana: sesiones, foco real vs planeado, sentimiento del journal, progreso vs tus goals trimestrales. Crea una página en Notion con el resumen + recomendaciones para la próxima semana.',
+      };
+    }
+    // Pending de tipo post-social o calendar-block
+    if (task.type === 'post-social') {
+      return {
+        title: 'Plan del thread',
+        body: verb + ' un thread de X (Twitter) en 4 tweets basado en tu reflexión semanal más resonante. Ningún caption usa lenguaje genérico — todo viene de tu voz capturada en memoria.',
+      };
+    }
+    if (task.type === 'calendar-block') {
+      return {
+        title: 'Plan del bloque',
+        body: verb + ' crear un bloque de tiempo protegido en tu calendario en ' + (task.action && task.action.when ? task.action.when : 'un hueco que detectó libre') + '. Marca el bloque como busy + adjunta tu top-3 de prioridades.',
+      };
+    }
+    // Fallback: usar la description si existe
+    if (task.description) {
+      return {
+        title: 'Plan',
+        body: task.description,
+      };
+    }
+    return null;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // _DetailTabDetails — metadata estructurada + Brief al final
+  // A.12.1: componente React (no llamada inline) para aislar Rules of Hooks.
+  // ──────────────────────────────────────────────────────────────────────────
+  function _DetailTabDetails(props) {
+    var task = props.task; var status = props.status; var info = props.info;
     function Row(props) {
       return (
         <div style={{
@@ -682,19 +762,51 @@
       if (task.message) rows.push({ label: 'Resultado', value: task.message });
     }
 
+    var brief = _briefForTask(task, status);
+
     return (
       <div>
         {rows.map(function(r, i) {
-          return <Row key={i} label={r.label} value={r.value} last={i === rows.length - 1}/>;
+          return <Row key={i} label={r.label} value={r.value} last={i === rows.length - 1 && !brief}/>;
         })}
+
+        {/* Brief — A.12.1: narrativa del plan al final */}
+        {brief && (
+          <div style={{
+            marginTop: 18,
+            padding: '14px 14px 14px',
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(155,138,255,0.06), rgba(155,138,255,0.01))',
+            border: '0.5px solid rgba(155,138,255,0.16)',
+          }}>
+            <div className="mtx-eyebrow" style={{
+              fontSize: 9, fontWeight: 800,
+              color: '#9b8aff',
+              letterSpacing: '0.18em',
+              marginBottom: 8,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              <span aria-hidden="true">📝</span>
+              <span>BRIEF · {brief.title.toUpperCase()}</span>
+            </div>
+            <div style={{
+              fontSize: 12.5, color: 'var(--ink-1)',
+              fontFamily: 'var(--ff-sans)',
+              letterSpacing: '-0.005em',
+              lineHeight: 1.6,
+            }}>{brief.body}</div>
+          </div>
+        )}
       </div>
     );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // _DetailTabProceso — log del agente con bubbles tipo Manus
+  // A.12.1: componente React (no llamada inline) para aislar Rules of Hooks.
   // ──────────────────────────────────────────────────────────────────────────
-  function _DetailTabProceso(timeline, accent) {
+  function _DetailTabProceso(props) {
+    var timeline = props.timeline; var accent = props.accent;
     if (!timeline || timeline.length === 0) {
       return <_EmptyState icon="🧠" title="Sin proceso disponible" desc="El log del agente aparecerá acá cuando empiece la ejecución."/>;
     }
@@ -777,66 +889,245 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // _DetailTabEntregables — cards con preview + descargar/ver
+  // _previewForDeliverable — genera mock content para preview inline
   // ──────────────────────────────────────────────────────────────────────────
-  function _DetailTabEntregables(deliverables, accent, onDownload, onView) {
+  // Sprint A.12.1: cuando user expande un entregable tipo doc/image, se
+  // muestra preview adentro de la card. Backend reemplaza esto con el
+  // contenido real (markdown del file / imagen URL / metadata link).
+  function _previewForDeliverable(d) {
+    var label = (d.label || '').toLowerCase();
+    if (label.indexOf('resumen del día') >= 0) {
+      return {
+        type: 'markdown',
+        body: '# Resumen del día — viernes 28 mayo\n\nBuen día. Hoy tenés **14 eventos** en tu calendario y **2 huecos** para deep work (9-11 y 14-16).\n\n## Tus 3 prioridades\n1. Cerrar el deck de inversión (en riesgo)\n2. Llamada con Brandon · 11:30\n3. Review del Sprint A.11 con Claude\n\n## Sugerencia\nEl hueco 9-11 es ideal para el deck. Lo agendé como bloque protegido. Ningún tipo de notificación te molestará en ese rango.',
+      };
+    }
+    if (label.indexOf('reflexión') >= 0 || label.indexOf('reflexion') >= 0) {
+      return {
+        type: 'markdown',
+        body: '# Reflexión · 11 mayo\n\nTrabajaste **enfoque profundo** por 2h 15min. Bien.\n\n## Preguntas\n1. ¿Qué descubriste de ti hoy mientras trabajabas concentrado?\n2. ¿Qué tipo de pensamientos aparecieron cuando perdiste el foco?\n3. Si tuvieras que repetir esta sesión, ¿qué cambiarías?\n\n*— Tu coach*',
+      };
+    }
+    if (label.indexOf('weekly review') >= 0 || label.indexOf('semana') >= 0) {
+      return {
+        type: 'markdown',
+        body: '# Sem 19 · Weekly Review\n\n## Datos\n- Sesiones completadas: **12 / 14 planeadas**\n- Tiempo en foco: **9h 40min**\n- Sentimiento promedio: **7.2/10**\n\n## Insight\nTu energía cayó martes-jueves. Coincide con eventos sociales nocturnos. Recomiendo mover el deep work al AM esos días.',
+      };
+    }
+    if (label.indexOf('caption') >= 0) {
+      return {
+        type: 'text',
+        body: 'La paz no se encuentra cuando todo está calmo afuera.\n\nLa paz aparece cuando vos elegís dejar de pelearle a lo que está pasando.\n\n#enfoque #presencia #mentex',
+      };
+    }
+    if (label.indexOf('thread') >= 0) {
+      return {
+        type: 'text',
+        body: '1/ Si solo pudiera dejarte una idea esta semana: tu agenda matutina es tu carta de identidad.\n\n2/ No es lo que decís que querés ser. Es lo que hacés en la primera hora del día.\n\n3/ Cambiá esa hora y cambiás 30 años de vida en 30 días.\n\n4/ La constancia siempre le gana al talento. Siempre.',
+      };
+    }
+    if (label.indexOf('post-imagen') >= 0 || label.indexOf('imagen') >= 0) {
+      // Mock SVG inline para imágenes
+      return {
+        type: 'image-svg',
+        // Generamos un SVG con gradiente + texto centrado
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%239b8aff"/><stop offset="1" stop-color="%233dffd1"/></linearGradient></defs><rect width="400" height="400" fill="url(%23g)"/><circle cx="200" cy="200" r="120" fill="rgba(255,255,255,0.15)"/><text x="200" y="210" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="white">enfoque</text></svg>',
+      };
+    }
+    if (label.indexOf('3 bloques') >= 0 || label.indexOf('bloques agendados') >= 0) {
+      return {
+        type: 'calendar-events',
+        events: [
+          { time: '09:00-11:00', title: 'Deep work · deck inversión', color: '#9b8aff' },
+          { time: '14:00-16:00', title: 'Deep work · sprint A.13',    color: '#9b8aff' },
+          { time: '18:30-19:00', title: 'Wind down · meditación',     color: '#3dffd1' },
+        ],
+      };
+    }
+    if (label.indexOf('evento calendar') >= 0) {
+      return {
+        type: 'calendar-events',
+        events: [
+          { time: d.meta || 'Mañana 9-11', title: 'Bloque protegido · Deep work', color: '#9b8aff' },
+        ],
+      };
+    }
+    return null;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // _DetailTabEntregables — preview inline + acción primaria por tipo
+  // A.12.1: componente React (no llamada inline) para aislar Rules of Hooks.
+  //
+  // Cada deliverable tiene una "acción primaria" inteligente:
+  //   - doc (.md/.txt)   → "Ver" (expande preview inline) + footer Descargar
+  //   - image (.png/.jpg)→ "Ver" (expande preview inline) + footer Descargar
+  //   - calendar (events)→ "Ver" (expande calendar list) + footer Abrir Calendar
+  //   - link (URL)       → "Abrir" (toast simula nueva pestaña). Sin descarga.
+  // ──────────────────────────────────────────────────────────────────────────
+  function _DetailTabEntregables(props) {
+    var deliverables = props.deliverables;
+    var accent = props.accent;
+    var onDownload = props.onDownload;
+    var onView = props.onView;
+    var expandedState = React.useState({});
+    var expanded = expandedState[0]; var setExpanded = expandedState[1];
+
     if (!deliverables || deliverables.length === 0) {
       return <_EmptyState icon="📎" title="Sin entregables" desc="Cuando esta tarea termine, los archivos y links que el coach produjo aparecerán acá."/>;
     }
+
+    function toggle(i) {
+      var next = Object.assign({}, expanded);
+      next[i] = !next[i];
+      setExpanded(next);
+    }
+
+    // Mapeo de kind → acción primaria + label
+    function _primaryAction(d) {
+      if (d.kind === 'link')     return { label: 'Abrir',  expandable: false, secondary: null };
+      if (d.kind === 'calendar') return { label: 'Ver',    expandable: true,  secondary: 'Abrir en Calendar' };
+      if (d.kind === 'image')    return { label: 'Ver',    expandable: true,  secondary: 'Descargar' };
+      // doc por default
+      return { label: 'Ver', expandable: true, secondary: 'Descargar' };
+    }
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {deliverables.map(function(d, i) {
-          var isLink = d.kind === 'link';
+          var action = _primaryAction(d);
+          var isExpanded = !!expanded[i];
+          var preview = action.expandable ? _previewForDeliverable(d) : null;
+
           return (
             <div key={i} style={{
-              padding: '12px 14px',
               borderRadius: 14,
               background: 'rgba(255,255,255,0.025)',
               border: '0.5px solid rgba(255,255,255,0.08)',
-              display: 'flex', alignItems: 'center', gap: 12,
+              overflow: 'hidden',
               animation: 'mtx-fade-up .25s ease both',
               animationDelay: (i * 0.05) + 's',
             }}>
+              {/* Header siempre visible */}
               <div style={{
-                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                background: 'linear-gradient(135deg, ' + accent + '20, ' + accent + '06)',
-                border: '0.5px solid ' + accent + '30',
-                color: accent,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, lineHeight: 1,
-              }} aria-hidden="true">{d.icon || (isLink ? '🔗' : '📄')}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+                padding: '12px 14px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                cursor: action.expandable ? 'pointer' : 'default',
+              }}
+              role={action.expandable ? 'button' : undefined}
+              tabIndex={action.expandable ? 0 : undefined}
+              aria-expanded={action.expandable ? isExpanded : undefined}
+              aria-label={action.expandable ? (isExpanded ? 'Colapsar ' : 'Ver ') + d.label : d.label}
+              onClick={action.expandable ? function() { toggle(i); } : undefined}
+              onKeyDown={action.expandable ? function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(i); }
+              } : undefined}>
                 <div style={{
-                  fontSize: 13, fontWeight: 700,
-                  color: 'var(--ink-1)',
-                  fontFamily: 'var(--ff-display, var(--ff-sans))',
-                  letterSpacing: '-0.005em',
-                  lineHeight: 1.25,
-                  marginBottom: 2,
-                }}>{d.label}</div>
-                {d.meta && (
+                  width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                  background: 'linear-gradient(135deg, ' + accent + '20, ' + accent + '06)',
+                  border: '0.5px solid ' + accent + '30',
+                  color: accent,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, lineHeight: 1,
+                }} aria-hidden="true">{d.icon || (d.kind === 'link' ? '🔗' : '📄')}</div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 11, color: 'var(--ink-3)',
-                    fontFamily: 'var(--ff-sans)',
+                    fontSize: 13, fontWeight: 700,
+                    color: 'var(--ink-1)',
+                    fontFamily: 'var(--ff-display, var(--ff-sans))',
                     letterSpacing: '-0.005em',
-                  }}>{d.meta}</div>
+                    lineHeight: 1.25,
+                    marginBottom: 2,
+                  }}>{d.label}</div>
+                  {(d.size || d.meta) && (
+                    <div style={{
+                      fontSize: 11, color: 'var(--ink-3)',
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                    }}>{d.size || d.meta}</div>
+                  )}
+                </div>
+
+                {/* Acción primaria: para 'link' es onView directo, para expandables es toggle visual */}
+                {action.expandable ? (
+                  <div aria-hidden="true" style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '0.5px solid rgba(255,255,255,0.08)',
+                    color: accent,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12,
+                    transition: 'transform .25s',
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    flexShrink: 0,
+                  }}>▾</div>
+                ) : (
+                  <button onClick={function(e) { e.stopPropagation(); onView(d); }}
+                    aria-label={'Abrir ' + d.label}
+                    className="mtx-tap"
+                    style={{
+                      appearance: 'none', cursor: 'pointer',
+                      padding: '6px 14px', borderRadius: 999,
+                      background: 'linear-gradient(135deg, ' + accent + ', ' + accent + 'BB)',
+                      color: '#0a1410',
+                      border: 0,
+                      fontSize: 11, fontWeight: 700,
+                      fontFamily: 'var(--ff-sans)',
+                      letterSpacing: '-0.005em',
+                      boxShadow: '0 4px 10px -2px ' + accent + '50',
+                      flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}>
+                    <span>{action.label}</span>
+                    <span aria-hidden="true">↗</span>
+                  </button>
                 )}
               </div>
-              <button onClick={isLink ? function() { onView(d); } : function() { onDownload(d); }}
-                aria-label={isLink ? 'Ver ' + d.label : 'Descargar ' + d.label}
-                className="mtx-tap"
-                style={{
-                  appearance: 'none', cursor: 'pointer',
-                  padding: '6px 12px', borderRadius: 999,
-                  background: 'linear-gradient(135deg, ' + accent + ', ' + accent + 'BB)',
-                  color: '#0a1410',
-                  border: 0,
-                  fontSize: 11, fontWeight: 700,
-                  fontFamily: 'var(--ff-sans)',
-                  letterSpacing: '-0.005em',
-                  boxShadow: '0 4px 10px -2px ' + accent + '50',
-                  flexShrink: 0,
-                }}>{isLink ? 'Ver' : 'Descargar'}</button>
+
+              {/* Preview expandido inline + acción secundaria al final */}
+              {action.expandable && isExpanded && (
+                <div style={{
+                  borderTop: '0.5px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(0,0,0,0.20)',
+                  animation: 'mtx-fade-up .25s ease both',
+                }}>
+                  {/* Preview body */}
+                  <div style={{ padding: '14px 16px 12px' }}>
+                    {_renderPreview(preview, accent)}
+                  </div>
+                  {/* Footer con acción secundaria */}
+                  {action.secondary && (
+                    <div style={{
+                      borderTop: '0.5px solid rgba(255,255,255,0.04)',
+                      padding: '8px 14px',
+                      display: 'flex', justifyContent: 'flex-end',
+                    }}>
+                      <button onClick={function(e) {
+                          e.stopPropagation();
+                          if (d.kind === 'calendar') { onView(d); }
+                          else { onDownload(d); }
+                        }}
+                        aria-label={action.secondary + ' ' + d.label}
+                        className="mtx-tap"
+                        style={{
+                          appearance: 'none', cursor: 'pointer',
+                          padding: '6px 12px', borderRadius: 999,
+                          background: 'transparent',
+                          border: '0.5px solid ' + accent + '50',
+                          color: accent,
+                          fontSize: 11, fontWeight: 700,
+                          fontFamily: 'var(--ff-sans)',
+                          letterSpacing: '-0.005em',
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                        }}>
+                        <span aria-hidden="true">{d.kind === 'calendar' ? '↗' : '⬇'}</span>
+                        <span>{action.secondary}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -845,70 +1136,126 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // _DetailTabAcciones — CTAs contextuales por estado
+  // _renderPreview — render del preview inline según tipo
   // ──────────────────────────────────────────────────────────────────────────
-  function _DetailTabAcciones(task, status, accent, handlers) {
-    function _Btn(props) {
-      var bg = props.primary
-        ? 'linear-gradient(135deg, ' + (props.color || accent) + ', ' + (props.color || accent) + 'BB)'
-        : 'rgba(255,255,255,0.04)';
-      var color = props.primary ? '#0a1410' : 'var(--ink-1)';
-      var border = props.primary ? 0 : '0.5px solid rgba(255,255,255,0.10)';
-      var danger = props.danger;
-      if (danger) { bg = 'rgba(255,139,139,0.08)'; color = '#ff8b8b'; border = '0.5px solid rgba(255,139,139,0.30)'; }
+  function _renderPreview(preview, accent) {
+    if (!preview) {
       return (
-        <button onClick={props.onClick}
-          aria-label={props.label}
-          className="mtx-tap"
-          style={{
-            appearance: 'none', cursor: 'pointer',
-            width: '100%',
-            padding: '12px 16px', borderRadius: 14,
-            background: bg, color: color, border: border,
-            fontSize: 13, fontWeight: 700,
-            fontFamily: 'var(--ff-sans)',
-            letterSpacing: '-0.005em',
-            boxShadow: props.primary ? '0 6px 16px -4px ' + (props.color || accent) + '50' : 'none',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-          {props.icon && <span aria-hidden="true">{props.icon}</span>}
-          <span>{props.label}</span>
-        </button>
+        <div style={{
+          fontSize: 11.5, color: 'var(--ink-4)',
+          fontFamily: 'var(--ff-sans)',
+          fontStyle: 'italic',
+          textAlign: 'center',
+          padding: '12px 0',
+        }}>Sin preview disponible</div>
       );
     }
 
-    var buttons = [];
-    if (status === 'pending_approval') {
-      if (handlers.onApprove) buttons.push({ label: 'Aprobar y ejecutar', icon: '✓', primary: true, onClick: handlers.onApprove });
-      if (handlers.onDismiss) buttons.push({ label: 'Rechazar', icon: '✕', danger: true, onClick: handlers.onDismiss });
-    }
-    if (status === 'scheduled') {
-      if (handlers.onRunNow) buttons.push({ label: 'Ejecutar ahora', icon: '▶', primary: true, onClick: handlers.onRunNow });
-      if (handlers.onCancel) buttons.push({ label: 'Cancelar programación', icon: '✕', danger: true, onClick: handlers.onCancel });
-    }
-    if (status === 'in_progress') {
-      if (handlers.onCancel) buttons.push({ label: 'Cancelar ejecución', icon: '■', danger: true, onClick: handlers.onCancel });
-    }
-    if (status === 'completed') {
-      if (handlers.onReplay) buttons.push({ label: 'Volver a ejecutar', icon: '↻', primary: true, onClick: handlers.onReplay });
-    }
-    if (status === 'failed') {
-      if (handlers.onRetry) buttons.push({ label: 'Reintentar', icon: '↻', primary: true, color: '#ff8b8b', onClick: handlers.onRetry });
-      if (handlers.onReplay) buttons.push({ label: 'Volver a ejecutar', icon: '▶', onClick: handlers.onReplay });
+    if (preview.type === 'markdown') {
+      // Render simple sin parser real — preserva \n y bold ** **
+      var lines = preview.body.split('\n');
+      return (
+        <div style={{
+          fontSize: 12.5, color: 'var(--ink-1)',
+          fontFamily: 'var(--ff-mono, monospace)',
+          letterSpacing: '-0.005em',
+          lineHeight: 1.6,
+          maxHeight: 280, overflowY: 'auto',
+          whiteSpace: 'pre-wrap',
+        }} className="mtx-no-scrollbar">{
+          lines.map(function(l, i) {
+            // Headings
+            if (l.startsWith('# ')) return <div key={i} style={{ fontSize: 15, fontWeight: 800, color: accent, marginTop: i === 0 ? 0 : 12, marginBottom: 6, fontFamily: 'var(--ff-display, var(--ff-sans))' }}>{l.replace(/^# /, '')}</div>;
+            if (l.startsWith('## ')) return <div key={i} style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-1)', marginTop: 10, marginBottom: 4, fontFamily: 'var(--ff-display, var(--ff-sans))' }}>{l.replace(/^## /, '')}</div>;
+            if (l.trim() === '') return <div key={i} style={{ height: 6 }}/>;
+            // Inline bold básico
+            var parts = l.split(/(\*\*[^*]+\*\*)/g);
+            return (
+              <div key={i} style={{ fontFamily: 'var(--ff-sans)' }}>
+                {parts.map(function(p, j) {
+                  if (p.startsWith('**') && p.endsWith('**')) {
+                    return <strong key={j} style={{ color: 'var(--ink-1)' }}>{p.slice(2, -2)}</strong>;
+                  }
+                  return <span key={j}>{p}</span>;
+                })}
+              </div>
+            );
+          })
+        }</div>
+      );
     }
 
-    if (buttons.length === 0) {
-      return <_EmptyState icon="✓" title="Sin acciones disponibles" desc="Esta tarea ya completó su ciclo."/>;
+    if (preview.type === 'text') {
+      return (
+        <div style={{
+          fontSize: 12.5, color: 'var(--ink-1)',
+          fontFamily: 'var(--ff-sans)',
+          letterSpacing: '-0.005em',
+          lineHeight: 1.6,
+          maxHeight: 280, overflowY: 'auto',
+          whiteSpace: 'pre-wrap',
+        }} className="mtx-no-scrollbar">{preview.body}</div>
+      );
     }
 
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {buttons.map(function(b, i) {
-          return <_Btn key={i} {...b}/>;
-        })}
-      </div>
-    );
+    if (preview.type === 'image-svg') {
+      var dataUri = 'data:image/svg+xml;utf8,' + preview.svg;
+      return (
+        <div style={{
+          display: 'flex', justifyContent: 'center',
+          padding: '4px 0',
+        }}>
+          <img src={dataUri} alt="Preview" style={{
+            maxWidth: '100%', maxHeight: 260, borderRadius: 10,
+            border: '0.5px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)',
+          }}/>
+        </div>
+      );
+    }
+
+    if (preview.type === 'calendar-events') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {preview.events.map(function(ev, i) {
+            return (
+              <div key={i} style={{
+                padding: '8px 10px',
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.03)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                borderLeft: '3px solid ' + ev.color,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: ev.color,
+                  fontFamily: 'var(--ff-mono, monospace)',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '0.02em',
+                  flexShrink: 0,
+                  minWidth: 92,
+                }}>{ev.time}</div>
+                <div style={{
+                  fontSize: 12.5, color: 'var(--ink-1)',
+                  fontFamily: 'var(--ff-sans)',
+                  letterSpacing: '-0.005em',
+                  lineHeight: 1.3,
+                }}>{ev.title}</div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return null;
   }
+
+  // Sprint A.12.1: _DetailTabAcciones removida. Las CTAs de cada estado ya
+  // viven en TaskCard (las cápsulas Re-ejecutar / Aprobar / Cancelar /
+  // Reintentar). Tab separada era redundante. El detail ahora queda solo
+  // con info (Detalles · Proceso · Entregables) — ningún botón mutante.
 
   // ──────────────────────────────────────────────────────────────────────────
   // TasksSheet (V2) — sheet principal con 5 tabs
