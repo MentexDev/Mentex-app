@@ -3839,8 +3839,7 @@ function ChatOptionsSheet(props) {
   if (!conversation) return null;
 
   // Opciones del menú. Shape compatible con el patrón attach (icon = JSX
-  // element, no Ic component, para poder usar React.cloneElement).
-  var msgCount = (conversation.messages || []).length;
+  // element, no Ic component).
   var options = [
     { id: 'new',    label: 'Nueva conversación',   desc: 'Empieza un chat limpio',                accent: '#3dffd1', handler: props.onNewChat,
       icon: <IcPlus  size={18} stroke="currentColor" strokeWidth={2}/> },
@@ -3888,10 +3887,9 @@ function ChatOptionsSheet(props) {
           }}/>
         </div>
 
-        {/* Header — eyebrow centrado (mismo pattern attach) + subtítulo con
-            título de la conv para no perder contexto. */}
+        {/* Header — solo eyebrow centrado, idéntico al attach menu */}
         <div style={{
-          padding: '6px 20px 12px',
+          padding: '6px 20px 10px',
           textAlign: 'center',
         }}>
           <div style={{
@@ -3900,18 +3898,7 @@ function ChatOptionsSheet(props) {
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             fontFamily: 'var(--ff-sans)',
-          }}>Opciones de la conversación</div>
-          <div style={{
-            marginTop: 6,
-            fontSize: 12, fontWeight: 500,
-            color: 'var(--ink-3)',
-            letterSpacing: '-0.005em',
-            fontFamily: 'var(--ff-sans)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            maxWidth: '88%',
-            margin: '6px auto 0',
-            padding: '0 10px',
-          }}>{conversation.title || 'Nueva conversación'} · {msgCount} {msgCount === 1 ? 'mensaje' : 'mensajes'}</div>
+          }}>Más opciones</div>
         </div>
 
         {/* Options list — mismo layout compacto que attach menu (34/13/10.5) */}
