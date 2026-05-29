@@ -976,7 +976,16 @@
         // Fallback a 'context' si no llegó (user-asked sin categoría inferida).
         var memType = (data.category && ['identity','goal','context','preference'].indexOf(data.category) >= 0)
           ? data.category : 'context';
-        window.__mtxIAConfig.addMemory(memType, data.name, data.content || data.name);
+        // Usar _saveMemory directo para marcar source:'proposal' (no 'manual').
+        // addMemory hardcodea source:'manual' que no refleja el origen real.
+        // Esto preserva auditoría correcta del flujo (auto-detect → proposal → accept).
+        var sourceLabel = detail.wasEdited ? 'user-asked' : 'auto';
+        window.__mtxIAConfig._saveMemory({
+          type: memType,
+          label: data.name,
+          value: data.content || data.name,
+          source: sourceLabel,
+        });
       } else if (detail.type === 'knowledge' && window.__mtxIAKnowledge) {
         // Conocimiento: ingest como kind 'text' por default desde propuesta inline.
         // Imports desde PDF/URL/audio usan otros flows (IngestSourceModal).

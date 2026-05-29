@@ -1498,33 +1498,12 @@ function MemoryTab() {
 
   var barColor = stats.percent > 80 ? '#ffc850' : 'var(--neon)';
 
-  // RFC-003 Sprint A.13: agrupar las 4 categorías legacy en 2 super-categorías
-  // visuales. El data shape no cambia — cada memoria sigue con type=identity|
-  // goal|context|preference. La taxonomía actual sigue para Brandon backend.
-  //
-  //   "Quién sos"   = identity + context  (hechos sobre vos, neutros)
-  //   "Qué buscás"  = goal     + preference (intencionalidad, gustos)
-  //
-  // Cada super-cat muestra cards estilo Conocimiento (no píldoras) con
-  // icon-tile + título + meta row + delete inline. Tap → MemoryDetailSheet.
-  var _SUPER_GROUPS = [
-    {
-      id: 'who',
-      label: 'Quién sos',
-      icon: '🌱',
-      accent: '#3dffd1',
-      types: ['identity', 'context'],
-      desc: 'Hechos sobre vos que el coach recuerda',
-    },
-    {
-      id: 'want',
-      label: 'Qué buscás',
-      icon: '🎯',
-      accent: '#ffc850',
-      types: ['goal', 'preference'],
-      desc: 'Metas, intereses y preferencias que guían tus sesiones',
-    },
-  ];
+  // RFC-003 Sprint A.13 + A.13.1 Diego feedback:
+  // Lista PLANA de memorias en Settings. Las 4 categorías legacy (identity/
+  // goal/context/preference) siguen existiendo en el data shape para que
+  // Brandon backend pueda categorizar internamente, pero la UI las trata
+  // todas igual — una sola lista de cards estilo SourceCard de Conocimiento.
+  // Razón: super-categorías "Quién sos / Qué buscás" confundían al user.
 
   // Helper: relative date corto (idéntico patrón a coach-wellness-history)
   function _relativeDate(ts) {
@@ -1722,190 +1701,147 @@ function MemoryTab() {
       </div>
 
       {/* ──────────────────────────────────────────────────────────────────
-          3. LO QUE SABE DE TI — 2 super-categorías con cards estilo Knowledge
+          3. LO QUE SABE DE TI — lista PLANA de cards estilo SourceCard.
+             Diego feedback (A.13.1): nada de super-categorías "Quién sos /
+             Qué buscás" — confunde. Solo lista plana ordenada pinned + DESC,
+             cada card con el mismo lenguaje visual que SourceCard de
+             Conocimiento (icon tile + título + meta row + tap → detalle).
           ────────────────────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 14 }}>
-        <div className="mtx-eyebrow" style={{
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 4px 12px' }}>
+        <span className="mtx-eyebrow" style={{
           fontSize: 9.5, color: 'var(--ink-3)',
-          padding: '0 4px 12px',
           letterSpacing: '0.16em',
-        }}>
-          Lo que sabe de ti
-        </div>
+        }}>Lo que sabe de ti</span>
+        <span style={{
+          fontSize: 10, color: 'var(--ink-4)',
+          fontFamily: 'var(--ff-sans)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>({activeMemory.length})</span>
       </div>
 
-      {_SUPER_GROUPS.map(function(group) {
-        // Reunir memorias de los types que componen este super-group
-        var items = [];
-        group.types.forEach(function(t) {
-          (byType[t] || []).forEach(function(m) { items.push(m); });
-        });
-        // Sort: pinned primero, después por createdAt DESC
-        items.sort(function(a, b) {
+      {(function() {
+        // Flat list ordenada: pinned primero, después createdAt DESC
+        var flat = activeMemory.slice().sort(function(a, b) {
           if ((!!a.pinned) !== (!!b.pinned)) return a.pinned ? -1 : 1;
           return (b.createdAt || 0) - (a.createdAt || 0);
         });
 
-        return (
-          <div key={group.id} style={{ marginBottom: 22 }}>
-            {/* Header del grupo */}
+        if (flat.length === 0) {
+          return (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 4px 10px',
+              padding: '18px 16px',
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.02)',
+              border: '0.5px dashed rgba(255,255,255,0.10)',
+              fontSize: 12, color: 'var(--ink-4)',
+              fontFamily: 'var(--ff-sans)',
+              lineHeight: 1.55,
+              letterSpacing: '-0.005em',
+              textAlign: 'center',
             }}>
-              <span aria-hidden="true" style={{
-                fontSize: 14,
-                lineHeight: 1,
-              }}>{group.icon}</span>
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: 'var(--ink-1)',
-                letterSpacing: '-0.005em',
-                fontFamily: 'var(--ff-sans)',
-              }}>{group.label}</span>
-              <span style={{
-                fontSize: 10.5, color: 'var(--ink-4)',
-                fontFamily: 'var(--ff-sans)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>· {items.length}</span>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>🌱</div>
+              Sin memorias todavía. Hablá con el coach — cuando detecte algo
+              relevante, te lo propondrá guardar.
             </div>
+          );
+        }
 
-            {/* Lista de cards o empty state.
-                Doctrina: la memoria NO se agrega manualmente. El coach detecta
-                durante el chat y propone (ProposalCard). User acepta/edita/
-                descarta. Acá solo se VEN y se pueden eliminar/editar. */}
-            {items.length === 0 ? (
-              <div style={{
-                padding: '14px 14px',
-                borderRadius: 14,
-                background: 'rgba(255,255,255,0.02)',
-                border: '0.5px dashed rgba(255,255,255,0.10)',
-                fontSize: 11.5, color: 'var(--ink-4)',
-                fontFamily: 'var(--ff-sans)',
-                lineHeight: 1.5,
-                letterSpacing: '-0.005em',
-              }}>
-                {group.desc}. Aparecerá acá cuando el coach lo detecte conversando con vos.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {items.map(function(m) {
-                  var typeInfo = _MEMORY_TYPES.find(function(t) { return t.id === m.type; }) ||
-                                 { accent: group.accent, label: m.type };
-                  var src = m.source || 'manual';
-                  return (
-                    <div key={m.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={function() { setDetailCtx(m); }}
-                      onKeyDown={function(e) {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setDetailCtx(m);
-                        }
-                      }}
-                      aria-label={'Ver detalle: ' + factLabel(m)}
-                      className="mtx-tap"
-                      style={{
-                        padding: '12px 12px',
-                        borderRadius: 14,
-                        background: 'linear-gradient(135deg, ' + typeInfo.accent + '0E, ' + typeInfo.accent + '02)',
-                        border: '0.5px solid ' + typeInfo.accent + '28',
-                        display: 'flex', alignItems: 'center', gap: 11,
-                        cursor: 'pointer',
-                        animation: 'mtx-fade-up .2s ease both',
-                      }}>
-                      {/* Icon tile con badge de source */}
-                      <div aria-hidden="true" style={{
-                        width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                        background: 'linear-gradient(135deg, ' + typeInfo.accent + '28, ' + typeInfo.accent + '08)',
-                        border: '0.5px solid ' + typeInfo.accent + '40',
-                        color: typeInfo.accent,
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 14, lineHeight: 1,
-                        boxShadow: '0 0 10px ' + typeInfo.accent + '28',
-                        position: 'relative',
-                      }}>
-                        {src === 'user-asked' ? '★' : src === 'auto' ? '✦' : '·'}
-                      </div>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {flat.map(function(m) {
+              var typeInfo = _MEMORY_TYPES.find(function(t) { return t.id === m.type; }) ||
+                             { accent: 'var(--neon)', label: m.type };
+              var src = m.source || 'manual';
+              // Icon source-based: ✦ auto-aprendido, ★ pedido por el user, · manual
+              var sourceIcon = src === 'user-asked' ? '★' : src === 'auto' ? '✦' : '·';
 
-                      {/* Body */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: 13, fontWeight: 700,
-                          color: 'var(--ink-1)',
-                          fontFamily: 'var(--ff-display, var(--ff-sans))',
-                          letterSpacing: '-0.005em',
-                          lineHeight: 1.3,
-                          marginBottom: 3,
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{factLabel(m)}</div>
-                        <div style={{
-                          fontSize: 10.5, color: 'var(--ink-4)',
-                          fontFamily: 'var(--ff-sans)',
-                          letterSpacing: '-0.005em',
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                        }}>
-                          <span style={{ color: typeInfo.accent, fontWeight: 700, letterSpacing: '0.04em' }}>
-                            {typeInfo.label.toUpperCase()}
-                          </span>
+              return (
+                <button key={m.id}
+                  onClick={function() { setDetailCtx(m); }}
+                  aria-label={'Ver detalle: ' + factLabel(m)}
+                  className="mtx-tap"
+                  style={{
+                    appearance: 'none', cursor: 'pointer', textAlign: 'left',
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: 'rgba(255,255,255,0.025)',
+                    border: '0.5px solid rgba(255,255,255,0.06)',
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    animation: 'mtx-fade-up .25s ease both',
+                    transition: 'all .2s',
+                  }}>
+                  {/* Icon tile — patrón idéntico a SourceCard */}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+                    background: 'linear-gradient(135deg, ' + typeInfo.accent + '22, ' + typeInfo.accent + '06)',
+                    border: '0.5px solid ' + typeInfo.accent + '30',
+                    color: typeInfo.accent,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 17, lineHeight: 1,
+                  }}>
+                    <span aria-hidden="true">{sourceIcon}</span>
+                  </div>
+
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Title */}
+                    <div style={{
+                      fontSize: 13, fontWeight: 700,
+                      color: 'var(--ink-1)',
+                      letterSpacing: '-0.012em',
+                      fontFamily: 'var(--ff-display, var(--ff-sans))',
+                      lineHeight: 1.25,
+                      marginBottom: 4,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}>{factLabel(m)}</div>
+
+                    {/* Meta row — TYPE · source label · relative date · usage */}
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                      fontSize: 9.5, color: 'var(--ink-4)',
+                      letterSpacing: '0.06em',
+                      fontFamily: 'var(--ff-sans)',
+                      marginBottom: factValue(m) ? 6 : 0,
+                    }}>
+                      <span style={{ color: typeInfo.accent, fontWeight: 700 }}>{typeInfo.label.toUpperCase()}</span>
+                      <span style={{ opacity: 0.5 }}>·</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {src === 'user-asked' ? 'PEDISTE GUARDAR' : src === 'auto' ? 'AUTO-APRENDIDO' : 'MANUAL'}
+                      </span>
+                      <span style={{ opacity: 0.5 }}>·</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: 0 }}>
+                        {_relativeDate(m.createdAt)}
+                      </span>
+                      {m.usageCount > 0 && (
+                        <React.Fragment>
                           <span style={{ opacity: 0.5 }}>·</span>
-                          <span>{_relativeDate(m.createdAt)}</span>
-                          {m.usageCount > 0 && (
-                            <React.Fragment>
-                              <span style={{ opacity: 0.5 }}>·</span>
-                              <span>usado {m.usageCount}×</span>
-                            </React.Fragment>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Delete inline */}
-                      <button
-                        onClick={function(e) {
-                          e.stopPropagation();
-                          if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
-                            window.__mtxIAConfig.removeMemory(m.id);
-                          }
-                        }}
-                        onKeyDown={function(e) {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (window.confirm('¿Eliminar "' + factLabel(m) + '"?')) {
-                              window.__mtxIAConfig.removeMemory(m.id);
-                            }
-                          }
-                        }}
-                        aria-label="Eliminar recuerdo"
-                        className="mtx-tap"
-                        style={{
-                          appearance: 'none', cursor: 'pointer',
-                          width: 26, height: 26, borderRadius: '50%',
-                          background: 'rgba(255,255,255,0.03)',
-                          border: '0.5px solid rgba(255,255,255,0.06)',
-                          color: 'var(--ink-3)',
-                          flexShrink: 0,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: 'var(--ff-sans)',
-                          fontSize: 11,
-                        }}>
-                        <IcClose size={10} stroke="currentColor" strokeWidth={2.2}/>
-                      </button>
+                          <span style={{ letterSpacing: 0 }}>usado {m.usageCount}×</span>
+                        </React.Fragment>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
 
-            {/* RFC-003 doctrina: NO hay botón "+ Agregar manual" en memoria.
-                El coach propone durante el chat (ProposalCard) → user acepta
-                /edita/descarta. En Settings el user solo VE, edita o elimina
-                lo que ya está. Para conocimiento ingerido (PDFs, URLs, etc)
-                existe la tab Conocimiento aparte. */}
+                    {/* Detalle (si hay value) — preview 2 líneas igual a SourceCard */}
+                    {factValue(m) && (
+                      <div style={{
+                        fontSize: 11.5, color: 'var(--ink-3)',
+                        lineHeight: 1.5,
+                        letterSpacing: '-0.005em',
+                        fontFamily: 'var(--ff-sans)',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}>{factValue(m)}</div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         );
-      })}
+      })()}
 
       {activeMemory.length > 0 && (
         <button onClick={handleClearAll}
