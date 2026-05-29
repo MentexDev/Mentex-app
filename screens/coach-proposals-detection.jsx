@@ -36,21 +36,39 @@
   if (typeof window === 'undefined' || window.__mtxCoachProposalsDetection) return;
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Cooldowns en memoria
+  // Cooldowns scoped por convId
   // ──────────────────────────────────────────────────────────────────────────
+  // A.13.3 audit CRIT-5 fix: antes era singleton module-level → cooldown
+  // de conv A bloqueaba propuestas en conv B (cross-contamination).
+  // Ahora: { [type]: { [convId]: timestamp } }. Cleanup automático cada 30min.
   var _lastProposalTime = {
-    memory: 0,
-    knowledge: 0,
-    skill: 0,
+    memory: {},
+    knowledge: {},
+    skill: {},
   };
-  var COOLDOWN_MS = 60 * 1000;  // 1 min entre propuestas del mismo tipo
+  var COOLDOWN_MS = 60 * 1000;  // 1 min entre propuestas del mismo tipo POR CONV
+  var _CLEANUP_AGE_MS = 30 * 60 * 1000;  // 30 min
 
-  function _canPropose(type) {
-    var now = Date.now();
-    return (now - _lastProposalTime[type]) >= COOLDOWN_MS;
+  function _canPropose(type, convId) {
+    var key = convId || '__default__';
+    var last = (_lastProposalTime[type] || {})[key] || 0;
+    return (Date.now() - last) >= COOLDOWN_MS;
   }
-  function _markProposed(type) {
-    _lastProposalTime[type] = Date.now();
+  function _markProposed(type, convId) {
+    var key = convId || '__default__';
+    if (!_lastProposalTime[type]) _lastProposalTime[type] = {};
+    _lastProposalTime[type][key] = Date.now();
+    _cleanupOldCooldowns();
+  }
+  // Garbage collection de cooldowns viejos (evitar leak indefinido)
+  function _cleanupOldCooldowns() {
+    var now = Date.now();
+    Object.keys(_lastProposalTime).forEach(function(type) {
+      var byConv = _lastProposalTime[type];
+      Object.keys(byConv).forEach(function(convId) {
+        if (now - byConv[convId] > _CLEANUP_AGE_MS) delete byConv[convId];
+      });
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -341,30 +359,38 @@
 
     var convContext = _gatherConvContext(convId);
 
-    // 1. KNOWLEDGE
-    if (_canPropose('knowledge')) {
-      var k = _detectKnowledge(content);
-      if (k && !_hasPendingSimilar('knowledge', k.draft.name)) {
-        _markProposed('knowledge');
+    // A.13.3 audit CRIT-9 refinement: cross-type prioridad descendente.
+    // Skill explicit phrase tiene prioridad sobre Knowledge. Si user dice
+    // "guarda esto como skill: X", la propuesta debe ser solo Skill, no
+    // también Knowledge porque la palabra "guarda" matchea ambas.
+    var skillExplicit = _SKILL_EXPLICIT_PATTERN.test(content) || _SKILL_SECONDARY_PATTERN.test(content);
+
+    // 1. SKILL (prioridad máxima cuando es explícito)
+    var skillProposed = false;
+    if (_canPropose('skill', convId)) {
+      var s = _detectSkill(content, convContext);
+      if (s && !_hasPendingSimilar('skill', s.draft.name)) {
+        _markProposed('skill', convId);
+        skillProposed = true;
         _emit({
-          type: 'knowledge',
-          draft: k.draft,
-          confidence: k.confidence,
+          type: 'skill',
+          draft: s.draft,
+          confidence: s.confidence,
           sourceMessageId: msgId,
           sourceConvId: convId,
         });
       }
     }
 
-    // 2. SKILL
-    if (_canPropose('skill')) {
-      var s = _detectSkill(content, convContext);
-      if (s && !_hasPendingSimilar('skill', s.draft.name)) {
-        _markProposed('skill');
+    // 2. KNOWLEDGE (skip si ya hay skill explicit phrase para evitar overlap)
+    if (!skillExplicit && _canPropose('knowledge', convId)) {
+      var k = _detectKnowledge(content);
+      if (k && !_hasPendingSimilar('knowledge', k.draft.name)) {
+        _markProposed('knowledge', convId);
         _emit({
-          type: 'skill',
-          draft: s.draft,
-          confidence: s.confidence,
+          type: 'knowledge',
+          draft: k.draft,
+          confidence: k.confidence,
           sourceMessageId: msgId,
           sourceConvId: convId,
         });
@@ -386,9 +412,9 @@
     inferTriggers: _inferTriggers,
     // Permite resetear cooldowns en testing
     _resetCooldowns: function() {
-      _lastProposalTime.memory = 0;
-      _lastProposalTime.knowledge = 0;
-      _lastProposalTime.skill = 0;
+      _lastProposalTime.memory = {};
+      _lastProposalTime.knowledge = {};
+      _lastProposalTime.skill = {};
     },
   };
 })();

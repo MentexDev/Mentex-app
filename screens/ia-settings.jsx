@@ -1753,7 +1753,15 @@ function MemoryTab() {
                              { accent: 'var(--neon)', label: m.type };
               var src = m.source || 'manual';
               // Icon source-based: ✦ auto-aprendido, ★ pedido por el user, · manual
-              var sourceIcon = src === 'user-asked' ? '★' : src === 'auto' ? '✦' : '·';
+              // A.13.3 audit CRIT-4: nuevos source values del Proposal Protocol.
+              //   'proposed'        = coach detectó, user aceptó (★ neón)
+              //   'proposed-edited' = coach detectó, user editó (★ amber)
+              //   'user-asked'      = legacy (pre-A.13 user-asked save)
+              //   'auto'            = legacy (pre-A.13 silent autosave)
+              //   'manual'          = legacy + addMemory directo
+              var sourceIcon = (src === 'proposed' || src === 'proposed-edited' || src === 'user-asked') ? '★'
+                             : src === 'auto' ? '✦'
+                             : '·';
 
               return (
                 <button key={m.id}
@@ -1809,7 +1817,11 @@ function MemoryTab() {
                       <span style={{ color: typeInfo.accent, fontWeight: 700 }}>{typeInfo.label.toUpperCase()}</span>
                       <span style={{ opacity: 0.5 }}>·</span>
                       <span style={{ fontWeight: 600 }}>
-                        {src === 'user-asked' ? 'PEDISTE GUARDAR' : src === 'auto' ? 'AUTO-APRENDIDO' : 'MANUAL'}
+                        {src === 'proposed' ? 'PROPUESTO'
+                         : src === 'proposed-edited' ? 'PROPUESTO · EDITADO'
+                         : src === 'user-asked' ? 'PEDISTE GUARDAR'
+                         : src === 'auto' ? 'AUTO-APRENDIDO'
+                         : 'MANUAL'}
                       </span>
                       <span style={{ opacity: 0.5 }}>·</span>
                       <span style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: 0 }}>

@@ -371,6 +371,21 @@
     return _stateSnapshot(s);
   }
 
+  // A.13.3 audit fix CRIT-1: API explícita para chequear si hay session
+  // activa sin tener que conocer el sessionId. Necesario para guards UX
+  // tipo "no proponer knowledge/skill durante ejercicio en curso".
+  // Activa = status 'ready' | 'running' | 'paused' (no 'completed' ni 'cancelled').
+  function getActiveSession() {
+    var keys = Object.keys(_sessions);
+    for (var i = 0; i < keys.length; i++) {
+      var s = _sessions[keys[i]];
+      if (s && s.status !== 'completed' && s.status !== 'cancelled') {
+        return _stateSnapshot(s);
+      }
+    }
+    return null;
+  }
+
   function play(sessionId) {
     var s = _sessions[sessionId];
     if (!s || s.status === 'completed' || s.status === 'cancelled') return false;
@@ -555,6 +570,7 @@
     skip: skip,
     cancel: cancel,
     getState: getState,
+    getActiveSession: getActiveSession,  // A.13.3 audit CRIT-1
     // Detection + recommendation
     detectStressLevel: detectStressLevel,
     recommendExercise: recommendExercise,

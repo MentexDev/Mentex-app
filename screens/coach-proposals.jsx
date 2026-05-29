@@ -121,9 +121,36 @@
     items: _read(),  // [{ id, type, draft, status, confidence, sourceMessageId, createdAt, acceptedAt?, edits? }]
   };
 
-  function _save() {
+  // A.13.3 audit CRIT-2: _save acepta opcional `affectedId` para que
+  // las cards listening puedan filtrar por id. Si `affectedId` ausente
+  // (bulk operations), el listener cae al re-render universal. Pero las
+  // operaciones individuales SIEMPRE pasan el id → cards no-afectadas
+  // saltan el re-render.
+  function _save(affectedId) {
     _write(_state.items);
-    _emit('mtx:proposals-changed', { count: _state.items.length });
+    _emit('mtx:proposals-changed', {
+      count: _state.items.length,
+      id: affectedId || null,
+    });
+  }
+
+  // A.13.3 audit GAP-8: deep equal entre draft original y edits para
+  // diferenciar "edit real" de "accept-sin-tocar" después de abrir el sheet.
+  function _draftEquals(original, edits) {
+    if (!original || !edits) return false;
+    var keys = ['name', 'whenToUse', 'content', 'domain', 'kind', 'url'];
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      // Permitir que edits no tenga el key (no se editó) o sea igual al original
+      if (edits[k] !== undefined && (edits[k] || '') !== (original[k] || '')) return false;
+    }
+    // Triggers: comparar arrays (order-sensitive intencional)
+    if (edits.triggers !== undefined) {
+      var a = original.triggers || []; var b = edits.triggers || [];
+      if (a.length !== b.length) return false;
+      for (var j = 0; j < a.length; j++) if (a[j] !== b[j]) return false;
+    }
+    return true;
   }
 
   function propose(opts) {
@@ -154,12 +181,19 @@
     };
 
     _state.items = [prop].concat(_state.items);
-    _save();
+    _save(prop.id);  // CRIT-2: pasar id para filtering en listeners
 
     // Inyectar al chat como artifact si hay conversación activa
     _injectArtifactToChat(prop);
 
     return prop;
+  }
+
+  // A.13.3 audit CRIT-3: feedback observable cuando validation falla.
+  // Emite event que el bridge convierte en toast warn — el silent null
+  // dejaba propuestas zombi sin que el user supiera por qué no se aceptó.
+  function _emitValidationFailure(id, reason) {
+    _emit('mtx:proposal-validation-failed', { id: id, reason: reason });
   }
 
   function get(id) {
@@ -180,19 +214,28 @@
 
     var finalDraft = edits ? Object.assign({}, prop.draft, edits) : prop.draft;
     // Validación mínima: nombre + contenido no vacíos
-    if (!finalDraft.name.trim() || !finalDraft.content.trim()) return null;
+    if (!finalDraft.name.trim() || !finalDraft.content.trim()) {
+      // A.13.3 audit CRIT-3: feedback observable
+      _emitValidationFailure(id, !finalDraft.name.trim()
+        ? 'name-required' : 'content-required');
+      return null;
+    }
+
+    // A.13.3 audit GAP-8: distinguir "edit real" de "abrió sheet y guardó
+    // sin tocar" — wasEdited solo true si DIFF real entre draft y edits.
+    var realEdit = edits && !_draftEquals(prop.draft, edits);
 
     prop.draft = finalDraft;
-    prop.status = edits ? 'edited' : 'accepted';
+    prop.status = realEdit ? 'edited' : 'accepted';
     prop.acceptedAt = Date.now();
-    if (edits) prop.edits = edits;
+    if (realEdit) prop.edits = edits;
 
-    _save();
+    _save(id);  // CRIT-2
     _emit('mtx:proposal-accepted', {
       id: id,
       type: prop.type,
       finalData: finalDraft,
-      wasEdited: !!edits,
+      wasEdited: realEdit,  // GAP-8: solo true si hubo diff
     });
 
     // Update artifact en chat (resolved state)
@@ -206,7 +249,7 @@
     if (!prop || prop.status !== 'pending') return null;
     prop.status = 'dismissed';
     prop.dismissedAt = Date.now();
-    _save();
+    _save(id);  // CRIT-2
     _emit('mtx:proposal-dismissed', { id: id, type: prop.type });
     _updateArtifactState(prop, 'dismissed');
     return prop;
@@ -219,7 +262,7 @@
     if (prop.dismissedAt && Date.now() - prop.dismissedAt > 5000) return null;
     prop.status = 'pending';
     delete prop.dismissedAt;
-    _save();
+    _save(id);  // CRIT-2
     _updateArtifactState(prop, 'pending');
     return prop;
   }
@@ -249,8 +292,13 @@
     // El artifact ya está en el chat. No editamos el message — el componente
     // re-render lee el state del store por proposalId. Solo emitimos un
     // refresh para que React re-render el chat.
+    // CRIT-2: payload con id explícito para que cards listening filtren.
     _emit('mtx:proposals-changed', { id: prop.id, status: newStatus });
   }
+
+  // A.13.3 audit CRIT-2: el `ProposalCard` listener filter ahora es estricto.
+  // Si el evento tiene `id` y no matchea el `proposalId` de la card,
+  // SALTA el re-render. El payload de _save() ahora siempre incluye id.
 
   // ──────────────────────────────────────────────────────────────────────────
   // Public API
@@ -301,6 +349,18 @@
     var editOpen = editOpenState[0]; var setEditOpen = editOpenState[1];
 
     var prop = get(proposalId);
+
+    // A.13.3 audit CRIT-8: auto-refresh cuando el window de Deshacer (5s)
+    // expira. Sin esto el botón sigue visible pero `undismiss()` retorna
+    // null silenciosamente — UX engañosa.
+    React.useEffect(function() {
+      if (!prop || prop.status !== 'dismissed' || !prop.dismissedAt) return;
+      var remaining = 5000 - (Date.now() - prop.dismissedAt);
+      if (remaining <= 0) return;
+      var to = setTimeout(function() { forceTick(); }, remaining + 50);
+      return function() { clearTimeout(to); };
+    }, [prop && prop.status, prop && prop.dismissedAt]);
+
     if (!prop) return null;
 
     var info = _typeInfo(prop.type);
@@ -659,6 +719,11 @@
       setName(prop.draft.name || '');
       setWhenToUse(prop.draft.whenToUse || '');
       setContent(prop.draft.content || '');
+      // A.13.3 audit GAP-2: también resetear fields type-specific
+      // (antes domain/triggers persistían post-revert → inconsistencia visible)
+      setDomain(prop.draft.domain || 'productividad');
+      setTriggers((prop.draft.triggers || []).slice());
+      setTriggerInput('');
     }
 
     var canSave = name.trim().length > 0 && content.trim().length > 0;

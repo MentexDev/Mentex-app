@@ -378,6 +378,41 @@
       return skill;
     },
 
+    // A.13.3 audit GAP-3: path optimizado para crear skill cuando el
+    // user YA tiene title + triggers correctos (vía ProposalEditSheet).
+    // Evita el round-trip _mockStructureSkill → createMineSkill → updateMineSkill
+    // (que desperdiciaba trabajo + silenciaba fallos si rawText era <30 chars).
+    //
+    // Brandon backend: este es el path canónico para el flow propose-accept.
+    // createMineSkill (legacy) se mantiene para el flow Settings → "+ Nueva Skill".
+    createMineSkillRaw: function(opts) {
+      if (!opts || !opts.title || !opts.content) return null;
+      var title = String(opts.title).trim();
+      if (!title) return null;
+      var content = String(opts.content).trim();
+      var triggers = Array.isArray(opts.triggers) ? opts.triggers.slice() : [];
+      var category = _detectCategory(content);
+      var skill = {
+        id: _genId('skill'),
+        icon: '✦',
+        title: title.length > 60 ? title.slice(0, 57) + '…' : title,
+        description: content.length > 200 ? content.slice(0, 197) + '…' : content,
+        category: category,
+        triggers: triggers,
+        steps: [
+          // Placeholder — backend genera steps reales del workflow
+          'Activar skill cuando el usuario diga: ' + (triggers.join(' / ') || title),
+        ],
+        qualityScore: opts.qualityScore || 0.75,  // mayor que el legacy 0.6 — user editó
+        source: opts.source || 'proposed',
+        enabled: true,
+        createdAt: Date.now(),
+      };
+      _state.mineSkills = _state.mineSkills.concat([skill]);
+      _emit();
+      return skill;
+    },
+
     // A.13.2: Update mine skill — sobreescribe campos del skill creado.
     // Usado por bridge de proposals para pegar title + triggers reales
     // del user después de createMineSkill (que solo recibe rawText).

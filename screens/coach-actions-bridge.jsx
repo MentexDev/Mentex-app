@@ -971,26 +971,28 @@
     var data = detail.finalData;
 
     try {
+      var persistResult = null;
+
       if (detail.type === 'memory' && window.__mtxIAConfig) {
         // El draft.category puede ser 'identity'|'goal'|'context'|'preference'.
         // Fallback a 'context' si no llegó (user-asked sin categoría inferida).
         var memType = (data.category && ['identity','goal','context','preference'].indexOf(data.category) >= 0)
           ? data.category : 'context';
-        // Usar _saveMemory directo para marcar source:'proposal' (no 'manual').
-        // addMemory hardcodea source:'manual' que no refleja el origen real.
-        // Esto preserva auditoría correcta del flujo (auto-detect → proposal → accept).
-        var sourceLabel = detail.wasEdited ? 'user-asked' : 'auto';
-        window.__mtxIAConfig._saveMemory({
+        // A.13.3 audit CRIT-4 fix: source semánticamente correcto.
+        //   - 'proposed'         = el coach detectó + user aceptó sin tocar
+        //   - 'proposed-edited'  = el coach detectó + user editó antes de aceptar
+        // Antes era 'auto' / 'user-asked' — mentirosos cuando el user solo editó
+        // visualmente lo que el coach propuso.
+        var sourceLabel = detail.wasEdited ? 'proposed-edited' : 'proposed';
+        persistResult = window.__mtxIAConfig._saveMemory({
           type: memType,
           label: data.name,
           value: data.content || data.name,
           source: sourceLabel,
         });
+        // A.13.3 audit GAP-4: si _saveMemory retorna null, no persistió.
+        if (!persistResult) throw new Error('memory-save-failed');
       } else if (detail.type === 'knowledge' && window.__mtxIAKnowledge) {
-        // A.13.2: Knowledge desde propuesta inline.
-        // Detector decide kind ('url' o 'text') y domain. Si el user editó,
-        // edits.domain pisa el del draft. URL preservada en el field 'url'
-        // para que SourceCard la muestre y sea clickeable.
         var kKind = data.kind || 'text';
         var ingestOpts = {
           kind: kKind,
@@ -1003,30 +1005,55 @@
         } else {
           ingestOpts.rawText = data.content;
         }
-        window.__mtxIAKnowledge.ingestSource(ingestOpts);
+        persistResult = window.__mtxIAKnowledge.ingestSource(ingestOpts);
+        // A.13.3 audit GAP-4: ingestSource puede retornar null por kind inválido.
+        if (!persistResult) throw new Error('knowledge-ingest-failed');
       } else if (detail.type === 'skill' && window.__mtxIASkills) {
-        // A.13.2: Skill desde propuesta inline.
-        // El name + triggers reales vienen del form. _mockStructureSkill
-        // genera title/steps auto, pero acá ya tenemos data del user.
-        // Usamos createMineSkill (mantiene el flow) + best-effort de sobreescribir.
-        // createMineSkill returns the full skill object (not just id).
-        var createdSkill = window.__mtxIASkills.createMineSkill(data.content, 'text');
-        // Sobreescribir title + triggers reales del user post-creation.
-        try {
-          if (createdSkill && window.__mtxIASkills.updateMineSkill) {
-            window.__mtxIASkills.updateMineSkill(createdSkill.id, {
+        // A.13.3 audit GAP-3: preferir createMineSkillRaw si existe (path
+        // optimizado que NO llama _mockStructureSkill desperdiciando trabajo).
+        // Fallback a createMineSkill + updateMineSkill si no.
+        var finalTriggers = data.triggers && data.triggers.length > 0
+          ? data.triggers
+          : (data.whenToUse ? data.whenToUse.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : []);
+
+        if (window.__mtxIASkills.createMineSkillRaw) {
+          persistResult = window.__mtxIASkills.createMineSkillRaw({
+            title: data.name,
+            content: data.content,
+            triggers: finalTriggers,
+          });
+        } else {
+          persistResult = window.__mtxIASkills.createMineSkill(data.content, 'text');
+          if (persistResult && window.__mtxIASkills.updateMineSkill) {
+            window.__mtxIASkills.updateMineSkill(persistResult.id, {
               title: data.name,
-              triggers: data.triggers && data.triggers.length > 0
-                ? data.triggers
-                : (data.whenToUse ? data.whenToUse.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : []),
+              triggers: finalTriggers,
             });
           }
-        } catch (e) { /* no-op — best-effort */ }
+        }
+        // A.13.3 audit GAP-4: throw si null para que toast warn aparezca.
+        if (!persistResult) throw new Error('skill-create-failed');
+      } else {
+        // Type desconocido — fail explícito (no silent OK)
+        throw new Error('unknown-proposal-type-' + detail.type);
       }
+
       _safeToast('✓ Guardado' + (detail.wasEdited ? ' (editado)' : ''), 'success');
     } catch (err) {
       _safeToast('No se pudo guardar · reintentá', 'warn');
+      console.warn('[coach-proposals bridge] persist failed:', err && err.message);
     }
+  });
+
+  // A.13.3 audit CRIT-3: feedback observable cuando validation falla.
+  window.addEventListener('mtx:proposal-validation-failed', function(e) {
+    var reason = (e && e.detail && e.detail.reason) || 'invalid';
+    var msg = reason === 'name-required'
+      ? 'El nombre no puede estar vacío'
+      : reason === 'content-required'
+        ? 'El contenido no puede estar vacío'
+        : 'Faltan campos para guardar';
+    _safeToast(msg, 'warn');
   });
 
   // Logging opcional de propuestas descartadas (no toca stores)
