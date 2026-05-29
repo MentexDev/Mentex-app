@@ -191,6 +191,10 @@
   }
 
   // Inferir dominio simple por keywords. Brandon LLM real lo hace mejor.
+  // A.13.3 follow-up IMP-9: retorna null cuando no hay match claro.
+  // Antes 'productividad' default → false positive en cualquier URL random.
+  // El consumer (form chip Dominio) ya tiene 'productividad' como default
+  // visual si null. Mejor "no inferí" honesto que "inferí mal".
   function _inferDominio(text) {
     var t = String(text || '').toLowerCase();
     if (/\b(productividad|enfoque|deep\s*work|focus|gestion[a-z]+\s+de\s+tiempo|atomico)/i.test(t)) return 'productividad';
@@ -198,7 +202,7 @@
     if (/\b(aprend|estudi|curso|leer|libro|paper|investigac|tecnolog[íi]a|ciencia)/i.test(t)) return 'aprendizaje';
     if (/\b(escrib|dise[ñn]o|creat|arte|m[úu]sica|video|narrat|storytell)/i.test(t)) return 'creatividad';
     if (/\b(relacion|pareja|amigos|comunidad|empat[íi]a|conversaci[óo]n)/i.test(t)) return 'relaciones';
-    return 'productividad';  // default neutral
+    return null;  // honest "no inferido" — consumer puede usar default
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -217,7 +221,11 @@
   // Path 3 es el más interesante pero más arriesgado; lo mantengo conservador.
   var _SKILL_EXPLICIT_PATTERN = /\b(?:guarda(?:r)?|crear?|hac(?:er|elo))\s+(?:esto|esta|esa|esa\s+conversaci[óo]n)\s+(?:como\s+|en\s+)?(?:skill|habilidad|workflow|flujo|rutina|procedimiento)\b/i;
   var _SKILL_SECONDARY_PATTERN = /\b(?:esto|esta\s+conversaci[óo]n)\s+(?:la\s+)?(?:repito|hago\s+(?:siempre|cada|todos\s+los)|es\s+(?:mi|un)\s+(?:proceso|workflow|patr[óo]n|rutina))\b/i;
-  var _STEPS_PATTERN = /^\s*1[\.\)]\s+.+\n+\s*2[\.\)]\s+.+\n+\s*3[\.\)]/m;
+  // A.13.3 follow-up IMP-1: regex tolerante con whitespace y separators.
+  // Antes requería `\n+` estricto — fallaba con `1. a\n2. b\n3. c` (single \n).
+  // Ahora acepta cualquier separador entre items: \n, \r\n, ; o múltiples
+  // \n. También permite bullets con `1)` además de `1.`.
+  var _STEPS_PATTERN = /\b1[\.\)]\s+.+?[\n;]\s*2[\.\)]\s+.+?[\n;]\s*3[\.\)]/;
 
   function _detectSkill(content, convContext) {
     if (!content || typeof content !== 'string') return null;
@@ -313,7 +321,9 @@
       if (verbMatch) triggers.push(verbMatch[1]);
     }
 
-    return triggers.slice(0, 3);  // máx 3 triggers
+    // A.13.3 follow-up IMP-4: sync con form limit (5). Antes era 3 — si user
+    // aceptaba directo, perdía 2 triggers potenciales. Form permite hasta 5.
+    return triggers.slice(0, 5);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -346,6 +356,10 @@
   //   - Ya hay pending similar
   function _onMessageSent(e) {
     var detail = e && e.detail;
+    // A.13.3 follow-up GAP-6: skip mensajes sin content (solo attachments).
+    // El user puede mandar una imagen sin texto — no hay base para extraer
+    // knowledge/skill desde regex. Cuando llegue LLM real con vision, este
+    // path se reemplaza por análisis multimodal del image content.
     if (!detail || !detail.content) return;
     var content = detail.content;
     var convId = detail.convId;

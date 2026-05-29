@@ -1907,6 +1907,14 @@ function MemoryTab() {
 // con UX específica por tipo (color, eyebrow, suggestions, placeholders).
 // Estructura: title input (label) + detalle textarea (value) + quick-chips
 // que pre-pueblan el label.
+//
+// A.13.3 follow-up GAP-7: este componente queda como dead code intencionado.
+// La UI principal de Memoria ya NO expone botón "+ Agregar manual" (RFC-003
+// doctrina: memoria es auto-aprendida via ProposalCard). Se preserva el
+// componente para:
+//   • Slash commands futuros (ej. /recordar X que abre este modal)
+//   • Power users que quieran agregar manual via deep link
+//   • Brandon backend testing si necesita poblar memorias dev-mode
 function MemoryAddModal(props) {
   var type = _MEMORY_TYPES.find(function(t) { return t.id === props.type; }) || _MEMORY_TYPES[0];
   var labelState = React.useState('');

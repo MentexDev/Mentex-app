@@ -162,9 +162,12 @@
       id: opts.id || _genId(),
       type: opts.type,
       draft: {
-        name: opts.draft.name || '',
-        whenToUse: opts.draft.whenToUse || '',
-        content: opts.draft.content || '',
+        // A.13.3 follow-up IMP-6: trim al ingresar al store para consistency
+        // con _hasPendingSimilar (que normaliza) y validation (que checks trim).
+        // Antes el store guardaba whitespace, dedupado fallaba con leading/trailing space.
+        name: (opts.draft.name || '').trim(),
+        whenToUse: (opts.draft.whenToUse || '').trim(),
+        content: (opts.draft.content || '').trim(),
         // type-specific opcionales (preservar lo que llegue)
         category: opts.draft.category,        // memory
         domain: opts.draft.domain,            // knowledge
@@ -174,6 +177,11 @@
         tags: opts.draft.tags,
       },
       status: 'pending',
+      // A.13.3 follow-up CONS-3: confidence vive top-level (no en draft).
+      // Razón: draft contiene SOLO lo que el user puede editar (name/content/
+      // domain/triggers). Confidence es metadata del detector, no editable.
+      // Brandon backend: persistir como column separada en tabla proposals,
+      // NO embebido en JSON del draft.
       confidence: typeof opts.confidence === 'number' ? opts.confidence : null,
       sourceMessageId: opts.sourceMessageId || null,
       sourceConvId: opts.sourceConvId || null,
@@ -666,7 +674,11 @@
         window.__mtxBodyLock.lock();
         return function() { window.__mtxBodyLock.unlock(); };
       }
-      // Fallback simple si __mtxBodyLock no está disponible aún
+      // A.13.3 follow-up GAP-1: warn explícito si __mtxBodyLock no cargó.
+      // El fallback funciona pero con 2 sheets nested puede dejar body con
+      // overflow:hidden permanente. Warn al developer para investigar.
+      console.warn('[ProposalEditSheet] __mtxBodyLock no disponible — fallback simple. ' +
+        'Si hay 2 sheets nested, puede haber body lock leak.');
       var prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return function() { document.body.style.overflow = prev; };
@@ -1083,7 +1095,10 @@
                 animation: 'mtx-fade-up .25s ease both',
               }}>
                 {/* Confidence + source meta */}
-                {typeof prop.confidence === 'number' && (
+                {/* A.13.3 follow-up IMP-8: skip render si confidence muy baja.
+                    Confidence 0 (o < 5%) en UI confunde — el user piensa que
+                    el coach "no confía" cuando en realidad nunca se asignó. */}
+                {typeof prop.confidence === 'number' && prop.confidence >= 0.05 && (
                   <div style={{
                     fontSize: 11, color: 'var(--ink-4)',
                     fontFamily: 'var(--ff-sans)',
