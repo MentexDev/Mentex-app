@@ -3807,6 +3807,11 @@ function ChatOptionsSheet(props) {
   var onClose = props.onClose;
   var backdropDownRef = React.useRef(false);
 
+  // Audit IMP-2 fix: defender onClose contra undefined antes de invocarlo
+  // (si el parent olvida pasar la prop). Patrón requerido para todos los
+  // handlers expuestos al keyboard/backdrop.
+  function safeClose() { if (typeof onClose === 'function') onClose(); }
+
   React.useEffect(function() {
     function onKey(e) {
       if (e.isComposing || e.keyCode === 229) return;
@@ -3814,7 +3819,7 @@ function ChatOptionsSheet(props) {
         var t = e.target;
         var tag = (t && t.tagName) || '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
-        onClose();
+        safeClose();
       }
     }
     window.addEventListener('keydown', onKey);
@@ -3833,7 +3838,7 @@ function ChatOptionsSheet(props) {
     backdropDownRef.current = (e.target === e.currentTarget);
   }
   function handleBackdropClick(e) {
-    if (backdropDownRef.current && e.target === e.currentTarget) onClose();
+    if (backdropDownRef.current && e.target === e.currentTarget) safeClose();
     backdropDownRef.current = false;
   }
 
@@ -3940,7 +3945,7 @@ function ChatOptionsSheet(props) {
 
         {/* Cancel */}
         <div style={{ padding: '14px 18px 0' }}>
-          <button onClick={onClose} className="mtx-tap" style={{
+          <button onClick={safeClose} className="mtx-tap" style={{
             width: '100%', height: 48, borderRadius: 14, cursor: 'pointer',
             border: '0.5px solid var(--glass-stroke)',
             background: 'var(--glass-2)', color: 'var(--ink-2)',

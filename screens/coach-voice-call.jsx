@@ -172,19 +172,52 @@ function CoachVoiceCallOverlay() {
   // Mentex Home.html, `useVoiceTranscription` siempre está disponible.
   // Si el SpeechRecognition no es soportado (iframe sandbox, browser viejo),
   // el hook retorna status='unsupported' y los handlers son no-op — graceful.
-  var voice = window.useVoiceTranscription({
+  // A.15 audit CRIT-G fix: useVoiceTranscription.onFinalResult devuelve el
+  // texto ACUMULADO completo cada vez (no el delta). Si concateno cada
+  // resultado al transcript array, el user ve duplicados crecientes:
+  //   Turn 1: "hola"
+  //   Turn 2: "hola cómo estás"
+  //   Turn 3: "hola cómo estás bien"
+  // Fix: si la última entrada del transcript es del user dentro de GAP_MS,
+  // la REEMPLAZO con el texto cumulative. Sino, agrego nueva entrada (nuevo
+  // turno cuando el user retomó la palabra tras gap natural >8s).
+  //
+  // CRIT-B fix: si useVoiceTranscription no está disponible al primer paint
+  // (cache miss, script tardío), uso un noop-hook que respeta la firma y NO
+  // viola Rules of Hooks (siempre se llama un hook en el mismo orden, sin
+  // condicionales). Si el global aparece después, el segundo render lo usará.
+  var lastUserTurnAtRef = React.useRef(0);
+  function _noopHook() {
+    // Hook stub válido: usa los mismos hooks internos React (ninguno) y
+    // retorna API compatible. Cumple Rules of Hooks por mantener el orden.
+    return { startListening:function(){}, stopListening:function(){}, pauseListening:function(){}, resumeListening:function(){}, reset:function(){}, status:'unsupported', isSupported:false };
+  }
+  var _useVoiceHook = (typeof window !== 'undefined' && typeof window.useVoiceTranscription === 'function')
+    ? window.useVoiceTranscription
+    : _noopHook;
+  var voice = _useVoiceHook({
     lang: 'es-ES',
     onFinalResult: function(finalText) {
       if (!finalText || !finalText.trim()) return;
       if (endedFlagRef.current) return;
-      // Push como turno del user al transcript en vivo.
+      var now = Date.now();
+      var GAP_MS = 8000;
       setTranscript(function(prev) {
-        return prev.concat([{ speaker: 'user', text: finalText.trim(), ts: Date.now() }]);
+        var last = prev[prev.length - 1];
+        var withinGap = (now - lastUserTurnAtRef.current) < GAP_MS;
+        if (last && last.speaker === 'user' && withinGap) {
+          // Reemplaza el último turno del user con texto acumulado actualizado
+          var copy = prev.slice(0, prev.length - 1);
+          copy.push({ speaker: 'user', text: finalText.trim(), ts: now });
+          lastUserTurnAtRef.current = now;
+          return copy;
+        }
+        // Nuevo turno del user (gap >8s o último era del coach)
+        lastUserTurnAtRef.current = now;
+        return prev.concat([{ speaker: 'user', text: finalText.trim(), ts: now }]);
       });
     },
     onError: function(msg) {
-      // STT puede fallar (permiso denegado, no soportado en iframe). En ese
-      // caso el flow degrada a mock-only sin romper el overlay.
       console.warn('[voice-call STT]', msg);
     },
   });
